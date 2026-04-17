@@ -1,6 +1,10 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.24 (2026/04/17)
+* 修复了独立行注释被错误合并和对齐的 BUG
+* Fix the bug where standalone comment lines were incorrectly merged and aligned
+
 ### 0.3.23 (2026/04/17)
 * 优化了 '--' 注释的对齐功能
 * 确保 '--' 注释符号与内容之间有一个空格
