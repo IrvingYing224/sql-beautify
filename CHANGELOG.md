@@ -1,6 +1,12 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.23 (2026/04/17)
+* 优化了 '--' 注释的对齐功能
+* 确保 '--' 注释符号与内容之间有一个空格
+* Optimize the alignment of '--' comments
+* Ensure there is a space between the '--' symbol and the comment content
+
 ### 0.3.22 (2023/08/26)
 * 修正了一些BUG
 * FIx some bugs
