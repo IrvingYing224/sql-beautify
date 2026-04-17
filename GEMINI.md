@@ -1,5 +1,6 @@
 # 核心规则
 * **文档编写和回复必须使用简体中文。**
+* **提交代码时必须忽略 .vsix 文件。**
 
 # 项目概述
 本项目是一个名为 **SQL Beautify** (`vscode-sql-beautify`) 的 Visual Studio Code 插件。它的主要功能是格式化和美化 SQL 及 Hive SQL (HQL) 代码。
