@@ -67,6 +67,10 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 * Chatgpt横空出世，本插件几乎宣告下岗。Chatgpt was born out of nowhere, this plug-in was almost laid off
 
 # 😎 更迭日志 Release Notes
+### 0.3.25 (2026/04/21)
+* 深度优化了 `CASE WHEN` 对齐和换行逻辑
+* Optimized `CASE WHEN` alignment and wrapping
+
 ### 0.3.22 (2023/08/26)
 * 修正了一些BUG
 * FIx some bugs

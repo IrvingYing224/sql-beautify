@@ -1,6 +1,14 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.25 (2026/04/21)
+* 深度优化了 `CASE WHEN` 的对齐和换行逻辑
+* 确保多 `WHEN` 情况下的 `THEN` 关键字纵向对齐
+* 强制 `ELSE` 和 `END` 换行，并对齐 `ELSE` 的结果值
+* Deeply optimized the alignment and line-wrapping logic of `CASE WHEN`
+* Ensured the `THEN` keywords are vertically aligned in multi-`WHEN` scenarios
+* Forced `ELSE` and `END` to wrap to new lines and aligned the result values of `ELSE`
+
 ### 0.3.24 (2026/04/17)
 * 修复了独立行注释被错误合并和对齐的 BUG
 * Fix the bug where standalone comment lines were incorrectly merged and aligned
