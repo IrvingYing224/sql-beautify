@@ -27,7 +27,7 @@
 		"type": "git",
 		"url": "https://github.com/clarkyu2016/sql-beautify.git"
 	},
-	"main": "./extension",
+	"main": "./extension.js",
 	"contributes": {
 		"commands": [
 			{
@@ -79,12 +79,19 @@
 					"type": "number",
 					"default": 150,
 					"description": "Set max length of the column to align words after `as`  /自定义当你的字段长度超过多少字符，不参加as对齐(整个字段长度包括as后面的列名)"
+				},
+				"extension.case_when_then_wrap_length": {
+					"scope": "resource",
+					"type": "number",
+					"default": 50,
+					"description": "Wrap all THEN/ELSE values in a CASE block when any WHEN condition or THEN value exceeds this length  /当 CASE 中任一 WHEN 条件或 THEN 结果超过该长度时，将整段 THEN/ELSE 值换到下一行"
 				}
 			}
 		}
 	},
 	"scripts": {
-		"postinstall": "node ./node_modules/vscode/bin/install"
+		"postinstall": "node ./node_modules/vscode/bin/install",
+		"test:case": "node tests/case-when.test.js"
 	},
 	"icon": "images/icon.png",
 	"dependencies": {

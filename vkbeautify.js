@@ -242,8 +242,467 @@ function bracket_deep(str) {
 	return text_final
 };
 
+function is_word_char(ch) {
+	return /[A-Za-z0-9_]/.test(ch || '');
+}
 
-function select_wrap(text,tag,as_loc_cnt) {
+function get_line_comment_loc(text) {
+	if (text.indexOf('--') < 0) {
+		return -1;
+	}
+	return return_right_comment_loc(text);
+}
+
+function split_code_and_comment(text) {
+	var comment_loc = get_line_comment_loc(text);
+	if (comment_loc >= 0) {
+		return {
+			code: text.slice(0, comment_loc).replace(/\s+$/ig, ''),
+			comment: text.slice(comment_loc).replace(/\s+$/ig, '')
+		};
+	}
+
+	return {
+		code: text.replace(/\s+$/ig, ''),
+		comment: ''
+	};
+}
+
+function split_line_before_end(text) {
+	var parts = split_code_and_comment(text);
+	var tokens = get_case_tokens(parts.code);
+	var end_token = null;
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].word == 'END') {
+			end_token = tokens[i];
+			break;
+		}
+	}
+
+	if (end_token == null) {
+		return null;
+	}
+
+	return {
+		before_end: parts.code.slice(0, end_token.start).replace(/\s+$/ig, ''),
+		suffix_text: parts.code.slice(end_token.end).replace(/^\s+/ig, '').replace(/\s+$/ig, ''),
+		comment: parts.comment
+	};
+}
+
+function get_case_tokens(text) {
+	var tokens = [];
+	var quote_cnt = 0;
+	var quote_tag = '';
+	var case_depth = 0;
+
+	for (let i = 0; i < text.length; i++) {
+		if ((text[i] == '"' || text[i] == "'")) {
+			if (quote_cnt == 0) {
+				quote_cnt = 1;
+				quote_tag = text[i];
+			} else if (text[i] == quote_tag) {
+				quote_cnt = 0;
+				quote_tag = '';
+			}
+			continue;
+		}
+
+		if (quote_cnt > 0) {
+			continue;
+		}
+
+		if (text[i] == '-' && text[i + 1] == '-') {
+			break;
+		}
+
+		if (!is_word_char(text[i])) {
+			continue;
+		}
+
+		var start = i;
+		while (i < text.length && is_word_char(text[i])) {
+			i += 1;
+		}
+
+		var end = i;
+		var word = text.slice(start, end).toUpperCase();
+		var prev_char = start > 0 ? text[start - 1] : '';
+		var next_char = end < text.length ? text[end] : '';
+
+		if (is_word_char(prev_char) || is_word_char(next_char)) {
+			i -= 1;
+			continue;
+		}
+
+		if (word == 'CASE') {
+			case_depth += 1;
+			tokens.push({ word: word, start: start, end: end, depth: case_depth });
+		} else if (word == 'END') {
+			tokens.push({ word: word, start: start, end: end, depth: case_depth });
+			if (case_depth > 0) {
+				case_depth -= 1;
+			}
+		} else if (word == 'WHEN' || word == 'THEN' || word == 'ELSE') {
+			tokens.push({ word: word, start: start, end: end, depth: case_depth });
+		}
+
+		i -= 1;
+	}
+
+	return tokens;
+}
+
+function format_case_branch_value(indent, keyword, value_text) {
+	var value_parts = split_code_and_comment(value_text);
+	var line = indent + keyword;
+
+	if (value_parts.code != '') {
+		line += ' ' + value_parts.code;
+	}
+
+	if (value_parts.comment != '') {
+		line += ' ' + value_parts.comment;
+	}
+
+	return line.replace(/\s+$/ig, '');
+}
+
+function get_case_prefix_layout(prefix_raw) {
+	var prefix_trimmed = prefix_raw.replace(/\s+$/ig, '');
+
+	if (/^SELECT$/i.exec(prefix_trimmed)) {
+		return {
+			prefix_output: 'SELECT',
+			case_line_prefix: '       ',
+			case_start_indent: '       '
+		};
+	}
+
+	if (/^GROUP BY$/i.exec(prefix_trimmed)) {
+		return {
+			prefix_output: 'GROUP BY',
+			case_line_prefix: '         ',
+			case_start_indent: '         '
+		};
+	}
+
+	if (/^\s*,$/.exec(prefix_trimmed)) {
+		return {
+			prefix_output: null,
+			case_line_prefix: prefix_trimmed,
+			case_start_indent: " ".times(prefix_trimmed.length)
+		};
+	}
+
+	return {
+		prefix_output: null,
+		case_line_prefix: prefix_raw,
+		case_start_indent: prefix_raw
+	};
+}
+
+function build_case_formatted_text(prefix_raw, case_operand, when_items, else_value, suffix_text, case_when_then_wrap_length) {
+	if (when_items.length == 0) {
+		return null;
+	}
+
+	var layout = get_case_prefix_layout(prefix_raw);
+	var wrap_limit = parseInt(case_when_then_wrap_length, 10);
+	if (!wrap_limit || wrap_limit < 1) {
+		wrap_limit = 50;
+	}
+
+	var should_wrap_then = false;
+	var max_when_header_len = 0;
+
+	for (let i = 0; i < when_items.length; i++) {
+		var when_header = 'WHEN ' + when_items[i].when_text;
+		if (when_header.length > max_when_header_len) {
+			max_when_header_len = when_header.length;
+		}
+		if (when_items[i].when_text.length > wrap_limit || when_items[i].then_text.length > wrap_limit) {
+			should_wrap_then = true;
+		}
+	}
+
+	var when_indent = layout.case_start_indent + '    ';
+	var value_indent = when_indent + '    ';
+	var lines = [];
+
+	if (layout.prefix_output != null) {
+		lines.push(layout.prefix_output);
+	}
+
+	lines.push(layout.case_line_prefix + 'CASE' + (case_operand != '' ? ' ' + case_operand : ''));
+
+	for (let i = 0; i < when_items.length; i++) {
+		var when_line = when_indent + 'WHEN ' + when_items[i].when_text;
+		if (should_wrap_then) {
+			lines.push(when_line);
+			lines.push(format_case_branch_value(value_indent, 'THEN', when_items[i].then_text));
+		} else {
+			var padding = " ".times(max_when_header_len - ('WHEN ' + when_items[i].when_text).length);
+			lines.push(format_case_branch_value(when_indent, 'WHEN ' + when_items[i].when_text + padding + ' THEN', when_items[i].then_text));
+		}
+	}
+
+	if (else_value != '') {
+		if (should_wrap_then) {
+			lines.push(when_indent + 'ELSE');
+			lines.push((value_indent + else_value).replace(/\s+$/ig, ''));
+		} else {
+			lines.push((when_indent + 'ELSE ' + else_value).replace(/\s+$/ig, ''));
+		}
+	}
+
+	lines.push((layout.case_start_indent + 'END' + (suffix_text != '' ? ' ' + suffix_text : '')).replace(/\s+$/ig, ''));
+
+	return lines.join('\n');
+}
+
+function format_case_expression_line(line, case_when_then_wrap_length) {
+	if (!/CASE/ig.exec(line) || !/END/ig.exec(line)) {
+		return null;
+	}
+
+	var tokens = get_case_tokens(line);
+	var root_case = null;
+	var root_end = null;
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].word == 'CASE' && tokens[i].depth == 1) {
+			root_case = tokens[i];
+			break;
+		}
+	}
+
+	if (root_case == null) {
+		return null;
+	}
+
+	var prefix_raw = line.slice(0, root_case.start);
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].word == 'END' && tokens[i].depth == 1 && tokens[i].start > root_case.start) {
+			root_end = tokens[i];
+			break;
+		}
+	}
+
+	if (root_end == null) {
+		return null;
+	}
+
+	var boundary_tokens = [];
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].depth == 1 && tokens[i].start > root_case.start && tokens[i].start < root_end.start && (tokens[i].word == 'WHEN' || tokens[i].word == 'THEN' || tokens[i].word == 'ELSE')) {
+			boundary_tokens.push(tokens[i]);
+		}
+	}
+
+	var first_when = null;
+	for (let i = 0; i < boundary_tokens.length; i++) {
+		if (boundary_tokens[i].word == 'WHEN') {
+			first_when = boundary_tokens[i];
+			break;
+		}
+	}
+
+	if (first_when == null) {
+		return null;
+	}
+
+	var case_operand = line.slice(root_case.end, first_when.start).replace(/\s+/ig, ' ').trim();
+	var when_items = [];
+	var else_value = '';
+	var next_boundary = root_end;
+
+	for (let i = 0; i < boundary_tokens.length; i++) {
+		if (boundary_tokens[i].word == 'WHEN') {
+			var then_token = null;
+			for (let j = i + 1; j < boundary_tokens.length; j++) {
+				if (boundary_tokens[j].word == 'THEN') {
+					then_token = boundary_tokens[j];
+					break;
+				}
+				if (boundary_tokens[j].word == 'WHEN' || boundary_tokens[j].word == 'ELSE') {
+					break;
+				}
+			}
+
+			if (then_token == null) {
+				return null;
+			}
+
+			next_boundary = root_end;
+			for (let j = i + 1; j < boundary_tokens.length; j++) {
+				if (boundary_tokens[j].start > then_token.start && (boundary_tokens[j].word == 'WHEN' || boundary_tokens[j].word == 'ELSE')) {
+					next_boundary = boundary_tokens[j];
+					break;
+				}
+			}
+
+			when_items.push({
+				when_text: line.slice(boundary_tokens[i].end, then_token.start).replace(/\s+/ig, ' ').trim(),
+				then_text: line.slice(then_token.end, next_boundary.start).replace(/\s+/ig, ' ').trim()
+			});
+		}
+
+		if (boundary_tokens[i].word == 'ELSE') {
+			else_value = line.slice(boundary_tokens[i].end, root_end.start).replace(/\s+/ig, ' ').trim();
+			break;
+		}
+	}
+
+	if (when_items.length == 0) {
+		return null;
+	}
+
+	var wrap_limit = parseInt(case_when_then_wrap_length, 10);
+	if (!wrap_limit || wrap_limit < 1) {
+		wrap_limit = 50;
+	}
+	return build_case_formatted_text(prefix_raw, case_operand, when_items, else_value, line.slice(root_end.end).trim(), wrap_limit);
+}
+
+function format_case_blocks(str, case_when_then_wrap_length) {
+	var text_list = str.split('\n');
+	var text_final = [];
+
+	for (let i = 0; i < text_list.length; i++) {
+		var current_line = text_list[i];
+		var case_loc = -1;
+		var line_tokens = get_case_tokens(current_line);
+
+		for (let j = 0; j < line_tokens.length; j++) {
+			if (line_tokens[j].word == 'CASE' && line_tokens[j].depth == 1) {
+				case_loc = line_tokens[j].start;
+				break;
+			}
+		}
+
+		if (case_loc < 0) {
+			text_final.push(current_line);
+			continue;
+		}
+
+		var block_lines = [current_line];
+		var block_end_index = i;
+		var end_suffix = '';
+
+		for (let j = i + 1; j < text_list.length; j++) {
+			var end_line_parts = split_line_before_end(text_list[j]);
+			if (end_line_parts != null) {
+				if (end_line_parts.before_end != '') {
+					block_lines.push(end_line_parts.before_end);
+				}
+				block_end_index = j;
+				end_suffix = end_line_parts.suffix_text + (end_line_parts.comment != '' ? ' ' + end_line_parts.comment : '');
+				break;
+			}
+			block_lines.push(text_list[j]);
+		}
+
+		if (block_end_index == i) {
+			text_final.push(current_line);
+			continue;
+		}
+
+		var prefix_raw = current_line.slice(0, case_loc);
+		var first_line_parts = split_code_and_comment(current_line.slice(case_loc + 4));
+		var case_after_text = first_line_parts.code.replace(/\s+/ig, ' ').trim();
+		var case_operand = '';
+		var when_items = [];
+		var else_value = '';
+		var pending_type = '';
+
+		if (case_after_text != '') {
+			if (/^WHEN\b/i.exec(case_after_text)) {
+				block_lines[0] = 'WHEN ' + case_after_text.replace(/^WHEN\b/i, '').trim() + (first_line_parts.comment != '' ? ' ' + first_line_parts.comment : '');
+			} else {
+				var case_match = /^(.*?)(\bWHEN\b.*)$/i.exec(case_after_text);
+				if (case_match) {
+					case_operand = case_match[1].replace(/\s+/ig, ' ').trim();
+					block_lines[0] = case_match[2] + (first_line_parts.comment != '' ? ' ' + first_line_parts.comment : '');
+				} else {
+					case_operand = case_after_text;
+					block_lines[0] = '';
+				}
+			}
+		} else {
+			block_lines[0] = '';
+		}
+
+		for (let j = 0; j < block_lines.length; j++) {
+			var source_line = block_lines[j];
+			var parts = split_code_and_comment(source_line);
+			var code = parts.code.replace(/^\s+/ig, '').replace(/\s+/ig, ' ').trim();
+			if (code == '') {
+				continue;
+			}
+
+			if (/^WHEN\b/i.exec(code)) {
+				var then_match = /^WHEN\b(.*)\bTHEN\b(.*)$/i.exec(code);
+				if (then_match) {
+					when_items.push({
+						when_text: then_match[1].replace(/\s+/ig, ' ').trim(),
+						then_text: then_match[2].replace(/\s+/ig, ' ').trim() + (parts.comment != '' ? ' ' + parts.comment : '')
+					});
+					pending_type = '';
+				} else {
+					when_items.push({
+						when_text: code.replace(/^WHEN\b/i, '').replace(/\s+/ig, ' ').trim(),
+						then_text: ''
+					});
+					pending_type = 'THEN';
+				}
+				continue;
+			}
+
+			if (/^THEN\b/i.exec(code) && when_items.length > 0) {
+				when_items[when_items.length - 1].then_text = code.replace(/^THEN\b/i, '').replace(/\s+/ig, ' ').trim() + (parts.comment != '' ? ' ' + parts.comment : '');
+				pending_type = '';
+				continue;
+			}
+
+			if (/^ELSE\b/i.exec(code)) {
+				else_value = code.replace(/^ELSE\b/i, '').replace(/\s+/ig, ' ').trim() + (parts.comment != '' ? ' ' + parts.comment : '');
+				pending_type = else_value == '' ? 'ELSE' : '';
+				continue;
+			}
+
+			if (pending_type == 'THEN' && when_items.length > 0) {
+				when_items[when_items.length - 1].then_text = code + (parts.comment != '' ? ' ' + parts.comment : '');
+				pending_type = '';
+				continue;
+			}
+
+			if (pending_type == 'ELSE') {
+				else_value = code + (parts.comment != '' ? ' ' + parts.comment : '');
+				pending_type = '';
+			}
+		}
+
+		var formatted_block = build_case_formatted_text(prefix_raw, case_operand, when_items, else_value, end_suffix, case_when_then_wrap_length);
+		if (formatted_block == null) {
+			text_final.push(current_line);
+			continue;
+		}
+
+		var formatted_lines = formatted_block.split('\n');
+		for (let j = 0; j < formatted_lines.length; j++) {
+			text_final.push(formatted_lines[j]);
+		}
+		i = block_end_index;
+	}
+
+	return text_final.join('\n');
+}
+
+
+function select_wrap(text,tag,as_loc_cnt,case_when_then_wrap_length) {
 	var text_final = '';
 	var bracket_cnt = 0;
 	var quote_cnt = 0;
@@ -296,224 +755,12 @@ function select_wrap(text,tag,as_loc_cnt) {
 
 	text_list = text_final.split('\n');
 
-	// 如果else 和 end 对应上面没有 -- 那么就不再换行，如果有就换行
-	if(tag == 0){
-		for (let i = 0; i < text_list.length; i++){
-			if(/       \,CASE WHEN/ig.exec(text_list[i])){   
-				// console.log(text_list[i]);
-				var case_when_list = text_list[i].replace(/WHEN/ig,'\nWHEN').replace(/ELSE/ig,"\nELSE").replace(/\s{1,}END/ig,"\nEND").split("\n");
-				var max_when_len = 0;
-				for (var k = 0; k < case_when_list.length; k++) {
-					var then_pos = case_when_list[k].toUpperCase().indexOf(' THEN ');
-					var when_pos = case_when_list[k].toUpperCase().indexOf('WHEN ');
-					if (then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-						var len = then_pos - when_pos;
-						if (len > max_when_len) max_when_len = len;
-					}
-				}
-				var c = 0;
-				var if_comment = 0;
-				var case_indent = " ".times(case_when_list[0].length);
-				while (c < case_when_list.length){
-					var line = case_when_list[c];
-					if(c==0){
-						line = case_when_list[c] + case_when_list[c+1];
-						var then_pos = line.toUpperCase().lastIndexOf(' THEN ');
-						var when_pos = line.toUpperCase().indexOf('WHEN ');
-						if (max_when_len > 0 && then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-							var len = then_pos - when_pos;
-							if (len < max_when_len) {
-								line = line.slice(0, then_pos) + " ".times(max_when_len - len) + line.slice(then_pos);
-							}
-						}
-						text_final_case += '\n' + line;
-						c += 1;
-					}else{
-						var then_pos = line.toUpperCase().indexOf(' THEN ');
-						var when_pos = line.toUpperCase().indexOf('WHEN ');
-						var else_pos = line.toUpperCase().indexOf('ELSE ');
-						if (max_when_len > 0 && then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-							var len = then_pos - when_pos;
-							if (len < max_when_len) {
-								line = line.slice(0, then_pos) + " ".times(max_when_len - len) + line.slice(then_pos);
-							}
-						} else if (max_when_len > 0 && else_pos >= 0) {
-							// Align ELSE value with THEN values
-							line = line.slice(0, else_pos + 4) + " ".times(max_when_len + 1) + line.slice(else_pos + 5);
-						}
-						text_final_case += '\n' + case_indent + line;
-					}
-					if(case_when_list[c].indexOf("--") > 0){
-						if_comment = 1;
-					}else{
-						if_comment = 0;
-					}
-					c += 1;
-				}
-			}else if(/\SELECT\s{0,}CASE WHEN/ig.exec(text_list[i])){
-				var case_when_list = text_list[i].replace(/WHEN/ig,'\nWHEN').replace(/ELSE/ig,"\nELSE").replace(/\s{1,}END/ig,"\nEND").split("\n");
-				var max_when_len = 0;
-				for (var k = 0; k < case_when_list.length; k++) {
-					var then_pos = case_when_list[k].toUpperCase().indexOf(' THEN ');
-					var when_pos = case_when_list[k].toUpperCase().indexOf('WHEN ');
-					if (then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-						var len = then_pos - when_pos;
-						if (len > max_when_len) max_when_len = len;
-					}
-				}
-				var c = 0;
-				var if_comment = 0;
-				var case_indent = " ".times(case_when_list[0].length);
-				while (c < case_when_list.length){
-					var line = case_when_list[c];
-					if(c==0){
-						line = case_when_list[c] + case_when_list[c+1];
-						var then_pos = line.toUpperCase().lastIndexOf(' THEN ');
-						var when_pos = line.toUpperCase().indexOf('WHEN ');
-						if (max_when_len > 0 && then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-							var len = then_pos - when_pos;
-							if (len < max_when_len) {
-								line = line.slice(0, then_pos) + " ".times(max_when_len - len) + line.slice(then_pos);
-							}
-						}
-						text_final_case += '\n' + line;
-						c += 1;
-					}else{
-						var then_pos = line.toUpperCase().indexOf(' THEN ');
-						var when_pos = line.toUpperCase().indexOf('WHEN ');
-						var else_pos = line.toUpperCase().indexOf('ELSE ');
-						if (max_when_len > 0 && then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-							var len = then_pos - when_pos;
-							if (len < max_when_len) {
-								line = line.slice(0, then_pos) + " ".times(max_when_len - len) + line.slice(then_pos);
-							}
-						} else if (max_when_len > 0 && else_pos >= 0) {
-							// Align ELSE value with THEN values
-							line = line.slice(0, else_pos + 4) + " ".times(max_when_len + 1) + line.slice(else_pos + 5);
-						}
-						text_final_case += '\n' + case_indent + line;
-					}
-					if(case_when_list[c].indexOf("--") > 0){
-						if_comment = 1;
-					}else{
-						if_comment = 0;
-					}
-					c += 1;
-				}
-			}
-			else{
-				text_final_case += '\n' + text_list[i];
-			}
-		}
-	}
-
-	if(tag == 1){
-		for (let i = 0; i < text_list.length; i++){
-			if(/       \,CASE WHEN/ig.exec(text_list[i])){
-				// console.log(text_list[i]);
-				var case_when_list = text_list[i].replace(/WHEN/ig,'\nWHEN').replace(/ELSE/ig,"\nELSE").replace(/\s{1,}END/ig,"\nEND").split("\n");
-				var max_when_len = 0;
-				for (var k = 0; k < case_when_list.length; k++) {
-					var then_pos = case_when_list[k].toUpperCase().indexOf(' THEN ');
-					var when_pos = case_when_list[k].toUpperCase().indexOf('WHEN ');
-					if (then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-						var len = then_pos - when_pos;
-						if (len > max_when_len) max_when_len = len;
-					}
-				}
-				var c = 0;
-				var if_comment = 0;
-				var case_indent = " ".times(case_when_list[0].length);
-				while (c < case_when_list.length){
-					var line = case_when_list[c];
-					if(c==0){
-						line = case_when_list[c] + case_when_list[c+1];
-						var then_pos = line.toUpperCase().lastIndexOf(' THEN ');
-						var when_pos = line.toUpperCase().indexOf('WHEN ');
-						if (max_when_len > 0 && then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-							var len = then_pos - when_pos;
-							if (len < max_when_len) {
-								line = line.slice(0, then_pos) + " ".times(max_when_len - len) + line.slice(then_pos);
-							}
-						}
-						text_final_case += '\n' + line;
-						c += 1;
-					}else{
-						var then_pos = line.toUpperCase().indexOf(' THEN ');
-						var when_pos = line.toUpperCase().indexOf('WHEN ');
-						var else_pos = line.toUpperCase().indexOf('ELSE ');
-						if (max_when_len > 0 && then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-							var len = then_pos - when_pos;
-							if (len < max_when_len) {
-								line = line.slice(0, then_pos) + " ".times(max_when_len - len) + line.slice(then_pos);
-							}
-						} else if (max_when_len > 0 && else_pos >= 0) {
-							// Align ELSE value with THEN values
-							line = line.slice(0, else_pos + 4) + " ".times(max_when_len + 1) + line.slice(else_pos + 5);
-						}
-						text_final_case += '\n' + case_indent + line;
-					}
-					if(case_when_list[c].indexOf("--") > 0){
-						if_comment = 1;
-					}else{
-						if_comment = 0;
-					}
-					c += 1;
-				}
-			}else if(/GROUP BY\s{0,}CASE WHEN/ig.exec(text_list[i])){
-				var case_when_list = text_list[i].replace(/WHEN/ig,'\nWHEN').replace(/ELSE/ig,"\nELSE").replace(/\s{1,}END/ig,"\nEND").split("\n");
-				var max_when_len = 0;
-				for (var k = 0; k < case_when_list.length; k++) {
-					var then_pos = case_when_list[k].toUpperCase().indexOf(' THEN ');
-					var when_pos = case_when_list[k].toUpperCase().indexOf('WHEN ');
-					if (then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-						var len = then_pos - when_pos;
-						if (len > max_when_len) max_when_len = len;
-					}
-				}
-				var c = 0;
-				var if_comment = 0;
-				var case_indent = " ".times(case_when_list[0].length);
-				while (c < case_when_list.length){
-					var line = case_when_list[c];
-					if(c==0){
-						line = case_when_list[c] + case_when_list[c+1];
-						var then_pos = line.toUpperCase().lastIndexOf(' THEN ');
-						var when_pos = line.toUpperCase().indexOf('WHEN ');
-						if (max_when_len > 0 && then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-							var len = then_pos - when_pos;
-							if (len < max_when_len) {
-								line = line.slice(0, then_pos) + " ".times(max_when_len - len) + line.slice(then_pos);
-							}
-						}
-						text_final_case += '\n' + line;
-						c += 1;
-					}else{
-						var then_pos = line.toUpperCase().indexOf(' THEN ');
-						var when_pos = line.toUpperCase().indexOf('WHEN ');
-						var else_pos = line.toUpperCase().indexOf('ELSE ');
-						if (max_when_len > 0 && then_pos >= 0 && when_pos >= 0 && then_pos > when_pos) {
-							var len = then_pos - when_pos;
-							if (len < max_when_len) {
-								line = line.slice(0, then_pos) + " ".times(max_when_len - len) + line.slice(then_pos);
-							}
-						} else if (max_when_len > 0 && else_pos >= 0) {
-							// Align ELSE value with THEN values
-							line = line.slice(0, else_pos + 4) + " ".times(max_when_len + 1) + line.slice(else_pos + 5);
-						}
-						text_final_case += '\n' + case_indent + line;
-					}
-					if(case_when_list[c].indexOf("--") > 0){
-						if_comment = 1;
-					}else{
-						if_comment = 0;
-					}
-					c += 1;
-				}
-			}
-			else{
-				text_final_case += '\n' + text_list[i];
-			}
+	for (let i = 0; i < text_list.length; i++) {
+		var formatted_case_line = format_case_expression_line(text_list[i], case_when_then_wrap_length);
+		if (formatted_case_line != null) {
+			text_final_case += '\n' + formatted_case_line;
+		} else {
+			text_final_case += '\n' + text_list[i];
 		}
 	}
 
@@ -618,7 +865,7 @@ function and_wrap(text) {
 
 };
 
-function special_wrap(text,as_loc_cnt) {
+function special_wrap(text,as_loc_cnt,case_when_then_wrap_length) {
 	var text_final = '';
 	var text_restore_orginal = restore_strmark(text) //先进行复原成原来样子，此时restore_list重新变为空
 	var text_list_orginal = text_restore_orginal.split("\n");
@@ -631,15 +878,15 @@ function special_wrap(text,as_loc_cnt) {
 		}
 	}
 
-	//因为对齐的时候需要保持原样
+		//因为对齐的时候需要保持原样
 	for (let i = 0; i < text_list.length; i++) {
 		let q = i
 		if (text_list[q].slice(0, 6) == 'SELECT') { //需要部分进行提取再做变化再复原
-			text_list[q] = select_wrap(text_list[q],0,as_loc_cnt);
+			text_list[q] = select_wrap(text_list[q],0,as_loc_cnt,case_when_then_wrap_length);
 		}
 
 		if (text_list[q].slice(0, 8) == 'GROUP BY') {
-			text_list[q] = select_wrap(text_list[q],1,as_loc_cnt);
+			text_list[q] = select_wrap(text_list[q],1,as_loc_cnt,case_when_then_wrap_length);
 		}
 
 		if (text_list[q].slice(0, 5) == 'WHERE') {
@@ -1201,12 +1448,14 @@ function convert_lowercase(str){
 	return str.replace(/ AND /ig, " and ")
 	        .replace(/\nAND /ig, "\nand ")
 	        .replace(/\tAND /ig, "\tand ")
+		.replace(/\bCASE\b/ig, "case")
 		.replace(/THEN /ig, "then ")
 		.replace(/ALTER /ig, "alter ")
 		.replace(/OVERWRITE /ig, "overwrite ")
 		.replace(/WHEN /ig, "when ")
 		.replace(/ELSE /ig, "else ")
 		.replace(/ END /ig, " end ")
+		.replace(/\bEND\b/ig, "end")
 		.replace(/INSERT/ig, "insert")
 		.replace(/INSERT INTO/ig, "insert into")
 		.replace(/BETWEEN /ig, "between ")
@@ -1399,7 +1648,7 @@ function order_on(str){
 }
 
 
-vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,as_loc_cnt) {
+vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,as_loc_cnt,case_when_then_wrap_length) {
 	restore_list = []
 	restore_cnt = 0
 
@@ -1411,13 +1660,14 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	.replace(/\{\.\*\.\*\}/ig,"(")  //复原之前修改的注释后中文()的项目
 	.replace(/\{\*\.\*\.\}/ig,")");
 	// step5 = special_wrap(step4).replace(/\-\-\s{0,}\n/ig, "\n-- ");
-	var step5 = special_wrap(step4, as_loc_cnt);
+	var step5 = special_wrap(step4, as_loc_cnt, case_when_then_wrap_length);
 	var step6 = bracket_deep(step5); 
 	var step7 = extra(step6);
 	var step8 = restore_strmark(step7);
 
 	// 恢复独立行注释的换行
 	var currentStep = step8.replace(/\s{0,1}--\{\}/g, "\n--");
+	currentStep = format_case_blocks(currentStep, case_when_then_wrap_length);
 	
 	if (uppercase === false) {
 		currentStep = convert_lowercase(currentStep);
@@ -1451,4 +1701,3 @@ vkbeautify.prototype.extractddl = function(text) {
 }
 
 module.exports = new vkbeautify();
-
