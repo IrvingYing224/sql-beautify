@@ -701,17 +701,153 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 	return text_final.join('\n');
 }
 
+function is_select_item_start(line) {
+	var trimmed = line.replace(/^\s+/ig, '');
+	return /^SELECT\b/i.exec(trimmed) || /^GROUP BY\b/i.exec(trimmed) || /^,/.exec(trimmed);
+}
+
+function collect_as_alignment_items(text_list) {
+	var items = [];
+	var current_item = null;
+
+	for (let i = 0; i < text_list.length; i++) {
+		if (is_select_item_start(text_list[i])) {
+			if (current_item != null) {
+				items.push(current_item);
+			}
+			current_item = {
+				start_line_index: i,
+				as_line_index: -1,
+				as_loc: -1
+			};
+		}
+
+		if (current_item != null && / AS /.exec(text_list[i])) {
+			current_item.as_line_index = i;
+			current_item.as_loc = text_list[i].lastIndexOf(" AS ");
+		}
+	}
+
+	if (current_item != null) {
+		items.push(current_item);
+	}
+
+	return items;
+}
+
+function is_select_block_start(line) {
+	var trimmed = line.replace(/^\s+/ig, '');
+	return /^SELECT\b/i.exec(trimmed) || /^GROUP BY\b/i.exec(trimmed);
+}
+
+function is_select_block_end(line) {
+	var trimmed = line.replace(/^\s+/ig, '');
+	return /^FROM\b/i.exec(trimmed)
+		|| /^WHERE\b/i.exec(trimmed)
+		|| /^HAVING\b/i.exec(trimmed)
+		|| /^ORDER BY\b/i.exec(trimmed)
+		|| /^LIMIT\b/i.exec(trimmed)
+		|| /^DISTRIBUTE BY\b/i.exec(trimmed)
+		|| /^UNION\b/i.exec(trimmed)
+		|| /^JOIN\b/i.exec(trimmed)
+		|| /^LEFT\b/i.exec(trimmed)
+		|| /^RIGHT\b/i.exec(trimmed)
+		|| /^FULL\b/i.exec(trimmed)
+		|| /^INNER\b/i.exec(trimmed)
+		|| /^CROSS\b/i.exec(trimmed)
+		|| /^ON\b/i.exec(trimmed);
+}
+
+function apply_as_alignment_on_items(text_list, items, as_loc_cnt) {
+	var max_as_loc = 0;
+
+	for (let i = 0; i < items.length; i++) {
+		if (items[i].max_code_width > max_as_loc && items[i].max_code_width < as_loc_cnt) {
+			max_as_loc = items[i].max_code_width;
+		}
+	}
+
+	for (let i = 0; i < items.length; i++) {
+		if (items[i].as_line_index >= 0 && items[i].as_loc >= 0) {
+			var current_line = text_list[items[i].as_line_index];
+			var before_as = current_line.slice(0, items[i].as_loc).replace(/\s+$/ig, '');
+			var after_as = current_line.slice(items[i].as_loc + 4).replace(/^\s+/ig, '');
+			text_list[items[i].as_line_index] = before_as + " ".times(max_as_loc - before_as.length) + " AS " + after_as;
+		}
+	}
+}
+
+function align_as_in_select_blocks(str, as_loc_cnt) {
+	var text_list = str.split('\n');
+	var current_items = [];
+	var current_item = null;
+	var in_block = false;
+
+	for (let i = 0; i < text_list.length; i++) {
+		if (is_select_block_start(text_list[i])) {
+			if (in_block) {
+				apply_as_alignment_on_items(text_list, current_items, as_loc_cnt);
+			}
+			in_block = true;
+			current_items = [{
+				as_line_index: -1,
+				as_loc: -1,
+				max_code_width: 0
+			}];
+			current_item = current_items[0];
+		} else if (in_block && is_select_block_end(text_list[i])) {
+			apply_as_alignment_on_items(text_list, current_items, as_loc_cnt);
+			in_block = false;
+			current_items = [];
+			current_item = null;
+		} else if (in_block && /^,/.exec(text_list[i].replace(/^\s+/ig, ''))) {
+			current_item = {
+				as_line_index: -1,
+				as_loc: -1,
+				max_code_width: 0
+			};
+			current_items.push(current_item);
+		}
+
+		if (in_block && current_item != null) {
+			var line_parts = split_code_and_comment(text_list[i]);
+			var code = line_parts.code.replace(/\s+$/ig, '');
+			var code_width = 0;
+
+			if (code != '') {
+				if (/ AS /.exec(code)) {
+					current_item.as_line_index = i;
+					current_item.as_loc = code.lastIndexOf(" AS ");
+					code_width = code.slice(0, current_item.as_loc).replace(/\s+$/ig, '').length;
+				} else {
+					code_width = code.length;
+				}
+
+				if (code_width > current_item.max_code_width) {
+					current_item.max_code_width = code_width;
+				}
+			}
+		}
+	}
+
+	if (in_block) {
+		apply_as_alignment_on_items(text_list, current_items, as_loc_cnt);
+	}
+
+	return text_list.join('\n');
+}
+
 
 function select_wrap(text,tag,as_loc_cnt,case_when_then_wrap_length) {
 	var text_final = '';
 	var bracket_cnt = 0;
 	var quote_cnt = 0;
 	var text_final_case = '';
-	var as_loc = 0;
 	var max_as_loc = 0;
-	var as_loc_list = [];
 	var text_as_final ='';
 	var text_list = [];
+	var text_as_list = [];
+	var as_alignment_items = [];
 
 	for (let i = 0; i < text.length; i++) {
 		let p = i;
@@ -767,27 +903,25 @@ function select_wrap(text,tag,as_loc_cnt,case_when_then_wrap_length) {
 
 
 
-	// 让as进行对齐
+		// 让as进行对齐
 
-	text_as_list = text_final_case.split('\n');
-	
-	//获取最大的as 的位置
-	for (let i = 0; i < text_as_list.length; i++) {
-		if (/ AS /.exec(text_as_list[i])) {
-			as_loc = text_as_list[i].lastIndexOf(" AS ");
-			if(as_loc >max_as_loc && as_loc < as_loc_cnt){ //150个字符后不再参与as对齐 20211031改成自定义
-				max_as_loc = as_loc;
-			}
+		text_as_list = text_final_case.split('\n');
+		as_alignment_items = collect_as_alignment_items(text_as_list);
+		
+		//获取最大的as 的位置
+	for (let i = 0; i < as_alignment_items.length; i++) {
+		if (as_alignment_items[i].as_loc >= 0 && as_alignment_items[i].as_loc > max_as_loc && as_alignment_items[i].as_loc < as_loc_cnt) { //150个字符后不再参与as对齐 20211031改成自定义
+			max_as_loc = as_alignment_items[i].as_loc;
+		}
 	}
-	as_loc_list.push(as_loc);
-}
-
-	//替换as
-	for (let i = 0; i < text_as_list.length; i++) {
-		if (/ AS /.exec(text_as_list[i]) && as_loc_list[i] <= max_as_loc) {
-			new_as = " ".times(max_as_loc - as_loc_list[i]) + " AS ";
-			text_as_list[i] = text_as_list[i].slice(0,as_loc_list[i]) + text_as_list[i].slice(as_loc_list[i],).replace(' AS ', new_as);
-			}
+	
+		//替换as
+	for (let i = 0; i < as_alignment_items.length; i++) {
+		var item = as_alignment_items[i];
+		if (item.as_line_index >= 0 && item.as_loc >= 0 && item.as_loc <= max_as_loc) {
+			var new_as = " ".times(max_as_loc - item.as_loc) + " AS ";
+			text_as_list[item.as_line_index] = text_as_list[item.as_line_index].slice(0,item.as_loc) + text_as_list[item.as_line_index].slice(item.as_loc,).replace(' AS ', new_as);
+		}
 	}
 
 	for (i = 0; i < text_as_list.length; i++) {
@@ -1579,33 +1713,31 @@ function order_comment(str){
 	var final_text="";
 	var text_list = str.split("\n");
 	var max_comment_loc = 0;
+
 	for (let i = 0; i < text_list.length; i++){
-		var comment_loc = text_list[i].indexOf(' --');
-		if (comment_loc > max_comment_loc && comment_loc < 126){
-			// 如果 '--' 之前全是空格，则认为它是独立行注释，不参与对齐位置计算
-			if (text_list[i].slice(0, comment_loc).trim() !== "") {
-				max_comment_loc = comment_loc;
+		var comment_loc = text_list[i].indexOf('--');
+		if (comment_loc > 0 && text_list[i].slice(0, comment_loc).trim() !== ""){
+			var code = text_list[i].slice(0, comment_loc).replace(/\s+$/ig, '');
+			if (code.length > max_comment_loc && code.length < 126) {
+				max_comment_loc = code.length;
 			}
 		}
 	}
 
 	for (let i = 0; i < text_list.length; i++){
-		var segment = text_list[i].split(' --');
-		if (segment.length > 1 && segment[0].length <126 && segment[0].trim() !== ""){
-			var num = max_comment_loc + 2 - segment[0].length;
-			for(let j = 0;j<num;j++){
-				segment[0]=segment[0]+" ";
+		var comment_loc = text_list[i].indexOf('--');
+		if (comment_loc > 0 && text_list[i].slice(0, comment_loc).trim() !== ""){
+			var code = text_list[i].slice(0, comment_loc).replace(/\s+$/ig, '');
+			var comment = text_list[i].slice(comment_loc).replace(/^--\s*/ig, '');
+			if (code.length < 126 && max_comment_loc > 0) {
+				text_list[i] = code + " ".times(max_comment_loc - code.length) + ' -- ' + comment;
+			} else if (code.length >= 126 && max_comment_loc > 0) {
+				text_list[i] = code + "\n" + " ".times(max_comment_loc) + '-- ' + comment;
+			} else {
+				text_list[i] = code + ' -- ' + comment;
 			}
-			segment[0] = (segment[0]+"--"+segment[1]);
-		}else if(segment.length > 1 && segment[0].length >=126 && segment[0].trim() !== ""){
-			segment[0]+="\n";
-			var num = max_comment_loc + 2;
-			for(let j = 0;j<num;j++){
-				segment[0]=segment[0]+" ";
-			}
-			segment[0] = (segment[0]+"--"+segment[1]);
 		}
-		final_text+=(segment[0]+"\n");
+		final_text+=(text_list[i]+"\n");
 	}
 	return final_text;
 }
@@ -1668,6 +1800,7 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	// 恢复独立行注释的换行
 	var currentStep = step8.replace(/\s{0,1}--\{\}/g, "\n--");
 	currentStep = format_case_blocks(currentStep, case_when_then_wrap_length);
+	currentStep = align_as_in_select_blocks(currentStep, as_loc_cnt);
 	
 	if (uppercase === false) {
 		currentStep = convert_lowercase(currentStep);

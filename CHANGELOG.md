@@ -1,6 +1,12 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.26 (2026/04/22)
+* 修复了 `SELECT` 中多行 `CASE` 参与 `AS` 和行尾注释对齐时的异常
+* 将 `AS` 与 `--` 对齐规则调整为保留整列对齐，同时让最长项的最短间隔保持为 1 个空格
+* Fixed incorrect `AS` and trailing comment alignment when multi-line `CASE` expressions appear in `SELECT`
+* Kept column alignment while reducing the minimum gap before `AS` and `--` to a single space on the widest item
+
 ### 0.3.25 (2026/04/21)
 * 深度优化了 `CASE WHEN` 的对齐和换行逻辑
 * 确保多 `WHEN` 情况下的 `THEN` 关键字纵向对齐
@@ -161,7 +167,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

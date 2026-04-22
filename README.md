@@ -67,6 +67,12 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 * Chatgpt横空出世，本插件几乎宣告下岗。Chatgpt was born out of nowhere, this plug-in was almost laid off
 
 # 😎 更迭日志 Release Notes
+### 0.3.26 (2026/04/22)
+* 修复了多行 `CASE` 与 `AS`、行尾注释的对齐问题
+* 保留整体列对齐，同时将最长项前的最短间隔调整为 1 个空格
+* Fixed alignment issues between multi-line `CASE`, `AS`, and trailing comments
+* Kept overall column alignment while reducing the minimum gap on the widest item to one space
+
 ### 0.3.25 (2026/04/21)
 * 深度优化了 `CASE WHEN` 对齐和换行逻辑
 * Optimized `CASE WHEN` alignment and wrapping
@@ -95,4 +101,3 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 If you have any problem,welcome to submit issues or You can contact me via wechat.
 
 ![wechat](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/wechat.jpg)
-

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 	<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
 		<Metadata>
-			<Identity Language="en-US" Id="vscode-sql-beautify" Version="0.3.15" Publisher="clarkyu" />
+			<Identity Language="en-US" Id="vscode-sql-beautify" Version="0.3.26" Publisher="clarkyu" />
 			<DisplayName>SQL Beautify</DisplayName>
 			<Description xml:space="preserve">More Powerful extension that beautifies SQL/一键美化你的SQL</Description>
 			<Tags>hive,sql,formatters,格式化,美化,beautify,keybindings,hive-sql</Tags>
@@ -26,18 +26,18 @@
 				
 				
 			</Properties>
-			<License>extension/LICENSE.txt</License>
-			<Icon>extension/images/icon.png</Icon>
+			<License>LICENSE.txt</License>
+			<Icon>images/icon.png</Icon>
 		</Metadata>
 		<Installation>
 			<InstallationTarget Id="Microsoft.VisualStudio.Code"/>
 		</Installation>
 		<Dependencies/>
 		<Assets>
-			<Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true" />
-			<Asset Type="Microsoft.VisualStudio.Services.Content.Details" Path="extension/README.md" Addressable="true" />
-<Asset Type="Microsoft.VisualStudio.Services.Content.Changelog" Path="extension/CHANGELOG.md" Addressable="true" />
-<Asset Type="Microsoft.VisualStudio.Services.Content.License" Path="extension/LICENSE.txt" Addressable="true" />
-<Asset Type="Microsoft.VisualStudio.Services.Icons.Default" Path="extension/images/icon.png" Addressable="true" />
+			<Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="package.json" Addressable="true" />
+			<Asset Type="Microsoft.VisualStudio.Services.Content.Details" Path="README.md" Addressable="true" />
+<Asset Type="Microsoft.VisualStudio.Services.Content.Changelog" Path="CHANGELOG.md" Addressable="true" />
+<Asset Type="Microsoft.VisualStudio.Services.Content.License" Path="LICENSE.txt" Addressable="true" />
+<Asset Type="Microsoft.VisualStudio.Services.Icons.Default" Path="images/icon.png" Addressable="true" />
 		</Assets>
 	</PackageManifest>
