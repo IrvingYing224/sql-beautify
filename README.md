@@ -67,6 +67,12 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 * Chatgpt横空出世，本插件几乎宣告下岗。Chatgpt was born out of nowhere, this plug-in was almost laid off
 
 # 😎 更迭日志 Release Notes
+### 0.3.28 (2026/04/23)
+* 统一了 `ON` / `WHERE` / `HAVING` 中顶层 `AND` / `OR` 的换行与尾部对齐
+* 修复了 `JOIN ... ON` 后续条件不换行、`WHERE` 中 `OR` 不换行以及条件续行缩进不一致的问题
+* Unified wrapping and keyword-tail alignment for top-level `AND` / `OR` in `ON`, `WHERE`, and `HAVING`
+* Fixed missing wraps after `JOIN ... ON`, missing `OR` wraps in `WHERE`, and inconsistent continued-condition indentation
+
 ### 0.3.27 (2026/04/23)
 * 修复了多行 `CASE`、`CTE`、`HAVING`、行尾注释与顶层别名 `AS` 的一系列对齐问题
 * 避免 `cast(... AS string)` 等内部 `AS` 影响外层别名列对齐，同时保留 `CASE` 代码块与别名列的视觉分区

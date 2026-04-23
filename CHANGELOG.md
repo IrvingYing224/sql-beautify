@@ -1,6 +1,14 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.28 (2026/04/23)
+* 统一了 `ON` / `WHERE` / `HAVING` 条件子句中顶层 `AND` / `OR` 的换行与尾部对齐
+* 修复了 `JOIN ... ON` 后续条件不换行、`WHERE` 中 `OR` 不换行以及条件续行缩进不一致的问题
+* 保留 `BETWEEN ... AND ...`、`IN(...)`、`IF(...)` 和括号内布尔表达式的原有格式，避免误拆嵌套条件
+* Unified wrapping and keyword-tail alignment for top-level `AND` / `OR` in `ON`, `WHERE`, and `HAVING` clauses
+* Fixed missing wraps after `JOIN ... ON`, missing `OR` wraps in `WHERE`, and inconsistent indentation for continued conditions
+* Preserved existing formatting for `BETWEEN ... AND ...`, `IN(...)`, `IF(...)`, and parenthesized boolean expressions to avoid incorrect nested-condition splits
+
 ### 0.3.27 (2026/04/23)
 * 修复了多行 `CASE` 在 `SELECT` / `CTE` 中与 `AS`、行尾注释的对齐问题
 * 修复了同层 `SELECT/JOIN/WHERE/HAVING` 与子查询场景下的 `--` 注释分组对齐
@@ -179,7 +187,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

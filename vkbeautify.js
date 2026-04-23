@@ -37,7 +37,9 @@ function replace_char(str) {
 	return str.replace(/\n/g, " ")
 		.replace(/\s+/ig, " ")
 		.replace(/ AND /ig, " AND ")
+		.replace(/ OR /ig, " OR ")
 		.replace(/\nAND /ig, " AND ")
+		.replace(/\nOR /ig, " OR ")
 		.replace(/ THEN /ig, " THEN ")
 		.replace(/ WHEN /ig, " WHEN ")
 		.replace(/INSERT OVERWRITE/ig, "INSERT OVERWRITE")
@@ -1170,18 +1172,27 @@ function select_wrap(text,tag,as_loc_cnt,case_when_then_wrap_length) {
 	return text_as_final
 };
 
-function and_wrap(text) {
+function condition_wrap(text) {
 	var text_final = '';
 	var if_cnt = 0;
     var if_bracket_cnt = 0;
     var bracket_cnt = 0;
 	var between_and_cnt = 0;
+	var in_comment = false;
 	text = text.replace('IF (', 'IF(').replace('IN (', 'IN(').replace('if (', 'IF(').replace('if(', 'IF(');
 	text_list = text.split(" ");
 
 	for (let i = 0; i < text_list.length; i++) {
         let t = i;
         last_str = i == 0 ? "" : text_list[i - 1];
+
+		if (/^--/.exec(text_list[t])) {
+			in_comment = true;
+		}
+
+		if (in_comment) {
+			continue;
+		}
 
 		if (/BETWEEN/.exec(text_list[t])) {
 			between_and_cnt += 1;
@@ -1214,11 +1225,11 @@ function and_wrap(text) {
 		}
 
 
-		if (/^AND$/.exec(text_list[t])) {
+		if (/^(AND|OR)$/i.exec(text_list[t])) {
 			if (between_and_cnt == 0 && if_cnt == 0 && bracket_cnt == 0) {
 				text_list[t] = '\n' + text_list[t];
 			}
-			if (between_and_cnt > 0) {
+			if (/^AND$/i.exec(text_list[t]) && between_and_cnt > 0) {
 					between_and_cnt -= 1;
 			}
 			
@@ -1260,8 +1271,8 @@ function special_wrap(text,as_loc_cnt,case_when_then_wrap_length) {
 			text_list[q] = select_wrap(text_list[q],1,as_loc_cnt,case_when_then_wrap_length);
 		}
 
-		if (text_list[q].slice(0, 5) == 'WHERE') {
-			text_list[q] = and_wrap(text_list[q]);
+		if (/^(ON|WHERE|HAVING)\b/.exec(text_list[q])) {
+			text_list[q] = condition_wrap(text_list[q]);
 		}
 
 		//增加order by 换行逻辑
@@ -1819,6 +1830,9 @@ function convert_lowercase(str){
 	return str.replace(/ AND /ig, " and ")
 	        .replace(/\nAND /ig, "\nand ")
 	        .replace(/\tAND /ig, "\tand ")
+	        .replace(/ OR /ig, " or ")
+	        .replace(/\nOR /ig, "\nor ")
+	        .replace(/\tOR /ig, "\tor ")
 		.replace(/\bCASE\b/ig, "case")
 		.replace(/THEN /ig, "then ")
 		.replace(/ALTER /ig, "alter ")
@@ -2026,40 +2040,69 @@ function order_comment(str, as_loc_cnt){
 	return final_text;
 }
 
-// and 与 on 与 where 等主要选择性字符不同，将where后面的and增加缩进
-function order_where(str){
-	var final_text="";
-	var text_list = str.split("\n");
-
-    for (let i = 0; i < text_list.length; i++){
-
-        var sen = text_list[i];
-        var loc = sen.indexOf("and ");
-
-        if(loc != -1 && loc < 2){
-			sen= sen.replace("and ", "      and ");
-        }
-        final_text=final_text+sen+"\n";
-	}
-	return final_text;
+function get_condition_leading_tabs(line) {
+	var match = line.match(/^\t*/);
+	return match == null ? '' : match[0];
 }
-// 将where后面的on增加缩进
-function order_on(str){
-	var final_text="";
+
+function build_condition_line(prefix_tabs, target_keyword_end, keyword, suffix_text) {
+	var prefix_width = expand_tabs_for_width(prefix_tabs).length;
+	var indent_length = target_keyword_end - prefix_width - keyword.length;
+	if (indent_length < 0) {
+		indent_length = 0;
+	}
+
+	return prefix_tabs + " ".times(indent_length) + keyword + suffix_text;
+}
+
+function align_condition_clauses(str) {
+	var final_text = "";
 	var text_list = str.split("\n");
+	var current_target_keyword_end = -1;
+	var current_prefix_tabs = '';
 
-    for (let i = 0; i < text_list.length; i++){
+	for (let i = 0; i < text_list.length; i++) {
+		var sen = text_list[i];
+		var trimmed = sen.replace(/^\s+/ig, '');
+		var clause_match = trimmed.match(/^(ON|WHERE|HAVING)\b/i);
+		var condition_match = trimmed.match(/^(AND|OR)\b/i);
 
-        var sen = text_list[i];
-        var loc = sen.indexOf("on ");
+		if (clause_match != null) {
+			var keyword = clause_match[1];
+			current_prefix_tabs = get_condition_leading_tabs(sen);
+			var prefix_width = expand_tabs_for_width(current_prefix_tabs).length;
+			if (/^ON$/i.exec(keyword)) {
+				current_target_keyword_end = prefix_width + 7;
+			} else {
+				current_target_keyword_end = prefix_width + keyword.length;
+			}
 
-        if(loc != -1 && loc < 2){
-			sen= sen.replace("on ", "     on ");
-        }
-		if(sen != ""){
-			final_text=final_text+sen+"\n";
+			sen = build_condition_line(
+				current_prefix_tabs,
+				current_target_keyword_end,
+				keyword,
+				trimmed.slice(keyword.length)
+			);
+		} else if (condition_match != null && current_target_keyword_end >= 0) {
+			var condition_keyword = condition_match[1];
+			sen = build_condition_line(
+				current_prefix_tabs,
+				current_target_keyword_end,
+				condition_keyword,
+				trimmed.slice(condition_keyword.length)
+			);
+		} else if (/^(SELECT|FROM|JOIN|LEFT|RIGHT|FULL|INNER|CROSS|GROUP BY|ORDER BY|LIMIT|DISTRIBUTE BY|UNION|WITH)\b/i.exec(trimmed)
+			|| /^\)/.exec(trimmed)
+			|| /^\($/.exec(trimmed)) {
+			current_target_keyword_end = -1;
+			current_prefix_tabs = '';
+		}
+
+		if (sen != "") {
+			final_text += sen + "\n";
 		}
 	}
+
 	return final_text;
 }
 
@@ -2094,9 +2137,8 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 		currentStep = convert_comma_loaction(currentStep);
 	}
 	
+	currentStep = align_condition_clauses(currentStep);
 	currentStep = order_comment(currentStep, as_loc_cnt);
-	currentStep = order_where(currentStep);
-	currentStep = order_on(currentStep);
 
 	if (bracket_char === true) {
 		currentStep = currentStep.replace(/\t/ig, "    ");

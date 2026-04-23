@@ -64,10 +64,10 @@ run_case(
 		'       ,o.amount    AS amount    -- 金额',
 		'FROM users u',
 		'LEFT JOIN orders o',
-		'ON u.user_id = o.user_id         -- 用户关联',
-		" AND o.status = 'SUCCESS'        -- 成功订单",
+		'     ON u.user_id = o.user_id    -- 用户关联',
+		"    AND o.status = 'SUCCESS'     -- 成功订单",
 		'INNER JOIN payments p',
-		'ON o.order_id = p.order_id       -- 支付关联',
+		'     ON o.order_id = p.order_id  -- 支付关联',
 		'WHERE p.pay_time IS NOT NULL;    -- 有支付时间'
 	].join('\n')
 );
@@ -94,11 +94,45 @@ run_case(
 		'       ,SUM(o.amount) AS total_amount -- 总金额',
 		'FROM users u',
 		'LEFT JOIN orders o',
-		'ON u.user_id = o.user_id',
+		'     ON u.user_id = o.user_id',
 		'GROUP BY  u.country',
 		'HAVING COUNT(*) > 10                  -- 用户数过滤',
-		' AND SUM(o.amount) > 1000             -- 金额过滤',
+		'   AND SUM(o.amount) > 1000           -- 金额过滤',
 		'ORDER BY total_amount DESC;'
+	].join('\n')
+);
+
+run_case(
+	'condition clauses align keyword tails and comments',
+	[
+		'select *',
+		'from users u',
+		'left join orders o',
+		"on u.user_id=o.user_id -- 用户关联",
+		"and o.status='SUCCESS' -- 成功订单",
+		"or o.status='PAID' -- 已支付订单",
+		"where u.dt='2026-04-23' -- 分区日期",
+		"and u.country='CN' -- 中国用户",
+		"or u.country='US' -- 美国用户",
+		'group by u.user_id',
+		'having count(*)>1 -- 订单数',
+		'and sum(o.amount)>0 -- 有金额',
+		'or max(o.amount)>100 -- 大额订单'
+	].join('\n'),
+	[
+		'SELECT  *',
+		'FROM users u',
+		'LEFT JOIN orders o',
+		'     ON u.user_id = o.user_id -- 用户关联',
+		"    AND o.status = 'SUCCESS'  -- 成功订单",
+		"     OR o.status = 'PAID'     -- 已支付订单",
+		"WHERE u.dt = '2026-04-23'     -- 分区日期",
+		"  AND u.country = 'CN'        -- 中国用户",
+		"   OR u.country = 'US'        -- 美国用户",
+		'GROUP BY  u.user_id',
+		'HAVING COUNT(*) > 1           -- 订单数',
+		'   AND SUM(o.amount) > 0      -- 有金额',
+		'    OR MAX(o.amount) > 100    -- 大额订单'
 	].join('\n')
 );
 

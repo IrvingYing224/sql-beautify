@@ -5,8 +5,17 @@ function format(sql) {
 	return vkbeautify.sql(sql, true, false, true, 150, 80).trim();
 }
 
+function format_lower(sql) {
+	return vkbeautify.sql(sql, false, false, true, 150, 80).trim();
+}
+
 function run_case(name, input, expected) {
 	var actual = format(input);
+	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
+}
+
+function run_lower_case(name, input, expected) {
+	var actual = format_lower(input);
 	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
 }
 
@@ -145,15 +154,59 @@ run_case(
 		"HAVING SUM(coalesce(o.amount, 0)) > 1000 AND COUNT(*) >= 3 AND MAX(case WHEN o.status = 'SUCCESS' THEN 1 else 0 end) = 1; -- 分组过滤条件"
 	].join('\n'),
 	[
-		'SELECT  o.user_id                 AS user_id                                 -- 用户ID',
-		'       ,SUM(coalesce(o.amount,0)) AS total_amount                            -- 总金额',
-		'       ,COUNT(*)                  AS order_cnt                               -- 订单数',
+		'SELECT  o.user_id                 AS user_id      -- 用户ID',
+		'       ,SUM(coalesce(o.amount,0)) AS total_amount -- 总金额',
+		'       ,COUNT(*)                  AS order_cnt    -- 订单数',
 		'FROM orders o',
 		'GROUP BY  o.user_id',
-		'HAVING SUM(coalesce(o.amount, 0)) > 1000 AND COUNT(*) >= 3 AND MAX(CASE',
-		"                                                                       WHEN o.status = 'SUCCESS' THEN 1",
-		'                                                                       ELSE 0',
-		'                                                                   END) = 1; -- 分组过滤条件'
+		'HAVING SUM(coalesce(o.amount, 0)) > 1000',
+		'   AND COUNT(*) >= 3',
+		'   AND MAX(CASE',
+		"            WHEN o.status = 'SUCCESS' THEN 1",
+		'            ELSE 0',
+		'        END) = 1;                                 -- 分组过滤条件'
+	].join('\n')
+);
+
+run_case(
+	'condition clauses align keyword tails and protect nested boolean expressions',
+	[
+		"select u.user_id,count(*) as order_cnt",
+		"from users u left join orders o on u.user_id=o.user_id and o.status='SUCCESS' or o.status='PAID'",
+		"where u.dt between '2026-04-01' and '2026-04-23' and u.country in('CN','US') or (u.age>18 and u.status='ACTIVE')",
+		"group by u.user_id having count(*)>1 and sum(o.amount)>0 or max(o.amount)>100;"
+	].join(' '),
+	[
+		'SELECT  u.user_id',
+		'       ,COUNT(*)  AS order_cnt',
+		'FROM users u',
+		'LEFT JOIN orders o',
+		'     ON u.user_id = o.user_id',
+		"    AND o.status = 'SUCCESS'",
+		"     OR o.status = 'PAID'",
+		"WHERE u.dt BETWEEN '2026-04-01' AND '2026-04-23'",
+		"  AND u.country in('CN', 'US')",
+		"   OR (u.age > 18 AND u.status = 'ACTIVE')",
+		'GROUP BY  u.user_id',
+		'HAVING COUNT(*) > 1',
+		'   AND SUM(o.amount) > 0',
+		'    OR MAX(o.amount) > 100;'
+	].join('\n')
+);
+
+run_lower_case(
+	'lowercase condition clauses align keyword tails',
+	"select * from a left join b on a.id=b.id and a.ds=b.ds or b.flag=1 where a.x=1 and a.y=2 or a.z=3;",
+	[
+		'select  *',
+		'from a',
+		'left join b',
+		'     on a.id = b.id',
+		'    and a.ds = b.ds',
+		'     or b.flag = 1',
+		'where a.x = 1',
+		'  and a.y = 2',
+		'   or a.z = 3;'
 	].join('\n')
 );
 
