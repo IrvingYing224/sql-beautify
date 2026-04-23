@@ -2,7 +2,7 @@
 	"name": "vscode-sql-beautify",
 	"displayName": "SQL Beautify",
 	"description": "More Powerful extension that beautifies SQL/一键美化你的SQL",
-	"version": "0.3.26",
+	"version": "0.3.27",
 	"publisher": "clarkyu",
 	"engines": {
 		"vscode": "^1.5.0"
@@ -91,7 +91,13 @@
 	},
 	"scripts": {
 		"postinstall": "node ./node_modules/vscode/bin/install",
-		"test:case": "node tests/case-when.test.js"
+		"test:case": "node tests/case-when.test.js",
+		"test:comment": "node tests/comment-alignment.test.js",
+		"test:hive": "node tests/hive-regression.test.js",
+		"test:verify": "node tests/comment-alignment.test.js && node tests/case-when.test.js && node tests/hive-regression.test.js"
+	},
+	"vsce": {
+		"dependencies": false
 	},
 	"icon": "images/icon.png",
 	"dependencies": {

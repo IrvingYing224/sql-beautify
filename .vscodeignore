@@ -1,0 +1,7 @@
+.gitignore
+.codex
+AGENTS.md
+tests/**
+node_modules/**
+*.vsix
+*.vsixmanifest

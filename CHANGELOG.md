@@ -1,6 +1,18 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.27 (2026/04/23)
+* 修复了多行 `CASE` 在 `SELECT` / `CTE` 中与 `AS`、行尾注释的对齐问题
+* 修复了同层 `SELECT/JOIN/WHERE/HAVING` 与子查询场景下的 `--` 注释分组对齐
+* 支持将 `HAVING` / 单行表达式中的 `CASE ... END` 转为大写并按块格式化
+* 修复了顶层别名 `AS` 被 `cast(... AS string)` 等内部 `AS` 误参与对齐的问题，同时保留 `CASE` 代码块与别名列的视觉分区
+* 新增长期回归验证入口 `npm run test:verify`
+* Fixed `AS` and trailing comment alignment for multi-line `CASE` in `SELECT` and `CTE`
+* Fixed grouped `--` comment alignment across same-level `SELECT/JOIN/WHERE/HAVING` blocks and subqueries
+* Added block formatting for inline `CASE ... END` expressions in clauses such as `HAVING`
+* Prevented top-level alias alignment from being affected by inner `AS` usages like `cast(... AS string)` while keeping visual separation between `CASE` blocks and aliases
+* Added the long-term regression verification entry `npm run test:verify`
+
 ### 0.3.26 (2026/04/22)
 * 修复了 `SELECT` 中多行 `CASE` 参与 `AS` 和行尾注释对齐时的异常
 * 将 `AS` 与 `--` 对齐规则调整为保留整列对齐，同时让最长项的最短间隔保持为 1 个空格
@@ -167,7 +179,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

@@ -291,6 +291,16 @@ function split_line_before_end(text) {
 	};
 }
 
+function split_line_at_token(text, token) {
+	var parts = split_code_and_comment(text);
+
+	return {
+		before_token: parts.code.slice(0, token.start).replace(/\s+$/ig, ''),
+		suffix_text: parts.code.slice(token.end).replace(/^\s+/ig, '').replace(/\s+$/ig, ''),
+		comment: parts.comment
+	};
+}
+
 function get_case_tokens(text) {
 	var tokens = [];
 	var quote_cnt = 0;
@@ -369,6 +379,133 @@ function format_case_branch_value(indent, keyword, value_text) {
 	return line.replace(/\s+$/ig, '');
 }
 
+function append_case_value_text(current_text, next_text) {
+	var current_trimmed = current_text.replace(/\s+$/ig, '');
+	var next_trimmed = next_text.replace(/^\s+/ig, '').replace(/\s+$/ig, '');
+
+	if (next_trimmed == '') {
+		return current_trimmed;
+	}
+
+	if (current_trimmed == '') {
+		return next_trimmed;
+	}
+
+	return current_trimmed + ' ' + next_trimmed;
+}
+
+function expand_tabs_for_width(text) {
+	return text.replace(/\t/ig, "    ");
+}
+
+function find_top_level_as_loc(text) {
+	var quote_cnt = 0;
+	var quote_tag = '';
+	var bracket_cnt = 0;
+
+	for (let i = 0; i < text.length - 3; i++) {
+		if ((text[i] == '"' || text[i] == "'")) {
+			if (quote_cnt == 0) {
+				quote_cnt = 1;
+				quote_tag = text[i];
+			} else if (text[i] == quote_tag) {
+				quote_cnt = 0;
+				quote_tag = '';
+			}
+			continue;
+		}
+
+		if (quote_cnt > 0) {
+			continue;
+		}
+
+		if (text[i] == '(') {
+			bracket_cnt += 1;
+			continue;
+		}
+
+		if (text[i] == ')' && bracket_cnt > 0) {
+			bracket_cnt -= 1;
+			continue;
+		}
+
+		if (bracket_cnt == 0 && text.slice(i, i + 4) == ' AS ') {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+function is_case_branch_line(text) {
+	var trimmed = text.replace(/^\s+/ig, '');
+	return /^WHEN\b/i.exec(trimmed) || /^THEN\b/i.exec(trimmed) || /^ELSE\b/i.exec(trimmed);
+}
+
+function get_outer_as_code_width(code, top_level_as_loc) {
+	if (top_level_as_loc >= 0) {
+		return expand_tabs_for_width(code.slice(0, top_level_as_loc).replace(/\s+$/ig, '')).length;
+	}
+
+	return expand_tabs_for_width(code.replace(/\s+$/ig, '')).length;
+}
+
+function get_case_balance_delta(text) {
+	var tokens = get_case_tokens(text);
+	var balance = 0;
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].word == 'CASE') {
+			balance += 1;
+		} else if (tokens[i].word == 'END') {
+			balance -= 1;
+		}
+	}
+
+	return balance;
+}
+
+function find_outer_then_token(code) {
+	var tokens = get_case_tokens(code);
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].word == 'THEN' && tokens[i].depth == 0) {
+			return tokens[i];
+		}
+	}
+
+	return null;
+}
+
+function find_case_block_end(line, current_depth) {
+	var parts = split_code_and_comment(line);
+	var tokens = get_case_tokens(parts.code);
+	var depth = current_depth;
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].word == 'CASE') {
+			depth += 1;
+		} else if (tokens[i].word == 'END') {
+			depth -= 1;
+			if (depth == 0) {
+				var split_parts = split_line_at_token(line, tokens[i]);
+				return {
+					found: true,
+					before_end: split_parts.before_token,
+					suffix_text: split_parts.suffix_text,
+					comment: split_parts.comment,
+					depth: depth
+				};
+			}
+		}
+	}
+
+	return {
+		found: false,
+		depth: depth
+	};
+}
+
 function get_case_prefix_layout(prefix_raw) {
 	var prefix_trimmed = prefix_raw.replace(/\s+$/ig, '');
 
@@ -392,14 +529,124 @@ function get_case_prefix_layout(prefix_raw) {
 		return {
 			prefix_output: null,
 			case_line_prefix: prefix_trimmed,
-			case_start_indent: " ".times(prefix_trimmed.length)
+			case_start_indent: " ".times(expand_tabs_for_width(prefix_trimmed).length)
 		};
 	}
 
 	return {
 		prefix_output: null,
 		case_line_prefix: prefix_raw,
-		case_start_indent: prefix_raw
+		case_start_indent: " ".times(expand_tabs_for_width(prefix_raw).length)
+	};
+}
+
+function parse_case_expression(text) {
+	var parts = split_code_and_comment(text);
+	var code = parts.code;
+	var tokens = get_case_tokens(code);
+	var root_case = null;
+	var root_end = null;
+	var boundary_tokens = [];
+	var first_when = null;
+	var case_operand = '';
+	var when_items = [];
+	var else_value = '';
+	var next_boundary = null;
+	var suffix_text = code.replace(/\s+$/ig, '');
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].word == 'CASE' && tokens[i].depth == 1) {
+			root_case = tokens[i];
+			break;
+		}
+	}
+
+	if (root_case == null) {
+		return null;
+	}
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].word == 'END' && tokens[i].depth == 1 && tokens[i].start > root_case.start) {
+			root_end = tokens[i];
+			break;
+		}
+	}
+
+	if (root_end == null) {
+		return null;
+	}
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].depth == 1
+			&& tokens[i].start > root_case.start
+			&& tokens[i].start < root_end.start
+			&& (tokens[i].word == 'WHEN' || tokens[i].word == 'THEN' || tokens[i].word == 'ELSE')) {
+			boundary_tokens.push(tokens[i]);
+		}
+	}
+
+	for (let i = 0; i < boundary_tokens.length; i++) {
+		if (boundary_tokens[i].word == 'WHEN') {
+			first_when = boundary_tokens[i];
+			break;
+		}
+	}
+
+	if (first_when == null) {
+		return null;
+	}
+
+	case_operand = code.slice(root_case.end, first_when.start).replace(/\s+/ig, ' ').trim();
+
+	for (let i = 0; i < boundary_tokens.length; i++) {
+		if (boundary_tokens[i].word == 'WHEN') {
+			var then_token = null;
+
+			for (let j = i + 1; j < boundary_tokens.length; j++) {
+				if (boundary_tokens[j].word == 'THEN') {
+					then_token = boundary_tokens[j];
+					break;
+				}
+				if (boundary_tokens[j].word == 'WHEN' || boundary_tokens[j].word == 'ELSE') {
+					break;
+				}
+			}
+
+			if (then_token == null) {
+				return null;
+			}
+
+			next_boundary = root_end;
+			for (let j = i + 1; j < boundary_tokens.length; j++) {
+				if (boundary_tokens[j].start > then_token.start && (boundary_tokens[j].word == 'WHEN' || boundary_tokens[j].word == 'ELSE')) {
+					next_boundary = boundary_tokens[j];
+					break;
+				}
+			}
+
+			when_items.push({
+				when_text: code.slice(boundary_tokens[i].end, then_token.start).replace(/\s+/ig, ' ').trim(),
+				then_text: code.slice(then_token.end, next_boundary.start).replace(/\s+/ig, ' ').trim()
+			});
+		}
+
+		if (boundary_tokens[i].word == 'ELSE') {
+			else_value = code.slice(boundary_tokens[i].end, root_end.start).replace(/\s+/ig, ' ').trim();
+			break;
+		}
+	}
+
+	suffix_text = code.slice(root_end.end).replace(/^\s+/ig, '').replace(/\s+$/ig, '');
+	if (parts.comment != '') {
+		suffix_text += (suffix_text != '' ? ' ' : '') + parts.comment;
+	}
+
+	return {
+		prefix_raw: code.slice(0, root_case.start),
+		case_operand: case_operand,
+		when_items: when_items,
+		else_value: else_value,
+		suffix_text: suffix_text
 	};
 }
 
@@ -457,114 +704,26 @@ function build_case_formatted_text(prefix_raw, case_operand, when_items, else_va
 		}
 	}
 
-	lines.push((layout.case_start_indent + 'END' + (suffix_text != '' ? ' ' + suffix_text : '')).replace(/\s+$/ig, ''));
+	lines.push((layout.case_start_indent + 'END' + (suffix_text != '' ? (/^[\),]/.exec(suffix_text) ? '' : ' ') + suffix_text : '')).replace(/\s+$/ig, ''));
 
 	return lines.join('\n');
 }
 
 function format_case_expression_line(line, case_when_then_wrap_length) {
-	if (!/CASE/ig.exec(line) || !/END/ig.exec(line)) {
+	var parsed = parse_case_expression(line);
+
+	if (parsed == null || parsed.when_items.length == 0) {
 		return null;
 	}
 
-	var tokens = get_case_tokens(line);
-	var root_case = null;
-	var root_end = null;
-
-	for (let i = 0; i < tokens.length; i++) {
-		if (tokens[i].word == 'CASE' && tokens[i].depth == 1) {
-			root_case = tokens[i];
-			break;
-		}
-	}
-
-	if (root_case == null) {
-		return null;
-	}
-
-	var prefix_raw = line.slice(0, root_case.start);
-
-	for (let i = 0; i < tokens.length; i++) {
-		if (tokens[i].word == 'END' && tokens[i].depth == 1 && tokens[i].start > root_case.start) {
-			root_end = tokens[i];
-			break;
-		}
-	}
-
-	if (root_end == null) {
-		return null;
-	}
-
-	var boundary_tokens = [];
-	for (let i = 0; i < tokens.length; i++) {
-		if (tokens[i].depth == 1 && tokens[i].start > root_case.start && tokens[i].start < root_end.start && (tokens[i].word == 'WHEN' || tokens[i].word == 'THEN' || tokens[i].word == 'ELSE')) {
-			boundary_tokens.push(tokens[i]);
-		}
-	}
-
-	var first_when = null;
-	for (let i = 0; i < boundary_tokens.length; i++) {
-		if (boundary_tokens[i].word == 'WHEN') {
-			first_when = boundary_tokens[i];
-			break;
-		}
-	}
-
-	if (first_when == null) {
-		return null;
-	}
-
-	var case_operand = line.slice(root_case.end, first_when.start).replace(/\s+/ig, ' ').trim();
-	var when_items = [];
-	var else_value = '';
-	var next_boundary = root_end;
-
-	for (let i = 0; i < boundary_tokens.length; i++) {
-		if (boundary_tokens[i].word == 'WHEN') {
-			var then_token = null;
-			for (let j = i + 1; j < boundary_tokens.length; j++) {
-				if (boundary_tokens[j].word == 'THEN') {
-					then_token = boundary_tokens[j];
-					break;
-				}
-				if (boundary_tokens[j].word == 'WHEN' || boundary_tokens[j].word == 'ELSE') {
-					break;
-				}
-			}
-
-			if (then_token == null) {
-				return null;
-			}
-
-			next_boundary = root_end;
-			for (let j = i + 1; j < boundary_tokens.length; j++) {
-				if (boundary_tokens[j].start > then_token.start && (boundary_tokens[j].word == 'WHEN' || boundary_tokens[j].word == 'ELSE')) {
-					next_boundary = boundary_tokens[j];
-					break;
-				}
-			}
-
-			when_items.push({
-				when_text: line.slice(boundary_tokens[i].end, then_token.start).replace(/\s+/ig, ' ').trim(),
-				then_text: line.slice(then_token.end, next_boundary.start).replace(/\s+/ig, ' ').trim()
-			});
-		}
-
-		if (boundary_tokens[i].word == 'ELSE') {
-			else_value = line.slice(boundary_tokens[i].end, root_end.start).replace(/\s+/ig, ' ').trim();
-			break;
-		}
-	}
-
-	if (when_items.length == 0) {
-		return null;
-	}
-
-	var wrap_limit = parseInt(case_when_then_wrap_length, 10);
-	if (!wrap_limit || wrap_limit < 1) {
-		wrap_limit = 50;
-	}
-	return build_case_formatted_text(prefix_raw, case_operand, when_items, else_value, line.slice(root_end.end).trim(), wrap_limit);
+	return build_case_formatted_text(
+		parsed.prefix_raw,
+		parsed.case_operand,
+		parsed.when_items,
+		parsed.else_value,
+		parsed.suffix_text,
+		case_when_then_wrap_length
+	);
 }
 
 function format_case_blocks(str, case_when_then_wrap_length) {
@@ -588,13 +747,35 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 			continue;
 		}
 
+		var single_line_formatted = format_case_expression_line(current_line, case_when_then_wrap_length);
+		if (single_line_formatted != null) {
+			var single_line_tokens = get_case_tokens(split_code_and_comment(current_line).code);
+			var has_root_end_on_same_line = false;
+			for (let j = 0; j < single_line_tokens.length; j++) {
+				if (single_line_tokens[j].word == 'END' && single_line_tokens[j].depth == 1) {
+					has_root_end_on_same_line = true;
+					break;
+				}
+			}
+
+			if (has_root_end_on_same_line) {
+				var single_line_parts = single_line_formatted.split('\n');
+				for (let j = 0; j < single_line_parts.length; j++) {
+					text_final.push(single_line_parts[j]);
+				}
+				continue;
+			}
+		}
+
 		var block_lines = [current_line];
 		var block_end_index = i;
 		var end_suffix = '';
+		var case_depth = 1;
 
 		for (let j = i + 1; j < text_list.length; j++) {
-			var end_line_parts = split_line_before_end(text_list[j]);
-			if (end_line_parts != null) {
+			var end_line_parts = find_case_block_end(text_list[j], case_depth);
+			case_depth = end_line_parts.depth;
+			if (end_line_parts.found) {
 				if (end_line_parts.before_end != '') {
 					block_lines.push(end_line_parts.before_end);
 				}
@@ -617,6 +798,8 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 		var when_items = [];
 		var else_value = '';
 		var pending_type = '';
+		var nested_case_depth = 0;
+		var active_value_target = '';
 
 		if (case_after_text != '') {
 			if (/^WHEN\b/i.exec(case_after_text)) {
@@ -639,18 +822,42 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 			var source_line = block_lines[j];
 			var parts = split_code_and_comment(source_line);
 			var code = parts.code.replace(/^\s+/ig, '').replace(/\s+/ig, ' ').trim();
+			var code_with_comment = code + (parts.comment != '' ? ' ' + parts.comment : '');
 			if (code == '') {
 				continue;
 			}
 
+			if (nested_case_depth > 0) {
+				if (active_value_target == 'THEN' && when_items.length > 0) {
+					when_items[when_items.length - 1].then_text = append_case_value_text(when_items[when_items.length - 1].then_text, code_with_comment);
+				} else if (active_value_target == 'ELSE') {
+					else_value = append_case_value_text(else_value, code_with_comment);
+				}
+				nested_case_depth += get_case_balance_delta(code);
+				if (nested_case_depth < 0) {
+					nested_case_depth = 0;
+				}
+				if (nested_case_depth == 0) {
+					active_value_target = '';
+				}
+				continue;
+			}
+
 			if (/^WHEN\b/i.exec(code)) {
-				var then_match = /^WHEN\b(.*)\bTHEN\b(.*)$/i.exec(code);
-				if (then_match) {
+				var then_token = find_outer_then_token(code);
+				if (then_token != null) {
+					var when_text = code.slice(4, then_token.start).replace(/\s+/ig, ' ').trim();
+					var then_code = code.slice(then_token.end).replace(/\s+/ig, ' ').trim();
+					var then_text = then_code + (parts.comment != '' ? ' ' + parts.comment : '');
 					when_items.push({
-						when_text: then_match[1].replace(/\s+/ig, ' ').trim(),
-						then_text: then_match[2].replace(/\s+/ig, ' ').trim() + (parts.comment != '' ? ' ' + parts.comment : '')
+						when_text: when_text,
+						then_text: then_text
 					});
 					pending_type = '';
+					nested_case_depth = get_case_balance_delta(then_code);
+					if (nested_case_depth > 0) {
+						active_value_target = 'THEN';
+					}
 				} else {
 					when_items.push({
 						when_text: code.replace(/^WHEN\b/i, '').replace(/\s+/ig, ' ').trim(),
@@ -662,26 +869,44 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 			}
 
 			if (/^THEN\b/i.exec(code) && when_items.length > 0) {
-				when_items[when_items.length - 1].then_text = code.replace(/^THEN\b/i, '').replace(/\s+/ig, ' ').trim() + (parts.comment != '' ? ' ' + parts.comment : '');
+				var then_line_text = code.replace(/^THEN\b/i, '').replace(/\s+/ig, ' ').trim();
+				when_items[when_items.length - 1].then_text = then_line_text + (parts.comment != '' ? ' ' + parts.comment : '');
 				pending_type = '';
+				nested_case_depth = get_case_balance_delta(then_line_text);
+				if (nested_case_depth > 0) {
+					active_value_target = 'THEN';
+				}
 				continue;
 			}
 
 			if (/^ELSE\b/i.exec(code)) {
-				else_value = code.replace(/^ELSE\b/i, '').replace(/\s+/ig, ' ').trim() + (parts.comment != '' ? ' ' + parts.comment : '');
+				var else_line_text = code.replace(/^ELSE\b/i, '').replace(/\s+/ig, ' ').trim();
+				else_value = else_line_text + (parts.comment != '' ? ' ' + parts.comment : '');
 				pending_type = else_value == '' ? 'ELSE' : '';
+				nested_case_depth = get_case_balance_delta(else_line_text);
+				if (nested_case_depth > 0) {
+					active_value_target = 'ELSE';
+				}
 				continue;
 			}
 
 			if (pending_type == 'THEN' && when_items.length > 0) {
-				when_items[when_items.length - 1].then_text = code + (parts.comment != '' ? ' ' + parts.comment : '');
+				when_items[when_items.length - 1].then_text = code_with_comment;
 				pending_type = '';
+				nested_case_depth = get_case_balance_delta(code);
+				if (nested_case_depth > 0) {
+					active_value_target = 'THEN';
+				}
 				continue;
 			}
 
 			if (pending_type == 'ELSE') {
-				else_value = code + (parts.comment != '' ? ' ' + parts.comment : '');
+				else_value = code_with_comment;
 				pending_type = '';
+				nested_case_depth = get_case_balance_delta(code);
+				if (nested_case_depth > 0) {
+					active_value_target = 'ELSE';
+				}
 			}
 		}
 
@@ -718,13 +943,18 @@ function collect_as_alignment_items(text_list) {
 			current_item = {
 				start_line_index: i,
 				as_line_index: -1,
-				as_loc: -1
+				as_loc: -1,
+				as_visual_loc: -1
 			};
 		}
 
-		if (current_item != null && / AS /.exec(text_list[i])) {
-			current_item.as_line_index = i;
-			current_item.as_loc = text_list[i].lastIndexOf(" AS ");
+		if (current_item != null) {
+			var top_level_as_loc = find_top_level_as_loc(text_list[i]);
+			if (top_level_as_loc >= 0) {
+				current_item.as_line_index = i;
+				current_item.as_loc = top_level_as_loc;
+				current_item.as_visual_loc = get_outer_as_code_width(text_list[i], top_level_as_loc);
+			}
 		}
 	}
 
@@ -772,7 +1002,11 @@ function apply_as_alignment_on_items(text_list, items, as_loc_cnt) {
 			var current_line = text_list[items[i].as_line_index];
 			var before_as = current_line.slice(0, items[i].as_loc).replace(/\s+$/ig, '');
 			var after_as = current_line.slice(items[i].as_loc + 4).replace(/^\s+/ig, '');
-			text_list[items[i].as_line_index] = before_as + " ".times(max_as_loc - before_as.length) + " AS " + after_as;
+			var before_as_visual_length = expand_tabs_for_width(before_as).length;
+			var padding = max_as_loc - before_as_visual_length;
+			if (padding >= 0) {
+				text_list[items[i].as_line_index] = before_as + " ".times(padding) + " AS " + after_as;
+			}
 		}
 	}
 }
@@ -813,14 +1047,15 @@ function align_as_in_select_blocks(str, as_loc_cnt) {
 			var line_parts = split_code_and_comment(text_list[i]);
 			var code = line_parts.code.replace(/\s+$/ig, '');
 			var code_width = 0;
+			var top_level_as_loc = find_top_level_as_loc(code);
 
 			if (code != '') {
-				if (/ AS /.exec(code)) {
+				if (top_level_as_loc >= 0) {
 					current_item.as_line_index = i;
-					current_item.as_loc = code.lastIndexOf(" AS ");
-					code_width = code.slice(0, current_item.as_loc).replace(/\s+$/ig, '').length;
+					current_item.as_loc = top_level_as_loc;
+					code_width = get_outer_as_code_width(code, top_level_as_loc);
 				} else {
-					code_width = code.length;
+					code_width = expand_tabs_for_width(code).length;
 				}
 
 				if (code_width > current_item.max_code_width) {
@@ -910,8 +1145,8 @@ function select_wrap(text,tag,as_loc_cnt,case_when_then_wrap_length) {
 		
 		//获取最大的as 的位置
 	for (let i = 0; i < as_alignment_items.length; i++) {
-		if (as_alignment_items[i].as_loc >= 0 && as_alignment_items[i].as_loc > max_as_loc && as_alignment_items[i].as_loc < as_loc_cnt) { //150个字符后不再参与as对齐 20211031改成自定义
-			max_as_loc = as_alignment_items[i].as_loc;
+		if (as_alignment_items[i].as_visual_loc >= 0 && as_alignment_items[i].as_visual_loc > max_as_loc && as_alignment_items[i].as_visual_loc < as_loc_cnt) { //150个字符后不再参与as对齐 20211031改成自定义
+			max_as_loc = as_alignment_items[i].as_visual_loc;
 		}
 	}
 	
@@ -919,8 +1154,10 @@ function select_wrap(text,tag,as_loc_cnt,case_when_then_wrap_length) {
 	for (let i = 0; i < as_alignment_items.length; i++) {
 		var item = as_alignment_items[i];
 		if (item.as_line_index >= 0 && item.as_loc >= 0 && item.as_loc <= max_as_loc) {
-			var new_as = " ".times(max_as_loc - item.as_loc) + " AS ";
-			text_as_list[item.as_line_index] = text_as_list[item.as_line_index].slice(0,item.as_loc) + text_as_list[item.as_line_index].slice(item.as_loc,).replace(' AS ', new_as);
+			var before_as = text_as_list[item.as_line_index].slice(0, item.as_loc).replace(/\s+$/ig, '');
+			var after_as = text_as_list[item.as_line_index].slice(item.as_loc + 4).replace(/^\s+/ig, '');
+			var before_as_visual_length = expand_tabs_for_width(before_as).length;
+			text_as_list[item.as_line_index] = before_as + " ".times(max_as_loc - before_as_visual_length) + " AS " + after_as;
 		}
 	}
 
@@ -1709,34 +1946,81 @@ function convert_comma_loaction(str){
 	return text_final.replace(/\-\-\{\}/ig, "\n--")
 }
 
-function order_comment(str){
+function order_comment(str, as_loc_cnt){
 	var final_text="";
 	var text_list = str.split("\n");
-	var max_comment_loc = 0;
+	var current_group = [];
 
-	for (let i = 0; i < text_list.length; i++){
-		var comment_loc = text_list[i].indexOf('--');
-		if (comment_loc > 0 && text_list[i].slice(0, comment_loc).trim() !== ""){
-			var code = text_list[i].slice(0, comment_loc).replace(/\s+$/ig, '');
-			if (code.length > max_comment_loc && code.length < 126) {
-				max_comment_loc = code.length;
+	function is_comment_alignment_break(line) {
+		var trimmed = line.replace(/^\s+/ig, '');
+		return trimmed === ""
+			|| /^--/.exec(trimmed)
+			|| /^\($/.exec(trimmed)
+			|| /^\)/.exec(trimmed)
+			|| /^SELECT\b/i.exec(trimmed)
+			|| /^UNION\b/i.exec(trimmed)
+			|| /^WITH\b/i.exec(trimmed);
+	}
+
+	function get_inline_comment_parts(line) {
+		var comment_loc = get_line_comment_loc(line);
+		if (comment_loc <= 0 || line.slice(0, comment_loc).trim() === "") {
+			return null;
+		}
+
+		return {
+			code: line.slice(0, comment_loc).replace(/\s+$/ig, ''),
+			comment: line.slice(comment_loc).replace(/^--\s*/ig, '').replace(/\s+$/ig, '')
+		};
+	}
+
+	function flush_group() {
+		if (current_group.length === 0) {
+			return;
+		}
+
+		var target_comment_loc = 0;
+
+		for (let i = 0; i < current_group.length; i++) {
+			var visual_code_length = expand_tabs_for_width(current_group[i].code).length;
+			if (visual_code_length < as_loc_cnt && visual_code_length + 1 > target_comment_loc) {
+				target_comment_loc = visual_code_length + 1;
 			}
 		}
+
+		for (let i = 0; i < current_group.length; i++) {
+			var item = current_group[i];
+			var item_visual_length = expand_tabs_for_width(item.code).length;
+			if (item_visual_length >= as_loc_cnt || target_comment_loc <= 0) {
+				text_list[item.index] = item.code + ' -- ' + item.comment;
+			} else {
+				text_list[item.index] = item.code + " ".times(target_comment_loc - item_visual_length) + '-- ' + item.comment;
+			}
+		}
+
+		current_group = [];
 	}
 
 	for (let i = 0; i < text_list.length; i++){
-		var comment_loc = text_list[i].indexOf('--');
-		if (comment_loc > 0 && text_list[i].slice(0, comment_loc).trim() !== ""){
-			var code = text_list[i].slice(0, comment_loc).replace(/\s+$/ig, '');
-			var comment = text_list[i].slice(comment_loc).replace(/^--\s*/ig, '');
-			if (code.length < 126 && max_comment_loc > 0) {
-				text_list[i] = code + " ".times(max_comment_loc - code.length) + ' -- ' + comment;
-			} else if (code.length >= 126 && max_comment_loc > 0) {
-				text_list[i] = code + "\n" + " ".times(max_comment_loc) + '-- ' + comment;
-			} else {
-				text_list[i] = code + ' -- ' + comment;
-			}
+		if (is_comment_alignment_break(text_list[i])) {
+			flush_group();
 		}
+
+		var parts = get_inline_comment_parts(text_list[i]);
+		if (parts == null) {
+			continue;
+		}
+
+		current_group.push({
+			index: i,
+			code: parts.code,
+			comment: parts.comment
+		});
+	}
+
+	flush_group();
+
+	for (let i = 0; i < text_list.length; i++){
 		final_text+=(text_list[i]+"\n");
 	}
 	return final_text;
@@ -1810,7 +2094,7 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 		currentStep = convert_comma_loaction(currentStep);
 	}
 	
-	currentStep = order_comment(currentStep);
+	currentStep = order_comment(currentStep, as_loc_cnt);
 	currentStep = order_where(currentStep);
 	currentStep = order_on(currentStep);
 

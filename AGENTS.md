@@ -26,3 +26,16 @@
 - 正确做法：需求完成后，先生成新的 `.vsix` 文件供用户安装测试；只有在用户明确确认结果无误后，才更新 `CHANGELOG.md`、`README.md` 并提交本次代码改动。
 - 验证方法：检查仓库根目录是否生成了对应版本的 `.vsix`，并等待用户基于该包完成验证反馈。
 - 适用范围：所有会改变扩展运行行为、格式化结果或用户可见配置的开发任务。
+
+## 经验规则：按固定方式打包 `.vsix`
+- 触发信号：需要生成可安装的 VS Code 扩展包给用户验证。
+- 正确做法：保持 `package.json` 中 `vsce.dependencies = false`，并维护项目根目录的 `.vscodeignore`；打包时直接运行 `vsce package`。只要代码在上一次打包后又发生了变更，且下一步需要用户基于安装包验证，就必须重新打包，不得复用旧 `.vsix`。
+- 验证方法：确认仓库根目录生成新的 `.vsix` 文件，并用 `vsce ls --tree` 检查包内只包含扩展运行所需文件。
+- 适用范围：所有涉及 VS Code 扩展打包、发布准备、或 `.vsix` 内容收敛的任务。
+
+## 经验规则：格式化改动复用 Hive SQL 回归集
+- 触发信号：修改 `vkbeautify.js`、格式化规则、注释对齐、`CASE WHEN`、Hive SQL 相关行为后，需要做回归验证。
+- 根因 / 约束：该项目缺少完整测试框架，格式化规则又容易被局部修改带出连锁回归；一次性手工 SQL 很难稳定覆盖高风险 Hive 写法。
+- 正确做法：保留并复用 `tests/comment-alignment.test.js`、`tests/case-when.test.js`、`tests/hive-regression.test.js` 作为长期回归集；每次优先覆盖同层 `SELECT/JOIN/WHERE/HAVING` 尾注释、子查询、`CASE WHEN`、CTE、窗口函数、`LATERAL VIEW/EXPLODE`、`INSERT OVERWRITE ... PARTITION` 这些高风险写法。
+- 验证方法：至少运行 `npm run test:verify`，必要时再用相同样例到 VS Code / `.vsix` 里做手工格式化验证。
+- 适用范围：所有会改变 SQL / Hive SQL 格式化输出的开发任务。

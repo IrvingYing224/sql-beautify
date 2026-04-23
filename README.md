@@ -67,6 +67,14 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 * Chatgpt横空出世，本插件几乎宣告下岗。Chatgpt was born out of nowhere, this plug-in was almost laid off
 
 # 😎 更迭日志 Release Notes
+### 0.3.27 (2026/04/23)
+* 修复了多行 `CASE`、`CTE`、`HAVING`、行尾注释与顶层别名 `AS` 的一系列对齐问题
+* 避免 `cast(... AS string)` 等内部 `AS` 影响外层别名列对齐，同时保留 `CASE` 代码块与别名列的视觉分区
+* 新增长期回归验证入口 `npm run test:verify`
+* Fixed a series of alignment issues involving multi-line `CASE`, `CTE`, `HAVING`, trailing comments, and top-level alias `AS`
+* Prevented inner `AS` usages such as `cast(... AS string)` from affecting top-level alias alignment while keeping visual separation between `CASE` blocks and aliases
+* Added the long-term regression verification entry `npm run test:verify`
+
 ### 0.3.26 (2026/04/22)
 * 修复了多行 `CASE` 与 `AS`、行尾注释的对齐问题
 * 保留整体列对齐，同时将最长项前的最短间隔调整为 1 个空格
