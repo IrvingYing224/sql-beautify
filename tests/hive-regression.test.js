@@ -49,7 +49,7 @@ run_case(
 	"select user_id,row_number() over(partition by ds order by pay_time desc) as rn -- 排名 from orders",
 	[
 		'SELECT  user_id',
-		'       ,ROW_NUMBER() over(PARTITION BY ds ORDER BY  pay_time DESC) AS rn -- 排名',
+		'       ,ROW_NUMBER() OVER(PARTITION BY ds ORDER BY  pay_time DESC) AS rn -- 排名',
 		'FROM orders'
 	].join('\n')
 );
@@ -60,7 +60,7 @@ run_case(
 	[
 		'SELECT  user_id',
 		'       ,tag -- 标签',
-		'FROM user_tags lateral view explode(tags) tmp AS tag'
+		'FROM user_tags LATERAL VIEW explode(tags) tmp AS tag'
 	].join('\n')
 );
 
@@ -68,7 +68,7 @@ run_case(
 	'insert overwrite partition keeps select aggregate block',
 	"insert overwrite table dwd.user_sum partition(dt='2026-04-22') select user_id,sum(amount) as total_amount -- 总金额 from orders group by user_id",
 	[
-		"INSERT OVERWRITE TABLE dwd.user_sum partition(dt = '2026-04-22')",
+		"INSERT OVERWRITE TABLE dwd.user_sum PARTITION(dt = '2026-04-22')",
 		'SELECT  user_id',
 		'       ,SUM(amount) AS total_amount -- 总金额',
 		'FROM orders',
@@ -93,7 +93,7 @@ run_case(
 	].join('\n'),
 	[
 		'SELECT  u.user_id AS user_id -- 用户ID',
-		"       ,concat_ws( '-',cast(u.user_id AS string),nvl(trim(u.user_name),'unknown'),regexp_replace(date_format(from_unixtime(unix_timestamp(u.create_time,'yyyy-MM-dd HH:mm:ss')),'yyyyMMddHHmmss'),'-','') ) AS user_profile_key -- 用户画像Key",
+		"       ,concat_ws( '-',CAST(u.user_id AS STRING),nvl(trim(u.user_name),'unknown'),regexp_replace(date_format(from_unixtime(unix_timestamp(u.create_time,'yyyy-MM-dd HH:mm:ss')),'yyyyMMddHHmmss'),'-','') ) AS user_profile_key -- 用户画像Key",
 		'       ,u.status  AS status  -- 状态',
 		'       ,u.dt      AS dt      -- 分区日期',
 		'FROM users u;'
@@ -114,12 +114,12 @@ run_case(
 	[
 		align_comment(align_as('SELECT  o.user_id', 97, 'user_id'), 121, '用户ID'),
 		'       ,SUM(CASE',
-		"                WHEN o.status = 'SUCCESS' AND o.pay_time is not null THEN coalesce(o.amount,0)",
+		"                WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN coalesce(o.amount,0)",
 		'                ELSE 0',
 		align_comment(align_as('            END)', 97, 'success_paid_amount'), 121, '成功支付金额'),
-		'       ,COUNT(distinct CASE',
+		'       ,COUNT(DISTINCT CASE',
 		"                           WHEN o.status = 'SUCCESS' AND coalesce(o.amount,0) > 0 THEN o.order_id",
-		'                           ELSE null',
+		'                           ELSE NULL',
 		align_comment(align_as('                       END)', 97, 'success_order_cnt'), 121, '成功订单数'),
 		align_comment(align_as('       ,MAX(o.pay_time)', 97, 'last_pay_time'), 121, '最近支付时间'),
 		'FROM orders o',
@@ -216,7 +216,7 @@ run_case(
 		'       ,o.order_id                                                     AS order_id',
 		'       ,o.amount                                                       AS amount',
 		'       ,CASE',
-		'            WHEN o.amount > 0 AND o.order_id is not null THEN o.amount',
+		'            WHEN o.amount > 0 AND o.order_id IS NOT NULL THEN o.amount',
 		'            ELSE 0',
 		'        END                                                            AS cc',
 		'FROM users u',
@@ -228,7 +228,7 @@ run_case(
 		"  AND (u.age >= 18 OR u.city = 'NY')",
 		"  AND nvl(u.user_name, '') <> ''",
 		'  AND CASE',
-		'          WHEN o.amount > 0 AND o.order_id is not null THEN o.amount',
+		'          WHEN o.amount > 0 AND o.order_id IS NOT NULL THEN o.amount',
 		'          ELSE 0',
 		'      END > 50',
 		"  AND dt BETWEEN '2021-01-01' AND '2022-12-31'",
@@ -250,7 +250,7 @@ run_case(
 		'FROM orders o',
 		'GROUP BY  o.user_id',
 		'HAVING MAX(CASE',
-		"               WHEN o.status = 'SUCCESS' AND o.pay_time is not null THEN 1",
+		"               WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN 1",
 		'               ELSE 0',
 		'           END) = 1',
 		'   AND COUNT(*) > 1;'
@@ -326,7 +326,7 @@ run_case(
 		'    SELECT  o.user_id                                                                                                                         AS user_id     -- 用户ID',
 		'           ,o.order_id                                                                                                                        AS order_id    -- 订单ID',
 		'           ,CASE',
-		"                WHEN o.status = 'SUCCESS' AND o.pay_time is not null THEN concat_ws('#',cast(o.order_id AS string),cast(o.user_id AS string))",
+		"                WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN concat_ws('#',CAST(o.order_id AS STRING),CAST(o.user_id AS STRING))",
 		"                ELSE 'INVALID_ORDER'",
 		'            END                                                                                                                               AS order_token -- 订单标识',
 		'           ,o.amount                                                                                                                          AS amount      -- 金额',
@@ -357,11 +357,155 @@ run_case(
 		'SELECT  o.user_id                                                                                                                         AS user_id     -- 用户ID',
 		'       ,o.order_id                                                                                                                        AS order_id    -- 订单ID',
 		'       ,CASE',
-		"            WHEN o.status = 'SUCCESS' AND o.pay_time is not null THEN concat_ws('#',cast(o.order_id AS string),cast(o.user_id AS string))",
+		"            WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN concat_ws('#',CAST(o.order_id AS STRING),CAST(o.user_id AS STRING))",
 		"            ELSE 'INVALID_ORDER'",
 		'        END                                                                                                                               AS order_token -- 订单标识',
 		'       ,o.amount                                                                                                                          AS amount      -- 金额',
 		'FROM orders o'
+	].join('\n')
+);
+
+run_case(
+	'hive left semi and anti joins stay on one join line',
+	"select a.id from a left semi join b on a.id=b.id left anti join c on a.id=c.id full outer join d on a.id=d.id",
+	[
+		'SELECT  a.id',
+		'FROM a',
+		'LEFT SEMI JOIN b',
+		'     ON a.id = b.id',
+		'LEFT ANTI JOIN c',
+		'     ON a.id = c.id',
+		'FULL OUTER JOIN d',
+		'     ON a.id = d.id'
+	].join('\n')
+);
+
+run_case(
+	'hive distribute sort and cluster clauses each start a clause line',
+	"select a,b from t distribute by a sort by b cluster by c",
+	[
+		'SELECT  a',
+		'       ,b',
+		'FROM t',
+		'DISTRIBUTE BY a',
+		'SORT BY b',
+		'CLUSTER BY c'
+	].join('\n')
+);
+
+run_lower_case(
+	'lowercase hive join and distribution clauses',
+	"select a.id from a left semi join b on a.id=b.id distribute by a.id sort by b.id cluster by a.id",
+	[
+		'select  a.id',
+		'from a',
+		'left semi join b',
+		'     on a.id = b.id',
+		'distribute by a.id',
+		'sort by b.id',
+		'cluster by a.id'
+	].join('\n')
+);
+
+run_case(
+	'exists subquery keeps inner sql on one line',
+	"select * from a where exists (select 1 from b where b.id=a.id and b.ds='2026-04-24') and a.x=1",
+	[
+		'SELECT  *',
+		'FROM a',
+		"WHERE EXISTS ( SELECT 1 FROM b WHERE b.id = a.id AND b.ds = '2026-04-24')",
+		'  AND a.x = 1'
+	].join('\n')
+);
+
+run_case(
+	'not exists without bracket space keeps inner sql on one line',
+	"select * from a where not exists(select 1 from b where b.id=a.id)",
+	[
+		'SELECT  *',
+		'FROM a',
+		'WHERE NOT EXISTS ( SELECT 1 FROM b WHERE b.id = a.id)'
+	].join('\n')
+);
+
+run_lower_case(
+	'lowercase exists subquery keeps inner sql on one line',
+	"select * from a where exists(select 1 from b where b.id=a.id)",
+	[
+		'select  *',
+		'from a',
+		'where exists ( select 1 from b where b.id = a.id)'
+	].join('\n')
+);
+
+run_case(
+	'hive keyword uppercase covers select expressions and predicates',
+	"select distinct cast(a as string) as s, if(a is null, true, false) as f from t where a is not null and b rlike '^x' and c regexp 'y' and d not like 'z'",
+	[
+		'SELECT  DISTINCT CAST(a AS STRING) AS s',
+		'       ,if(a IS NULL,TRUE,FALSE)   AS f',
+		'FROM t',
+		'WHERE a IS NOT NULL',
+		"  AND b RLIKE '^x'",
+		"  AND c REGEXP 'y'",
+		"  AND d NOT LIKE 'z'"
+	].join('\n')
+);
+
+run_case(
+	'hive lateral view and grouping keywords are uppercased',
+	"select * from t lateral view outer posexplode(arr) lv as pos,item where item is not null group by rollup(pos), cube(item), grouping sets ((pos),(item))",
+	[
+		'SELECT  *',
+		'FROM t LATERAL VIEW OUTER POSEXPLODE(arr) lv AS pos, item',
+		'WHERE item IS NOT NULL',
+		'GROUP BY  ROLLUP(pos)',
+		'         ,CUBE(item)',
+		'         ,GROUPING SETS ((pos),(item))'
+	].join('\n')
+);
+
+run_case(
+	'hive ddl storage and set operation keywords are uppercased',
+	"create external table if not exists db.t stored as parquet tblproperties('k'='v') as select a from s intersect select a from u except select a from v",
+	[
+		"CREATE EXTERNAL TABLE IF NOT EXISTS db.t STORED AS PARQUET TBLPROPERTIES('k' = 'v') AS",
+		'SELECT  a',
+		'FROM s',
+		'INTERSECT',
+		'SELECT  a',
+		'FROM u',
+		'EXCEPT',
+		'SELECT  a',
+		'FROM v'
+	].join('\n')
+);
+
+run_case(
+	'hive partition and window frame keywords are uppercased',
+	"insert overwrite table db.t partition(ds) select row_number() over(partition by a order by b rows between unbounded preceding and current row) as rn, ds from s distribute by ds sort by rn",
+	[
+		'INSERT OVERWRITE TABLE db.t PARTITION(ds)',
+		'SELECT  ROW_NUMBER() OVER(PARTITION BY a ORDER BY  b ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS rn',
+		'       ,ds',
+		'FROM s',
+		'DISTRIBUTE BY ds',
+		'SORT BY rn'
+	].join('\n')
+);
+
+run_lower_case(
+	'lowercase hive keyword coverage remains lowercase',
+	"select distinct cast(a as string) as s from t lateral view outer posexplode(arr) lv as pos,item where a is not null group by rollup(a), grouping sets ((a)) intersect select a from s",
+	[
+		'select  distinct cast(a as string) as s',
+		'from t lateral view outer posexplode(arr) lv as pos, item',
+		'where a is not null',
+		'group by  rollup(a)',
+		'         ,grouping sets ((a))',
+		'intersect',
+		'select  a',
+		'from s'
 	].join('\n')
 );
 

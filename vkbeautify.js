@@ -21,7 +21,7 @@ function createShiftArr(step) {
 	}
 
 	var shift = ['\n']; // array of shifts
-	for(ix=0;ix<100;ix++){
+	for(var ix=0;ix<100;ix++){
 		shift.push(shift[ix]+space); 
 	}
 	return shift;
@@ -32,14 +32,24 @@ function vkbeautify(){
 	this.shift = createShiftArr(this.step);
 };
 
+var restore_list = [];
+var restore_cnt = 0;
+
 //----------------------------------------------------------------------------
 function replace_char(str) {
 	return str.replace(/\n/g, " ")
 		.replace(/\s+/ig, " ")
 		.replace(/ AND /ig, " AND ")
 		.replace(/ OR /ig, " OR ")
+		.replace(/ NOT /ig, " NOT ")
+		.replace(/ IS /ig, " IS ")
 		.replace(/\nAND /ig, " AND ")
 		.replace(/\nOR /ig, " OR ")
+		.replace(/\bNULL\b/ig, "NULL")
+		.replace(/\bTRUE\b/ig, "TRUE")
+		.replace(/\bFALSE\b/ig, "FALSE")
+		.replace(/\bDISTINCT\b/ig, "DISTINCT")
+		.replace(/\bCAST\(/ig, "CAST(")
 		.replace(/ THEN /ig, " THEN ")
 		.replace(/ WHEN /ig, " WHEN ")
 		.replace(/INSERT OVERWRITE/ig, "INSERT OVERWRITE")
@@ -59,15 +69,31 @@ function replace_char(str) {
 		.replace(/ DISTRIBUTE BY /ig, "\nDISTRIBUTE BY ")
 		.replace(/ AS /ig, " AS ")
 		.replace(/ TABLE /ig, " TABLE ")
+		.replace(/ EXTERNAL /ig, " EXTERNAL ")
+		.replace(/ STORED AS /ig, " STORED AS ")
+		.replace(/\bTBLPROPERTIES\b/ig, "TBLPROPERTIES")
+		.replace(/\bPARQUET\b/ig, "PARQUET")
 		.replace(/ IF EXISTS /ig, " IF EXISTS ")
+		.replace(/ IF NOT EXISTS /ig, " IF NOT EXISTS ")
 		.replace(/ HAVING /ig, "\nHAVING ")
 		.replace(/ USING /ig, " USING ")
 		.replace(/ IN /ig, " IN ")
+		.replace(/\bSTRING\b/ig, "STRING")
+		.replace(/\bINT\b/ig, "INT")
+		.replace(/\bBIGINT\b/ig, "BIGINT")
+		.replace(/\bDOUBLE\b/ig, "DOUBLE")
+		.replace(/\bBOOLEAN\b/ig, "BOOLEAN")
+		.replace(/\bFLOAT\b/ig, "FLOAT")
+		.replace(/\bDECIMAL\b/ig, "DECIMAL")
+		.replace(/\bTIMESTAMP\b/ig, "TIMESTAMP")
+		.replace(/\bDATE\b/ig, "DATE")
 		.replace(/\(SELECT/ig, "( SELECT")
 		.replace(/(^|\s{1,})SELECT /ig, "\nSELECT ")
 		.replace(/ WHERE /ig, "\nWHERE ")
 		.replace(/ ON /ig, "\nON ")
 		.replace(/ JOIN /ig, "\nJOIN ")
+		.replace(/ LEFT SEMI\nJOIN /ig, "\nLEFT SEMI JOIN ")
+		.replace(/ LEFT ANTI\nJOIN /ig, "\nLEFT ANTI JOIN ")
 		.replace(/ CROSS\nJOIN /ig, "\nCROSS JOIN ")
 		.replace(/ INNER\nJOIN /ig, "\nINNER JOIN ")
 		.replace(/ LEFT\nJOIN /ig, "\nLEFT JOIN ")
@@ -75,9 +101,15 @@ function replace_char(str) {
 		// .replace(/ ORDER\s{1,}BY /ig, "\nORDER BY ")
 		.replace(/ ORDER\s{1,}BY /ig, " ORDER BY ")
 		.replace(/ GROUP\s{1,}BY /ig, "\nGROUP BY ")
-		.replace(/ GROUPING\s{1,}SETS/ig, "\nGROUPING SETS")
+		.replace(/ GROUPING\s{1,}SETS/ig, " GROUPING SETS")
+		.replace(/\bROLLUP\(/ig, "ROLLUP(")
+		.replace(/\bCUBE\(/ig, "CUBE(")
+		.replace(/ SORT\s{1,}BY /ig, "\nSORT BY ")
+		.replace(/ CLUSTER\s{1,}BY /ig, "\nCLUSTER BY ")
 		.replace(/UNION ALL/ig, "\nUNIONALLALL\n")  //先合并unionall避免和union换行发生冲突
 		.replace(/(\s|\\n)union(\s|\\n)/ig, "\nUNION \n")
+		.replace(/(\s|\\n)intersect(\s|\\n)/ig, "\nINTERSECT\n")
+		.replace(/(\s|\\n)except(\s|\\n)/ig, "\nEXCEPT\n")
 		.replace(/ LEFT OUTER\nJOIN /ig, "\nLEFT OUTER JOIN ")
 		.replace(/ RIGHT OUTER\nJOIN /ig, "\nRIGHT OUTER JOIN ")
 		.replace(/ FULL OUTER\nJOIN /ig, "\nFULL OUTER JOIN ")
@@ -97,12 +129,29 @@ function replace_char(str) {
 		.replace(/COUNT\(/ig, "COUNT(")
 		.replace(/WITH /ig, "\nWITH ")
 		.replace(/ NOT IN /ig, " NOT IN ")
+		.replace(/ NOT EXISTS /ig, " NOT EXISTS ")
+		.replace(/ EXISTS /ig, " EXISTS ")
+		.replace(/NOT EXISTS\(/ig, "NOT EXISTS (")
+		.replace(/EXISTS\(/ig, "EXISTS (")
 		.replace(/ LIKE /ig, " LIKE ")
+		.replace(/ RLIKE /ig, " RLIKE ")
+		.replace(/ REGEXP /ig, " REGEXP ")
 		.replace(/ OVER /ig, " OVER ")
+		.replace(/OVER\(/ig, "OVER(")
 		.replace(/ PARTITION BY /ig, " PARTITION BY ")
+		.replace(/PARTITION\(/ig, "PARTITION(")
 		.replace(/\(PARTITION BY /ig, "(PARTITION BY ")
+		.replace(/ LATERAL VIEW OUTER /ig, " LATERAL VIEW OUTER ")
+		.replace(/ LATERAL VIEW /ig, " LATERAL VIEW ")
+		.replace(/\bPOSEXPLODE\(/ig, "POSEXPLODE(")
+		.replace(/\bEXPLODE\(/ig, "EXPLODE(")
 		.replace(/row_number /ig, "ROW_NUMBER ")
 		.replace(/row_number\(/ig, "ROW_NUMBER(")
+		.replace(/\bROWS\b/ig, "ROWS")
+		.replace(/\bUNBOUNDED\b/ig, "UNBOUNDED")
+		.replace(/\bPRECEDING\b/ig, "PRECEDING")
+		.replace(/\bFOLLOWING\b/ig, "FOLLOWING")
+		.replace(/\bCURRENT ROW\b/ig, "CURRENT ROW")
 		.replace(/ ASC /ig, " ASC ")
 		.replace(/ DESC /ig, " DESC ")
 		.replace(/ ASC\)/ig, " ASC)")
@@ -125,9 +174,9 @@ function replace_char(str) {
 
 function get_bracket(str) {
 	var text = str.replace(/\(/g, "\n\(").replace(/\)/g, "\n\)").replace(/\'/g, "\n\'");
-	text_list_orginal = text.split("\n");
-	text_list = []
-	for (i = 0; i < text_list_orginal.length; i++) {
+	var text_list_orginal = text.split("\n");
+	var text_list = []
+	for (var i = 0; i < text_list_orginal.length; i++) {
 		if (text_list_orginal[i] != "" && text_list_orginal[i] != " ") {
 			text_list.push(text_list_orginal[i]);
 		}
@@ -141,7 +190,7 @@ function get_bracket(str) {
 	var is_colon = 0;
 
 	for (i = 0; i < text_list.length; i++) {
-		last_str = i == 0 ? "" : text_list[i - 1];
+		var last_str = i == 0 ? "" : text_list[i - 1];
 
 		if(text_list[i][0] == "'"){
 			if(is_colon == 0){
@@ -158,7 +207,7 @@ function get_bracket(str) {
 				(/JOIN|WITH/.exec(last_str) 
 				
 				||  /^\)\s*\,\s*\w+\s+AS/.exec(last_str) 
-				|| (/FROM /.exec(last_str) && !/ EXPLODE/ig.exec(last_str))
+				|| (/FROM /.exec(last_str) && !/ (EXPLODE|POSEXPLODE)/ig.exec(last_str))
 				
 				
 				)  
@@ -219,7 +268,7 @@ function bracket_deep(str) {
 	var text_final = '';
 	var text_list = [];
 	var text_list_orginal = str.split("\n");
-	for (i = 0; i < text_list_orginal.length; i++) {
+	for (var i = 0; i < text_list_orginal.length; i++) {
 		if (text_list_orginal[i] != "" && text_list_orginal[i] != " ") {
 			text_list.push(text_list_orginal[i]);
 		}
@@ -988,6 +1037,8 @@ function is_select_block_end(line) {
 		|| /^WHERE\b/i.exec(trimmed)
 		|| /^HAVING\b/i.exec(trimmed)
 		|| /^ORDER BY\b/i.exec(trimmed)
+		|| /^SORT BY\b/i.exec(trimmed)
+		|| /^CLUSTER BY\b/i.exec(trimmed)
 		|| /^LIMIT\b/i.exec(trimmed)
 		|| /^DISTRIBUTE BY\b/i.exec(trimmed)
 		|| /^UNION\b/i.exec(trimmed)
@@ -1192,17 +1243,20 @@ function condition_wrap(text) {
 	var between_and_cnt = 0;
 	var in_comment = false;
 	text = text.replace('IF (', 'IF(').replace('IN (', 'IN(').replace('if (', 'IF(').replace('if(', 'IF(');
-	text_list = text.split(" ");
+	var text_list = text.split(" ");
 
 	for (let i = 0; i < text_list.length; i++) {
         let t = i;
-        last_str = i == 0 ? "" : text_list[i - 1];
+        var last_str = i == 0 ? "" : text_list[i - 1];
 
 		if (/^--/.exec(text_list[t])) {
 			in_comment = true;
 		}
 
 		if (in_comment) {
+			if (text_list[t].indexOf('\n') >= 0 || text_list[t].indexOf('shouldhavenbehind') >= 0) {
+				in_comment = false;
+			}
 			continue;
 		}
 
@@ -1355,7 +1409,7 @@ function except_subquery(text){
 
 		} 
 
-		if (/IN \($/.exec(text_list[i])) {
+		if (/(IN|EXISTS) \($/.exec(text_list[i])) {
 			in_bracket_cnt += 1;
 			bracket_cnt += 1;
 			bracket_loc.push(i);
@@ -1454,13 +1508,13 @@ function ddl(str){
 		}
 	}
 
-m = 0
-n = 0
-is_comment_before = 0
+	var m = 0
+	var n = 0
+	var is_comment_before = 0
 while (n<text_list.length)
 {
-	current_text = text_list[n]
-	last_text = text_list[m]
+	var current_text = text_list[n]
+	var last_text = text_list[m]
 
 	// if((is_comment_before == 0 ||  /comment/ig.exec(text_list[n]) || n == 0 || /^\(|^\)|PARTITIONED|STORED|STRING|DOUBLE|BIGINT|INT|VARCHAR/ig.exec(text_list[n])) && /,\s{0,}string>/ig.exec(text_list[n]) == null ){
 	// 	n = n+1
@@ -1619,7 +1673,7 @@ function reshape_comment(str){
 			// 确保注释 -- 后面有一个空格，但排除 --{} 标记
 			text_list_orginal[i] = text_list_orginal[i].replace(/--(?![{}])([^\s\-\n])/g, "-- $1");
 			
-			is_comment = text_list_orginal[i].indexOf('--')
+			var is_comment = text_list_orginal[i].indexOf('--')
 			if(is_comment > 0){
 				comment_loc = return_right_comment_loc(text_list_orginal[i])
 			}
@@ -1646,7 +1700,7 @@ function reshape_comment(str){
 
 
 function extra(str){
-	text = str.replace(/^\n/ig, "")
+	var text = str.replace(/^\n/ig, "")
 	.replace(/UNIONALL/ig, "\nUNION ALL\n")
 	.replace(/^ *--/ig, "--")
 	.replace(/\s{0,}\;/ig, ";");
@@ -1664,7 +1718,7 @@ function extra(str){
 	}
 
 	for (let i = 0; i < text_list.length; i++) {
-		last_str = i == 0 ? "" : text_list[i - 1];
+		var last_str = i == 0 ? "" : text_list[i - 1];
 
 		if(i > 0){
 			text_final += '\n';
@@ -1681,6 +1735,12 @@ function extra(str){
 	}
 
 	return text_final.replace(/\n{1,2} *--/ig, "\n--").replace(/^ */ig, "")
+	.replace(/\-\-\{\}WHEREiscomment/ig,"\-\-\{\} WHERE")
+	.replace(/\-\-\{\}ANDiscomment/ig,"\-\-\{\} AND")
+	.replace(/\-\-\{\}SELECTiscomment/ig,"\-\-\{\} SELECT")
+	.replace(/\-\-\{\}FROMiscomment/ig,"\-\-\{\} FROM")
+	.replace(/\-\-\{\}BETWEENiscomment/ig,"\-\-\{\} BETWEEN")
+	.replace(/\-\-\{\}orderbyiscomment/ig,"\-\-\{\} ORDER BY")
 	.replace(/\-\-WHEREiscomment/ig,"\-\- WHERE")
 	.replace(/\-\-ANDiscomment/ig,"\-\- AND")
 	.replace(/\-\-SELECTiscomment/ig,"\-\- SELECT")
@@ -1688,6 +1748,7 @@ function extra(str){
 	.replace(/\-\-BETWEENiscomment/ig,"\-\- BETWEEN")
 	.replace(/\-\-orderbyiscomment/ig,"\-\- ORDER BY")	
 	//避免关键词注释换行先缩进
+	.replace(/\-\-\{\}orderbyiscomment/ig,"\-\-\{\} ORDER BY")
 	.replace(/\-\-orderbyiscomment/ig,"\-\- ORDER BY")
 	.replace(/\{comma\}/ig,",") //换回之前的逗号
 	.replace(/UNIONALLALL/ig, "UNION ALL")
@@ -1753,7 +1814,7 @@ function repeat_text_replace(text) {
 					quote_cnt -= 1;
 					end_loc = p
 					//提取p和q 
-					modify_line = text.slice(0, start_loc) + 'NEEDReplace' + text.slice(end_loc+1,)
+					var modify_line = text.slice(0, start_loc) + 'NEEDReplace' + text.slice(end_loc+1,)
 					restore_list.push(text.slice(start_loc, end_loc+1))
 					return repeat_text_replace(modify_line)
 				}
@@ -1765,7 +1826,7 @@ function repeat_text_replace(text) {
 
 
 function extract_quotation_mark(str){
-	text_list_orginal = str.split("\n");
+	var text_list_orginal = str.split("\n");
 	var text_final = '';
 	for (let i = 0; i < text_list_orginal.length; i++) {
 		var this_line = text_list_orginal[i] 
@@ -1773,7 +1834,7 @@ function extract_quotation_mark(str){
 		//假如有评论?,只需处理评论前一段的东西
 		var is_comment = this_line.indexOf('--')
 		if(is_comment >= 0){
-			comment_loc = return_right_comment_loc(this_line)
+			var comment_loc = return_right_comment_loc(this_line)
 			var line_fisrt = this_line.slice(0,comment_loc)
 			var line_last = this_line.slice(comment_loc,)
 			text_final += repeat_text_replace(line_fisrt) + line_last+'\n'
@@ -1788,7 +1849,7 @@ function extract_quotation_mark(str){
 function restore_strmark(str){
 	var replace_loc = str.indexOf('NEEDReplace')
 	if(replace_loc>=0){
-		modify_line = str.slice(0, replace_loc) + restore_list[restore_cnt] + str.slice(replace_loc+11,)
+		var modify_line = str.slice(0, replace_loc) + restore_list[restore_cnt] + str.slice(replace_loc+11,)
 		restore_cnt+= 1
 		return restore_strmark(modify_line) 
 	}
@@ -1802,17 +1863,17 @@ function restore_strmark(str){
 
 
 function newsql(text){
-	step1 = reshape_comment(text);
-	step2 = replace_char(step1) ;
-	step3 = get_bracket(step2);
-	step4 = except_subquery(step3)
+	var step1 = reshape_comment(text);
+	var step2 = replace_char(step1) ;
+	var step3 = get_bracket(step2);
+	var step4 = except_subquery(step3)
 	.replace(/\{\.\*\.\*\}/ig,"(")  //复原之前修改的注释后中文()的项目
 	.replace(/\{\*\.\*\.\}/ig,")");
 
-	step5 = special_wrap(step4).replace(/\-\-\s{0,}\n/ig, "\n-- ");
+	var step5 = special_wrap(step4).replace(/\-\-\s{0,}\n/ig, "\n-- ");
 	// console.log(step5);
-	step6 = bracket_deep(step5); //union all需要单独函数来考虑
-	step7 = extra(step6);
+	var step6 = bracket_deep(step5); //union all需要单独函数来考虑
+	var step7 = extra(step6);
 	return step7;
 }
 
@@ -1825,7 +1886,7 @@ function extractddl(str){
 
 	var text_list = str.split("\n");
 	for (let i = 0; i < text_list.length; i++){
-		text_elmt = text_list[i].trim().replace(/\s{1,}/ig, " ").replace(/\./ig, " ")
+		var text_elmt = text_list[i].trim().replace(/\s{1,}/ig, " ").replace(/\./ig, " ")
 		// 判断是否有注释
 		var comment_loc = text_elmt.indexOf('--');
 		if(comment_loc > 0 && text_elmt.indexOf('FROM') == -1){
@@ -1847,9 +1908,16 @@ function convert_lowercase(str){
 	return str.replace(/ AND /ig, " and ")
 	        .replace(/\nAND /ig, "\nand ")
 	        .replace(/\tAND /ig, "\tand ")
-	        .replace(/ OR /ig, " or ")
-	        .replace(/\nOR /ig, "\nor ")
-	        .replace(/\tOR /ig, "\tor ")
+		.replace(/ OR /ig, " or ")
+		.replace(/\nOR /ig, "\nor ")
+		.replace(/\tOR /ig, "\tor ")
+		.replace(/ NOT /ig, " not ")
+		.replace(/ IS /ig, " is ")
+		.replace(/\bNULL\b/ig, "null")
+		.replace(/\bTRUE\b/ig, "true")
+		.replace(/\bFALSE\b/ig, "false")
+		.replace(/\bDISTINCT\b/ig, "distinct")
+		.replace(/\bCAST\(/ig, "cast(")
 		.replace(/\bCASE\b/ig, "case")
 		.replace(/THEN /ig, "then ")
 		.replace(/ALTER /ig, "alter ")
@@ -1874,10 +1942,24 @@ function convert_lowercase(str){
 		.replace(/DISTRIBUTE BY /ig, "distribute by ")
 		.replace(/ AS/ig, " as")
 		.replace(/TABLE /ig, "table ")
+		.replace(/EXTERNAL /ig, "external ")
+		.replace(/STORED AS /ig, "stored as ")
+		.replace(/\bTBLPROPERTIES\b/ig, "tblproperties")
+		.replace(/\bPARQUET\b/ig, "parquet")
 		.replace(/IF EXISTS/ig, "if exists")
+		.replace(/IF NOT EXISTS/ig, "if not exists")
 		.replace(/HAVING /ig, "having ")
 		.replace(/USING /ig, "using ")
 		.replace(/IN /g, "in ")
+		.replace(/\bSTRING\b/ig, "string")
+		.replace(/\bINT\b/ig, "int")
+		.replace(/\bBIGINT\b/ig, "bigint")
+		.replace(/\bDOUBLE\b/ig, "double")
+		.replace(/\bBOOLEAN\b/ig, "boolean")
+		.replace(/\bFLOAT\b/ig, "float")
+		.replace(/\bDECIMAL\b/ig, "decimal")
+		.replace(/\bTIMESTAMP\b/ig, "timestamp")
+		.replace(/\bDATE\b/ig, "date")
 		.replace(/SELECT/ig, "select")
 		.replace(/WHERE/ig, "where")
 		.replace(/ON /ig, "on ")
@@ -1889,6 +1971,8 @@ function convert_lowercase(str){
 		.replace(/\nLEFT JOIN\n/ig, "\nleft join\n")
 		.replace(/\tLEFT JOIN\n/ig, "\tleft join\n")
 		.replace(/\tLEFT JOIN\t/ig, "\tleft join\t")
+		.replace(/LEFT SEMI JOIN /ig, "left semi join ")
+		.replace(/LEFT ANTI JOIN /ig, "left anti join ")
 		.replace(/RIGHT JOIN /ig, "right join ")
 		.replace(/\nRIGHT JOIN\n/ig, "\nright join\n")
 		.replace(/\tRIGHT JOIN\n/ig, "\tright join\n")
@@ -1896,9 +1980,15 @@ function convert_lowercase(str){
 		.replace(/ORDER BY /ig, "order by ")
 		.replace(/GROUP BY /ig, "group by ")
 		.replace(/GROUPING SETS/ig, "grouping sets")
+		.replace(/\bROLLUP\(/ig, "rollup(")
+		.replace(/\bCUBE\(/ig, "cube(")
+		.replace(/SORT BY /ig, "sort by ")
+		.replace(/CLUSTER BY /ig, "cluster by ")
 		.replace(/UNION ALL/ig, "union all")
 		.replace(/UNION /ig, "union ")
 		.replace(/UNION\n/ig, "union\n")
+		.replace(/INTERSECT/ig, "intersect")
+		.replace(/EXCEPT/ig, "except")
 		.replace(/LEFT OUTER JOIN /ig, "left outer join ")
 	    .replace(/\nLEFT OUTER JOIN\n/ig, "\nleft outer join\n")
 	    .replace(/\tLEFT OUTER JOIN\t/ig, "\tleft outer join\t")
@@ -1924,14 +2014,29 @@ function convert_lowercase(str){
 		.replace(/AVG\(/ig, "avg(")
 		.replace(/COUNT\(/ig, "count(")
 		.replace(/LIMIT/ig, "limit")
+		.replace(/LATERAL VIEW OUTER/ig, "lateral view outer")
 		.replace(/LATERAL VIEW explode/ig, "lateral view explode")
+		.replace(/LATERAL VIEW /ig, "lateral view ")
 		.replace(/ NOT IN /ig, " not in ")
+		.replace(/ NOT EXISTS /ig, " not exists ")
+		.replace(/ EXISTS /ig, " exists ")
 		.replace(/ LIKE /ig, " like ")
+		.replace(/ RLIKE /ig, " rlike ")
+		.replace(/ REGEXP /ig, " regexp ")
 		.replace(/ OVER /ig, " over ")
+		.replace(/OVER\(/ig, "over(")
 		.replace(/ PARTITION BY /ig, " partition by ")
+		.replace(/PARTITION\(/ig, "partition(")
 		.replace(/\(PARTITION BY /ig, "(partition by ")
+		.replace(/\bPOSEXPLODE\(/ig, "posexplode(")
+		.replace(/\bEXPLODE\(/ig, "explode(")
 		.replace(/row_number /ig, "row_number ")
 		.replace(/row_number\(/ig, "row_number(")
+		.replace(/\bROWS\b/ig, "rows")
+		.replace(/\bUNBOUNDED\b/ig, "unbounded")
+		.replace(/\bPRECEDING\b/ig, "preceding")
+		.replace(/\bFOLLOWING\b/ig, "following")
+		.replace(/\bCURRENT ROW\b/ig, "current row")
 		.replace(/ asc /ig, " asc ")
 		.replace(/ desc /ig, " desc ")
 }
@@ -1940,18 +2045,17 @@ function convert_comma_loaction(str){
 	var text_final = '';
 	var text_list = str.replace(/\n *\-\-/ig, " \-\-{}").split("\n"); 
 	for (let i = 0; i < text_list.length; i++) {
-		this_line = text_list[i]
+		var this_line = text_list[i]
+		var next_line = ''
 		
 		if(i + 1 <= text_list.length){
 			next_line = text_list[i+1]
-		}else{
-			next_line = ''
 		}
 
 		//判断this line是否有评论
-		is_comment = this_line.indexOf('--')
+		var is_comment = this_line.indexOf('--')
 		if(is_comment >= 0){
-			comment_loc = return_right_comment_loc(this_line)
+			var comment_loc = return_right_comment_loc(this_line)
 		}
 		
 		//针对本行，如果有逗号，先剔除
@@ -2157,7 +2261,7 @@ function align_condition_clauses(str) {
 				trimmed.slice(condition_keyword.length)
 			);
 			aligned_condition_line = true;
-		} else if (/^(SELECT|FROM|JOIN|LEFT|RIGHT|FULL|INNER|CROSS|GROUP BY|ORDER BY|LIMIT|DISTRIBUTE BY|UNION|WITH)\b/i.exec(trimmed)
+		} else if (/^(SELECT|FROM|JOIN|LEFT|RIGHT|FULL|INNER|CROSS|GROUP BY|ORDER BY|SORT BY|CLUSTER BY|LIMIT|DISTRIBUTE BY|UNION|WITH)\b/i.exec(trimmed)
 			|| /^\)/.exec(trimmed)
 			|| /^\($/.exec(trimmed)) {
 			current_target_keyword_end = -1;
@@ -2195,11 +2299,11 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	restore_list = []
 	restore_cnt = 0
 
-	step0 = extract_quotation_mark(text)
-	step1 = reshape_comment(step0);
-	step2 = replace_char(step1) ;
-	step3 = get_bracket(step2);
-	step4 = except_subquery(step3)
+	var step0 = extract_quotation_mark(text)
+	var step1 = reshape_comment(step0);
+	var step2 = replace_char(step1) ;
+	var step3 = get_bracket(step2);
+	var step4 = except_subquery(step3)
 	.replace(/\{\.\*\.\*\}/ig,"(")  //复原之前修改的注释后中文()的项目
 	.replace(/\{\*\.\*\.\}/ig,")");
 	// step5 = special_wrap(step4).replace(/\-\-\s{0,}\n/ig, "\n-- ");

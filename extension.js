@@ -3,6 +3,52 @@
 var vscode = require('vscode');
 var vkbeautify = require('./vkbeautify');
 
+function getTargetRanges(editor) {
+    var selections = [];
+
+    for (var i = 0; i < editor.selections.length; i++) {
+        var s = editor.selections[i];
+        if (!s.start.isEqual(s.end)) {
+            selections.push(new vscode.Range(s.start, s.end));
+        }
+    }
+
+    if (selections.length === 0) {
+        selections.push(new vscode.Range(editor.document.positionAt(0), editor.document.positionAt(editor.document.getText().length)));
+    }
+
+    return selections;
+}
+
+function replaceTargetRanges(formatter) {
+    var editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        return;
+    }
+
+    var ranges = getTargetRanges(editor);
+
+    editor.edit(function(builder) {
+        for (var i = 0; i < ranges.length; i++) {
+            var range = ranges[i];
+            var text = editor.document.getText(range).toString();
+            builder.replace(range, formatter(text));
+        }
+    });
+}
+
+function getSqlFormatterConfig() {
+    var config = vscode.workspace.getConfiguration('extension');
+
+    return {
+        uppercase: config.get('uppercase'),
+        comma_location: config.get('comma_location'),
+        bracket_char: config.get('bracket_char'),
+        as_loc_cnt: config.get('as_loc_cnt'),
+        case_when_then_wrap_length: config.get('case_when_then_wrap_length')
+    };
+}
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 function activate(context) {
@@ -15,76 +61,28 @@ function activate(context) {
     // Now provide the implementation of the command with  registerCommand
     // The commandId parameter must match the command field in package.json
     var disposable = vscode.commands.registerCommand('extension.beautifySql', function () {
-        // The code you place here will be executed every time your command is executed
-
-        var selections = [];
-        for (var i = 0; i < vscode.window.activeTextEditor.selections.length; i++) {
-            var s = vscode.window.activeTextEditor.selections[i];
-            if (!s.start.isEqual(s.end))
-                selections.push(new vscode.Range(s.start, s.end));
-        }
-
-        if (selections.length === 0) {
-            selections.push(new vscode.Range(vscode.window.activeTextEditor.document.positionAt(0), vscode.window.activeTextEditor.document.positionAt(vscode.window.activeTextEditor.document.getText().length)));
-        }
-
-        vscode.window.activeTextEditor.edit(function(builder) {
-            for (var i = 0; i < selections.length; i++) {
-                var range = selections[i];
-                var text = vscode.window.activeTextEditor.document.getText(range).toString();
-                var uppercase  = vscode.workspace.getConfiguration('extension').get('uppercase');
-                var comma_location  = vscode.workspace.getConfiguration('extension').get('comma_location'); //逗号位置
-                var bracket_char  = vscode.workspace.getConfiguration('extension').get('bracket_char'); //缩进位置
-                var as_loc_cnt  = vscode.workspace.getConfiguration('extension').get('as_loc_cnt'); //as最大数
-                var case_when_then_wrap_length  = vscode.workspace.getConfiguration('extension').get('case_when_then_wrap_length'); //case when换行阈值
-                var bt = vkbeautify.sql(text,uppercase,comma_location,bracket_char,as_loc_cnt,case_when_then_wrap_length);
-                builder.replace(range, bt);
-            }
+        replaceTargetRanges(function(text) {
+            var config = getSqlFormatterConfig();
+            return vkbeautify.sql(
+                text,
+                config.uppercase,
+                config.comma_location,
+                config.bracket_char,
+                config.as_loc_cnt,
+                config.case_when_then_wrap_length
+            );
         });
     });
 
     var disposable2 = vscode.commands.registerCommand('extension.beautifySqlddl', function () {
-        // The code you place here will be executed every time your command is executed
-        var selections = [];
-        for (var i = 0; i < vscode.window.activeTextEditor.selections.length; i++) {
-            var s = vscode.window.activeTextEditor.selections[i];
-            if (!s.start.isEqual(s.end))
-                selections.push(new vscode.Range(s.start, s.end));
-        }
-        if (selections.length === 0) {
-            selections.push(new vscode.Range(vscode.window.activeTextEditor.document.positionAt(0), vscode.window.activeTextEditor.document.positionAt(vscode.window.activeTextEditor.document.getText().length)));
-        }
-
-        vscode.window.activeTextEditor.edit(function(builder) {
-            for (var i = 0; i < selections.length; i++) {
-                var range = selections[i];
-                var text = vscode.window.activeTextEditor.document.getText(range).toString();
-
-                var bt = vkbeautify.sqlddl(text);
-                builder.replace(range, bt);
-            }
+        replaceTargetRanges(function(text) {
+            return vkbeautify.sqlddl(text);
         });
     });
 
     var disposable3 = vscode.commands.registerCommand('extension.extractDdl', function () {
-        // The code you place here will be executed every time your command is executed
-        var selections = [];
-        for (var i = 0; i < vscode.window.activeTextEditor.selections.length; i++) {
-            var s = vscode.window.activeTextEditor.selections[i];
-            if (!s.start.isEqual(s.end))
-                selections.push(new vscode.Range(s.start, s.end));
-        }
-        if (selections.length === 0) {
-            selections.push(new vscode.Range(vscode.window.activeTextEditor.document.positionAt(0), vscode.window.activeTextEditor.document.positionAt(vscode.window.activeTextEditor.document.getText().length)));
-        }
-
-        vscode.window.activeTextEditor.edit(function(builder) {
-            for (var i = 0; i < selections.length; i++) {
-                var range = selections[i];
-                var text = vscode.window.activeTextEditor.document.getText(range).toString();
-                var bt = vkbeautify.extractddl(text);
-                builder.replace(range, bt);
-            }
+        replaceTargetRanges(function(text) {
+            return vkbeautify.extractddl(text);
         });
     });
 

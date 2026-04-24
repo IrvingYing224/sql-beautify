@@ -137,6 +137,63 @@ run_case(
 );
 
 run_case(
+	'standalone comments starting with SQL keywords do not leak placeholders',
+	[
+		'SELECT a.id,a.name,b.order_id',
+		'FROM users a',
+		'LEFT JOIN orders b ON a.id=b.user_id',
+		"WHERE a.status='active'",
+		'-- AND b.price > 100',
+		'-- WHERE debug filter',
+		'-- SELECT debug columns',
+		'-- FROM debug TABLE',
+		'-- between debug range',
+		'-- order by debug order',
+		'GROUP BY a.id',
+		'HAVING COUNT(b.order_id)>1;'
+	].join('\n'),
+	[
+		'SELECT  a.id',
+		'       ,a.name',
+		'       ,b.order_id',
+		'FROM users a',
+		'LEFT JOIN orders b',
+		'     ON a.id = b.user_id',
+		"WHERE a.status = 'active'",
+		'-- AND b.price > 100',
+		'-- WHERE debug filter',
+		'-- SELECT debug columns',
+		'-- FROM debug TABLE',
+		'-- BETWEEN debug range',
+		'-- ORDER BY debug order',
+		'GROUP BY  a.id',
+		'HAVING COUNT(b.order_id) > 1;'
+	].join('\n')
+);
+
+run_case(
+	'condition wrapping continues after trailing line comment',
+	[
+		'select 1',
+		'from tb1 t1',
+		"where t1.load_biz_dt ='${LOAD_BIU_DT}'",
+		"AND T1.DEPARTMENT IN ('AA','BB') -- TEST",
+		"AND T1.PROD_ID ='#'",
+		"AND T1.ITEM='#'",
+		"AND T1.RISK_IND IN ('BB','CC')"
+	].join('\n'),
+	[
+		'SELECT  1',
+		'FROM tb1 t1',
+		"WHERE t1.load_biz_dt = '${LOAD_BIU_DT}'",
+		"  AND T1.DEPARTMENT IN ('AA', 'BB') -- TEST",
+		"  AND T1.PROD_ID = '#'",
+		"  AND T1.ITEM = '#'",
+		"  AND T1.RISK_IND IN ('BB', 'CC')"
+	].join('\n')
+);
+
+run_case(
 	'long window function columns still align trailing comments',
 	[
 		'SELECT  o.user_id                                                                                                            AS user_id -- 用户ID',
@@ -152,10 +209,10 @@ run_case(
 		align_comment('SELECT  o.user_id                                                                                                            AS user_id', 143, '用户ID'),
 		align_comment('       ,o.order_id                                                                                                           AS order_id', 143, '订单ID'),
 		align_comment('       ,o.amount                                                                                                             AS amount', 143, '金额'),
-		align_comment('       ,ROW_NUMBER() over(PARTITION BY o.user_id ORDER BY  o.amount desc,o.order_id ASC)                                     AS rn', 143, '行号'),
+		align_comment('       ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.amount desc,o.order_id ASC)                                     AS rn', 143, '行号'),
 		align_comment('       ,rank() OVER (PARTITION BY o.user_id ORDER BY o.amount DESC)                                                          AS rk', 143, '排名'),
-		align_comment('       ,dense_rank() over(PARTITION BY o.user_id ORDER BY o.amount DESC)                                                     AS drk', 143, '稠密排名'),
-		align_comment('       ,SUM(o.amount) over( PARTITION BY o.user_id ORDER BY o.create_time rows BETWEEN unbounded preceding AND current row ) AS running_amount', 143, '累计金额'),
+		align_comment('       ,dense_rank() OVER(PARTITION BY o.user_id ORDER BY o.amount DESC)                                                     AS drk', 143, '稠密排名'),
+		align_comment('       ,SUM(o.amount) OVER( PARTITION BY o.user_id ORDER BY o.create_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) AS running_amount', 143, '累计金额'),
 		'FROM orders o;'
 	].join('\n')
 );

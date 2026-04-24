@@ -67,6 +67,14 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 * Chatgpt横空出世，本插件几乎宣告下岗。Chatgpt was born out of nowhere, this plug-in was almost laid off
 
 # 😎 更迭日志 Release Notes
+### 0.3.30 (2026/04/24)
+* 修复了 Hive SQL 中 `LEFT SEMI JOIN` / `LEFT ANTI JOIN`、`EXISTS`、`GROUPING SETS`、`POSEXPLODE(...)` 等格式化问题
+* 补充了 `SORT BY`、`CLUSTER BY`、`INTERSECT`、`EXCEPT` 和常见 Hive 关键字的大写支持
+* 修复了 `-- AND` 等独立注释泄漏 `iscomment`，以及行尾注释后续 `AND` 不继续换行的问题
+* Fixed Hive SQL formatting issues involving `LEFT SEMI JOIN` / `LEFT ANTI JOIN`, `EXISTS`, `GROUPING SETS`, and `POSEXPLODE(...)`
+* Added uppercase support for `SORT BY`, `CLUSTER BY`, `INTERSECT`, `EXCEPT`, and common Hive keywords
+* Fixed `iscomment` leakage for standalone comments like `-- AND` and missing wraps after trailing comments
+
 ### 0.3.29 (2026/04/24)
 * 修复了 `WHERE` / `HAVING` 条件中的 `CASE WHEN` 误插入 `THEN AND`，并统一了多行 `CASE` 条件块的 `CASE` / `END` 缩进
 * 统一了 `extension.as_loc_cnt` 对顶层别名 `AS` 与行尾注释的宽度判定，避免出现 `AS` 仍对齐但注释提前失去对齐的情况

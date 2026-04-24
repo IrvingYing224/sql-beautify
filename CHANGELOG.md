@@ -1,6 +1,18 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.30 (2026/04/24)
+* 修复了 Hive SQL 中 `LEFT SEMI JOIN` / `LEFT ANTI JOIN` 被错误拆行的问题
+* 补充了 `SORT BY`、`CLUSTER BY`、`EXISTS`、`INTERSECT`、`EXCEPT` 和常见 Hive 关键字的大写与格式化支持
+* 修复了 `GROUPING SETS` 前出现孤立逗号、`POSEXPLODE(...)` 被误拆行的问题
+* 修复了独立行 `-- AND` 等注释泄漏 `iscomment`，以及行尾注释后续 `AND` 不继续换行的问题
+* 精简了 VS Code 命令处理逻辑，并补充 Hive 关键字、注释和条件换行回归覆盖
+* Fixed incorrect wrapping of `LEFT SEMI JOIN` / `LEFT ANTI JOIN` in Hive SQL
+* Added uppercase and formatting support for `SORT BY`, `CLUSTER BY`, `EXISTS`, `INTERSECT`, `EXCEPT`, and common Hive keywords
+* Fixed stray comma output before `GROUPING SETS` and incorrect wrapping of `POSEXPLODE(...)`
+* Fixed `iscomment` leakage for standalone comments such as `-- AND` and continued `AND` wrapping after trailing comments
+* Simplified VS Code command handling and added regression coverage for Hive keywords, comments, and condition wrapping
+
 ### 0.3.29 (2026/04/24)
 * 修复了 `WHERE` / `HAVING` 条件中的 `CASE WHEN` 误插入 `THEN AND`，并统一了多行 `CASE` 条件块的 `CASE` / `END` 缩进
 * 统一了 `extension.as_loc_cnt` 对顶层别名 `AS` 与行尾注释的宽度判定，避免出现 `AS` 仍对齐但注释提前失去对齐的情况
@@ -195,7 +207,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

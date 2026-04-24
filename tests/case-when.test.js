@@ -73,9 +73,9 @@ run_case(
 	'count distinct wrapper keeps case syntax valid',
 	"select count(distinct case when o.status='SUCCESS' then o.order_id else null end) as cnt from orders o",
 	[
-		'SELECT  COUNT(distinct CASE',
+		'SELECT  COUNT(DISTINCT CASE',
 		"                           WHEN o.status = 'SUCCESS' THEN o.order_id",
-		'                           ELSE null',
+		'                           ELSE NULL',
 		align_as('                       END)', 68, 'cnt'),
 		'FROM orders o'
 	].join('\n')
