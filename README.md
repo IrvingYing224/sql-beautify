@@ -67,6 +67,14 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 * Chatgpt横空出世，本插件几乎宣告下岗。Chatgpt was born out of nowhere, this plug-in was almost laid off
 
 # 😎 更迭日志 Release Notes
+### 0.3.29 (2026/04/24)
+* 修复了 `WHERE` / `HAVING` 条件中的 `CASE WHEN` 误插入 `THEN AND`，并统一了多行 `CASE` 条件块的 `CASE` / `END` 缩进
+* 统一了 `extension.as_loc_cnt` 对顶层别名 `AS` 与行尾注释的宽度判定，避免出现 `AS` 仍对齐但注释提前失去对齐的情况
+* 修复了注释与 `AS` 在临界宽度场景下判断不一致的问题
+* Fixed the `THEN AND` corruption in `CASE WHEN` expressions inside `WHERE` / `HAVING`
+* Unified the width threshold logic controlled by `extension.as_loc_cnt` for both top-level alias `AS` alignment and trailing comments
+* Fixed inconsistent threshold behavior between `AS` alignment and trailing comment alignment in borderline-width cases
+
 ### 0.3.28 (2026/04/23)
 * 统一了 `ON` / `WHERE` / `HAVING` 中顶层 `AND` / `OR` 的换行与尾部对齐
 * 修复了 `JOIN ... ON` 后续条件不换行、`WHERE` 中 `OR` 不换行以及条件续行缩进不一致的问题

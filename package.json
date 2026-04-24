@@ -2,7 +2,7 @@
 	"name": "vscode-sql-beautify",
 	"displayName": "SQL Beautify",
 	"description": "More Powerful extension that beautifies SQL/一键美化你的SQL",
-	"version": "0.3.28",
+	"version": "0.3.29",
 	"publisher": "clarkyu",
 	"engines": {
 		"vscode": "^1.5.0"
@@ -78,7 +78,7 @@
 					"scope": "resource",
 					"type": "number",
 					"default": 150,
-					"description": "Set max length of the column to align words after `as`  /自定义当你的字段长度超过多少字符，不参加as对齐(整个字段长度包括as后面的列名)"
+					"description": "Set max length of the column to align words after `as` and trailing comments  /自定义当你的字段长度超过多少字符，不参加as和行尾注释对齐(有AS时按AS前代码长度计算)"
 				},
 				"extension.case_when_then_wrap_length": {
 					"scope": "resource",

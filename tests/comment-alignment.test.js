@@ -160,4 +160,32 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'wide aliased case rows keep trailing comments aligned with as width threshold',
+	[
+		'SELECT  u.user_id                                                                                                                           AS user_id -- 用户ID',
+		'       ,u.user_name                                                                                                                         AS user_name -- 用户名',
+		'       ,CASE',
+		"            WHEN u.status = 'active' AND u.age >= 18 AND nvl(u.email,'') <> '' AND length(regexp_replace(nvl(u.phone,''),'[^0-9]','')) = 11",
+		"                THEN 'valid_active_user'",
+		'            ELSE',
+		"                'invalid_or_inactive_user'",
+		'        END                                                                                                                                 AS user_flag -- 用户标记',
+		'       ,u.city                                                                                                                              AS city -- 城市',
+		'FROM users u;'
+	].join('\n'),
+	[
+		'SELECT  u.user_id                                                                                                                           AS user_id   -- 用户ID',
+		'       ,u.user_name                                                                                                                         AS user_name -- 用户名',
+		'       ,CASE',
+		"            WHEN u.status = 'active' AND u.age >= 18 AND nvl(u.email,'') <> '' AND length(regexp_replace(nvl(u.phone,''),'[^0-9]','')) = 11",
+		"                THEN 'valid_active_user'",
+		'            ELSE',
+		"                'invalid_or_inactive_user'",
+		'        END                                                                                                                                 AS user_flag -- 用户标记',
+		'       ,u.city                                                                                                                              AS city      -- 城市',
+		'FROM users u;'
+	].join('\n')
+);
+
 console.log('comment alignment tests passed');

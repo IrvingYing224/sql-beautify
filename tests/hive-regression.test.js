@@ -162,9 +162,98 @@ run_case(
 		'HAVING SUM(coalesce(o.amount, 0)) > 1000',
 		'   AND COUNT(*) >= 3',
 		'   AND MAX(CASE',
-		"            WHEN o.status = 'SUCCESS' THEN 1",
+		"               WHEN o.status = 'SUCCESS' THEN 1",
+		'               ELSE 0',
+		'           END) = 1;                              -- 分组过滤条件'
+	].join('\n')
+);
+
+run_case(
+	'where case keeps boolean condition inside branch',
+	[
+		"select u.user_id as user_id, u.user_name as user_name, case when u.status='active' and u.age>=18 then 'valid_user' else 'invalid_user' end as user_flag",
+		'from users u',
+		"where case when u.city='NY' and u.age>25 then 1 else 0 end = 1;"
+	].join(' '),
+	[
+		'SELECT  u.user_id                                                      AS user_id',
+		'       ,u.user_name                                                    AS user_name',
+		'       ,CASE',
+		"            WHEN u.status = 'active' AND u.age >= 18 THEN 'valid_user'",
+		"            ELSE 'invalid_user'",
+		'        END                                                            AS user_flag',
+		'FROM users u',
+		'WHERE CASE',
+		"          WHEN u.city = 'NY' AND u.age > 25 THEN 1",
+		'          ELSE 0',
+		'      END = 1;'
+	].join('\n')
+);
+
+run_case(
+	'where and-case condition keeps end aligned with case',
+	[
+		'SELECT  u.user_id   AS user_id',
+		'       ,u.user_name AS user_name',
+		'       ,o.order_id  AS order_id',
+		'       ,o.amount    AS amount',
+		'       ,CASE WHEN o.amount > 0 AND o.order_id is not null THEN o.amount  ELSE 0 END  as cc',
+		'FROM users u',
+		'LEFT JOIN orders o',
+		'     ON u.user_id = o.user_id',
+		"    AND o.status = 'SUCCESS'",
+		'    AND o.amount > 0',
+		"WHERE u.status = 'active'",
+		"  AND (u.age >= 18 OR u.city = 'NY')",
+		"  AND nvl(u.user_name, '') <> ''",
+		'  AND CASE WHEN o.amount > 0 AND o.order_id is not null THEN o.amount  ELSE 0 END > 50',
+		"  AND dt BETWEEN '2021-01-01' AND '2022-12-31'",
+		';'
+	].join('\n'),
+	[
+		'SELECT  u.user_id                                                      AS user_id',
+		'       ,u.user_name                                                    AS user_name',
+		'       ,o.order_id                                                     AS order_id',
+		'       ,o.amount                                                       AS amount',
+		'       ,CASE',
+		'            WHEN o.amount > 0 AND o.order_id is not null THEN o.amount',
 		'            ELSE 0',
-		'        END) = 1;                                 -- 分组过滤条件'
+		'        END                                                            AS cc',
+		'FROM users u',
+		'LEFT JOIN orders o',
+		'     ON u.user_id = o.user_id',
+		"    AND o.status = 'SUCCESS'",
+		'    AND o.amount > 0',
+		"WHERE u.status = 'active'",
+		"  AND (u.age >= 18 OR u.city = 'NY')",
+		"  AND nvl(u.user_name, '') <> ''",
+		'  AND CASE',
+		'          WHEN o.amount > 0 AND o.order_id is not null THEN o.amount',
+		'          ELSE 0',
+		'      END > 50',
+		"  AND dt BETWEEN '2021-01-01' AND '2022-12-31'",
+		';'
+	].join('\n')
+);
+
+run_case(
+	'having case keeps boolean condition inside aggregate branch',
+	[
+		'select o.user_id,count(*) as order_cnt',
+		'from orders o',
+		'group by o.user_id',
+		"having max(case when o.status='SUCCESS' and o.pay_time is not null then 1 else 0 end) = 1 and count(*)>1;"
+	].join(' '),
+	[
+		'SELECT  o.user_id',
+		'       ,COUNT(*)  AS order_cnt',
+		'FROM orders o',
+		'GROUP BY  o.user_id',
+		'HAVING MAX(CASE',
+		"               WHEN o.status = 'SUCCESS' AND o.pay_time is not null THEN 1",
+		'               ELSE 0',
+		'           END) = 1',
+		'   AND COUNT(*) > 1;'
 	].join('\n')
 );
 
@@ -234,13 +323,13 @@ run_case(
 	[
 		'WITH order_base AS',
 		'(',
-		'    SELECT  o.user_id                                                                                                                         AS user_id -- 用户ID',
-		'           ,o.order_id                                                                                                                        AS order_id -- 订单ID',
+		'    SELECT  o.user_id                                                                                                                         AS user_id     -- 用户ID',
+		'           ,o.order_id                                                                                                                        AS order_id    -- 订单ID',
 		'           ,CASE',
 		"                WHEN o.status = 'SUCCESS' AND o.pay_time is not null THEN concat_ws('#',cast(o.order_id AS string),cast(o.user_id AS string))",
 		"                ELSE 'INVALID_ORDER'",
 		'            END                                                                                                                               AS order_token -- 订单标识',
-		'           ,o.amount                                                                                                                          AS amount -- 金额',
+		'           ,o.amount                                                                                                                          AS amount      -- 金额',
 		'    FROM orders o',
 		')',
 		'SELECT  us.user_id      AS user_id      -- 用户ID',
@@ -265,13 +354,13 @@ run_case(
 		'FROM orders o'
 	].join('\n'),
 	[
-		'SELECT  o.user_id                                                                                                                         AS user_id  -- 用户ID',
-		'       ,o.order_id                                                                                                                        AS order_id -- 订单ID',
+		'SELECT  o.user_id                                                                                                                         AS user_id     -- 用户ID',
+		'       ,o.order_id                                                                                                                        AS order_id    -- 订单ID',
 		'       ,CASE',
 		"            WHEN o.status = 'SUCCESS' AND o.pay_time is not null THEN concat_ws('#',cast(o.order_id AS string),cast(o.user_id AS string))",
 		"            ELSE 'INVALID_ORDER'",
 		'        END                                                                                                                               AS order_token -- 订单标识',
-		'       ,o.amount                                                                                                                          AS amount   -- 金额',
+		'       ,o.amount                                                                                                                          AS amount      -- 金额',
 		'FROM orders o'
 	].join('\n')
 );
