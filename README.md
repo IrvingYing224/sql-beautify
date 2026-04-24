@@ -64,70 +64,12 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 
 * 如果你真的遇到什么问题了，请先`Ctrl+z`恢复你的代码，然后可以联系我修复可能存在的问题。If you have some problems, try to use `Ctrl+z` to recover your code and contact me to fix the bug if you wish.
 
-* Chatgpt横空出世，本插件几乎宣告下岗。Chatgpt was born out of nowhere, this plug-in was almost laid off
 
-# 😎 更迭日志 Release Notes
-### 0.3.30 (2026/04/24)
-* 修复了 Hive SQL 中 `LEFT SEMI JOIN` / `LEFT ANTI JOIN`、`EXISTS`、`GROUPING SETS`、`POSEXPLODE(...)` 等格式化问题
-* 补充了 `SORT BY`、`CLUSTER BY`、`INTERSECT`、`EXCEPT` 和常见 Hive 关键字的大写支持
-* 修复了 `-- AND` 等独立注释泄漏 `iscomment`，以及行尾注释后续 `AND` 不继续换行的问题
-* Fixed Hive SQL formatting issues involving `LEFT SEMI JOIN` / `LEFT ANTI JOIN`, `EXISTS`, `GROUPING SETS`, and `POSEXPLODE(...)`
-* Added uppercase support for `SORT BY`, `CLUSTER BY`, `INTERSECT`, `EXCEPT`, and common Hive keywords
-* Fixed `iscomment` leakage for standalone comments like `-- AND` and missing wraps after trailing comments
-
-### 0.3.29 (2026/04/24)
-* 修复了 `WHERE` / `HAVING` 条件中的 `CASE WHEN` 误插入 `THEN AND`，并统一了多行 `CASE` 条件块的 `CASE` / `END` 缩进
-* 统一了 `extension.as_loc_cnt` 对顶层别名 `AS` 与行尾注释的宽度判定，避免出现 `AS` 仍对齐但注释提前失去对齐的情况
-* 修复了注释与 `AS` 在临界宽度场景下判断不一致的问题
-* Fixed the `THEN AND` corruption in `CASE WHEN` expressions inside `WHERE` / `HAVING`
-* Unified the width threshold logic controlled by `extension.as_loc_cnt` for both top-level alias `AS` alignment and trailing comments
-* Fixed inconsistent threshold behavior between `AS` alignment and trailing comment alignment in borderline-width cases
-
-### 0.3.28 (2026/04/23)
-* 统一了 `ON` / `WHERE` / `HAVING` 中顶层 `AND` / `OR` 的换行与尾部对齐
-* 修复了 `JOIN ... ON` 后续条件不换行、`WHERE` 中 `OR` 不换行以及条件续行缩进不一致的问题
-* Unified wrapping and keyword-tail alignment for top-level `AND` / `OR` in `ON`, `WHERE`, and `HAVING`
-* Fixed missing wraps after `JOIN ... ON`, missing `OR` wraps in `WHERE`, and inconsistent continued-condition indentation
-
-### 0.3.27 (2026/04/23)
-* 修复了多行 `CASE`、`CTE`、`HAVING`、行尾注释与顶层别名 `AS` 的一系列对齐问题
-* 避免 `cast(... AS string)` 等内部 `AS` 影响外层别名列对齐，同时保留 `CASE` 代码块与别名列的视觉分区
-* 新增长期回归验证入口 `npm run test:verify`
-* Fixed a series of alignment issues involving multi-line `CASE`, `CTE`, `HAVING`, trailing comments, and top-level alias `AS`
-* Prevented inner `AS` usages such as `cast(... AS string)` from affecting top-level alias alignment while keeping visual separation between `CASE` blocks and aliases
-* Added the long-term regression verification entry `npm run test:verify`
-
-### 0.3.26 (2026/04/22)
-* 修复了多行 `CASE` 与 `AS`、行尾注释的对齐问题
-* 保留整体列对齐，同时将最长项前的最短间隔调整为 1 个空格
-* Fixed alignment issues between multi-line `CASE`, `AS`, and trailing comments
-* Kept overall column alignment while reducing the minimum gap on the widest item to one space
-
-### 0.3.25 (2026/04/21)
-* 深度优化了 `CASE WHEN` 对齐和换行逻辑
-* Optimized `CASE WHEN` alignment and wrapping
-
-### 0.3.22 (2023/08/26)
-* 修正了一些BUG
-* FIx some bugs
-
-### 0.3.20 (2023/07/25)
-* 修正了关键词小写转换bug@lpy1997c
-* FIx [the bug of lowercase](https://github.com/clarkyu2016/sql-beautify/issues/47) @lpy1997c
-* SQL中lambda表达式中的-> 中间添加空格@MuRo-J
-* FIx [the bug of lambda expression](https://github.com/clarkyu2016/sql-beautify/issues/51) @MuRo-J
-
-### 0.3.17 (2023/03/14)
-* 修正了字段中的select会被分行@maohr
-* FIx [the bug of Select](https://github.com/clarkyu2016/sql-beautify/issues/49) @maohr
-
-
- [**More Release Notes**](https://github.com/clarkyu2016/sql-beautify/blob/main/CHANGELOG.md)
+ [**Release Notes**](https://github.com/clarkyu2016/sql-beautify/blob/main/CHANGELOG.md)
 
 # 🎅 联系我 Contact Me
 
-如果有任何问题，欢迎在Issues上留言提问题给我。也可以通过我的微信和我联系
+如果有任何问题，欢迎在Issues上留言提问题给我。
 
-If you have any problem,welcome to submit issues or You can contact me via wechat.
+If you have any problem,welcome to submit issues 
 
-![wechat](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/wechat.jpg)
