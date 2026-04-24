@@ -1,6 +1,16 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.31 (2026/04/24)
+* 修复了整行注释中的 `IN (SELECT ...)` / `EXISTS (SELECT ...)` 被错误拆成非注释 SQL 的问题
+* 修复了行内注释包含第二个 `--`、`${...}` 变量或位于 `FROM` / `AND` 后方时被继续格式化的问题
+* 修复了字段列表中穿插整行注释后，前后字段行尾注释不再对齐的问题
+* 补充了注释子查询、行内注释尾部和穿插注释字段列表的回归覆盖
+* Fixed standalone comments containing `IN (SELECT ...)` / `EXISTS (SELECT ...)` being incorrectly reformatted as active SQL
+* Fixed inline comments containing a second `--`, `${...}` variables, or comments after `FROM` / `AND` being reformatted further
+* Fixed trailing comment alignment when commented-out select items appear between active select fields
+* Added regression coverage for commented subqueries, inline comment tails, and select lists with commented-out items
+
 ### 0.3.30 (2026/04/24)
 * 修复了 Hive SQL 中 `LEFT SEMI JOIN` / `LEFT ANTI JOIN` 被错误拆行的问题
 * 补充了 `SORT BY`、`CLUSTER BY`、`EXISTS`、`INTERSECT`、`EXCEPT` 和常见 Hive 关键字的大写与格式化支持
@@ -207,7 +217,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

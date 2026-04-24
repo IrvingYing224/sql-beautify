@@ -193,6 +193,94 @@ run_case(
 	].join('\n')
 );
 
+var commented_subquery_actual = format([
+	'SELECT  u.user_id   AS user_id',
+	'       ,u.user_name AS user_name',
+	'FROM users u',
+	"WHERE u.status = 'active'",
+	'  AND EXISTS ( SELECT 1 FROM payments p WHERE p.user_id = u.user_id',
+	'-- AND T1`.RISK_INDIC_CD = \'AA\'',
+	'-- AND T1.PRID ',
+	"  AND p.pay_status = 'PAID')",
+	'-- UNION ALL ',
+	'-- SELECT  o.order_id AS order_id',
+	'--        ,o.user_id  AS user_id',
+	'-- FROM orders o',
+	"-- WHERE o.dt = '2026-04-21'",
+	'--   AND o.user_id IN ( SELECT u.user_id FROM users u WHERE u.status = \'active\' AND u.city IN (\'NY\', \'LA\'))',
+	'--   AND EXISTS ( SELECT 1 FROM payments p WHERE p.order_id = o.order_id AND p.refund_status = \'NONE\'); ',
+	'UNION ALL',
+	'SELECT  1 AS keep_running'
+].join('\n'));
+
+assert.ok(
+	commented_subquery_actual.indexOf('\nSELECT  u.user_id\nFROM users u') < 0,
+	'standalone commented IN subquery must not become uncommented SQL\n--- actual ---\n' + commented_subquery_actual
+);
+assert.ok(
+	commented_subquery_actual.indexOf('\nSELECT  1\nFROM payments p') < 0,
+	'standalone commented EXISTS subquery must not become uncommented SQL\n--- actual ---\n' + commented_subquery_actual
+);
+assert.ok(
+	commented_subquery_actual.indexOf('-- AND o.user_id IN ( SELECT u.user_id FROM users u') >= 0,
+	'commented IN subquery line should remain a line comment\n--- actual ---\n' + commented_subquery_actual
+);
+assert.ok(
+	commented_subquery_actual.indexOf('-- AND EXISTS ( SELECT 1 FROM payments p') >= 0,
+	'commented EXISTS subquery line should remain a line comment\n--- actual ---\n' + commented_subquery_actual
+);
+
+var inline_comment_tail_actual = format([
+	'SELECT D1.load_biz_dt AS load_biz_dt -- 加载业务日期',
+	'-- ,D1.INDEIC_PRICE AS INDIC_PRICE    -- 风险指标值 -- DELETE LIUJIQIANG 20240412 ',
+	',d1.year_pl as year_pl -- 年损益 -- DELETE LIUJIQIANG 20240412 ',
+	",'y_pl' as y_pl_loss -- ddd",
+	'FROM  -- ${MRISK}.DM_GM_REOP D1 -- DELETE LIUJIQIANG V20 20240412 取数逻辑调整 从总表取数',
+	'${MRISK}.MD_GM_REP',
+	"WHERE D1.load_biz_dt = '2024-12-31'",
+	"AND -- D1.INDIC_CFG_CE ='#'",
+	"D1.INDIC_CFG_CE ='$'"
+].join('\n'));
+
+assert.ok(
+	inline_comment_tail_actual.indexOf('\nDELETE LIUJIQIANG') < 0,
+	'inline comment text after a second -- must not be split into SQL\n--- actual ---\n' + inline_comment_tail_actual
+);
+assert.ok(
+	inline_comment_tail_actual.indexOf('-- 年损益 -- DELETE LIUJIQIANG 20240412') >= 0,
+	'inline comment containing a second -- should remain on the same line\n--- actual ---\n' + inline_comment_tail_actual
+);
+assert.ok(
+	inline_comment_tail_actual.indexOf('-- ${MRISK}.DM_GM_REOP D1 -- DELETE LIUJIQIANG') >= 0,
+	'FROM inline comment with variable and second -- should remain a comment\n--- actual ---\n' + inline_comment_tail_actual
+);
+assert.ok(
+	inline_comment_tail_actual.indexOf("-- D1.INDIC_CFG_CE ='#'") >= 0,
+	'condition keyword followed by inline comment should keep the tail commented\n--- actual ---\n' + inline_comment_tail_actual
+);
+
+var inline_comment_tail_lines = inline_comment_tail_actual.split('\n');
+var load_biz_dt_line = inline_comment_tail_lines.filter(function(line) {
+	return line.indexOf('load_biz_dt') >= 0 && line.indexOf('-- 加载业务日期') >= 0;
+})[0];
+var year_pl_line = inline_comment_tail_lines.filter(function(line) {
+	return line.indexOf('year_pl') >= 0 && line.indexOf('-- 年损益') >= 0;
+})[0];
+var y_pl_loss_line = inline_comment_tail_lines.filter(function(line) {
+	return line.indexOf('y_pl_loss') >= 0 && line.indexOf('-- ddd') >= 0;
+})[0];
+
+assert.strictEqual(
+	year_pl_line.indexOf('--'),
+	load_biz_dt_line.indexOf('--'),
+	'commented-out select item should not break trailing comment alignment\n--- actual ---\n' + inline_comment_tail_actual
+);
+assert.strictEqual(
+	y_pl_loss_line.indexOf('--'),
+	load_biz_dt_line.indexOf('--'),
+	'select item comments after a commented-out line should align with previous fields\n--- actual ---\n' + inline_comment_tail_actual
+);
+
 run_case(
 	'long window function columns still align trailing comments',
 	[

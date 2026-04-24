@@ -34,6 +34,7 @@ function vkbeautify(){
 
 var restore_list = [];
 var restore_cnt = 0;
+var standalone_comment_list = [];
 
 //----------------------------------------------------------------------------
 function replace_char(str) {
@@ -1643,8 +1644,8 @@ function reshape_comment(str){
 	.replace(/\-\- between/ig,"\-\-BETWEENiscomment")
 	.replace(/\-\- order by/ig,"\-\-orderbyiscomment")
 	// 避免关键词注释换行先缩进，使用 {} 标记独立行注释
-	.replace(/^ *\-\-/g, "--{}")
-	.replace(/\n *\-\-/ig, " \-\-{}");
+	.replace(/^ *\-\-(?!\{\})/g, "--{}")
+	.replace(/\n *\-\-(?!\{\})/ig, " \-\-{}");
 	
 	var quo_cnt = 0;
 	var quo_text = ""
@@ -1696,6 +1697,74 @@ function reshape_comment(str){
 		}
 	}
 	return text_final
+}
+
+function protect_standalone_comments(str) {
+	var text_list = str.split("\n");
+	for (let i = 0; i < text_list.length; i++) {
+		if (/^\s*--/.exec(text_list[i])) {
+			var comment_text = text_list[i].replace(/^\s*/, "").replace(/\s+$/ig, "");
+			comment_text = comment_text
+			.replace(/^--\s*WHERE\b/ig, "-- WHERE")
+			.replace(/^--\s*AND\b/ig, "-- AND")
+			.replace(/^--\s*SELECT\b/ig, "-- SELECT")
+			.replace(/^--\s*FROM\b/ig, "-- FROM")
+			.replace(/^--\s*between\b/ig, "-- BETWEEN")
+			.replace(/^--\s*order\s+by\b/ig, "-- ORDER BY");
+			standalone_comment_list.push(comment_text);
+			text_list[i] = " --{}{LC" + (standalone_comment_list.length - 1) + "}";
+		}
+	}
+	return text_list.join("\n");
+}
+
+function get_first_comment_loc(text) {
+	var quote_cnt = 0;
+	var quote_tag = '';
+
+	for (let i = 0; i < text.length - 1; i++) {
+		if ((text[i] == '"' || text[i] == "'")) {
+			if (quote_cnt == 0) {
+				quote_cnt += 1;
+				quote_tag = text[i];
+			} else if (text[i] == quote_tag) {
+				quote_cnt -= 1;
+			}
+		}
+
+		if (quote_cnt == 0 && text[i] == '-' && text[i + 1] == '-') {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+function protect_inline_comments(str) {
+	var text_list = str.split("\n");
+	for (let i = 0; i < text_list.length; i++) {
+		if (/^\s*--/.exec(text_list[i]) || /\{LC\d+\}/.exec(text_list[i])) {
+			continue;
+		}
+
+		var comment_loc = get_first_comment_loc(text_list[i]);
+		var comment_text = comment_loc >= 0 ? text_list[i].slice(comment_loc) : "";
+		var code_text = comment_loc >= 0 ? text_list[i].slice(0, comment_loc) : "";
+		if (comment_loc >= 0
+			&& (comment_text.slice(2).indexOf('--') >= 0
+				|| comment_text.indexOf('${') >= 0
+				|| /^\s*(FROM|AND|OR|ON|WHERE|HAVING)\s*$/i.exec(code_text))) {
+			standalone_comment_list.push(text_list[i].slice(comment_loc).replace(/\s+$/ig, ""));
+			text_list[i] = text_list[i].slice(0, comment_loc) + "--{LC" + (standalone_comment_list.length - 1) + "}";
+		}
+	}
+	return text_list.join("\n");
+}
+
+function restore_standalone_comments(str) {
+	return str.replace(/--\s*\{LC(\d+)\}/ig, function(match, comment_index) {
+		return standalone_comment_list[parseInt(comment_index, 10)];
+	});
 }
 
 
@@ -2089,7 +2158,6 @@ function order_comment(str, as_loc_cnt){
 	function is_comment_alignment_break(line) {
 		var trimmed = line.replace(/^\s+/ig, '');
 		return trimmed === ""
-			|| /^--/.exec(trimmed)
 			|| /^\($/.exec(trimmed)
 			|| /^\)/.exec(trimmed)
 			|| /^SELECT\b/i.exec(trimmed)
@@ -2298,8 +2366,11 @@ function align_condition_clauses(str) {
 vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,as_loc_cnt,case_when_then_wrap_length) {
 	restore_list = []
 	restore_cnt = 0
+	standalone_comment_list = []
 
 	var step0 = extract_quotation_mark(text)
+	step0 = protect_standalone_comments(step0);
+	step0 = protect_inline_comments(step0);
 	var step1 = reshape_comment(step0);
 	var step2 = replace_char(step1) ;
 	var step3 = get_bracket(step2);
@@ -2314,6 +2385,7 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 
 	// 恢复独立行注释的换行
 	var currentStep = step8.replace(/\s{0,1}--\{\}/g, "\n--");
+	currentStep = restore_standalone_comments(currentStep);
 	currentStep = format_case_blocks(currentStep, case_when_then_wrap_length);
 	currentStep = align_as_in_select_blocks(currentStep, as_loc_cnt);
 	
@@ -2331,7 +2403,7 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	if (bracket_char === true) {
 		currentStep = currentStep.replace(/\t/ig, "    ");
 	}
-	
+
 	// 确保所有 -- 后面都有空格
 	currentStep = currentStep.replace(/--([^\s\-\n])/g, "-- $1");
 
