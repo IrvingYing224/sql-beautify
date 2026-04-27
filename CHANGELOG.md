@@ -1,6 +1,18 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.3.32 (2026/04/27)
+* 修复了多行 `CASE WHEN ... IN (...)` 条件中的列表项和行尾注释被错误合并、截断或改写的问题
+* 修复了 `CASE` 字段内部 `IN (...)` 列表注释被外层 `SELECT` 字段注释拉长对齐的问题
+* 修复了 `-- ,'ABC'` 等注释内容被继续格式化，以及 `) -- comment` 后的 `THEN` 被注释吞掉的问题
+* 修复了 `CASE` 内注释掉的单行和多行 `WHEN` / `THEN` 分支被删除的问题
+* 补充了 `CASE WHEN`、列表注释、注释掉分支和注释对齐的回归覆盖
+* Fixed multiline `CASE WHEN ... IN (...)` list items and trailing comments being incorrectly merged, truncated, or rewritten
+* Fixed comments inside `CASE` field `IN (...)` lists being aligned with outer `SELECT` field comments
+* Fixed comment text such as `-- ,'ABC'` being reformatted and `THEN` after `) -- comment` being swallowed by the comment
+* Fixed commented-out single-line and multi-line `WHEN` / `THEN` branches inside `CASE` being dropped
+* Added regression coverage for `CASE WHEN`, list comments, commented-out branches, and comment alignment
+
 ### 0.3.31 (2026/04/24)
 * 修复了整行注释中的 `IN (SELECT ...)` / `EXISTS (SELECT ...)` 被错误拆成非注释 SQL 的问题
 * 修复了行内注释包含第二个 `--`、`${...}` 变量或位于 `FROM` / `AND` 后方时被继续格式化的问题
@@ -217,7 +229,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

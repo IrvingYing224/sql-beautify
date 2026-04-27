@@ -333,4 +333,56 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'case in-list comments align within the select item',
+	[
+		'SELECT  u.user_id                     AS user_id   -- 用户id',
+		'       ,u.user_name                   AS user_name -- 用户名',
+		'       ,CASE',
+		'            WHEN u.city IN (',
+		"                    'NY',                          -- 纽约",
+		"                    'LA',                          -- 洛杉矶",
+		"                    'SF'                           -- 旧金山",
+		"                ) THEN 'west_user'",
+		'            WHEN u.city IN (',
+		"                    'CHI', -- 芝加哥",
+		"                    'HOU', -- 休斯顿",
+		"                    'DAL'  -- 达拉斯",
+		"                ) THEN 'central_user'",
+		'            WHEN u.city IN (',
+		"                    'MIA', -- 迈阿密",
+		"                    'ATL', -- 亚特兰大",
+		"                    'ORL'  -- 奥兰多",
+		"                ) THEN 'south_user'",
+		'            ELSE',
+		"                'other_city_user'",
+		'        END                           AS city_group -- 城市',
+		'FROM users u;'
+	].join('\n'),
+	[
+		'SELECT  u.user_id                     AS user_id   -- 用户id',
+		'       ,u.user_name                   AS user_name -- 用户名',
+		'       ,CASE',
+		'            WHEN u.city IN (',
+		"                    'NY', -- 纽约",
+		"                    'LA', -- 洛杉矶",
+		"                    'SF'  -- 旧金山",
+		"                ) THEN 'west_user'",
+		'            WHEN u.city IN (',
+		"                    'CHI', -- 芝加哥",
+		"                    'HOU', -- 休斯顿",
+		"                    'DAL'  -- 达拉斯",
+		"                ) THEN 'central_user'",
+		'            WHEN u.city IN (',
+		"                    'MIA', -- 迈阿密",
+		"                    'ATL', -- 亚特兰大",
+		"                    'ORL'  -- 奥兰多",
+		"                ) THEN 'south_user'",
+		'            ELSE',
+		"                'other_city_user'",
+		'        END                           AS city_group -- 城市',
+		'FROM users u;'
+	].join('\n')
+);
+
 console.log('comment alignment tests passed');

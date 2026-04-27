@@ -105,4 +105,188 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'multiline in-list when conditions keep comments',
+	[
+		'SELECT',
+		'    u.user_id AS user_id,',
+		'    u.user_name AS user_name,',
+		'    CASE',
+		'        WHEN u.city IN (',
+		"            'NY',   -- 纽约",
+		"            'LA',   -- 洛杉矶",
+		"            'SF'    -- 旧金山",
+		"        ) THEN 'west_user'",
+		'',
+		'        WHEN u.city IN (',
+		"            'CHI',  -- 芝加哥",
+		"            'HOU',  -- 休斯顿",
+		"            'DAL'   -- 达拉斯",
+		"        ) THEN 'central_user'",
+		'',
+		'        WHEN u.city IN (',
+		"            'MIA',  -- 迈阿密",
+		"            'ATL',  -- 亚特兰大",
+		"            'ORL'   -- 奥兰多",
+		"        ) THEN 'south_user'",
+		'',
+		"        ELSE 'other_city_user'",
+		'    END AS city_group',
+		'FROM users u;'
+	].join('\n'),
+	[
+		'SELECT  u.user_id                     AS user_id',
+		'       ,u.user_name                   AS user_name',
+		'       ,CASE',
+		'            WHEN u.city IN (',
+		"                    'NY', -- 纽约",
+		"                    'LA', -- 洛杉矶",
+		"                    'SF'  -- 旧金山",
+		"                ) THEN 'west_user'",
+		'            WHEN u.city IN (',
+		"                    'CHI', -- 芝加哥",
+		"                    'HOU', -- 休斯顿",
+		"                    'DAL'  -- 达拉斯",
+		"                ) THEN 'central_user'",
+		'            WHEN u.city IN (',
+		"                    'MIA', -- 迈阿密",
+		"                    'ATL', -- 亚特兰大",
+		"                    'ORL'  -- 奥兰多",
+		"                ) THEN 'south_user'",
+		'            ELSE',
+		"                'other_city_user'",
+		'        END                           AS city_group',
+		'FROM users u;'
+	].join('\n')
+);
+
+run_case(
+	'commented in-list value does not steal then comment',
+	[
+		'SELECT  p.order_id                                                       AS order_id',
+		'       ,p.channel                                                        AS channel',
+		'       ,CASE',
+		"            WHEN p.channel IN ('ALIPAY','WECHAT' -- ,'ABC'",
+		'            ) ',
+		"            THEN 'online_payment'  -- 主流线上支付渠道",
+		"            ELSE 'other_payment'                                         -- 其他支付方式",
+		'        END                                                              AS payment_type',
+		'FROM payments p;'
+	].join('\n'),
+	[
+		'SELECT  p.order_id                      AS order_id',
+		'       ,p.channel                       AS channel',
+		'       ,CASE',
+		'            WHEN p.channel IN (',
+		"                    'ALIPAY','WECHAT' -- ,'ABC'",
+		"                ) THEN 'online_payment' -- 主流线上支付渠道",
+		'            ELSE',
+		"                'other_payment'         -- 其他支付方式",
+		'        END                             AS payment_type',
+		'FROM payments p;'
+	].join('\n')
+);
+
+run_case(
+	'comment on closing condition line keeps then active',
+	[
+		'SELECT  p.order_id                       AS order_id',
+		'       ,p.channel                        AS channel',
+		'       ,CASE',
+		'            WHEN p.channel IN (',
+		"                    'ALIPAY', -- 支付宝",
+		"                    'WECHAT'  -- 微信支付",
+		"                ) THEN 'online_payment'",
+		'            WHEN p.channel IN (',
+		"                    'BANK',    -- 银行转账",
+		"                    'TRANSFER' -- 对公转账",
+		"                ) THEN 'offline_payment'",
+		'            WHEN p.channel IN (',
+		"                    'CASH', -- 现金支付",
+		"                    'POS'   -- 刷卡支付",
+		'                )   -- test',
+		"                  THEN 'store_payment'",
+		'            ELSE',
+		"                'other_payment'",
+		'        END                              AS payment_type',
+		'FROM payments p;'
+	].join('\n'),
+	[
+		'SELECT  p.order_id                       AS order_id',
+		'       ,p.channel                        AS channel',
+		'       ,CASE',
+		'            WHEN p.channel IN (',
+		"                    'ALIPAY', -- 支付宝",
+		"                    'WECHAT'  -- 微信支付",
+		"                ) THEN 'online_payment'",
+		'            WHEN p.channel IN (',
+		"                    'BANK',    -- 银行转账",
+		"                    'TRANSFER' -- 对公转账",
+		"                ) THEN 'offline_payment'",
+		'            WHEN p.channel IN (',
+		"                    'CASH', -- 现金支付",
+		"                    'POS'   -- 刷卡支付",
+		'                ) -- test',
+		"                THEN 'store_payment'",
+		'            ELSE',
+		"                'other_payment'",
+		'        END                              AS payment_type',
+		'FROM payments p;'
+	].join('\n')
+);
+
+run_case(
+	'commented out case branches are preserved',
+	[
+		'SELECT  p.order_id                                                       AS order_id',
+		'       ,p.channel                                                        AS channel',
+		'       ,CASE',
+		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment'  -- 主流线上支付渠道",
+		"            -- WHEN p.channel IN ('BANK','TRANSFER') THEN 'offline_payment' -- 银行线下支付",
+		"            -- WHEN p.channel IN ('CASH','POS')      THEN 'store_payment'   -- 门店支付方式",
+		"            WHEN p.channel IN ('COUPON','POINT')  THEN 'virtual_payment' -- 虚拟资产支付",
+		"            ELSE 'other_payment'                                         -- 其他支付方式",
+		'        END                                                              AS payment_type',
+		'FROM payments p;'
+	].join('\n'),
+	[
+		'SELECT  p.order_id                                                       AS order_id',
+		'       ,p.channel                                                        AS channel',
+		'       ,CASE',
+		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment'  -- 主流线上支付渠道",
+		"            -- WHEN p.channel IN ('BANK','TRANSFER') THEN 'offline_payment' -- 银行线下支付",
+		"            -- WHEN p.channel IN ('CASH','POS')      THEN 'store_payment'   -- 门店支付方式",
+		"            WHEN p.channel IN ('COUPON','POINT')  THEN 'virtual_payment' -- 虚拟资产支付",
+		"            ELSE 'other_payment'                                         -- 其他支付方式",
+		'        END                                                              AS payment_type',
+		'FROM payments p;'
+	].join('\n')
+);
+
+run_case(
+	'commented out multiline case branch before else is preserved',
+	[
+		'SELECT  p.order_id                                                       AS order_id',
+		'       ,p.channel                                                        AS channel',
+		'       ,CASE',
+		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment'  -- 主流线上支付渠道",
+		"            -- WHEN p.channel = 'TEST'",
+		"            -- THEN 'offline_payment' -- 银行线下支付",
+		"            ELSE 'other_payment'                                         -- 其他支付方式",
+		'        END                                                              AS payment_type',
+		'FROM payments p;'
+	].join('\n'),
+	[
+		'SELECT  p.order_id                                                      AS order_id',
+		'       ,p.channel                                                       AS channel',
+		'       ,CASE',
+		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment' -- 主流线上支付渠道",
+		"            -- WHEN p.channel = 'TEST'",
+		"            -- THEN 'offline_payment' -- 银行线下支付",
+		"            ELSE 'other_payment'                                        -- 其他支付方式",
+		'        END                                                             AS payment_type',
+		'FROM payments p;'
+	].join('\n')
+);
+
 console.log('case-when tests passed');
