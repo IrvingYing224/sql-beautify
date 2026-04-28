@@ -1,6 +1,22 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.4.0 (2026/04/28)
+* 重构 SQL / Hive SQL 格式化核心，新增 token 化、结构识别和行模型，减少正则、占位符和全局状态导致的互相污染
+* 将 `--` 行注释和单双引号字符串作为不可格式化内容处理，注释或字符串内的 `CASE` / `WHEN` / `THEN` / `FROM` / 逗号不再被识别为真实 SQL
+* 重写 `CASE` 解析与渲染，支持多行 `WHEN`、`IN (...)` 列表、`THEN` / `ELSE` 后接行尾注释、注释掉的分支和嵌套 `CASE`
+* 重写行尾注释对齐分组，顶层 `SELECT` 字段、`CASE` 内部、括号列表和 `WHERE` / `ON` / `HAVING` 条件分别对齐，避免跨作用域拉长
+* 将关键词大小写转换迁移到 token 层，只转换真实 SQL keyword，不修改字符串、注释和占位符内容
+* 保持 `vkbeautify.sql(...)`、`vkbeautify.sqlddl(...)`、`vkbeautify.extractddl(...)`、VS Code 命令 ID 和配置项兼容
+* 补充并更新 `CASE WHEN`、注释隔离、字符串隔离、AS 对齐、Hive SQL 和注释分组回归测试
+* Refactored the SQL / Hive SQL formatting core with tokenization, structure recognition, and a line model to reduce cross-contamination from regexes, placeholders, and global state
+* Treats `--` line comments and quoted strings as opaque content, so SQL-like words and punctuation inside them are no longer formatted as real SQL
+* Reworked `CASE` parsing and rendering for multiline `WHEN`, `IN (...)` lists, comments after `THEN` / `ELSE`, commented-out branches, and nested `CASE`
+* Reworked trailing comment alignment by scope: top-level `SELECT` items, `CASE` internals, parenthesized lists, and `WHERE` / `ON` / `HAVING` conditions are aligned separately
+* Moved keyword casing to the token layer so only real SQL keywords are converted
+* Preserved compatibility for public APIs, VS Code command IDs, and existing configuration keys
+* Added and updated regression coverage for `CASE WHEN`, comments, strings, AS alignment, Hive SQL, and scoped comment alignment
+
 ### 0.3.32 (2026/04/27)
 * 修复了多行 `CASE WHEN ... IN (...)` 条件中的列表项和行尾注释被错误合并、截断或改写的问题
 * 修复了 `CASE` 字段内部 `IN (...)` 列表注释被外层 `SELECT` 字段注释拉长对齐的问题
@@ -229,7 +245,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

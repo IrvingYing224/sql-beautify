@@ -29,7 +29,10 @@ function align_comment(code, targetWidth, comment) {
 
 run_case(
 	'cte with aggregate subquery keeps hive layout',
-	"with a as (select user_id,sum(amount) as total_amount -- 总额 from orders group by user_id) select user_id,total_amount from a",
+	[
+		"with a as (select user_id,sum(amount) as total_amount -- 总额",
+		"from orders group by user_id) select user_id,total_amount from a"
+	].join('\n'),
 	[
 		'WITH a AS',
 		'(',
@@ -46,7 +49,10 @@ run_case(
 
 run_case(
 	'window function keeps over partition order layout',
-	"select user_id,row_number() over(partition by ds order by pay_time desc) as rn -- 排名 from orders",
+	[
+		"select user_id,row_number() over(partition by ds order by pay_time desc) as rn -- 排名",
+		"from orders"
+	].join('\n'),
 	[
 		'SELECT  user_id',
 		'       ,ROW_NUMBER() OVER(PARTITION BY ds ORDER BY  pay_time DESC) AS rn -- 排名',
@@ -56,17 +62,23 @@ run_case(
 
 run_case(
 	'lateral view explode keeps hive from clause layout',
-	"select user_id,tag -- 标签 from user_tags lateral view explode(tags) tmp as tag",
+	[
+		"select user_id,tag -- 标签",
+		"from user_tags lateral view explode(tags) tmp as tag"
+	].join('\n'),
 	[
 		'SELECT  user_id',
 		'       ,tag -- 标签',
-		'FROM user_tags LATERAL VIEW explode(tags) tmp AS tag'
+		'FROM user_tags LATERAL VIEW EXPLODE(tags) tmp AS tag'
 	].join('\n')
 );
 
 run_case(
 	'insert overwrite partition keeps select aggregate block',
-	"insert overwrite table dwd.user_sum partition(dt='2026-04-22') select user_id,sum(amount) as total_amount -- 总金额 from orders group by user_id",
+	[
+		"insert overwrite table dwd.user_sum partition(dt='2026-04-22') select user_id,sum(amount) as total_amount -- 总金额",
+		"from orders group by user_id"
+	].join('\n'),
 	[
 		"INSERT OVERWRITE TABLE dwd.user_sum PARTITION(dt = '2026-04-22')",
 		'SELECT  user_id',
@@ -136,7 +148,7 @@ run_case(
 	].join('\n'),
 	[
 		'SELECT  SUM(CASE',
-		"                WHEN o.status = 'SUCCESS' THEN CASE WHEN o.amount > 0 THEN o.amount else 0 end",
+		"                WHEN o.status = 'SUCCESS' THEN CASE WHEN o.amount > 0 THEN o.amount ELSE 0 END",
 		'                ELSE 0',
 		align_comment(align_as('            END)', 94, 'paid_amount'), 110, '已支付金额'),
 		'FROM orders o;'
@@ -274,7 +286,7 @@ run_case(
 		"    AND o.status = 'SUCCESS'",
 		"     OR o.status = 'PAID'",
 		"WHERE u.dt BETWEEN '2026-04-01' AND '2026-04-23'",
-		"  AND u.country in('CN', 'US')",
+		"  AND u.country IN('CN', 'US')",
 		"   OR (u.age > 18 AND u.status = 'ACTIVE')",
 		'GROUP BY  u.user_id',
 		'HAVING COUNT(*) > 1',

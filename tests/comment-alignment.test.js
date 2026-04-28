@@ -64,11 +64,11 @@ run_case(
 		'       ,o.amount    AS amount    -- 金额',
 		'FROM users u',
 		'LEFT JOIN orders o',
-		'     ON u.user_id = o.user_id    -- 用户关联',
-		"    AND o.status = 'SUCCESS'     -- 成功订单",
+		'     ON u.user_id = o.user_id   -- 用户关联',
+		"    AND o.status = 'SUCCESS'    -- 成功订单",
 		'INNER JOIN payments p',
-		'     ON o.order_id = p.order_id  -- 支付关联',
-		'WHERE p.pay_time IS NOT NULL;    -- 有支付时间'
+		'     ON o.order_id = p.order_id -- 支付关联',
+		'WHERE p.pay_time IS NOT NULL;   -- 有支付时间'
 	].join('\n')
 );
 
@@ -130,9 +130,9 @@ run_case(
 		"  AND u.country = 'CN'        -- 中国用户",
 		"   OR u.country = 'US'        -- 美国用户",
 		'GROUP BY  u.user_id',
-		'HAVING COUNT(*) > 1           -- 订单数',
-		'   AND SUM(o.amount) > 0      -- 有金额',
-		'    OR MAX(o.amount) > 100    -- 大额订单'
+		'HAVING COUNT(*) > 1        -- 订单数',
+		'   AND SUM(o.amount) > 0   -- 有金额',
+		'    OR MAX(o.amount) > 100 -- 大额订单'
 	].join('\n')
 );
 
@@ -164,8 +164,8 @@ run_case(
 		'-- WHERE debug filter',
 		'-- SELECT debug columns',
 		'-- FROM debug TABLE',
-		'-- BETWEEN debug range',
-		'-- ORDER BY debug order',
+		'-- between debug range',
+		'-- order by debug order',
 		'GROUP BY  a.id',
 		'HAVING COUNT(b.order_id) > 1;'
 	].join('\n')
@@ -222,11 +222,11 @@ assert.ok(
 	'standalone commented EXISTS subquery must not become uncommented SQL\n--- actual ---\n' + commented_subquery_actual
 );
 assert.ok(
-	commented_subquery_actual.indexOf('-- AND o.user_id IN ( SELECT u.user_id FROM users u') >= 0,
+	commented_subquery_actual.indexOf('--   AND o.user_id IN ( SELECT u.user_id FROM users u') >= 0,
 	'commented IN subquery line should remain a line comment\n--- actual ---\n' + commented_subquery_actual
 );
 assert.ok(
-	commented_subquery_actual.indexOf('-- AND EXISTS ( SELECT 1 FROM payments p') >= 0,
+	commented_subquery_actual.indexOf('--   AND EXISTS ( SELECT 1 FROM payments p') >= 0,
 	'commented EXISTS subquery line should remain a line comment\n--- actual ---\n' + commented_subquery_actual
 );
 
@@ -297,7 +297,7 @@ run_case(
 		align_comment('SELECT  o.user_id                                                                                                            AS user_id', 143, '用户ID'),
 		align_comment('       ,o.order_id                                                                                                           AS order_id', 143, '订单ID'),
 		align_comment('       ,o.amount                                                                                                             AS amount', 143, '金额'),
-		align_comment('       ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.amount desc,o.order_id ASC)                                     AS rn', 143, '行号'),
+		align_comment('       ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.amount DESC,o.order_id ASC)                                     AS rn', 143, '行号'),
 		align_comment('       ,rank() OVER (PARTITION BY o.user_id ORDER BY o.amount DESC)                                                          AS rk', 143, '排名'),
 		align_comment('       ,dense_rank() OVER(PARTITION BY o.user_id ORDER BY o.amount DESC)                                                     AS drk', 143, '稠密排名'),
 		align_comment('       ,SUM(o.amount) OVER( PARTITION BY o.user_id ORDER BY o.create_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) AS running_amount', 143, '累计金额'),
@@ -382,6 +382,41 @@ run_case(
 		"                'other_city_user'",
 		'        END                           AS city_group -- 城市',
 		'FROM users u;'
+	].join('\n')
+);
+
+run_case(
+	'inline comments containing sql keywords stay comments',
+	[
+		'select a -- from where group by select',
+		'from t',
+		'where b=1'
+	].join('\n'),
+	[
+		'SELECT  a -- from where group by select',
+		'FROM t',
+		'WHERE b = 1'
+	].join('\n')
+);
+
+run_case(
+	'inline comment comma and quoted value stay original text',
+	[
+		'select case when a in (',
+		"    'A' -- ,'ABC'",
+		') then 1 else 0 end as c',
+		'from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'       CASE',
+		'           WHEN a IN (',
+		"                   'A' -- ,'ABC'",
+		'               ) THEN 1',
+		'           ELSE',
+		'               0',
+		'       END              AS c',
+		'FROM t'
 	].join('\n')
 );
 

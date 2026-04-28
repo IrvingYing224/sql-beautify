@@ -48,13 +48,13 @@ run_case(
 run_case(
 	'end on the same line as final when still reformats',
 	"SELECT CASE  WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfa' THEN 123  -- c1\n            WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfb' THEN 132  -- c2\n            WHEN name = 'fdsfsdfsdafsdafd' THEN 25  END AS alias -- c3\nFROM t",
-	"SELECT\n       CASE\n           WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfa'\n               THEN 123                                                                   -- c1\n           WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfb'\n               THEN 132                                                                   -- c2\n           WHEN name = 'fdsfsdfsdafsdafd'\n               THEN 25\n       END                                                                       AS alias -- c3\nFROM t"
+	"SELECT\n       CASE\n           WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfa'\n               THEN 123                                                          -- c1\n           WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfb'\n               THEN 132                                                          -- c2\n           WHEN name = 'fdsfsdfsdafsdafd'\n               THEN 25\n       END                                                                       AS alias -- c3\nFROM t"
 );
 
 run_case(
 	'mixed columns align AS after the widest CASE branch',
 	"SELECT  1 AS f -- com1\n       ,2 AS cc -- fdsfa\n       ,3 AS bb -- ccc\n       ,CASE\n            WHEN name = 'aa'  THEN 123 -- c1\n            WHEN name = 'bbb' THEN 132 -- c2\n            WHEN name = 'ccc' THEN 25\n        END  AS alias -- c3\nFROM t;",
-	"SELECT  1                              AS f     -- com1\n       ,2                              AS cc    -- fdsfa\n       ,3                              AS bb    -- ccc\n       ,CASE\n            WHEN name = 'aa'  THEN 123          -- c1\n            WHEN name = 'bbb' THEN 132          -- c2\n            WHEN name = 'ccc' THEN 25\n        END                            AS alias -- c3\nFROM t;"
+	"SELECT  1                              AS f  -- com1\n       ,2                              AS cc -- fdsfa\n       ,3                              AS bb -- ccc\n       ,CASE\n            WHEN name = 'aa'  THEN 123 -- c1\n            WHEN name = 'bbb' THEN 132 -- c2\n            WHEN name = 'ccc' THEN 25\n        END                            AS alias -- c3\nFROM t;"
 );
 
 run_case(
@@ -98,7 +98,7 @@ run_case(
 	[
 		'SELECT',
 		'       CASE',
-		'           WHEN a = 1 THEN CASE WHEN b = 2 THEN x else y end',
+		'           WHEN a = 1 THEN CASE WHEN b = 2 THEN x ELSE y END',
 		'           ELSE z',
 		align_as('       END', 60, 'flag'),
 		'FROM t'
@@ -285,6 +285,70 @@ run_case(
 		"            -- THEN 'offline_payment' -- 银行线下支付",
 		"            ELSE 'other_payment'                                        -- 其他支付方式",
 		'        END                                                             AS payment_type',
+		'FROM payments p;'
+	].join('\n')
+);
+
+run_case(
+	'string literals containing comments commas and case keywords stay opaque',
+	[
+		"select '--, CASE WHEN THEN' as s, 'a--b,c' as t",
+		"from x",
+		"where note='FROM WHERE GROUP BY SELECT';"
+	].join('\n'),
+	[
+		"SELECT  '--, CASE WHEN THEN' AS s",
+		"       ,'a--b,c'             AS t",
+		'FROM x',
+		"WHERE note = 'FROM WHERE GROUP BY SELECT';"
+	].join('\n')
+);
+
+run_case(
+	'else line comment keeps following else value',
+	[
+		'SELECT  p.order_id                                                      AS order_id',
+		'       ,p.channel                                                       AS channel',
+		'       ,CASE',
+		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment' -- 主流线上支付渠道",
+		"            -- WHEN p.channel = 'TEST' THEN 'offline_payment' -- 银行线下支付",
+		'            ELSE -- test',
+		"             'other_payment'                                        -- 其他支付方式",
+		'        END                                                             AS payment_type',
+		'FROM payments p;'
+	].join('\n'),
+	[
+		'SELECT  p.order_id                                                      AS order_id',
+		'       ,p.channel                                                       AS channel',
+		'       ,CASE',
+		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment' -- 主流线上支付渠道",
+		"            -- WHEN p.channel = 'TEST' THEN 'offline_payment' -- 银行线下支付",
+		'            ELSE                                                        -- test',
+		"                'other_payment'                                         -- 其他支付方式",
+		'        END                                                             AS payment_type',
+		'FROM payments p;'
+	].join('\n')
+);
+
+run_case(
+	'then line comment keeps following then value',
+	[
+		'SELECT  p.order_id AS order_id',
+		'       ,CASE',
+		"            WHEN p.channel = 'TEST' THEN -- test",
+		"                'offline_payment' -- 银行线下支付",
+		"            ELSE 'other_payment'",
+		'        END AS payment_type',
+		'FROM payments p;'
+	].join('\n'),
+	[
+		'SELECT  p.order_id                  AS order_id',
+		'       ,CASE',
+		"            WHEN p.channel = 'TEST'",
+		'                THEN              -- test',
+		"                'offline_payment' -- 银行线下支付",
+		"            ELSE 'other_payment'",
+		'        END                         AS payment_type',
 		'FROM payments p;'
 	].join('\n')
 );

@@ -22,6 +22,12 @@
 
 # 💥 特点 Features 
 
+## 0.4 Formatter Core
+
+`0.4.0` 重构了 SQL / Hive SQL 格式化核心。格式化器现在先识别真实 SQL token、行注释和字符串，再处理 `CASE WHEN`、顶层 `AS`、括号列表和行尾注释对齐，避免注释或字符串里的 `WHEN`、`THEN`、`FROM`、逗号、引号被当成 SQL 继续格式化。
+
+Version `0.4.0` refactors the SQL / Hive SQL formatter core. The formatter now identifies real SQL tokens, line comments, and string literals before formatting `CASE WHEN`, top-level `AS`, parenthesized lists, and trailing comments, so SQL-like text inside comments or strings stays untouched.
+
 ## 1. Beautify SQL
 
 一键美化你的SQL！请确保你使用的语言是`SQL`，选择需要优化的代码块，按下`Alt+Shift+f`即可使用！ 
@@ -72,4 +78,3 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 如果有任何问题，欢迎在Issues上留言提问题给我。
 
 If you have any problem,welcome to submit issues 
-

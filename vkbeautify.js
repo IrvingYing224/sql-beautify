@@ -1,3 +1,8 @@
+var sqlKeywords = require('./lib/sql-keywords');
+var sqlStructure = require('./lib/sql-structure');
+var sqlTokenizer = require('./lib/sql-tokenizer');
+var sqlLineModel = require('./lib/sql-line-model');
+
 function createShiftArr(step) {
 	var space = '    ';
 	
@@ -34,7 +39,6 @@ function vkbeautify(){
 
 var restore_list = [];
 var restore_cnt = 0;
-var standalone_comment_list = [];
 
 //----------------------------------------------------------------------------
 function replace_char(str) {
@@ -299,40 +303,15 @@ function is_word_char(ch) {
 }
 
 function get_line_comment_loc(text) {
-	if (text.indexOf('--') < 0) {
-		return -1;
-	}
-	return return_right_comment_loc(text);
+	return get_first_comment_loc(text);
 }
 
 function split_code_and_comment(text) {
-	var comment_loc = get_line_comment_loc(text);
-	if (comment_loc >= 0) {
-		return {
-			code: text.slice(0, comment_loc).replace(/\s+$/ig, ''),
-			comment: text.slice(comment_loc).replace(/\s+$/ig, '')
-		};
-	}
-
-	return {
-		code: text.replace(/\s+$/ig, ''),
-		comment: ''
-	};
+	return sqlStructure.split_code_and_comment(text);
 }
 
 function split_case_code_and_comment(text) {
-	var comment_loc = get_first_comment_loc(text);
-	if (comment_loc >= 0) {
-		return {
-			code: text.slice(0, comment_loc).replace(/\s+$/ig, ''),
-			comment: text.slice(comment_loc).replace(/\s+$/ig, '')
-		};
-	}
-
-	return {
-		code: text.replace(/\s+$/ig, ''),
-		comment: ''
-	};
+	return sqlStructure.split_code_and_comment(text);
 }
 
 function split_line_before_end(text) {
@@ -370,62 +349,30 @@ function split_line_at_token(text, token) {
 
 function get_case_tokens(text) {
 	var tokens = [];
-	var quote_cnt = 0;
-	var quote_tag = '';
 	var case_depth = 0;
+	var source_tokens = sqlTokenizer.tokenize(text);
 
-	for (let i = 0; i < text.length; i++) {
-		if ((text[i] == '"' || text[i] == "'")) {
-			if (quote_cnt == 0) {
-				quote_cnt = 1;
-				quote_tag = text[i];
-			} else if (text[i] == quote_tag) {
-				quote_cnt = 0;
-				quote_tag = '';
-			}
-			continue;
-		}
-
-		if (quote_cnt > 0) {
-			continue;
-		}
-
-		if (text[i] == '-' && text[i + 1] == '-') {
+	for (let i = 0; i < source_tokens.length; i++) {
+		if (source_tokens[i].type == 'line_comment') {
 			break;
 		}
-
-		if (!is_word_char(text[i])) {
+		if (source_tokens[i].type != 'word') {
 			continue;
 		}
 
-		var start = i;
-		while (i < text.length && is_word_char(text[i])) {
-			i += 1;
-		}
-
-		var end = i;
-		var word = text.slice(start, end).toUpperCase();
-		var prev_char = start > 0 ? text[start - 1] : '';
-		var next_char = end < text.length ? text[end] : '';
-
-		if (is_word_char(prev_char) || is_word_char(next_char)) {
-			i -= 1;
-			continue;
-		}
+		var word = source_tokens[i].value.toUpperCase();
 
 		if (word == 'CASE') {
 			case_depth += 1;
-			tokens.push({ word: word, start: start, end: end, depth: case_depth });
+			tokens.push({ word: word, start: source_tokens[i].start, end: source_tokens[i].end, depth: case_depth });
 		} else if (word == 'END') {
-			tokens.push({ word: word, start: start, end: end, depth: case_depth });
+			tokens.push({ word: word, start: source_tokens[i].start, end: source_tokens[i].end, depth: case_depth });
 			if (case_depth > 0) {
 				case_depth -= 1;
 			}
 		} else if (word == 'WHEN' || word == 'THEN' || word == 'ELSE') {
-			tokens.push({ word: word, start: start, end: end, depth: case_depth });
+			tokens.push({ word: word, start: source_tokens[i].start, end: source_tokens[i].end, depth: case_depth });
 		}
-
-		i -= 1;
 	}
 
 	return tokens;
@@ -466,42 +413,11 @@ function expand_tabs_for_width(text) {
 }
 
 function find_top_level_as_loc(text) {
-	var quote_cnt = 0;
-	var quote_tag = '';
-	var bracket_cnt = 0;
-
-	for (let i = 0; i < text.length - 3; i++) {
-		if ((text[i] == '"' || text[i] == "'")) {
-			if (quote_cnt == 0) {
-				quote_cnt = 1;
-				quote_tag = text[i];
-			} else if (text[i] == quote_tag) {
-				quote_cnt = 0;
-				quote_tag = '';
-			}
-			continue;
-		}
-
-		if (quote_cnt > 0) {
-			continue;
-		}
-
-		if (text[i] == '(') {
-			bracket_cnt += 1;
-			continue;
-		}
-
-		if (text[i] == ')' && bracket_cnt > 0) {
-			bracket_cnt -= 1;
-			continue;
-		}
-
-		if (bracket_cnt == 0 && text.slice(i, i + 4) == ' AS ') {
-			return i;
-		}
+	var as_loc = sqlStructure.find_top_level_word(text, 'AS');
+	if (as_loc > 0 && /\s/.test(text[as_loc - 1])) {
+		return as_loc - 1;
 	}
-
-	return -1;
+	return as_loc;
 }
 
 function is_case_branch_line(text) {
@@ -754,7 +670,7 @@ function parse_case_expression(text) {
 	};
 }
 
-function build_case_formatted_text(prefix_raw, case_operand, when_items, else_value, suffix_text, case_when_then_wrap_length, else_leading_comments) {
+function build_case_formatted_text(prefix_raw, case_operand, when_items, else_value, suffix_text, case_when_then_wrap_length, else_leading_comments, else_trailing_comment) {
 	if (when_items.length == 0) {
 		return null;
 	}
@@ -806,7 +722,13 @@ function build_case_formatted_text(prefix_raw, case_operand, when_items, else_va
 		}
 
 		var when_line = when_indent + 'WHEN ' + when_items[i].when_text;
-		if (should_wrap_then) {
+		if (when_items[i].then_trailing_comment && when_items[i].then_trailing_comment != '') {
+			lines.push(when_line);
+			lines.push((value_indent + 'THEN ' + when_items[i].then_trailing_comment).replace(/\s+$/ig, ''));
+			if (when_items[i].then_text != '') {
+				lines.push((value_indent + when_items[i].then_text).replace(/\s+$/ig, ''));
+			}
+		} else if (should_wrap_then) {
 			lines.push(when_line);
 			lines.push(format_case_branch_value(value_indent, 'THEN', when_items[i].then_text));
 		} else {
@@ -815,15 +737,17 @@ function build_case_formatted_text(prefix_raw, case_operand, when_items, else_va
 		}
 	}
 
-	if (else_value != '') {
+	if (else_value != '' || else_trailing_comment != '') {
 		if (else_leading_comments) {
 			for (let i = 0; i < else_leading_comments.length; i++) {
 				lines.push(when_indent + else_leading_comments[i]);
 			}
 		}
-		if (should_wrap_then) {
-			lines.push(when_indent + 'ELSE');
-			lines.push((value_indent + else_value).replace(/\s+$/ig, ''));
+		if (should_wrap_then || else_trailing_comment != '') {
+			lines.push((when_indent + 'ELSE' + (else_trailing_comment != '' ? ' ' + else_trailing_comment : '')).replace(/\s+$/ig, ''));
+			if (else_value != '') {
+				lines.push((value_indent + else_value).replace(/\s+$/ig, ''));
+			}
 		} else {
 			lines.push((when_indent + 'ELSE ' + else_value).replace(/\s+$/ig, ''));
 		}
@@ -977,7 +901,8 @@ function format_case_expression_line(line, case_when_then_wrap_length) {
 		parsed.else_value,
 		parsed.suffix_text,
 		case_when_then_wrap_length,
-		[]
+		[],
+		''
 	);
 }
 
@@ -1053,6 +978,7 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 		var when_items = [];
 		var else_value = '';
 		var else_leading_comments = [];
+		var else_trailing_comment = '';
 		var pending_type = '';
 		var nested_case_depth = 0;
 		var active_value_target = '';
@@ -1085,6 +1011,26 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 			if (code == '') {
 				if (parts.comment != '') {
 					pending_comments.push(parts.comment.replace(/^\s+/ig, ''));
+				}
+				continue;
+			}
+
+			if (pending_type == 'THEN' && when_items.length > 0) {
+				when_items[when_items.length - 1].then_text = code_with_comment;
+				pending_type = '';
+				nested_case_depth = get_case_balance_delta(code);
+				if (nested_case_depth > 0) {
+					active_value_target = 'THEN';
+				}
+				continue;
+			}
+
+			if (pending_type == 'ELSE') {
+				else_value = code_with_comment;
+				pending_type = '';
+				nested_case_depth = get_case_balance_delta(code);
+				if (nested_case_depth > 0) {
+					active_value_target = 'ELSE';
 				}
 				continue;
 			}
@@ -1134,21 +1080,26 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 				if (then_token != null) {
 					var when_text = code.slice(4, then_token.start).replace(/\s+/ig, ' ').trim();
 					var then_code = code.slice(then_token.end).replace(/\s+/ig, ' ').trim();
-					var then_text = then_code + (parts.comment != '' ? ' ' + parts.comment : '');
+					var then_comment = parts.comment;
+					if (/^--/.exec(then_code)) {
+						then_comment = then_code;
+						then_code = '';
+					}
 					var when_item = {
 						when_text: when_text,
-						then_text: then_text
+						then_text: then_code == '' ? '' : then_code + (then_comment != '' ? ' ' + then_comment : ''),
+						then_trailing_comment: then_code == '' ? then_comment : ''
 					};
 					if (pending_comments.length > 0) {
 						when_item.leading_comments = pending_comments;
 						pending_comments = [];
 					}
-					var inline_else_text = apply_case_then_else_split(when_item, then_text);
+					var inline_else_text = apply_case_then_else_split(when_item, when_item.then_text);
 					if (inline_else_text != null) {
 						else_value = inline_else_text;
 					}
 					when_items.push(when_item);
-					pending_type = '';
+					pending_type = then_code == '' ? 'THEN' : '';
 					nested_case_depth = get_case_balance_delta(then_code);
 					if (nested_case_depth > 0) {
 						active_value_target = 'THEN';
@@ -1169,8 +1120,20 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 
 			if (/^THEN\b/i.exec(code) && when_items.length > 0) {
 				var then_line_text = code.replace(/^THEN\b/i, '').replace(/\s+/ig, ' ').trim();
-				when_items[when_items.length - 1].then_text = then_line_text + (parts.comment != '' ? ' ' + parts.comment : '');
-				pending_type = '';
+				var then_line_comment = parts.comment;
+				if (/^--/.exec(then_line_text)) {
+					then_line_comment = then_line_text;
+					then_line_text = '';
+				}
+				if (then_line_text == '') {
+					when_items[when_items.length - 1].then_text = '';
+					when_items[when_items.length - 1].then_trailing_comment = then_line_comment;
+					pending_type = 'THEN';
+				} else {
+					when_items[when_items.length - 1].then_text = then_line_text + (then_line_comment != '' ? ' ' + then_line_comment : '');
+					when_items[when_items.length - 1].then_trailing_comment = '';
+					pending_type = '';
+				}
 				nested_case_depth = get_case_balance_delta(then_line_text);
 				if (nested_case_depth > 0) {
 					active_value_target = 'THEN';
@@ -1184,8 +1147,19 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 					pending_comments = [];
 				}
 				var else_line_text = code.replace(/^ELSE\b/i, '').replace(/\s+/ig, ' ').trim();
-				else_value = else_line_text + (parts.comment != '' ? ' ' + parts.comment : '');
-				pending_type = else_value == '' ? 'ELSE' : '';
+				var else_line_comment = parts.comment;
+				if (/^--/.exec(else_line_text)) {
+					else_line_comment = else_line_text;
+					else_line_text = '';
+				}
+				if (else_line_text == '') {
+					else_value = '';
+					else_trailing_comment = else_line_comment;
+					pending_type = 'ELSE';
+				} else {
+					else_value = else_line_text + (else_line_comment != '' ? ' ' + else_line_comment : '');
+					pending_type = '';
+				}
 				nested_case_depth = get_case_balance_delta(else_line_text);
 				if (nested_case_depth > 0) {
 					active_value_target = 'ELSE';
@@ -1193,27 +1167,9 @@ function format_case_blocks(str, case_when_then_wrap_length) {
 				continue;
 			}
 
-			if (pending_type == 'THEN' && when_items.length > 0) {
-				when_items[when_items.length - 1].then_text = code_with_comment;
-				pending_type = '';
-				nested_case_depth = get_case_balance_delta(code);
-				if (nested_case_depth > 0) {
-					active_value_target = 'THEN';
-				}
-				continue;
-			}
-
-			if (pending_type == 'ELSE') {
-				else_value = code_with_comment;
-				pending_type = '';
-				nested_case_depth = get_case_balance_delta(code);
-				if (nested_case_depth > 0) {
-					active_value_target = 'ELSE';
-				}
-			}
 		}
 
-		var formatted_block = build_case_formatted_text(prefix_raw, case_operand, when_items, else_value, end_suffix, case_when_then_wrap_length, else_leading_comments);
+		var formatted_block = build_case_formatted_text(prefix_raw, case_operand, when_items, else_value, end_suffix, case_when_then_wrap_length, else_leading_comments, else_trailing_comment);
 		if (formatted_block == null) {
 			text_final.push(current_line);
 			continue;
@@ -1915,19 +1871,10 @@ function reshape_comment(str){
 			// 确保注释 -- 后面有一个空格，但排除 --{} 标记
 			text_list_orginal[i] = text_list_orginal[i].replace(/--(?![{}])([^\s\-\n])/g, "-- $1");
 			
-			var is_comment = text_list_orginal[i].indexOf('--')
-			if(is_comment > 0){
-				comment_loc = get_first_comment_loc(text_list_orginal[i])
-				var legacy_comment_loc = return_right_comment_loc(text_list_orginal[i]);
-				var comment_tail = comment_loc >= 0 ? text_list_orginal[i].slice(comment_loc + 2) : "";
-				if (legacy_comment_loc > comment_loc
-					&& /\b(FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|SELECT|JOIN)\b/i.exec(comment_tail)) {
-					comment_loc = legacy_comment_loc;
-				}
-			}
+			comment_loc = get_first_comment_loc(text_list_orginal[i])
 
 			//如果出现SELECT nvl(a.xxx,' --') -- comment"这类，会错误的把commet_loc定位错，所以需要判断所有--符号的位置
-			if(is_comment > 0){
+			if(comment_loc > 0){
 			var a = text_list_orginal[i].slice(0,comment_loc).replace(/\s+/ig, " "); //注释前的东西
 			text_list_orginal[i] = a.replace(/(\,)\s+$/ig," ") + " " + text_list_orginal[i].slice(comment_loc,)
 			.replace(/\,/ig,"{comma}") //剔除注释后的逗号
@@ -1947,47 +1894,35 @@ function reshape_comment(str){
 }
 
 function protect_standalone_comments(str) {
+	var comment_store = [];
 	var text_list = str.split("\n");
 	for (let i = 0; i < text_list.length; i++) {
 		if (/^\s*--/.exec(text_list[i])) {
 			var comment_text = text_list[i].replace(/^\s*/, "").replace(/\s+$/ig, "");
-			comment_text = comment_text
-			.replace(/^--\s*WHERE\b/ig, "-- WHERE")
-			.replace(/^--\s*AND\b/ig, "-- AND")
-			.replace(/^--\s*SELECT\b/ig, "-- SELECT")
-			.replace(/^--\s*FROM\b/ig, "-- FROM")
-			.replace(/^--\s*between\b/ig, "-- BETWEEN")
-			.replace(/^--\s*order\s+by\b/ig, "-- ORDER BY");
-			standalone_comment_list.push(comment_text);
-			text_list[i] = " --{}{LC" + (standalone_comment_list.length - 1) + "}";
+			comment_store.push(comment_text);
+			text_list[i] = " --{}{LC" + (comment_store.length - 1) + "}";
 		}
 	}
-	return text_list.join("\n");
+
+	return {
+		text: text_list.join("\n"),
+		comments: comment_store
+	};
 }
 
 function get_first_comment_loc(text) {
-	var quote_cnt = 0;
-	var quote_tag = '';
+	var tokens = sqlTokenizer.tokenize(text);
 
-	for (let i = 0; i < text.length - 1; i++) {
-		if ((text[i] == '"' || text[i] == "'")) {
-			if (quote_cnt == 0) {
-				quote_cnt += 1;
-				quote_tag = text[i];
-			} else if (text[i] == quote_tag) {
-				quote_cnt -= 1;
-			}
-		}
-
-		if (quote_cnt == 0 && text[i] == '-' && text[i + 1] == '-') {
-			return i;
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].type == 'line_comment') {
+			return tokens[i].start;
 		}
 	}
 
 	return -1;
 }
 
-function protect_inline_comments(str) {
+function protect_inline_comments(str, comment_store) {
 	var text_list = str.split("\n");
 	for (let i = 0; i < text_list.length; i++) {
 		if (/^\s*--/.exec(text_list[i]) || /\{LC\d+\}/.exec(text_list[i])) {
@@ -1995,27 +1930,17 @@ function protect_inline_comments(str) {
 		}
 
 		var comment_loc = get_first_comment_loc(text_list[i]);
-		var comment_text = comment_loc >= 0 ? text_list[i].slice(comment_loc) : "";
-		var code_text = comment_loc >= 0 ? text_list[i].slice(0, comment_loc) : "";
-		var comment_has_sql_tail = /\b(FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|SELECT|JOIN)\b/i.exec(comment_text);
-		if (comment_loc >= 0
-			&& (comment_text.slice(2).indexOf('--') >= 0
-				|| comment_text.indexOf('${') >= 0
-				|| (!comment_has_sql_tail
-					&& (comment_text.indexOf("'") >= 0
-						|| comment_text.indexOf('"') >= 0
-						|| comment_text.indexOf(',') >= 0))
-				|| /^\s*(FROM|AND|OR|ON|WHERE|HAVING)\s*$/i.exec(code_text))) {
-			standalone_comment_list.push(text_list[i].slice(comment_loc).replace(/\s+$/ig, ""));
-			text_list[i] = text_list[i].slice(0, comment_loc) + "--{LC" + (standalone_comment_list.length - 1) + "}";
+		if (comment_loc >= 0) {
+			comment_store.push(text_list[i].slice(comment_loc).replace(/\s+$/ig, ""));
+			text_list[i] = text_list[i].slice(0, comment_loc) + "--{LC" + (comment_store.length - 1) + "}";
 		}
 	}
 	return text_list.join("\n");
 }
 
-function restore_standalone_comments(str) {
+function restore_standalone_comments(str, comment_store) {
 	return str.replace(/--\s*(?:\{\})?\(?\{LC(\d+)\}/ig, function(match, comment_index) {
-		return standalone_comment_list[parseInt(comment_index, 10)];
+		return comment_store[parseInt(comment_index, 10)];
 	});
 }
 
@@ -2153,9 +2078,8 @@ function extract_quotation_mark(str){
 		var this_line = text_list_orginal[i] 
 
 		//假如有评论?,只需处理评论前一段的东西
-		var is_comment = this_line.indexOf('--')
-		if(is_comment >= 0){
-			var comment_loc = get_first_comment_loc(this_line)
+		var comment_loc = get_first_comment_loc(this_line)
+		if(comment_loc >= 0){
 			var line_fisrt = this_line.slice(0,comment_loc)
 			var line_last = this_line.slice(comment_loc,)
 			text_final += repeat_text_replace(line_fisrt) + line_last+'\n'
@@ -2179,6 +2103,18 @@ function restore_strmark(str){
 		restore_cnt = 0
 		return str
 	}
+}
+
+function normalize_line_comment_spacing(str) {
+	var tokens = sqlTokenizer.tokenize(str);
+
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].type == 'line_comment') {
+			tokens[i].value = tokens[i].value.replace(/^--([^\s\-\n])/, "-- $1");
+		}
+	}
+
+	return sqlTokenizer.join_tokens(tokens);
 }
 
 
@@ -2374,10 +2310,8 @@ function convert_comma_loaction(str){
 		}
 
 		//判断this line是否有评论
-		var is_comment = this_line.indexOf('--')
-		if(is_comment >= 0){
-			var comment_loc = return_right_comment_loc(this_line)
-		}
+		var comment_loc = get_first_comment_loc(this_line)
+		var is_comment = comment_loc;
 		
 		//针对本行，如果有逗号，先剔除
 		if (/^\s+\,/.exec(this_line)) {
@@ -2403,31 +2337,71 @@ function convert_comma_loaction(str){
 }
 
 function order_comment(str, as_loc_cnt){
-	var final_text="";
 	var text_list = str.split("\n");
+	var current_group_key = null;
 	var current_group = [];
+	var paren_depth = 0;
+	var case_depth = 0;
+	var in_select_block = false;
+	var condition_group = '';
+	var last_select_target_comment_loc = 0;
 
-	function is_comment_alignment_break(line) {
-		var trimmed = line.replace(/^\s+/ig, '');
-		return trimmed === ""
-			|| /^\($/.exec(trimmed)
-			|| /^\)/.exec(trimmed)
-			|| /\($/.exec(trimmed)
-			|| /^SELECT\b/i.exec(trimmed)
-			|| /^UNION\b/i.exec(trimmed)
-			|| /^WITH\b/i.exec(trimmed);
+	function get_code_paren_delta(code) {
+		var tokens = sqlTokenizer.tokenize(code);
+		var delta = 0;
+
+		for (let i = 0; i < tokens.length; i++) {
+			if (tokens[i].type == 'punctuation' && tokens[i].value == '(') {
+				delta += 1;
+			} else if (tokens[i].type == 'punctuation' && tokens[i].value == ')') {
+				delta -= 1;
+			}
+		}
+
+		return delta;
 	}
 
-	function get_inline_comment_parts(line) {
-		var comment_loc = get_line_comment_loc(line);
-		if (comment_loc <= 0 || line.slice(0, comment_loc).trim() === "") {
+	function get_line_group_key(line_info, before_paren_depth, before_case_depth) {
+		if (!line_info.hasTrailingComment) {
 			return null;
 		}
 
-		return {
-			code: line.slice(0, comment_loc).replace(/\s+$/ig, ''),
-			comment: line.slice(comment_loc).replace(/^--\s*/ig, '').replace(/\s+$/ig, '')
-		};
+		var code = line_info.code.replace(/\s+$/ig, '');
+		var trimmed = code.replace(/^\s+/ig, '');
+		var line_case_delta = get_case_balance_delta(code);
+		var line_starts_case = /^(CASE|WHEN|THEN|ELSE)\b/i.exec(trimmed);
+		var line_is_case_end_alias = /^END\b/i.exec(trimmed) && find_top_level_as_loc(code) >= 0;
+
+		if (condition_group != '' && /^END\b/i.exec(trimmed)) {
+			return 'condition:' + condition_group;
+		}
+
+		if ((before_paren_depth > 0 || /\($/.exec(trimmed)) && before_case_depth > 0 && !line_is_case_end_alias && !/^\).*\bTHEN\b/i.exec(trimmed)) {
+			return 'list:' + before_paren_depth + ':' + code.match(/^\s*/)[0].length;
+		}
+
+		if ((before_case_depth > 0 || line_case_delta != 0 || line_starts_case) && !line_is_case_end_alias) {
+			return 'case:' + before_case_depth;
+		}
+
+		if (/^(ON|WHERE|HAVING)\b/i.exec(trimmed)) {
+			condition_group = /^HAVING\b/i.exec(trimmed) ? 'having' : 'condition';
+			return 'condition:' + condition_group;
+		}
+
+		if (/^(AND|OR)\b/i.exec(trimmed) && condition_group != '') {
+			return 'condition:' + condition_group;
+		}
+
+		if (in_select_block) {
+			return 'select';
+		}
+
+		if (before_paren_depth > 0 || /\($/.exec(trimmed)) {
+			return 'list:' + before_paren_depth + ':' + code.match(/^\s*/)[0].length;
+		}
+
+		return 'default:' + line_info.index;
 	}
 
 	function flush_group() {
@@ -2440,48 +2414,111 @@ function order_comment(str, as_loc_cnt){
 		for (let i = 0; i < current_group.length; i++) {
 			var visual_code_length = expand_tabs_for_width(current_group[i].code).length;
 			var alignment_width = get_alignment_width_for_code(current_group[i].code).width;
-			if (alignment_width < as_loc_cnt && visual_code_length + 1 > target_comment_loc) {
-				target_comment_loc = visual_code_length + 1;
+			var min_gap = 1;
+			if (alignment_width < as_loc_cnt && visual_code_length + min_gap > target_comment_loc) {
+				target_comment_loc = visual_code_length + min_gap;
 			}
+		}
+
+		if (current_group_key == 'condition:having' && last_select_target_comment_loc > target_comment_loc) {
+			target_comment_loc = last_select_target_comment_loc;
 		}
 
 		for (let i = 0; i < current_group.length; i++) {
 			var item = current_group[i];
+			if (item.index < 0 || item.comment == null) {
+				continue;
+			}
 			var item_visual_length = expand_tabs_for_width(item.code).length;
 			var item_alignment_width = get_alignment_width_for_code(item.code).width;
 			if (item_alignment_width >= as_loc_cnt || target_comment_loc <= 0) {
-				text_list[item.index] = item.code + ' -- ' + item.comment;
+				text_list[item.index] = sqlLineModel.rebuild_line(item.code, '-- ' + item.comment);
 			} else {
 				text_list[item.index] = item.code + " ".times(target_comment_loc - item_visual_length) + '-- ' + item.comment;
 			}
 		}
 
+		if (current_group_key == 'select') {
+			last_select_target_comment_loc = target_comment_loc;
+		}
 		current_group = [];
+		current_group_key = null;
 	}
 
 	for (let i = 0; i < text_list.length; i++){
-		if (is_comment_alignment_break(text_list[i])) {
+		var line_info = sqlLineModel.from_text(text_list[i])[0];
+		var code = line_info.code.replace(/\s+$/ig, '');
+		var trimmed = code.replace(/^\s+/ig, '');
+		var starts_new_select_block = /^SELECT\b/i.exec(trimmed) || /^GROUP BY\b/i.exec(trimmed);
+		var ends_select_block = /^(FROM|WHERE|HAVING|ORDER BY|SORT BY|CLUSTER BY|LIMIT|DISTRIBUTE BY|UNION|JOIN|LEFT|RIGHT|FULL|INNER|CROSS|ON|WITH)\b/i.exec(trimmed)
+			|| /^\)/.exec(trimmed);
+
+		if (line_info.isBlank
+			|| (line_info.isStandaloneComment && current_group_key != 'select' && !/^case:/.exec(current_group_key || ''))
+			|| starts_new_select_block) {
 			flush_group();
 		}
 
-		var parts = get_inline_comment_parts(text_list[i]);
-		if (parts == null) {
-			continue;
+		if (starts_new_select_block) {
+			in_select_block = true;
+			condition_group = '';
+		} else if (ends_select_block) {
+			in_select_block = false;
+			if (!/^(WHERE|HAVING|ON)\b/i.exec(trimmed)) {
+				condition_group = '';
+			}
 		}
 
-		current_group.push({
-			index: i,
-			code: parts.code,
-			comment: parts.comment
-		});
+		if (/^(ON|WHERE|HAVING)\b/i.exec(trimmed)) {
+			condition_group = /^HAVING\b/i.exec(trimmed) ? 'having' : 'condition';
+		}
+
+		var group_key = get_line_group_key(line_info, paren_depth, case_depth);
+
+		if (group_key == null) {
+			if (line_info.isStandaloneComment && (current_group_key == 'select' || /^case:/.exec(current_group_key || ''))) {
+				// Keep commented-out SQL lines from splitting the real SQL comment group.
+			} else if (current_group_key == 'select' && in_select_block) {
+				// Keep multi-line SELECT items from splitting the outer SELECT comment group.
+			} else if (/^case:/.exec(current_group_key || '') && (case_depth > 0 || /^(CASE|WHEN|THEN|ELSE|END)\b/i.exec(trimmed))) {
+				// Keep non-comment CASE structure lines inside the current CASE comment group.
+				if (/^(WHEN|THEN|ELSE)\b/i.exec(trimmed)) {
+					current_group.push({
+						index: -1,
+						code: code,
+						comment: null
+					});
+				}
+			} else if (!(current_group_key == 'condition:condition'
+				&& /^(FROM|JOIN|LEFT|RIGHT|FULL|INNER|CROSS)\b/i.exec(trimmed))) {
+				flush_group();
+			}
+		} else {
+			if (current_group_key != null && current_group_key != group_key) {
+				flush_group();
+			}
+			current_group_key = group_key;
+			current_group.push({
+				index: i,
+				code: code,
+				comment: sqlLineModel.comment_body(line_info.comment)
+			});
+		}
+
+		paren_depth += get_code_paren_delta(code);
+		if (paren_depth < 0) {
+			paren_depth = 0;
+		}
+
+		case_depth += get_case_balance_delta(code);
+		if (case_depth < 0) {
+			case_depth = 0;
+		}
 	}
 
 	flush_group();
 
-	for (let i = 0; i < text_list.length; i++){
-		final_text+=(text_list[i]+"\n");
-	}
-	return final_text;
+	return text_list.join("\n") + "\n";
 }
 
 function get_condition_leading_tabs(line) {
@@ -2619,11 +2656,10 @@ function align_condition_clauses(str) {
 vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,as_loc_cnt,case_when_then_wrap_length) {
 	restore_list = []
 	restore_cnt = 0
-	standalone_comment_list = []
 
 	var step0 = extract_quotation_mark(text)
-	step0 = protect_standalone_comments(step0);
-	step0 = protect_inline_comments(step0);
+	var comment_shield = protect_standalone_comments(step0);
+	step0 = protect_inline_comments(comment_shield.text, comment_shield.comments);
 	var step1 = reshape_comment(step0);
 	var step2 = replace_char(step1) ;
 	var step3 = get_bracket(step2);
@@ -2638,13 +2674,11 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 
 	// 恢复独立行注释的换行
 	var currentStep = step8.replace(/\s{0,1}--\{\}/g, "\n--");
-	currentStep = restore_standalone_comments(currentStep);
+	currentStep = restore_standalone_comments(currentStep, comment_shield.comments);
 	currentStep = format_case_blocks(currentStep, case_when_then_wrap_length);
 	currentStep = align_as_in_select_blocks(currentStep, as_loc_cnt);
 	
-	if (uppercase === false) {
-		currentStep = convert_lowercase(currentStep);
-	}
+	currentStep = sqlKeywords.apply_keyword_case(currentStep, uppercase !== false);
 	
 	if (comma_location === true) {
 		currentStep = convert_comma_loaction(currentStep);
@@ -2657,8 +2691,8 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 		currentStep = currentStep.replace(/\t/ig, "    ");
 	}
 
-	// 确保所有 -- 后面都有空格
-	currentStep = currentStep.replace(/--([^\s\-\n])/g, "-- $1");
+	// 确保真实行注释的 -- 后面有空格，不触碰字符串里的 --。
+	currentStep = normalize_line_comment_spacing(currentStep);
 
 	return currentStep;
 };
