@@ -209,15 +209,15 @@ function get_bracket(str) {
 			// 加入with as 的判断可能会有坑
 			if (
 				
-				(/JOIN|WITH/.exec(last_str) 
+				(/\b(JOIN|WITH)\b/i.exec(last_str) 
 				
 				||  /^\)\s*\,\s*\w+\s+AS/.exec(last_str) 
-				|| (/FROM /.exec(last_str) && !/ (EXPLODE|POSEXPLODE)/ig.exec(last_str))
+				|| (/\bFROM\b/i.exec(last_str) && !/\b(EXPLODE|POSEXPLODE)\b/i.exec(last_str))
 				
 				
 				)  
 				
-				&& !/ORDER BY/.exec(last_str)  
+				&& !/\bORDER\s+BY\b/i.exec(last_str)  
 	
 				
 				)  
@@ -1545,10 +1545,11 @@ function special_wrap(text,as_loc_cnt,case_when_then_wrap_length) {
 		}
 
 		//增加order by 换行逻辑
-		if(/ORDER BY/ig.exec(text_list[q])){
+		if(/\bORDER\s+BY\b/i.exec(text_list[q])){
 			var left_brkt = 0;
 			var right_brkt = 0;
-			var ordr_loc = text_list[q].indexOf('ORDER BY') + 8;
+			var order_match = text_list[q].match(/\bORDER\s+BY\b/i);
+			var ordr_loc = order_match.index + order_match[0].length;
 			var new_str = text_list[q].slice(ordr_loc,-1);
 			for (let t = 0; t < new_str.length; t++){
 				if(new_str[t] == '('){
@@ -1560,7 +1561,7 @@ function special_wrap(text,as_loc_cnt,case_when_then_wrap_length) {
 			}
 
 			if(right_brkt <= left_brkt){
-				text_list[q] = text_list[q].replace(' ORDER BY ','\nORDER BY ');
+				text_list[q] = text_list[q].replace(/\s+ORDER\s+BY\s+/i, '\nORDER BY ');
 			}
 		}
 	
@@ -1970,9 +1971,9 @@ function extra(str){
 			text_final += '\n';
 		}
 
-		if (i > 0 && (/\s{0,}[^,]INSERT/ig.exec(text_list[i]) || /\s{0,}DROP/ig.exec(text_list[i]) || /\s{0,}ALTER/ig.exec(text_list[i]) || (/^\s{0,}CREATE/ig.exec(text_list[i]) &&  last_str.indexOf('DROP') == -1 && last_str.indexOf('ADD JAR') == -1) || (/^\s{0,}SET/ig.exec(text_list[i]) && last_str.indexOf('SET') == -1))) {
+		if (i > 0 && (/^\s*[^,]\s*INSERT\b/i.exec(text_list[i]) || /^\s*DROP\b/i.exec(text_list[i]) || /^\s*ALTER\b/i.exec(text_list[i]) || (/^\s*CREATE\b/i.exec(text_list[i]) &&  !/\bDROP\b/i.exec(last_str) && !/\bADD\s+JAR\b/i.exec(last_str)) || (/^\s*SET\b/i.exec(text_list[i]) && !/\bSET\b/i.exec(last_str)))) {
 			text_final += '\n' + text_list[i];   //必须不是首行
-		} else if(i > 0 && (/\s{0,}SELECT/ig.exec(text_list[i]) && last_str.indexOf(';') >= 0)){
+		} else if(i > 0 && (/^\s*SELECT\b/i.exec(text_list[i]) && last_str.indexOf(';') >= 0)){
 			text_final += '\n' + text_list[i]; 
 		}
 		else {
@@ -2146,13 +2147,13 @@ function extractddl(str){
 		var text_elmt = text_list[i].trim().replace(/\s{1,}/ig, " ").replace(/\./ig, " ")
 		// 判断是否有注释
 		var comment_loc = text_elmt.indexOf('--');
-		if(comment_loc > 0 && text_elmt.indexOf('FROM') == -1){
+		if(comment_loc > 0 && !/\bFROM\b/i.exec(text_elmt)){
 			var as_text = text_elmt.slice(0,comment_loc);
 			var comment_text = text_elmt.slice(comment_loc,).replace(/-/ig, "").trim();
 			var test_list_list = as_text.trim().replace(/\s{1,}/ig, " ").split(" ");
 			text_final += test_list_list[test_list_list.length-1] + ' BIGINT COMMENT "' + comment_text +  '"\n';
 
-		}else if(text_elmt.indexOf('FROM') == -1){
+		}else if(!/\bFROM\b/i.exec(text_elmt)){
 			var test_list_list = text_elmt.split(" ");
 			text_final += test_list_list[test_list_list.length-1] + ' BIGINT COMMENT " "\n';
 		}
