@@ -1,6 +1,14 @@
 
 ## 😎 更迭日志 Release Notes
 
+### 0.4.1 (2026/04/28)
+* 修复字段名局部包含 SQL 关键字时误触发结构格式化的问题，例如 `WITHRI_SITU_CD`、`JOINER_CD`、`FROM_ACCT_CD`、`ORDER_BY_FLAG`
+* 收紧括号拆行、`ORDER BY`、语句起始识别和 `extractddl` 中的关键字判断，统一使用单词边界或行首匹配，避免字段名子串被当成真实 SQL 关键字
+* 补充连续 `CASE WHEN` 字段前存在关键字前缀字段名的回归覆盖
+* Fixed structural formatting being triggered by SQL keyword substrings inside column names, such as `WITHRI_SITU_CD`, `JOINER_CD`, `FROM_ACCT_CD`, and `ORDER_BY_FLAG`
+* Tightened keyword detection for bracket wrapping, `ORDER BY`, statement starts, and `extractddl` with word-boundary or line-start matching
+* Added regression coverage for consecutive `CASE WHEN` columns following keyword-like column names
+
 ### 0.4.0 (2026/04/28)
 * 重构 SQL / Hive SQL 格式化核心，新增 token 化、结构识别和行模型，减少正则、占位符和全局状态导致的互相污染
 * 将 `--` 行注释和单双引号字符串作为不可格式化内容处理，注释或字符串内的 `CASE` / `WHEN` / `THEN` / `FROM` / 逗号不再被识别为真实 SQL
@@ -245,7 +253,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 
