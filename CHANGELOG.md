@@ -1,6 +1,10 @@
 
 ## 😎 更迭日志 Release Notes
 
+> 0.3.23 及以后版本由 [IrvingYing224](https://github.com/IrvingYing224) 维护。
+>
+> Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
+
 ### 0.4.1 (2026/04/28)
 * 修复字段名局部包含 SQL 关键字时误触发结构格式化的问题，例如 `WITHRI_SITU_CD`、`JOINER_CD`、`FROM_ACCT_CD`、`ORDER_BY_FLAG`
 * 收紧括号拆行、`ORDER BY`、语句起始识别和 `extractddl` 中的关键字判断，统一使用单词边界或行首匹配，避免字段名子串被当成真实 SQL 关键字
@@ -253,7 +257,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

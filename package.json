@@ -4,6 +4,9 @@
 	"description": "More Powerful extension that beautifies SQL/一键美化你的SQL",
 	"version": "0.4.1",
 	"publisher": "clarkyu",
+	"maintainers": [
+		"IrvingYing224"
+	],
 	"engines": {
 		"vscode": "^1.5.0"
 	},
@@ -25,7 +28,7 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/clarkyu2016/sql-beautify.git"
+		"url": "https://github.com/IrvingYing224/sql-beautify.git"
 	},
 	"main": "./extension.js",
 	"contributes": {
@@ -104,15 +107,5 @@
 	},
 	"devDependencies": {
 		"vscode": "^0.11.0"
-	},
-	"__metadata": {
-		"id": "3422b2ca-7151-4627-b7ce-adf888562d04",
-		"publisherId": "b095b96a-0807-4555-a2ff-b774781d6e68",
-		"publisherDisplayName": "clarkyu",
-		"isPreReleaseVersion": false,
-		"installedTimestamp": 1662287892731,
-		"targetPlatform": "undefined",
-		"updated": true,
-		"preRelease": false
 	}
 }

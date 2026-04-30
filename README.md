@@ -11,8 +11,12 @@
   
 </p>
 
+<p align="center">
+  Maintained by <a href="https://github.com/IrvingYing224">IrvingYing224</a> since version 0.3.23.
+</p>
+
 <div align=center>
-<img  src="https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/demo.gif"/>
+<img  src="images/demo.gif"/>
 </div>
 
 
@@ -34,7 +38,7 @@ Version `0.4.x` refactors the SQL / Hive SQL formatter core. The formatter now i
 
 Beautify your SQL!  Make sure the language is set to `SQL`,then select your sql code and press `Alt+Shift+f` just like you normally would.
 
-![demo](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/demo.gif)
+![demo](images/demo.gif)
 
 ## 2. Beautify SQL DDL (Only for hive-sql)
 
@@ -42,7 +46,7 @@ Beautify your SQL!  Make sure the language is set to `SQL`,then select your sql 
 
 Beautify your SQL DDL!  Make sure the language is set to `SQL`,then select your sql code and press `Alt+Shift+l`.
 
-![demo](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/demo2.gif)
+![demo](images/demo2.gif)
 
 ## 3. Extract SQL DDL (Only for hive-sql)
 
@@ -50,14 +54,10 @@ Beautify your SQL DDL!  Make sure the language is set to `SQL`,then select your 
 
 Extract ddl from insert sql !  Make sure the language is set to `SQL`,then select your sql code and press `Alt+Shift+;`.
 
-![demo](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/demo3.gif)
-
 ## 4. Customize your own style 🐱‍🏍
-你可以在vscode中文件-首选项-设置-扩展中找到一些自定义内容。详细的说明，可以阅读wiki-[功能说明](https://github.com/clarkyu2016/sql-beautify/wiki/%E5%8A%9F%E8%83%BD%E8%AF%B4%E6%98%8E-Features)！
+你可以在vscode中文件-首选项-设置-扩展中找到一些自定义内容。
 
-Customize your own sql-beautify style in [settings-extension]. For more detail, please read wiki [Features](https://github.com/clarkyu2016/sql-beautify/wiki/%E5%8A%9F%E8%83%BD%E8%AF%B4%E6%98%8E-Features) to get more details about features of this extension
-
-![customize](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/customize.png)
+Customize your own sql-beautify style in [settings-extension].
 
 
 
@@ -71,7 +71,7 @@ Please be careful when use this plugin. Do not use it for the whole file. Recomm
 * 如果你真的遇到什么问题了，请先`Ctrl+z`恢复你的代码，然后可以联系我修复可能存在的问题。If you have some problems, try to use `Ctrl+z` to recover your code and contact me to fix the bug if you wish.
 
 
- [**Release Notes**](https://github.com/clarkyu2016/sql-beautify/blob/main/CHANGELOG.md)
+ [**Release Notes**](https://github.com/IrvingYing224/sql-beautify/blob/main/CHANGELOG.md)
 
 # 🎅 联系我 Contact Me
 
