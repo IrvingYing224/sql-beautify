@@ -1,0 +1,50 @@
+name: Build VSIX
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-vsix:
+    name: Build VSIX
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run regression tests
+        run: npm run test:verify
+
+      - name: Read package version
+        id: package
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Package VSIX
+        run: npx --yes @vscode/vsce package --out vscode-sql-beautify-v${{ steps.package.outputs.version }}.vsix
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-sql-beautify-vsix
+          path: "*.vsix"
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            ./*.vsix \
+            --title "v${VERSION}" \
+            --notes "Manual VSIX build for v${VERSION}."

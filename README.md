@@ -20,8 +20,11 @@
 </div>
 
 
-# 📸 安装 Installation 
-[VSCode Plugin Market](https://marketplace.visualstudio.com/items?itemName=clarkyu.vscode-sql-beautify)
+# 📸 安装 Installation
+
+从 [GitHub Releases](https://github.com/IrvingYing224/sql-beautify/releases) 下载最新的 `.vsix` 文件，然后在 VS Code 中执行 `Extensions: Install from VSIX...` 进行安装。
+
+Download the latest `.vsix` file from [GitHub Releases](https://github.com/IrvingYing224/sql-beautify/releases), then run `Extensions: Install from VSIX...` in VS Code.
 
 
 # 💥 特点 Features 
