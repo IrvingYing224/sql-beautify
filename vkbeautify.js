@@ -89,6 +89,12 @@ function protect_set_payloads(str) {
 
 			if (i < tokens.length) {
 				text += tokens[i].value;
+				if (tokens[i].type == 'punctuation' && tokens[i].value == ';'
+					&& i + 1 < tokens.length
+					&& tokens[i + 1].type == 'newline') {
+					text += '{SQLSETNEWLINE}';
+					i += 1;
+				}
 				at_statement_start = tokens[i].type == 'punctuation' && tokens[i].value == ';'
 					|| tokens[i].type == 'newline';
 			}
@@ -115,7 +121,7 @@ function protect_set_payloads(str) {
 function restore_set_payloads(str, payloads) {
 	return str.replace(/\{SQLSETPAYLOAD(\d+)\}/g, function(match, payload_index) {
 		return payloads[parseInt(payload_index, 10)];
-	});
+	}).replace(/\{SQLSETNEWLINE\}/g, '\n');
 }
 
 function replace_char(str) {

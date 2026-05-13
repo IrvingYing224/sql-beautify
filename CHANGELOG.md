@@ -5,6 +5,14 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.4.3 (2026/05/13)
+* 修复连续 Hive `SET` 配置语句格式化后被合并成一行的问题
+* 保持 `SET hive.exec.dynamic.partition=true;` 和 `SET hive.exec.dynamic.partition.mode=non-strict;` 这类连续配置语句分行输出
+* 补充连续 Hive `SET` 配置语句的回归覆盖
+* Fixed consecutive Hive `SET` config statements being merged into one line after formatting
+* Kept statements such as `SET hive.exec.dynamic.partition=true;` and `SET hive.exec.dynamic.partition.mode=non-strict;` on separate output lines
+* Added regression coverage for consecutive Hive `SET` config statements
+
 ### 0.4.2 (2026/05/13)
 * 修复 Hive `SET hive.exec.dynamic.partition = true;` 中配置键和值被错误当作 SQL 关键字大写的问题
 * 修复 `t.partition`、`t.true`、`db.table` 等点号限定标识符中的关键字片段被误改写的问题
@@ -267,7 +275,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

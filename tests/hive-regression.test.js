@@ -519,6 +519,18 @@ run_case(
 );
 
 run_case(
+	'consecutive hive set configs keep separate lines',
+	[
+		"set hive.exec.dynamic.partition=true;",
+		"set hive.exec.dynamic.partition.mode=non-strict;"
+	].join('\n'),
+	[
+		'SET hive.exec.dynamic.partition = true;',
+		'SET hive.exec.dynamic.partition.mode = non-strict;'
+	].join('\n')
+);
+
+run_case(
 	'dotted identifiers do not uppercase keyword-like parts',
 	"select t.partition, t.true from db.table t where t.partition is not null",
 	[
