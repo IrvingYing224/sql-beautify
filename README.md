@@ -29,16 +29,6 @@ Download the latest `.vsix` file from [GitHub Releases](https://github.com/Irvin
 
 # 💥 特点 Features 
 
-## 0.4 Formatter Core
-
-`0.4.x` 重构了 SQL / Hive SQL 格式化核心。格式化器现在先识别真实 SQL token、行注释和字符串，再处理 `CASE WHEN`、顶层 `AS`、括号列表和行尾注释对齐，避免注释、字符串或字段名子串里的 `WHEN`、`THEN`、`FROM`、`WITH`、逗号、引号被当成 SQL 继续格式化。
-
-Version `0.4.x` refactors the SQL / Hive SQL formatter core. The formatter now identifies real SQL tokens, line comments, and string literals before formatting `CASE WHEN`, top-level `AS`, parenthesized lists, and trailing comments, so SQL-like text inside comments, strings, or column-name substrings stays untouched.
-
-`0.4.2` 继续收紧关键字大小写转换：Hive `SET` 配置项和值会保持原始大小写，`t.partition`、`db.table` 等点号限定标识符中的关键字片段不会被误改写，同时真实的 `PARTITION(...)`、`PARTITION BY` 等 Hive 语法仍会按设置转换大小写。
-
-Version `0.4.2` further tightens keyword casing: Hive `SET` config keys and values keep their original case, keyword-like parts inside dotted identifiers such as `t.partition` and `db.table` are not rewritten, while real Hive syntax such as `PARTITION(...)` and `PARTITION BY` still follows the casing setting.
-
 ## 1. Beautify SQL
 
 一键美化你的SQL！请确保你使用的语言是`SQL`，选择需要优化的代码块，按下`Alt+Shift+f`即可使用！ 
