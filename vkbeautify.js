@@ -41,6 +41,83 @@ var restore_list = [];
 var restore_cnt = 0;
 
 //----------------------------------------------------------------------------
+function normalize_set_payload(payload) {
+	var tokens = sqlTokenizer.tokenize(payload.replace(/^\s+/ig, '').replace(/\s+$/ig, ''));
+	var text = '';
+
+	for (var i = 0; i < tokens.length; i++) {
+		if (tokens[i].type == 'whitespace') {
+			if (text != '' && !/\s$/.exec(text)) {
+				text += ' ';
+			}
+			continue;
+		}
+
+		if (tokens[i].type == 'operator' && tokens[i].value == '=') {
+			text = text.replace(/\s+$/ig, '') + ' = ';
+			continue;
+		}
+
+		text += tokens[i].value;
+	}
+
+	text = text.replace(/\s+$/ig, '');
+	return text == '' ? '' : ' ' + text;
+}
+
+function protect_set_payloads(str) {
+	var tokens = sqlTokenizer.tokenize(str);
+	var payloads = [];
+	var text = '';
+	var at_statement_start = true;
+
+	for (var i = 0; i < tokens.length; i++) {
+		if (tokens[i].type == 'word' && /^SET$/i.exec(tokens[i].value) && at_statement_start) {
+			var payload_text = '';
+			text += tokens[i].value;
+			i += 1;
+
+			while (i < tokens.length
+				&& !(tokens[i].type == 'punctuation' && tokens[i].value == ';')
+				&& tokens[i].type != 'newline') {
+				payload_text += tokens[i].value;
+				i += 1;
+			}
+
+			text += '{SQLSETPAYLOAD' + payloads.length + '}';
+			payloads.push(normalize_set_payload(payload_text));
+
+			if (i < tokens.length) {
+				text += tokens[i].value;
+				at_statement_start = tokens[i].type == 'punctuation' && tokens[i].value == ';'
+					|| tokens[i].type == 'newline';
+			}
+			continue;
+		}
+
+		text += tokens[i].value;
+
+		if (tokens[i].type == 'punctuation' && tokens[i].value == ';') {
+			at_statement_start = true;
+		} else if (tokens[i].type == 'newline') {
+			at_statement_start = true;
+		} else if (tokens[i].type != 'whitespace') {
+			at_statement_start = false;
+		}
+	}
+
+	return {
+		text: text,
+		payloads: payloads
+	};
+}
+
+function restore_set_payloads(str, payloads) {
+	return str.replace(/\{SQLSETPAYLOAD(\d+)\}/g, function(match, payload_index) {
+		return payloads[parseInt(payload_index, 10)];
+	});
+}
+
 function replace_char(str) {
 	return str.replace(/\n/g, " ")
 		.replace(/\s+/ig, " ")
@@ -50,9 +127,9 @@ function replace_char(str) {
 		.replace(/ IS /ig, " IS ")
 		.replace(/\nAND /ig, " AND ")
 		.replace(/\nOR /ig, " OR ")
-		.replace(/\bNULL\b/ig, "NULL")
-		.replace(/\bTRUE\b/ig, "TRUE")
-		.replace(/\bFALSE\b/ig, "FALSE")
+		.replace(/(^|[^.A-Za-z0-9_$])NULL\b/ig, "$1NULL")
+		.replace(/(^|[^.A-Za-z0-9_$])TRUE\b/ig, "$1TRUE")
+		.replace(/(^|[^.A-Za-z0-9_$])FALSE\b/ig, "$1FALSE")
 		.replace(/\bDISTINCT\b/ig, "DISTINCT")
 		.replace(/\bCAST\(/ig, "CAST(")
 		.replace(/ THEN /ig, " THEN ")
@@ -2658,7 +2735,8 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	restore_list = []
 	restore_cnt = 0
 
-	var step0 = extract_quotation_mark(text)
+	var set_shield = protect_set_payloads(text);
+	var step0 = extract_quotation_mark(set_shield.text)
 	var comment_shield = protect_standalone_comments(step0);
 	step0 = protect_inline_comments(comment_shield.text, comment_shield.comments);
 	var step1 = reshape_comment(step0);
@@ -2676,6 +2754,7 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	// 恢复独立行注释的换行
 	var currentStep = step8.replace(/\s{0,1}--\{\}/g, "\n--");
 	currentStep = restore_standalone_comments(currentStep, comment_shield.comments);
+	currentStep = restore_set_payloads(currentStep, set_shield.payloads);
 	currentStep = format_case_blocks(currentStep, case_when_then_wrap_length);
 	currentStep = align_as_in_select_blocks(currentStep, as_loc_cnt);
 	

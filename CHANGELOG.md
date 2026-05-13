@@ -5,6 +5,16 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.4.2 (2026/05/13)
+* 修复 Hive `SET hive.exec.dynamic.partition = true;` 中配置键和值被错误当作 SQL 关键字大写的问题
+* 修复 `t.partition`、`t.true`、`db.table` 等点号限定标识符中的关键字片段被误改写的问题
+* 保持 `PARTITION(...)`、`PARTITION BY`、`TRUE` / `FALSE` / `NULL` 等真实 SQL 语法关键字和常量的现有大小写转换行为
+* 补充 Hive `SET` 配置和点号限定标识符的回归覆盖
+* Fixed Hive `SET hive.exec.dynamic.partition = true;` config keys and values being incorrectly uppercased as SQL keywords
+* Fixed keyword-like parts inside dotted identifiers such as `t.partition`, `t.true`, and `db.table` being rewritten
+* Preserved existing keyword casing for real SQL syntax such as `PARTITION(...)`, `PARTITION BY`, and `TRUE` / `FALSE` / `NULL`
+* Added regression coverage for Hive `SET` configs and dotted identifiers
+
 ### 0.4.1 (2026/04/28)
 * 修复字段名局部包含 SQL 关键字时误触发结构格式化的问题，例如 `WITHRI_SITU_CD`、`JOINER_CD`、`FROM_ACCT_CD`、`ORDER_BY_FLAG`
 * 收紧括号拆行、`ORDER BY`、语句起始识别和 `extractddl` 中的关键字判断，统一使用单词边界或行首匹配，避免字段名子串被当成真实 SQL 关键字
@@ -257,7 +267,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

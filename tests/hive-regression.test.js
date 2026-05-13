@@ -506,6 +506,29 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'hive set config key and value preserve original case',
+	"set hive.exec.dynamic.partition = true;",
+	'SET hive.exec.dynamic.partition = true;'
+);
+
+run_case(
+	'hive set config mode preserves original case',
+	"set hive.exec.dynamic.partition.mode = nonstrict;",
+	'SET hive.exec.dynamic.partition.mode = nonstrict;'
+);
+
+run_case(
+	'dotted identifiers do not uppercase keyword-like parts',
+	"select t.partition, t.true from db.table t where t.partition is not null",
+	[
+		'SELECT  t.partition',
+		'       ,t.true',
+		'FROM db.table t',
+		'WHERE t.partition IS NOT NULL'
+	].join('\n')
+);
+
 run_lower_case(
 	'lowercase hive keyword coverage remains lowercase',
 	"select distinct cast(a as string) as s from t lateral view outer posexplode(arr) lv as pos,item where a is not null group by rollup(a), grouping sets ((a)) intersect select a from s",
