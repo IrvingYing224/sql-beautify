@@ -41,20 +41,17 @@ assert.strictEqual(
 
 assert.deepStrictEqual(
 	sqlRenderOptions.normalize({
-		uppercase: false,
-		comma_location: true,
-		bracket_char: true,
-		as_loc_cnt: 88,
-		case_when_then_wrap_length: 33,
-		keywordCase: 'upper',
-		commaStyle: 'leading',
-		indentStyle: 'tab',
-		maxAlignWidth: 120
+		keywordCase: 'lower',
+		commaStyle: 'trailing',
+		indentStyle: 'space',
+		maxAlignWidth: 88,
+		caseWhenThenWrapLength: 33
 	}, {
-		keywordCase: false,
-		commaStyle: false,
-		indentStyle: false,
-		maxAlignWidth: false
+		keywordCase: true,
+		commaStyle: true,
+		indentStyle: true,
+		maxAlignWidth: true,
+		caseWhenThenWrapLength: true
 	}),
 	{
 		keywordCase: 'lower',
@@ -66,37 +63,7 @@ assert.deepStrictEqual(
 		languageMode: 'sql',
 		unsupportedSyntaxPolicy: 'preserve'
 	},
-	'legacy options remain effective when new options are not explicitly configured through canonical normalization'
-);
-
-assert.deepStrictEqual(
-	sqlRenderOptions.normalize({
-		uppercase: false,
-		comma_location: true,
-		bracket_char: true,
-		as_loc_cnt: 88,
-		case_when_then_wrap_length: 33,
-		keywordCase: 'upper',
-		commaStyle: 'leading',
-		indentStyle: 'tab',
-		maxAlignWidth: 120
-	}, {
-		keywordCase: true,
-		commaStyle: true,
-		indentStyle: true,
-		maxAlignWidth: true
-	}),
-	{
-		keywordCase: 'upper',
-		commaStyle: 'leading',
-		indentStyle: 'tab',
-		maxAlignWidth: 120,
-		caseWhenThenWrapLength: 33,
-		dialect: 'generic',
-		languageMode: 'sql',
-		unsupportedSyntaxPolicy: 'preserve'
-	},
-	'new options override legacy options when explicitly configured'
+	'canonical config normalization must not depend on removed legacy option names'
 );
 
 assert.deepStrictEqual(
@@ -145,6 +112,94 @@ assert.strictEqual(
 	format(format(idempotentInput)),
 	format(idempotentInput),
 	'full SQL formatting pipeline must be idempotent for protected token boundaries'
+);
+
+var whitespaceContractInput = [
+	'select a,b from t',
+	'',
+	'',
+	'where x=1'
+].join('\r\n');
+
+assert.strictEqual(
+	sqlFormatter.format_sql(whitespaceContractInput, {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'tab',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'generic'
+	}),
+	[
+		'SELECT  a',
+		'       ,b',
+		'FROM t',
+		'',
+		'WHERE x = 1',
+		''
+	].join('\n'),
+	'formatter must preserve a single user blank line, normalize CRLF to LF, and keep a single trailing newline'
+);
+
+assert.strictEqual(
+	sqlFormatter.format_sql('set key=$$a  b$$;\nselect 1', {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'tab',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'postgres'
+	}),
+	[
+		'SET key = $$a  b$$;',
+		'SELECT  1',
+		''
+	].join('\n'),
+	'SET payload normalization must preserve PostgreSQL dollar-quoted string bytes'
+);
+
+assert.strictEqual(
+	sqlFormatter.format_sql('select $$) )$$ as s, func(a) from t', {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'tab',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'postgres'
+	}),
+	[
+		'SELECT  $$) )$$ AS s',
+		'       ,func(a)',
+		'FROM t',
+		''
+	].join('\n'),
+	'layout indentation must ignore parentheses inside PostgreSQL dollar-quoted strings'
+);
+
+assert.strictEqual(
+	sqlFormatter.format_sql([
+		'select * from t',
+		'where a in (',
+		'1 # keep ) ) comment',
+		'and b=2',
+		')'
+	].join('\n'), {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'tab',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'mysql'
+	}),
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE a IN ( 1 # keep ) ) comment',
+		'  AND b = 2',
+		')',
+		''
+	].join('\n'),
+	'layout indentation must ignore parentheses inside MySQL hash line comments'
 );
 
 [

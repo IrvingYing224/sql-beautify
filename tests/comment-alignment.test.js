@@ -434,4 +434,25 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'production-style comment note does not break following case comment alignment',
+	[
+		'select  a.user_id as user_id -- 用户ID',
+		'       ,a.city    as city    -- 城市',
+		'-- 风险标签口径: 仅统计近30天',
+		'       ,case when a.risk_score >= 80 then \'high\' else \'normal\' end as risk_tag -- 风险标签',
+		'from ads_user_risk a'
+	].join('\n'),
+	[
+		'SELECT  a.user_id                               AS user_id  -- 用户ID',
+		'       ,a.city                                  AS city     -- 城市',
+		'-- 风险标签口径: 仅统计近30天',
+		'       ,CASE',
+		'            WHEN a.risk_score >= 80 THEN \'high\'',
+		'            ELSE \'normal\'',
+		'        END                                     AS risk_tag -- 风险标签',
+		'FROM ads_user_risk a'
+	].join('\n')
+);
+
 console.log('comment alignment tests passed');

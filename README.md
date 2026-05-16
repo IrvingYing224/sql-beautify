@@ -1,139 +1,74 @@
-<h1 align="center">
- SQL Beautify
-</h1>
+# SQL Beautify
 
-<p align="center">
-  😀格式化你杂乱无章的sql/hql代码😀
-  
-</p>
-<p align="center">
-  VS Code extension that beautifies SQL(HQL).
-  
-</p>
-
-<p align="center">
-  Maintained by <a href="https://github.com/IrvingYing224">IrvingYing224</a> since version 0.3.23.
-</p>
-
-<div align=center>
-<img  src="images/demo.gif"/>
-</div>
-
-
-# 📸 安装 Installation
-
-从 [GitHub Releases](https://github.com/IrvingYing224/sql-beautify/releases) 下载由 GitHub Actions 构建的最新 `.vsix` 文件，然后在 VS Code 中执行 `Extensions: Install from VSIX...` 进行安装。
-
-Download the latest `.vsix` file built by GitHub Actions from [GitHub Releases](https://github.com/IrvingYing224/sql-beautify/releases), then run `Extensions: Install from VSIX...` in VS Code.
-
-最低支持 VS Code `1.90.0`。
-
-Minimum supported VS Code version is `1.90.0`.
-
-
-# 💥 特点 Features 
-
-## 1. Beautify SQL
-
-一键美化你的SQL！请确保你使用的语言是`SQL`，选择需要优化的代码块，按下`Alt+Shift+f`即可使用！ 
-
-Beautify your SQL!  Make sure the language is set to `SQL`,then select your sql code and press `Alt+Shift+f` just like you normally would.
-
-也可以将本扩展设置为 VS Code 的默认 SQL formatter，然后使用 VS Code 标准的 `Format Document` / `Format Selection` 入口。
-
-You can also configure this extension as the default VS Code formatter for SQL, then use the standard `Format Document` / `Format Selection` actions.
+VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格式化与 DDL 提取能力。
 
 ![demo](images/demo.gif)
 
-主格式化能力目前以 Hive SQL / HQL 为主要目标；如果你在其他 SQL 方言上使用，建议在格式化后检查结果。
+## 安装
 
-The main formatter is primarily optimized for Hive SQL / HQL. If you use other SQL dialects, review the result after formatting.
+从 [GitHub Releases](https://github.com/IrvingYing224/sql-beautify/releases) 下载最新 `.vsix`，然后在 VS Code 中执行 `Extensions: Install from VSIX...` 安装。
 
-## 2. Beautify SQL DDL (Experimental, Hive SQL)
+最低支持 VS Code `1.90.0`。
 
-一键美化你的DDL！请确保你使用的语言是`SQL`，选择需要优化的代码块，按下`Alt+Shift+l`即可使用！ 
+## 这个扩展做什么
 
-Beautify your SQL DDL!  Make sure the language is set to `SQL`,then select your sql code and press `Alt+Shift+l`.
+- 格式化 SQL / HQL
+- 支持 VS Code 标准 `Format Document` / `Format Selection`
+- 提供实验性的 Hive DDL 格式化
+- 提供实验性的 Hive `extractddl` 草稿提取
 
-DDL 格式化目前主要面向 Hive DDL，仍属于 experimental 功能。复杂建表语句建议先选中小段内容验证结果。
+主格式化能力优先面向 Hive SQL / HQL。`generic`、`postgres`、`mysql` 为 best-effort 支持，复杂 SQL 建议格式化后复核结果。
 
-DDL formatting is currently focused on Hive DDL and remains experimental. For complex `CREATE TABLE` statements, format a small selection first and review the result.
+## 怎么用
 
-![demo](images/demo2.gif)
+将文件语言模式设为 `SQL` 或 `hive-sql` 后，可以用下面几种方式：
 
-## 3. Extract SQL DDL (Experimental, Hive SQL)
+- 执行 `Format Document` 或 `Format Selection`
+- 执行命令 `SQL Beautify: Format SQL`
+- 使用快捷键 `Alt+Shift+F`
 
-一键从你的Insert语句中提取的DDL！请确保你使用的语言是`SQL`，选择需要优化的代码块，按下`Alt+Shift+;`即可使用！ 
+实验性命令：
 
-Extract ddl from insert sql !  Make sure the language is set to `SQL`,then select your sql code and press `Alt+Shift+;`.
+- `SQL Beautify: Format Hive DDL (Experimental)`
+- `SQL Beautify: Extract Hive DDL (Experimental)`
 
-该能力同样按 Hive SQL experimental 处理，适合从常规 `SELECT` / `INSERT SELECT` 字段列表生成 DDL 草稿。复杂 SQL、非 Hive 语法或未加别名的表达式，请先在临时文件中验证输出并人工复核。
+对应快捷键：
 
-This feature is also treated as experimental for Hive SQL. It is intended to draft DDL from common `SELECT` / `INSERT SELECT` field lists. For complex SQL, non-Hive syntax, or expressions without aliases, verify the output in a temporary file and review it manually.
+- `Alt+Shift+L`：格式化 Hive DDL
+- `Alt+Shift+;`：提取 Hive DDL 草稿
 
-## 4. Dialects And Language Modes
+## 配置
 
-默认语言模式映射如下：
+请在 VS Code 设置中搜索 `sqlBeautify`。
 
-Default language-mode mapping:
-
-| VS Code languageId | Default dialect |
-| --- | --- |
-| `sql` | `generic` |
-| `hive-sql` | `hive` |
-
-用户显式配置的 `sqlBeautify.dialect` 会覆盖语言模式默认值。
-
-An explicit user-set `sqlBeautify.dialect` overrides the language-mode default.
-
-| Dialect | Recommended usage |
-| --- | --- |
-| `hive` | 推荐，主要支持目标 |
-| `generic` | 通用 SQL 场景 |
-| `postgres` | PostgreSQL 常见语法 |
-| `mysql` | MySQL 常见语法 |
-
-## 5. Customize Your Own Style 🐱‍🏍
-你可以在 VS Code 的设置中搜索 `sqlBeautify` 或 `extension` 找到相关配置。
-
-Search for `sqlBeautify` or `extension` in VS Code settings to customize the formatter.
-
-| Area | Status |
-| --- | --- |
-| Hive SQL formatting | Primary support |
-| Hive DDL formatting | Experimental |
-| Extract DDL | Experimental |
-| Other SQL dialects | Best-effort / review output manually |
-
-推荐优先使用 `sqlBeautify.*` 配置；旧 `extension.*` 配置仍然保留兼容。
-
-Prefer `sqlBeautify.*` settings. Legacy `extension.*` settings remain compatible.
-
-| 新配置 New setting | 可选值 Values | 旧配置 Legacy setting | 说明 |
+| 配置项 | 可选值 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `sqlBeautify.keywordCase` | `upper` / `lower` | `extension.keywordCase` / `extension.uppercase` | 控制 SQL 关键词大小写 |
-| `sqlBeautify.commaStyle` | `leading` / `trailing` | `extension.commaStyle` / `extension.comma_location` | 控制逗号位于行首或行尾 |
-| `sqlBeautify.indentStyle` | `tab` / `space` | `extension.indentStyle` / `extension.bracket_char` | 控制缩进风格 |
-| `sqlBeautify.maxAlignWidth` | 1..500 | `extension.maxAlignWidth` / `extension.as_loc_cnt` | 控制 `AS` 和行尾注释参与对齐的最大代码宽度 |
-| `sqlBeautify.caseWhenThenWrapLength` | 1..300 | `extension.case_when_then_wrap_length` | 控制 `CASE WHEN` 中 `THEN` / `ELSE` 值换行阈值 |
-| `sqlBeautify.dialect` | `generic` / `hive` / `postgres` / `mysql` | none | 选择 SQL 方言 |
+| `sqlBeautify.keywordCase` | `upper` / `lower` | `upper` | SQL 关键词大小写 |
+| `sqlBeautify.commaStyle` | `leading` / `trailing` | `leading` | 逗号位于行首或行尾 |
+| `sqlBeautify.indentStyle` | `tab` / `space` | `tab` | 缩进风格 |
+| `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
+| `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | `CASE WHEN` 中 `THEN` / `ELSE` 值的换行阈值 |
+| `sqlBeautify.dialect` | `generic` / `hive` / `postgres` / `mysql` | `generic` | SQL 方言边界处理 |
+| `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `preserve` | 未建模语法的处理策略 |
+| `sqlBeautify.debugDiagnostics` | `true` / `false` | `false` | 是否在扩展宿主控制台输出调试诊断 |
 
-# 💡 注意 Attention
+## Experimental 能力
 
-* 这个插件在 HQL / Hive SQL 语句上更加兼容。如果你在 Spark SQL、Presto/Trino 或其他 SQL 方言上使用，请在格式化后检查结果，尤其是代码比较复杂的时候。This extension is more compatible with `Hive SQL` / HQL. For Spark SQL, Presto/Trino, and other SQL dialects, review the result after formatting, especially when the code is complex.
+### Hive DDL formatting
 
-* `extractddl` 用于生成 DDL 草稿，不会推断真实字段类型；生成结果请人工复核。`extractddl` generates a DDL draft and does not infer real column types; please review the result manually.
+`Format Hive DDL (Experimental)` 只面向 Hive 风格 DDL。它不是通用 DDL parser，复杂建表语句请先在小范围验证结果。
 
-* 请小心使用本插件，建议对代码一段段进行格式化，而不是对整个文件一次性进行格式化。
-Please be careful when use this plugin. Do not use it for the whole file. Recommend using it on code blocks one by one.
+### Hive `extractddl`
 
-* 如果你真的遇到什么问题了，请先`Ctrl+z`恢复你的代码，然后可以联系我修复可能存在的问题。If you have some problems, try to use `Ctrl+z` to recover your code and contact me to fix the bug if you wish.
+`Extract Hive DDL (Experimental)` 适合从常规 `SELECT` / `INSERT SELECT` 字段列表生成 DDL 草稿。
 
+它不会推断真实字段类型；复杂表达式、非 Hive 语法、未加别名的表达式或复杂列推断场景，请人工复核输出。
 
- [**Release Notes**](https://github.com/IrvingYing224/sql-beautify/blob/main/CHANGELOG.md)
+## 简洁风险提示
 
-# 🎅 联系我 Contact Me
+- 复杂 SQL、非 Hive 方言、以及未建模语法场景下，请在格式化后复核结果。
+- `unsupportedSyntaxPolicy=warn` 会继续格式化周边 SQL，并在 VS Code 中给出 warning。
+- `unsupportedSyntaxPolicy=bail_out` 会在遇到未建模语法时直接拒绝格式化。
+- 选区格式化只接受边界完整的整行片段；不安全片段会被拒绝，而不是猜测性改写。
 
-如果有任何问题，欢迎在Issues上留言提问题给我。
-
-If you have any problem,welcome to submit issues 
+[Release Notes](https://github.com/IrvingYing224/sql-beautify/blob/main/CHANGELOG.md)

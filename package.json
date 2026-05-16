@@ -84,72 +84,6 @@
 			"type": "object",
 			"title": "Beautify SQL",
 			"properties": {
-				"extension.uppercase": {
-					"scope": "resource",
-					"type": "boolean",
-					"default": true,
-					"description": "Convert keywords to uppercase/将关键词转变为大写"
-				},
-				"extension.comma_location": {
-					"scope": "resource",
-					"type": "boolean",
-					"default": false,
-					"description": "Fix the comma location to the end of the line/把逗号放在字段后面(不建议开启)"
-				},
-				"extension.bracket_char": {
-					"scope": "resource",
-					"type": "boolean",
-					"default": false,
-					"description": "Use whitespace to replace Tab in the indentation of subquery  /在子查询缩进场景中，把制表符替换成四个空格"
-				},
-				"extension.as_loc_cnt": {
-					"scope": "resource",
-					"type": "number",
-					"default": 150,
-					"description": "Set max length of the column to align words after `as` and trailing comments  /自定义当你的字段长度超过多少字符，不参加as和行尾注释对齐(有AS时按AS前代码长度计算)"
-				},
-				"extension.case_when_then_wrap_length": {
-					"scope": "resource",
-					"type": "number",
-					"default": 50,
-					"description": "Wrap all THEN/ELSE values in a CASE block when any WHEN condition or THEN value exceeds this length  /当 CASE 中任一 WHEN 条件或 THEN 结果超过该长度时，将整段 THEN/ELSE 值换到下一行"
-				},
-				"extension.keywordCase": {
-					"scope": "resource",
-					"type": "string",
-					"enum": [
-						"upper",
-						"lower"
-					],
-					"default": "upper",
-					"description": "Keyword case for formatted SQL. Explicit values override extension.uppercase. /格式化后的 SQL 关键词大小写；显式配置后优先于 extension.uppercase"
-				},
-				"extension.commaStyle": {
-					"scope": "resource",
-					"type": "string",
-					"enum": [
-						"leading",
-						"trailing"
-					],
-					"default": "leading",
-					"description": "Comma placement style. Explicit values override extension.comma_location. /逗号位置风格；显式配置后优先于 extension.comma_location"
-				},
-				"extension.indentStyle": {
-					"scope": "resource",
-					"type": "string",
-					"enum": [
-						"tab",
-						"space"
-					],
-					"default": "tab",
-					"description": "Indentation style for formatted SQL. Explicit values override extension.bracket_char. /格式化缩进风格；显式配置后优先于 extension.bracket_char"
-				},
-				"extension.maxAlignWidth": {
-					"scope": "resource",
-					"type": "number",
-					"default": 150,
-					"description": "Maximum code width for AS and trailing comment alignment. Explicit values override extension.as_loc_cnt. /AS 和行尾注释对齐的最大代码宽度；显式配置后优先于 extension.as_loc_cnt"
-				},
 				"sqlBeautify.keywordCase": {
 					"scope": "resource",
 					"type": "string",
@@ -207,6 +141,23 @@
 					],
 					"default": "generic",
 					"description": "Best-effort SQL dialect boundary handling. Hive remains the primary formatting target. /SQL 方言边界处理；Hive 仍是主要格式化目标"
+				},
+				"sqlBeautify.unsupportedSyntaxPolicy": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"preserve",
+						"warn",
+						"bail_out"
+					],
+					"default": "preserve",
+					"description": "Policy for unsupported or unmodeled syntax. /未建模语法的处理策略"
+				},
+				"sqlBeautify.debugDiagnostics": {
+					"scope": "window",
+					"type": "boolean",
+					"default": false,
+					"description": "Enable debug diagnostics in the extension host console. /在扩展宿主控制台输出调试诊断信息"
 				}
 			}
 		}

@@ -81,4 +81,33 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'production-style select keeps standalone comment and window field split',
+	[
+		'with src as (',
+		'select a.dt as dt,a.user_id as user_id,',
+		'-- 订单金额口径',
+		'case when a.pay_amt > 0 then a.pay_amt else 0 end as pay_amt,row_number() over(partition by a.user_id order by a.dt desc,a.event_time desc) as rn',
+		'from dwd_orders a',
+		')',
+		'select * from src'
+	].join('\n'),
+	[
+		'WITH src AS',
+		'(',
+		'    SELECT  a.dt                                                                            AS dt',
+		'           ,a.user_id                                                                       AS user_id',
+		'-- 订单金额口径',
+		'           ,CASE',
+		'                WHEN a.pay_amt > 0 THEN a.pay_amt',
+		'                ELSE 0',
+		'            END                                                                             AS pay_amt',
+		'           ,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY  a.dt DESC,a.event_time DESC) AS rn',
+		'    FROM dwd_orders a',
+		')',
+		'SELECT  *',
+		'FROM src'
+	].join('\n')
+);
+
 console.log('select alignment tests passed');

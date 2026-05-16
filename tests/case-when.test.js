@@ -46,6 +46,24 @@ run_case(
 );
 
 run_case(
+	'generic hash line comment stays attached inside case formatting',
+	[
+		"select case when a=1 then 'x' # keep hash comment",
+		"when a=2 then 'y'",
+		"else 'z' end as c from t"
+	].join('\n'),
+	[
+		'SELECT',
+		"       CASE",
+		"           WHEN a = 1 THEN 'x' # keep hash comment",
+		"           WHEN a = 2 THEN 'y'",
+		"           ELSE 'z'",
+		'       END                                         AS c',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
 	'end on the same line as final when still reformats',
 	"SELECT CASE  WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfa' THEN 123  -- c1\n            WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfb' THEN 132  -- c2\n            WHEN name = 'fdsfsdfsdafsdafd' THEN 25  END AS alias -- c3\nFROM t",
 	"SELECT\n       CASE\n           WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfa'\n               THEN 123                                                          -- c1\n           WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfb'\n               THEN 132                                                          -- c2\n           WHEN name = 'fdsfsdfsdafsdafd'\n               THEN 25\n       END                                                                       AS alias -- c3\nFROM t"

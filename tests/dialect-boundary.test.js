@@ -15,6 +15,14 @@ function assert_not_contains(name, input, forbidden, dialect) {
     assert.strictEqual(actual.indexOf(forbidden), -1, name + '\n--- forbidden ---\n' + forbidden + '\n--- actual ---\n' + actual);
 }
 
+function assert_contains_exactly_once(name, input, fragment, dialect) {
+    var actual = format(input, dialect);
+    var first = actual.indexOf(fragment);
+    var last = actual.lastIndexOf(fragment);
+    assert.notStrictEqual(first, -1, name + '\n--- expected fragment ---\n' + fragment + '\n--- actual ---\n' + actual);
+    assert.strictEqual(first, last, name + '\n--- fragment count ---\nexpected exactly once\n--- actual ---\n' + actual);
+}
+
 assert_contains(
     'PostgreSQL dollar quoted string is opaque in generic mode',
     'select $$from where case when then$$ as s from t where a=1',
@@ -23,7 +31,7 @@ assert_contains(
 );
 
 assert_contains(
-    'MySQL hash comment is a line comment in generic mode',
+    'Generic hash comment is treated as a line comment',
     'select a # from where\nfrom t',
     '# from where',
     'generic'
@@ -89,6 +97,112 @@ assert_not_contains(
     'PostgreSQL #>> operator is not split by spacing normalization',
     "select payload::json->>'name' #>> '{a,b}' from t",
     '# >  >',
+    'postgres'
+);
+
+assert_contains_exactly_once(
+    'PostgreSQL dollar quoted string in CASE branch keeps double-dash byte-for-byte',
+    'select case when a=1 then $$x--y$$ else z end as v from t',
+    '$$x--y$$',
+    'postgres'
+);
+
+assert_not_contains(
+    'PostgreSQL dollar quoted string in CASE branch is not rewritten around line-comment marker',
+    'select case when a=1 then $$x--y$$ else z end as v from t',
+    '$$x --y$$',
+    'postgres'
+);
+
+assert_contains_exactly_once(
+    'PostgreSQL dollar quoted string in CASE branch keeps CASE keywords opaque',
+    'select case when a=1 then $$WHEN--THEN ELSE END$$ else z end as v from t',
+    '$$WHEN--THEN ELSE END$$',
+    'postgres'
+);
+
+assert_not_contains(
+    'PostgreSQL dollar quoted string in CASE branch does not get keyword-aware spacing',
+    'select case when a=1 then $$WHEN--THEN ELSE END$$ else z end as v from t',
+    '$$WHEN --THEN ELSE END$$',
+    'postgres'
+);
+
+assert_contains(
+    'Generic hash comment inside CASE branch stays a comment on the CASE formatter path',
+    [
+        "select case when a=1 then 'x' # keep hash comment",
+        "when a=2 then 'y'",
+        "else 'z' end as c from t"
+    ].join('\n'),
+    "# keep hash comment",
+    'generic'
+);
+
+assert_not_contains(
+    'Generic hash comment inside CASE branch is not treated as active SQL by case formatting',
+    [
+        "select case when a=1 then 'x' # keep hash comment",
+        "when a=2 then 'y'",
+        "else 'z' end as c from t"
+    ].join('\n'),
+    "WHEN a = 2 THEN 'y' #",
+    'generic'
+);
+
+assert_contains(
+    'MySQL hash comment on condition continuation stays opaque on the condition formatter path',
+    [
+        'select * from t',
+        'where a=1 # keep hash comment',
+        'and b=2'
+    ].join('\n'),
+    '# keep hash comment',
+    'mysql'
+);
+
+assert_contains(
+    'Generic standalone hash comment stays on its own line in SELECT blocks',
+    [
+        'select a,',
+        '# keep hash comment',
+        'b from t'
+    ].join('\n'),
+    [
+        'SELECT  a',
+        '# keep hash comment',
+        '       ,b',
+        'FROM t'
+    ].join('\n'),
+    'generic'
+);
+
+assert_contains(
+    'MySQL standalone hash comment stays on its own line in condition blocks',
+    [
+        'select * from t',
+        'where a=1',
+        '# keep hash comment',
+        'and b=2'
+    ].join('\n'),
+    [
+        'SELECT  *',
+        'FROM t',
+        'WHERE a = 1',
+        '# keep hash comment',
+        '  AND b = 2'
+    ].join('\n'),
+    'mysql'
+);
+
+assert_contains_exactly_once(
+    'PostgreSQL trailing comma style keeps dollar-quoted string byte-for-byte',
+    [
+        'select $$x--y$$ as v',
+        ',a',
+        'from t'
+    ].join('\n'),
+    '$$x--y$$',
     'postgres'
 );
 

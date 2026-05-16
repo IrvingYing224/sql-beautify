@@ -1,6 +1,10 @@
-# SQL Beautify 全面整改与架构升级执行计划
+# SQL Beautify 全面整改与架构升级执行计划（已完成归档）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` or an equivalent disciplined execution flow. Use checkbox progress tracking. Do not downgrade this plan into isolated micro-fixes. The goal is full implementation of the identified recommendations, not conservative patching.
+
+> **Status (2026-05-17):** 本计划对应的整改工作已经完成并通过当前长期回归集验证。该文档现作为历史执行记录保留，下面的分阶段清单主要反映当时的执行设计，而不是当前仍待完成的任务清单。
+
+> **Final outcome summary:** 最终实现比原始 Phase 1 更激进：旧 `extension.*` 配置兼容被作为 breaking cleanup 完全移除，VS Code 配置面只保留 `sqlBeautify.*`；README 保持为最终用户说明书，不承载迁移优先级或技术实现细节；技术契约收敛到 `docs/technical/` 和测试 guard 中。
 
 **Goal:** 基于本轮缺陷修复和前一轮严格审视结果，对项目进行一次不保守的系统性整改。目标不是“继续缝缝补补”，而是把配置面、formatter pipeline、core / adapter / experimental 边界、测试体系和用户体验契约全部收敛到适合长期迭代的状态。
 
@@ -71,7 +75,7 @@
 
 ## 3. 整改原则
 
-- [ ] 兼容旧用户配置，但不继续把 legacy 配置作为一等 UX 面暴露
+- [x] 旧 `extension.*` 配置已作为 breaking cleanup 移除，VS Code 配置面只保留 `sqlBeautify.*`
 - [ ] formatter core 只接受 canonical 语义，不再向内部传播 legacy 命名
 - [ ] 任何涉及字符串/注释/quoted identifier/dollar-quoted string/hash comment 的处理，优先走 tokenizer / token model，不再允许新增手写字符扫描实现
 - [ ] 对用户可见行为建立明确输出契约：空行、换行、失败策略、range formatting 语义
@@ -85,8 +89,8 @@
 ### 4.1 配置面
 
 - 设置 UI 只展示 `sqlBeautify.*`
-- `extension.*` 仅作为兼容读取路径存在
-- 文档明确新旧优先级、迁移关系、行为兼容范围
+- 不再保留 `extension.*` 配置兼容读取路径
+- 文档只保留当前配置面与 breaking cleanup 事实，不再维持迁移表
 
 ### 4.2 Core 层
 
@@ -134,6 +138,20 @@
   - experimental DDL 边界
   - 错误诊断与观测
 
+### Phase 0 基线样本归档
+
+- `tests/select-alignment.test.js`
+  - continuation line 中 `CASE ... END` 后跟多个顶层字段
+  - 行尾逗号 + 独立注释 + 下一个字段为 `CASE`
+- `tests/comment-alignment.test.js`
+  - 注释中含 SQL keyword 的生产样本
+  - 注释子查询与二次 `--` 尾部保留
+- `tests/config-options.test.js`
+  - 推荐 UI 只暴露 `sqlBeautify.*`
+  - 已移除的 `extension.*`` 不再重新暴露或回退兼容
+- `tests/pipeline-idempotency.test.js`
+  - 输出空白契约：单空行、LF、单尾换行
+
 **Exit Criteria:**
 
 - 每个问题域都有明确 owner、实施范围、验证入口
@@ -143,7 +161,7 @@
 
 ## Phase 1: 配置面全面收敛
 
-**Intent:** 解决重复配置、优先级理解困难和兼容层 UI 泄漏问题。
+**Intent:** 解决重复配置、优先级理解困难和兼容层 UI 泄漏问题；最终以 breaking cleanup 收敛为单一配置面。
 
 **Files:**
 - Modify: `package.json`
@@ -153,19 +171,12 @@
 - Modify: `README.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] 把 `extension.uppercase`、`extension.comma_location`、`extension.bracket_char`、`extension.as_loc_cnt`、`extension.case_when_then_wrap_length`
-  保留为兼容读取路径，但从主配置面板迁出或显式标记为 deprecated / hidden
-- [ ] 评估 `extension.keywordCase`、`extension.commaStyle`、`extension.indentStyle`、`extension.maxAlignWidth` 是否还需要继续展示
-  - 目标倾向：全部收敛到 `sqlBeautify.*`
-- [ ] 保持读取优先级：
-  - 用户显式设置的 `sqlBeautify.*` 优先
-  - 未显式设置新键时，兼容读取旧键
-  - 绝不让新默认值静默覆盖旧用户设置
-- [ ] README 中加入“配置迁移表”
+- [x] 移除全部 `extension.*` 配置项，不再保留兼容读取路径
+- [x] VS Code 设置面只展示 `sqlBeautify.*`
+- [x] README 不再加入配置迁移表，迁移与 breaking cleanup 事实仅保留在 `CHANGELOG.md` 和维护者文档中
 - [ ] 配置测试新增：
   - UI 只推荐新键
-  - 旧键仍可生效
-  - 显式新键优先于显式旧键
+  - 旧键已移除，不再重新暴露
   - 没有任何设置时行为与当前默认兼容
 
 **Risks:**
@@ -181,8 +192,8 @@
 **Exit Criteria:**
 
 - 用户设置面不再看到重复配置面
-- 兼容性读取仍然保留
-- 文档与实际优先级一致
+- 旧 `extension.*` 配置不再作为隐式兼容分叉存在
+- 文档与实际配置面一致
 
 ---
 
@@ -487,3 +498,11 @@
 - [ ] experimental DDL 能力边界清晰，不再制造错误预期
 - [ ] 项目进入“可持续演进”状态，而不是继续靠局部补丁延命
 
+## 9. 完成态备注
+
+本次整改最终落地时，和原始计划相比有两处重要决策调整：
+
+- 配置面没有保留 `extension.*` 兼容读取，而是作为 breaking cleanup 一次性移除；对应事实已反映在 `package.json`、`lib/adapters/`、`tests/config-options.test.js` 和 `CHANGELOG.md` 中。
+- README 没有加入迁移优先级或迁移表，而是保持为最终用户说明书；维护者契约统一放在 `docs/technical/` 与测试 guard 中。
+
+截至当前版本，计划中的核心实现目标已经落地，长期回归命令 `npm run test:verify` 可作为该归档计划的最终验收入口。

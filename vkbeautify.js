@@ -6,14 +6,21 @@ function vkbeautify() {}
 
 vkbeautify.prototype.sql = function(text, uppercase, comma_location, bracket_char, as_loc_cnt, case_when_then_wrap_length, advanced_options) {
     var options = sqlRenderOptions.normalize({
-        uppercase: uppercase,
-        comma_location: comma_location,
-        bracket_char: bracket_char,
-        as_loc_cnt: as_loc_cnt,
-        case_when_then_wrap_length: case_when_then_wrap_length,
-        dialect: advanced_options && advanced_options.dialect
+        keywordCase: uppercase === false ? 'lower' : 'upper',
+        commaStyle: comma_location === true ? 'trailing' : 'leading',
+        indentStyle: bracket_char === true ? 'space' : 'tab',
+        maxAlignWidth: as_loc_cnt,
+        caseWhenThenWrapLength: case_when_then_wrap_length,
+        dialect: advanced_options && advanced_options.dialect,
+        unsupportedSyntaxPolicy: advanced_options && advanced_options.unsupportedSyntaxPolicy
     }, {
-        dialect: !!(advanced_options && typeof advanced_options.dialect !== 'undefined')
+        keywordCase: true,
+        commaStyle: true,
+        indentStyle: true,
+        maxAlignWidth: true,
+        caseWhenThenWrapLength: true,
+        dialect: !!(advanced_options && typeof advanced_options.dialect !== 'undefined'),
+        unsupportedSyntaxPolicy: !!(advanced_options && typeof advanced_options.unsupportedSyntaxPolicy !== 'undefined')
     });
 
     return sqlFormatter.format_sql(text, options);

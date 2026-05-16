@@ -92,17 +92,17 @@ assert.ok(
 );
 
 assert.ok(
-	/showErrorMessage/.test(extensionAdapterSource),
-	'formatter failures must show an error message without replacing source text'
+	/create_diagnostics/.test(extensionAdapterSource),
+	'formatter failures must route through diagnostics so errors remain visible without replacing source text'
 );
 
 assert.ok(
-	/overlapping selections are not supported/.test(extensionAdapterSource),
+	/diagnostics\.overlapping_selection\(\)/.test(extensionAdapterSource),
 	'overlapping selections must be rejected'
 );
 
 assert.ok(
-	/VS Code rejected the edit/.test(extensionAdapterSource),
+	/diagnostics\.rejected_edit\(\)/.test(extensionAdapterSource),
 	'editor edit failures must be reported'
 );
 
@@ -166,11 +166,15 @@ function create_vscode_mock() {
 		documentProvider: null,
 		rangeProvider: null,
 		errors: [],
+		warnings: [],
 		editCalls: 0,
 		window: {
 			activeTextEditor: null,
 			showErrorMessage: function(message) {
 				mock.errors.push(message);
+			},
+			showWarningMessage: function(message) {
+				mock.warnings.push(message);
 			}
 		},
 		workspace: {
@@ -184,6 +188,8 @@ function create_vscode_mock() {
 							maxAlignWidth: 150,
 							caseWhenThenWrapLength: 50,
 							dialect: 'generic',
+							unsupportedSyntaxPolicy: 'preserve',
+							debugDiagnostics: false,
 							uppercase: true,
 							comma_location: false,
 							bracket_char: false,
@@ -287,6 +293,7 @@ async function run_mock_tests() {
 
 	var ddlFormatter = require('../lib/experimental/ddl');
 	var originalFormatSql = sqlFormatter.format_sql;
+	var originalFormatSqlDetailed = sqlFormatter.format_sql_detailed;
 	var originalDdl = ddlFormatter.ddl;
 	var originalExtract = ddlFormatter.extractddl;
 	var sqlCalls = [];
@@ -298,6 +305,13 @@ async function run_mock_tests() {
 			options: options
 		});
 		return originalFormatSql(text, options);
+	};
+	sqlFormatter.format_sql_detailed = function(text, options) {
+		sqlCalls.push({
+			text: text,
+			options: options
+		});
+		return originalFormatSqlDetailed(text, options);
 	};
 	ddlFormatter.ddl = function(text) {
 		ddlCalls += 1;
@@ -338,7 +352,34 @@ async function run_mock_tests() {
 	await Promise.resolve();
 	assert.strictEqual(extractCalls, 1, 'Extract DDL command path must invoke the same extractddl formatter entry');
 
+	var unsafeRangeDocument = create_document('select a,\n b\nfrom t');
+	unsafeRangeDocument.languageId = 'sql';
+	var unsafeRangeEdits = vscodeMock.rangeProvider.provideDocumentRangeFormattingEdits(
+		unsafeRangeDocument,
+		new vscodeMock.Range(create_position(1), create_position(11))
+	);
+	assert.deepStrictEqual(unsafeRangeEdits, [], 'unsafe range fragment must be rejected');
+	assert.ok(vscodeMock.errors.some(function(message) {
+		return /unsafe range formatting fragment/.test(message);
+	}), 'unsafe range fragment must show an error message');
+
+	vscodeMock.errors = [];
+	var unsafeCommandEditor = create_editor('select a,\n b\nfrom t', [
+		new vscodeMock.Range(create_position(1), create_position(11))
+	], true);
+	unsafeCommandEditor.document.languageId = 'sql';
+	vscodeMock.window.activeTextEditor = unsafeCommandEditor;
+	vscodeMock.commandsById['extension.beautifySql']();
+	await Promise.resolve();
+	assert.strictEqual(unsafeCommandEditor.editCalls, 0, 'command-format unsafe range fragment must be rejected before editor.edit');
+	assert.ok(vscodeMock.errors.some(function(message) {
+		return /unsafe range formatting fragment/.test(message);
+	}), 'command-format unsafe range fragment must show an error message');
+
 	sqlFormatter.format_sql = function() {
+		throw new Error('mock formatter failure');
+	};
+	sqlFormatter.format_sql_detailed = function() {
 		throw new Error('mock formatter failure');
 	};
 	var edits = vscodeMock.documentProvider.provideDocumentFormattingEdits(create_document('select a'));
@@ -347,8 +388,29 @@ async function run_mock_tests() {
 		return /mock formatter failure/.test(message);
 	}), 'formatter failure must call showErrorMessage');
 	sqlFormatter.format_sql = originalFormatSql;
+	sqlFormatter.format_sql_detailed = originalFormatSqlDetailed;
 	ddlFormatter.ddl = originalDdl;
 	ddlFormatter.extractddl = originalExtract;
+
+	vscodeMock.warnings = [];
+	sqlFormatter.format_sql_detailed = function(text, options) {
+		return {
+			text: originalFormatSql(text, options),
+			diagnostics: [
+				{
+					level: 'warning',
+					code: 'unsupported_syntax',
+					message: 'Unsupported SQL fragments were preserved without reformatting.'
+				}
+			]
+		};
+	};
+	var warningEdits = vscodeMock.documentProvider.provideDocumentFormattingEdits(create_document('select a from t'));
+	assert.strictEqual(warningEdits.length, 1, 'document formatting should still return edits under warn diagnostics');
+	assert.ok(vscodeMock.warnings.some(function(message) {
+		return /Unsupported SQL fragments were preserved/.test(message);
+	}), 'warn diagnostics must surface through VS Code warning UI');
+	sqlFormatter.format_sql_detailed = originalFormatSqlDetailed;
 
 	vscodeMock.errors = [];
 	var overlappingEditor = create_editor('select abc', [
@@ -373,6 +435,8 @@ async function run_mock_tests() {
 	assert.ok(vscodeMock.errors.some(function(message) {
 		return /VS Code rejected the edit/.test(message);
 	}), 'editor.edit false must show rejection message');
+	sqlFormatter.format_sql = originalFormatSql;
+	sqlFormatter.format_sql_detailed = originalFormatSqlDetailed;
 }
 
 run_mock_tests().then(function() {

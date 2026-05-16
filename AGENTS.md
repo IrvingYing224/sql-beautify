@@ -13,12 +13,12 @@
 该仓库已有轻量 CLI 回归集。格式化逻辑变更至少运行 `npm run test:verify`；涉及 VSIX 内容、发布清单或打包配置时，加跑 `npm run package:vsix` 并检查打包清单。
 
 ## 编码风格与命名约定
-遵循现有 JavaScript 风格：4 空格缩进、使用分号，以及基于 `var` 的 CommonJS 模块写法。旧命令 ID 和旧 `extension.*` 配置键必须保留兼容；新增命令和设置优先使用 `sqlBeautify.*` 命名空间。优先对格式化逻辑做小而集中的修改，除非是有意变更，否则应保持 Hive SQL 的当前行为不变。
+遵循现有 JavaScript 风格：4 空格缩进、使用分号，以及基于 `var` 的 CommonJS 模块写法。旧命令 ID 仍需保留兼容；VS Code 配置面只使用 `sqlBeautify.*` 命名空间，不再新增或恢复 `extension.*` 配置兼容。优先对格式化逻辑做小而集中的修改，除非是有意变更，否则应保持 Hive SQL 的当前行为不变。
 
 SQL / Hive SQL 格式化核心已经重构为 `core / adapters / experimental` 分层。维护 formatter 行为时优先修改 `lib/core/`；维护 VS Code 配置和命令入口时优先修改 `lib/adapters/`；维护 Hive DDL / Extract DDL 时优先修改 `lib/experimental/ddl/`。根目录 `lib/*.js` shim 只用于兼容旧路径，不应承载新逻辑。不要重新在 `vkbeautify.js` 或 root shim 中增加会扫描注释、字符串、块注释或反引号标识符内容的全局正则补丁。
 
 ## 测试指南
-对任何格式化相关的改动，都应优先依赖自动化回归。至少运行 `npm run test:verify`；涉及命令、配置、标准 formatter provider、选区处理或错误提示时，补充或更新 `tests/extension-contribution.test.js`、`tests/config-options.test.js` 等覆盖；涉及 core / adapter 边界、legacy bridge、marker 泄漏或 support matrix 时，还应关注 `tests/module-boundary.test.js`、`tests/canonical-core-boundary.test.js`、`tests/layout-marker-leakage.test.js`、`tests/generated-support-matrix.test.js`；涉及打包内容时运行 `npm run package:vsix` 并检查清单。配置测试需要同时覆盖 `sqlBeautify.*`、`extension.*` semantic 设置和 legacy fallback。如果你要补充回归覆盖，请将其放在受影响逻辑附近，并使用带有描述性名称的 SQL 输入/输出夹具。必要时可增加 targeted smoke probe，但不把人工验证作为完成条件。
+对任何格式化相关的改动，都应优先依赖自动化回归。至少运行 `npm run test:verify`；涉及命令、配置、标准 formatter provider、选区处理或错误提示时，补充或更新 `tests/extension-contribution.test.js`、`tests/config-options.test.js` 等覆盖；涉及 core / adapter 边界、legacy bridge、marker 泄漏或 support matrix 时，还应关注 `tests/module-boundary.test.js`、`tests/canonical-core-boundary.test.js`、`tests/layout-marker-leakage.test.js`、`tests/generated-support-matrix.test.js`；涉及打包内容时运行 `npm run package:vsix` 并检查清单。配置测试应覆盖 `sqlBeautify.*`、枚举值、显式性判断、canonical 归一化和 breaking cleanup 后的实际配置面，不再为已移除的 `extension.*` 配置补兼容回归。如果你要补充回归覆盖，请将其放在受影响逻辑附近，并使用带有描述性名称的 SQL 输入/输出夹具。必要时可增加 targeted smoke probe，但不把人工验证作为完成条件。
 
 ## 提交与 Pull Request 指南
 近期提交历史使用简短的约定式消息，例如 `feat: ...`、`fix: ...` 和 `chore: ...`。每个提交应聚焦于单一改动。Pull Request 应说明受影响的 SQL 模式，列出自动化验证命令，并在格式化输出发生变化时提供前后对比示例。不要提交 `.vsix` 制品；发布包通过 GitHub Actions 构建并上传到 GitHub Releases。
@@ -41,12 +41,19 @@ SQL / Hive SQL 格式化核心已经重构为 `core / adapters / experimental` �
 - 正确做法：使用 `lib/core/sql-tokenizer.js` 区分 token，使用 `lib/core/sql-shield.js` 保护不可改写内容，使用 `lib/core/sql-line-model.js` 做行级 code/comment 拆分；新增 pass 必须明确运行在 shield 前、shield 后还是 restore 后；不要重新引入 marker 驱动的 comment / layout 协作机制。
 - 验证方法：运行 `node tests/token-boundary.test.js`、`node tests/pipeline-idempotency.test.js` 和 `npm run test:verify`，覆盖字符串/注释内 SQL 关键词、块注释、反引号、转义字符串和二次格式化幂等性。
 
-## 经验规则：新配置不得用默认值覆盖旧配置
-- 触发信号：新增、重命名或整理 VS Code 配置项，尤其是为旧配置提供语义化别名或替代项时。
-- 根因 / 约束：VS Code `config.get()` 会返回 `package.json` 中的新配置默认值；如果直接用新配置值覆盖旧配置，用户已有的 `extension.uppercase`、`extension.comma_location`、`extension.bracket_char`、`extension.as_loc_cnt` 会在未迁移时被静默改变。
-- 正确做法：推荐新增配置使用 `sqlBeautify.*`；保留旧 `extension.*` 配置键兼容；用 `config.inspect(key)` 判断新配置是否被用户显式设置，只有显式设置的新配置才优先于旧配置。配置语义归一化集中放在 `lib/adapters/sql-render-options.js`，VS Code 配置读取集中在 `lib/adapters/vscode-config.js`，`extension.js` 只保留薄入口壳层。
-- 验证方法：运行 `node tests/config-options.test.js` 和 `npm run test:verify`；测试必须同时覆盖 `sqlBeautify.*`、`extension.*` semantic 设置、枚举值、显式性判断和 legacy fallback。
+## 经验规则：配置面只保留 `sqlBeautify.*`
+- 触发信号：新增、重命名或整理 VS Code 配置项时。
+- 根因 / 约束：旧 `extension.*` 配置已经作为 breaking cleanup 移除；重新引入 legacy fallback 会再次制造重复设置面、优先级歧义、文档膨胀和测试分叉。
+- 正确做法：VS Code 配置读取只面向 `sqlBeautify.*`；配置语义归一化集中放在 `lib/adapters/sql-render-options.js`，VS Code 配置读取集中在 `lib/adapters/vscode-config.js`，`extension.js` 只保留薄入口壳层；不要恢复或新增 `extension.*` 配置键兼容。
+- 验证方法：运行 `node tests/config-options.test.js` 和 `npm run test:verify`；测试应覆盖公开配置面、枚举值、显式性判断和 canonical 归一化。
 - 适用范围：所有 `package.json` 配置项、`lib/adapters/vscode-config.js` 配置读取、`lib/adapters/sql-render-options.js` 映射逻辑相关改动。
+
+## 经验规则：README 只写最终用户说明
+- 触发信号：修改 `README.md`，尤其是新增配置说明、行为说明、experimental 能力说明或发布说明时。
+- 根因 / 约束：README 是最终用户的说明书；如果把迁移优先级、兼容策略、架构边界或实现细节塞进去，用户会更难找到真正需要的使用信息，维护者文档也会与 README 混层。
+- 正确做法：README 只保留用户会直接关心的内容，例如扩展做什么、怎么用、如何配置、哪些能力是 experimental、必要但简洁的风险提示；迁移策略、技术架构、support matrix、内部契约写到 `CHANGELOG.md` 或 `docs/technical/`。
+- 验证方法：检查 README 是否仍能被非维护者快速用于安装、使用和配置；确认技术细节没有从 `docs/technical/` 反向复制回 README。
+- 适用范围：所有 README 改动，以及任何想把迁移设计、架构说明或内部契约写回 README 的场景。
 
 ## 经验规则：DDL 能力按 experimental 隔离
 - 触发信号：修改 `sqlddl`、`extractddl`、`extension.beautifySqlddl`、`extension.extractDdl`、DDL 文档或 DDL 测试。

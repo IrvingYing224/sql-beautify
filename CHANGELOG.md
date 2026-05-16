@@ -6,14 +6,18 @@
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
 ### 0.5.3 (2026/05/17)
-* 完成二次清理后的稳定性收口，修复 `indentStyle=space` 下嵌套条件块缩进不正确的问题
-* 修复 `EXISTS (`、`IN (` 等行尾开括号多行子查询的缩进层级问题
-* 强化 `space` / `tab` 两种缩进风格下的多行条件块和子查询回归覆盖
-* 更新发布说明与用户文档，保持 README 面向使用说明、CHANGELOG 面向版本变更
-* Finalized the stabilization pass after the secondary cleanup, fixing nested condition indentation under `indentStyle=space`
-* Fixed indentation depth for multiline subqueries opened by line-tail parentheses such as `EXISTS (` and `IN (`
-* Expanded regression coverage for multiline condition blocks and subqueries under both `space` and `tab` indentation styles
-* Refreshed release notes and user-facing documentation while keeping the README focused on usage rather than implementation details
+* Breaking cleanup：移除全部旧 `extension.*` 配置项，VS Code 侧只保留 `sqlBeautify.*`
+* `unsupportedSyntaxPolicy=warn` 现在具有真实行为：保留未建模片段并通过 VS Code warning 暴露诊断
+* 命令式选区格式化与标准 range formatter 统一走 range safety，拒绝不完整片段
+* 继续推进 token-aware primitive 和 dialect capability 在 `CASE` / condition / comment 路径中的贯穿
+* 统一输出空白契约：LF、最多单个空行、单尾换行
+* 收紧 README 到最终用户手册边界，并把支持边界、experimental 说明、diagnostics 契约收回技术文档与 support matrix
+* Breaking cleanup: removed all legacy `extension.*` settings so the VS Code configuration surface is now `sqlBeautify.*` only
+* `unsupportedSyntaxPolicy=warn` now has real behavior by preserving unmodeled fragments and surfacing a VS Code warning
+* Command-driven selection formatting now shares the same range-safety gate as the standard range formatter and rejects incomplete fragments
+* Continued the token-aware primitive and dialect-capability rollout through `CASE`, condition, and comment paths
+* Unified the whitespace output contract around LF, at most one blank line, and a single trailing newline
+* Tightened the README back to an end-user manual and moved support-boundary, experimental-scope, and diagnostics contract detail into technical docs and the support matrix
 
 ### 0.5.2 (2026/05/17)
 * 将核心 SQL formatter 进一步收敛为 canonical options + dialect/clause/operator registry + structured pipeline，减少对历史字符串熔炉 pass 的依赖
