@@ -2,7 +2,7 @@
 	"name": "vscode-sql-beautify",
 	"displayName": "SQL Beautify",
 	"description": "More Powerful extension that beautifies SQL/一键美化你的SQL",
-	"version": "0.4.4",
+	"version": "0.5.0",
 	"publisher": "clarkyu",
 	"maintainers": [
 		"IrvingYing224"
@@ -24,7 +24,9 @@
 	"activationEvents": [
 		"onLanguage:sql",
 		"onLanguage:hive-sql",
-		"onCommand:extension.beautifySql"
+		"onCommand:extension.beautifySql",
+		"onCommand:extension.beautifySqlddl",
+		"onCommand:extension.extractDdl"
 	],
 	"repository": {
 		"type": "git",
@@ -36,6 +38,14 @@
 			{
 				"command": "extension.beautifySql",
 				"title": "Beautify SQL"
+			},
+			{
+				"command": "extension.beautifySqlddl",
+				"title": "Beautify SQL DDL (Experimental)"
+			},
+			{
+				"command": "extension.extractDdl",
+				"title": "Extract DDL (Experimental)"
 			}
 		],
 		"keybindings": [
@@ -88,6 +98,42 @@
 					"type": "number",
 					"default": 50,
 					"description": "Wrap all THEN/ELSE values in a CASE block when any WHEN condition or THEN value exceeds this length  /当 CASE 中任一 WHEN 条件或 THEN 结果超过该长度时，将整段 THEN/ELSE 值换到下一行"
+				},
+				"extension.keywordCase": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"upper",
+						"lower"
+					],
+					"default": "upper",
+					"description": "Keyword case for formatted SQL. Explicit values override extension.uppercase. /格式化后的 SQL 关键词大小写；显式配置后优先于 extension.uppercase"
+				},
+				"extension.commaStyle": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"leading",
+						"trailing"
+					],
+					"default": "leading",
+					"description": "Comma placement style. Explicit values override extension.comma_location. /逗号位置风格；显式配置后优先于 extension.comma_location"
+				},
+				"extension.indentStyle": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"tab",
+						"space"
+					],
+					"default": "tab",
+					"description": "Indentation style for formatted SQL. Explicit values override extension.bracket_char. /格式化缩进风格；显式配置后优先于 extension.bracket_char"
+				},
+				"extension.maxAlignWidth": {
+					"scope": "resource",
+					"type": "number",
+					"default": 150,
+					"description": "Maximum code width for AS and trailing comment alignment. Explicit values override extension.as_loc_cnt. /AS 和行尾注释对齐的最大代码宽度；显式配置后优先于 extension.as_loc_cnt"
 				}
 			}
 		}
@@ -96,8 +142,13 @@
 		"postinstall": "node ./node_modules/vscode/bin/install",
 		"test:case": "node tests/case-when.test.js",
 		"test:comment": "node tests/comment-alignment.test.js",
+		"test:config": "node tests/config-options.test.js",
+		"test:ddl": "node tests/ddl-regression.test.js",
+		"test:extension": "node tests/extension-contribution.test.js",
 		"test:hive": "node tests/hive-regression.test.js",
-		"test:verify": "node tests/comment-alignment.test.js && node tests/case-when.test.js && node tests/hive-regression.test.js"
+		"test:pipeline": "node tests/pipeline-idempotency.test.js",
+		"test:token": "node tests/token-boundary.test.js",
+		"test:verify": "node tests/comment-alignment.test.js && node tests/case-when.test.js && node tests/hive-regression.test.js && node tests/token-boundary.test.js && node tests/extension-contribution.test.js && node tests/config-options.test.js && node tests/pipeline-idempotency.test.js && node tests/ddl-regression.test.js"
 	},
 	"vsce": {
 		"dependencies": false

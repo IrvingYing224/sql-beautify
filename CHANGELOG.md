@@ -5,6 +5,22 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.5.0 (2026/05/16)
+* 增强 token 边界保护，`/* ... */` 块注释、反引号标识符、反斜杠转义字符串和双单引号字符串不再被当作真实 SQL 结构重排或改写大小写
+* 修复 shield 占位符与用户 SQL 标识符冲突的问题，并保持独立行块注释不被并入上一行
+* 用 tokenizer-based shield 替换 `vkbeautify.sql(...)` 主路径中的旧字符串保护入口，并拆出 `sql-shield`、`sql-render-options`、`sql-format-pipeline` 以收敛格式化流程
+* 补齐 VS Code 命令贡献项和命令激活事件，并注册标准 `Format Document` / `Format Selection` formatter；格式化异常时显示错误且不替换原文
+* 新增语义化配置 `extension.keywordCase`、`extension.commaStyle`、`extension.indentStyle`、`extension.maxAlignWidth`，同时保留旧配置兼容；新配置仅在显式设置时覆盖旧配置
+* 将 `sqlddl` / `extractDdl` 标注为 Hive DDL experimental，并修复 DDL 中 `DECIMAL(18,2)`、`ARRAY<STRING>`、`MAP<STRING,STRING>`、`STRUCT<...>` 和 `COMMENT` 内逗号的基础保留问题
+* 新增 token 边界、VS Code 贡献、配置映射、pipeline 幂等性和 DDL 风险隔离回归测试，并纳入 `npm run test:verify`
+* Hardened token boundaries so `/* ... */` block comments, backtick quoted identifiers, backslash-escaped strings, and doubled-quote strings are no longer reformatted or recased as real SQL
+* Fixed shield placeholder collisions with user SQL identifiers and kept standalone block comments on their own lines
+* Replaced the old string protection entry in the main `vkbeautify.sql(...)` path with tokenizer-based shielding, and introduced `sql-shield`, `sql-render-options`, and `sql-format-pipeline`
+* Added missing VS Code command contributions and command activation events, and registered standard `Format Document` / `Format Selection` providers; formatter errors now show a message without replacing source text
+* Added semantic settings `extension.keywordCase`, `extension.commaStyle`, `extension.indentStyle`, and `extension.maxAlignWidth` while preserving legacy settings; new settings override legacy settings only when explicitly configured
+* Marked `sqlddl` / `extractDdl` as experimental Hive DDL features and fixed basic preservation for `DECIMAL(18,2)`, `ARRAY<STRING>`, `MAP<STRING,STRING>`, `STRUCT<...>`, and commas inside `COMMENT`
+* Added token-boundary, VS Code contribution, config mapping, pipeline idempotency, and DDL risk-isolation regression tests to `npm run test:verify`
+
 ### 0.4.4 (2026/05/16)
 * 修复独立行注释后紧跟 `DROP TABLE` 时，`DROP` 行前被错误保留一个空格的问题
 * 调整独立行注释保护占位符，避免被后续格式化流程误判为行尾注释
@@ -283,6 +299,3 @@
 ### 0.0.1
 
 * Initial release
-
-
-

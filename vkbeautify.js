@@ -2,6 +2,8 @@ var sqlKeywords = require('./lib/sql-keywords');
 var sqlStructure = require('./lib/sql-structure');
 var sqlTokenizer = require('./lib/sql-tokenizer');
 var sqlLineModel = require('./lib/sql-line-model');
+var sqlShield = require('./lib/sql-shield');
+var sqlFormatPipeline = require('./lib/sql-format-pipeline');
 
 function createShiftArr(step) {
 	var space = '    ';
@@ -1752,151 +1754,214 @@ function modify_comma_to_speicific(text) {
 	return text
 }
 
+function repeat_space(count) {
+    if (count <= 0) {
+        return '';
+    }
 
-function ddl(str){
-    var str = modify_comma_to_speicific(str);
-	var text_final = '';
-	var text_list = [];
-	var text_list_orginal = str.replace(/(\d+)\s{0,},\s{0,}(\d+)/ig, "$1，$2") //处理ddl列名中有数字的形式 demical(8,2) demical(8 ,2) demical(8 , 2)
-								.replace(/\,/ig, "\n,")
-								.replace(/\n\s{1,}/ig, "\n")
-								.replace(/\s{1,}BIGINT/ig, " BIGINT")
-								.replace(/\s{1,}DOUBLE/ig, " DOUBLE")
-								.replace(/\s{1,}INT/ig, " INT")
-								.replace(/\s{1,}VARCHAR/ig, " VARCHAR")
-								.replace(/\s{1,}STRING/ig, " STRING")
-								.replace(/\s{1,}DECIMAL/ig, " DECIMAL")
-								.replace(/ COMMENT/ig, " COMMENT ")
-								.replace(/ COMMENT '/ig, "COMMENT'")
-								.replace(/ COMMENT "/ig, 'COMMENT"')
-								.replace(/CREATE TABLE/ig, "CREATE TABLE")
-								.replace(/PARTITIONED/ig, "PARTITIONED")
-								.replace(/PARTITIONED/ig, "PARTITIONED")
-								.replace(/string\s{0,},\s{0,}string/ig,"STRINGSTRING")
-								.replace(/COLUMNS\s{0,}\(/ig, "COLUMNS\n(")
-								.replace(/^\(/ig, "(\n")
-								.replace(/\s{1,}DECIMAL\s{1,}\(/ig, " DECIMAL(")
-								.replace(/ \s{1,}timestamp/ig, " TIMESTAMP")
-							.split("\n");
-
-	for (i = 0; i < text_list_orginal.length; i++) {		
-		if (text_list_orginal[i] != "" && text_list_orginal[i] != " ") {
-			if(/^\(/ig.exec(text_list_orginal[i]) && text_list_orginal[i].slice(1).replace(/\s{1,}/ig, " ") !=""){
-				text_list.push("(");
-				text_list.push(text_list_orginal[i].slice(1).replace(/\s{1,}/ig, " "));
-			}else{
-				text_list.push(text_list_orginal[i].replace(/\s{1,}/ig, " "));
-			}
-		}
-	}
-
-	var m = 0
-	var n = 0
-	var is_comment_before = 0
-while (n<text_list.length)
-{
-	var current_text = text_list[n]
-	var last_text = text_list[m]
-
-	// if((is_comment_before == 0 ||  /comment/ig.exec(text_list[n]) || n == 0 || /^\(|^\)|PARTITIONED|STORED|STRING|DOUBLE|BIGINT|INT|VARCHAR/ig.exec(text_list[n])) && /,\s{0,}string>/ig.exec(text_list[n]) == null ){
-	// 	n = n+1
-	// 	m = n - 1
-	// }
-	
-	
-	if(is_comment_before == 1 
-		&& /^,/ig.exec(text_list[n]) 
-		&& / STRING| DOUBLE| BIGINT| INT| VARCHAR| DECIMAL| TIMESTAMP/ig.exec(text_list[n]) == null){
-		text_list[m] += text_list[n]
-		delete text_list[n]
-		n = n + 1
-	}else{
-		n = n+1
-		m = n - 1
-	}
-
-	if(/comment/ig.exec(last_text)){
-		is_comment_before = 1
-	}else{
-		is_comment_before = 0
-	}
+    return new Array(count + 1).join(' ');
 }
 
+function find_matching_ddl_paren(text, start) {
+    var quote = '';
+    var depth = 0;
 
+    for (var i = start; i < text.length; i++) {
+        if (quote != '') {
+            if (text[i] == '\\' && i + 1 < text.length) {
+                i += 1;
+                continue;
+            }
+            if (text[i] == quote) {
+                if (text[i + 1] == quote) {
+                    i += 1;
+                    continue;
+                }
+                quote = '';
+            }
+            continue;
+        }
 
+        if (text[i] == '\'' || text[i] == '"') {
+            quote = text[i];
+            continue;
+        }
 
+        if (text[i] == '(') {
+            depth += 1;
+            continue;
+        }
 
-	
-	var col_name = [];
-	var col_len = [];
-	var col_type = [];
-	var col_type_len = [];
-	var col_comment = [];
-	var start_end = [];
+        if (text[i] == ')') {
+            depth -= 1;
+            if (depth == 0) {
+                return i;
+            }
+        }
+    }
 
-	for (i = 0; i < text_list.length; i++) {
-		if(/ STRING | DOUBLE | BIGINT | INT | VARCHAR| DECIMAL| TIMESTAMP| BIGINT| TINYINT| DATETIME| TEXT| FLOAT\(/ig.exec(text_list[i]) && text_list[i].indexOf('PARTITIONED') == -1){
-			var new_str_list = text_list[i].replace(/\s{1,}/ig, " ")
-			                                // .replace(/(\d+),(\d+)/, "$1#?$2")
-											.replace(/,\s{0,}/ig, "")
-											.replace(/^\s{1,}/ig, "")
-											.replace(/\s{0,},/ig, ",")
-											.replace(/string\s{0,}string/ig,"string,string")
-											.split(" ");
-			col_name.push(new_str_list[0]);
-			col_len.push(new_str_list[0].length)
-			col_type.push(new_str_list[1]);
-			col_type_len.push(new_str_list[1].length)
-			col_comment.push(text_list[i].split("COMMENT")[1]);
-			start_end.push(i);
-		}
+    return -1;
+}
 
-	}
+function split_ddl_items(text) {
+    var items = [];
+    var quote = '';
+    var paren_depth = 0;
+    var angle_depth = 0;
+    var start = 0;
 
-	if(col_name.length >0){
-		var col = '';
-		if(col_name.length > 0){
-			var max_col_name = Math.max.apply(Math,col_len);
-			var max_col_type = Math.max.apply(Math,col_type_len);
-			for (let q = 0; q < col_name.length; q++){
-				if(q==0){
-					col += '\n     ';
-				} else{
-					col += '\n    ,';
-				}
+    for (var i = 0; i < text.length; i++) {
+        if (quote != '') {
+            if (text[i] == '\\' && i + 1 < text.length) {
+                i += 1;
+                continue;
+            }
+            if (text[i] == quote) {
+                if (text[i + 1] == quote) {
+                    i += 1;
+                    continue;
+                }
+                quote = '';
+            }
+            continue;
+        }
 
-				col += col_name[q] + " ".times(max_col_name - col_len[q]) + " " + col_type[q] + " ".times(max_col_type - col_type_len[q]) + " " + "COMMENT " + col_comment[q];
-			}
-		}
-	
-		for (let i = 0; i < start_end[0]; i++) {
-			if(i == 0){
-				text_final += text_list[i];
-			} else 
-			{
-				text_final += "\n" + text_list[i];
-			}
-		}
-	
-		text_final =  text_final + col;
-	
-		for (let i = start_end[start_end.length-1]+1; i < text_list.length; i++) {
-			text_final += "\n" + text_list[i];
-		}
-	
-	} else{
-		for (let i = 0; i < text_list.length; i++) {
-			if(i == 0){
-				text_final += text_list[i];
-			} else 
-			{
-				text_final += "\n" + text_list[i];
-			}
-		}
-	}
+        if (text[i] == '\'' || text[i] == '"') {
+            quote = text[i];
+            continue;
+        }
 
-	return text_final.replace(/COMMENT'/ig, "COMMENT '").replace(/COMMENT"/ig, 'COMMENT "').replace(/\n\s{0,}\n/ig, '\n')
-	.replace(/，/ig, ',') 
+        if (text[i] == '(') {
+            paren_depth += 1;
+        } else if (text[i] == ')' && paren_depth > 0) {
+            paren_depth -= 1;
+        } else if (text[i] == '<') {
+            angle_depth += 1;
+        } else if (text[i] == '>' && angle_depth > 0) {
+            angle_depth -= 1;
+        } else if (text[i] == ',' && paren_depth == 0 && angle_depth == 0) {
+            items.push(text.slice(start, i));
+            start = i + 1;
+        }
+    }
+
+    items.push(text.slice(start));
+    return items;
+}
+
+function find_ddl_comment_index(text) {
+    var tokens = sqlTokenizer.tokenize(text);
+
+    for (var i = 0; i < tokens.length; i++) {
+        if (tokens[i].type == 'word' && /^COMMENT$/i.exec(tokens[i].value)) {
+            return tokens[i].start;
+        }
+    }
+
+    return -1;
+}
+
+function normalize_ddl_type(text) {
+    return String(text || '')
+        .replace(/\s+/g, ' ')
+        .replace(/\s*<\s*/g, '<')
+        .replace(/\s*>\s*/g, '>')
+        .replace(/\s*,\s*/g, ',')
+        .replace(/\s*:\s*/g, ':')
+        .replace(/\b(array|bigint|boolean|date|datetime|decimal|double|float|int|map|string|struct|text|timestamp|tinyint|varchar)\b/ig, function(match) {
+            return match.toUpperCase();
+        })
+        .replace(/DECIMAL\s*\(/ig, 'DECIMAL(')
+        .replace(/\s+$/g, '');
+}
+
+function parse_ddl_column(item) {
+    var clean = String(item || '').replace(/^\s*,\s*/, '').replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+    var comment_index = find_ddl_comment_index(clean);
+    var code = comment_index >= 0 ? clean.slice(0, comment_index).replace(/\s+$/g, '') : clean;
+    var comment = comment_index >= 0 ? clean.slice(comment_index + 'COMMENT'.length).replace(/^\s+|\s+$/g, '') : '';
+    var match = /^(`(?:``|[^`])+`|[^\s]+)\s+([\s\S]+)$/.exec(code);
+
+    if (!match) {
+        return null;
+    }
+
+    if (/^(CREATE|PARTITIONED|STORED|ROW|TBLPROPERTIES|LOCATION|COMMENT)$/i.exec(match[1])) {
+        return null;
+    }
+
+    return {
+        name: match[1],
+        type: normalize_ddl_type(match[2]),
+        comment: comment
+    };
+}
+
+function format_ddl_columns(items) {
+    var columns = [];
+    var max_name = 0;
+    var max_type = 0;
+
+    for (var i = 0; i < items.length; i++) {
+        var column = parse_ddl_column(items[i]);
+        if (column) {
+            columns.push(column);
+            max_name = Math.max(max_name, column.name.length);
+            max_type = Math.max(max_type, column.type.length);
+        }
+    }
+
+    if (columns.length == 0) {
+        return null;
+    }
+
+    var lines = [];
+    for (var q = 0; q < columns.length; q++) {
+        var prefix = q == 0 ? '     ' : '    ,';
+        var line = prefix
+            + columns[q].name
+            + repeat_space(max_name - columns[q].name.length)
+            + ' '
+            + columns[q].type;
+
+        if (columns[q].comment != '') {
+            line += repeat_space(max_type - columns[q].type.length) + ' COMMENT ' + columns[q].comment;
+        }
+
+        lines.push(line);
+    }
+
+    return lines.join('\n');
+}
+
+function ddl(str){
+    var source = String(str || '').replace(/\r\n|\r/g, '\n').replace(/^\s+|\s+$/g, '');
+    var open_index = source.indexOf('(');
+
+    if (open_index >= 0) {
+        var close_index = find_matching_ddl_paren(source, open_index);
+        if (close_index > open_index) {
+            var header = sqlKeywords.apply_keyword_case(source.slice(0, open_index).replace(/\s+/g, ' ').replace(/\s+$/g, ''), true);
+            var body = source.slice(open_index + 1, close_index);
+            var suffix = source.slice(close_index + 1).replace(/^\s+|\s+$/g, '');
+            var formatted_columns = format_ddl_columns(split_ddl_items(body));
+
+            if (formatted_columns != null) {
+                return header
+                    + '\n(\n'
+                    + formatted_columns
+                    + '\n)'
+                    + (suffix == '' ? '' : '\n' + sqlKeywords.apply_keyword_case(suffix.replace(/\s+/g, ' '), true));
+            }
+        }
+    }
+
+    var fallback_columns = format_ddl_columns(split_ddl_items(source.replace(/\n/g, ',')));
+    if (fallback_columns != null) {
+        return fallback_columns;
+    }
+
+    return sqlKeywords.apply_keyword_case(source.replace(/\s+/g, ' '), true);
 }
 
 
@@ -2742,20 +2807,28 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	restore_cnt = 0
 
 	var set_shield = protect_set_payloads(text);
-	var step0 = extract_quotation_mark(set_shield.text)
+	var token_shield = sqlShield.protect(set_shield.text, {
+		line_comment: false
+	});
+	var step0 = token_shield.text;
 	var comment_shield = protect_standalone_comments(step0);
 	step0 = protect_inline_comments(comment_shield.text, comment_shield.comments);
-	var step1 = reshape_comment(step0);
-	var step2 = replace_char(step1) ;
-	var step3 = get_bracket(step2);
-	var step4 = except_subquery(step3)
-	.replace(/\{\.\*\.\*\}/ig,"(")  //复原之前修改的注释后中文()的项目
-	.replace(/\{\*\.\*\.\}/ig,")");
-	// step5 = special_wrap(step4).replace(/\-\-\s{0,}\n/ig, "\n-- ");
-	var step5 = special_wrap(step4, as_loc_cnt, case_when_then_wrap_length);
-	var step6 = bracket_deep(step5); 
-	var step7 = extra(step6);
-	var step8 = restore_strmark(step7);
+	var step7 = sqlFormatPipeline.run(step0, [
+		reshape_comment,
+		replace_char,
+		get_bracket,
+		function(value) {
+			return except_subquery(value)
+				.replace(/\{\.\*\.\*\}/ig,"(")  //复原之前修改的注释后中文()的项目
+				.replace(/\{\*\.\*\.\}/ig,")");
+		},
+		function(value) {
+			return special_wrap(value, as_loc_cnt, case_when_then_wrap_length);
+		},
+		bracket_deep,
+		extra
+	]);
+	var step8 = step7;
 
 	// 恢复独立行注释的换行
 	var currentStep = step8.replace(/\s*\{SQLSTANDALONECOMMENT(\d+)\}\s*/g, function(match, comment_index, offset) {
@@ -2763,6 +2836,8 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	}).replace(/\s{0,1}--\{\}/g, "\n--");
 	currentStep = restore_standalone_comments(currentStep, comment_shield.comments);
 	currentStep = restore_set_payloads(currentStep, set_shield.payloads);
+	currentStep = sqlShield.preserve_standalone_block_lines(currentStep, token_shield.items);
+	currentStep = sqlShield.restore(currentStep, token_shield.tokens, token_shield.items);
 	currentStep = format_case_blocks(currentStep, case_when_then_wrap_length);
 	currentStep = align_as_in_select_blocks(currentStep, as_loc_cnt);
 	
