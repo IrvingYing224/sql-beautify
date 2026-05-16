@@ -19,6 +19,12 @@
 * Unified the whitespace output contract around LF, at most one blank line, and a single trailing newline
 * Tightened the README back to an end-user manual and moved support-boundary, experimental-scope, and diagnostics contract detail into technical docs and the support matrix
 
+### 0.5.4 (2026/05/17)
+* 修复一元正负号在主格式化链中的 spacing 错误，`THEN -1`、`a=-1`、`a=+1`、`1*-1`、`1/-1` 不再被错误改写为 `- 1`、`=+ 1`、`*- 1` 等无效形式
+* 增加 `CASE`、条件表达式和算术表达式中一元 `+/-` 的回归覆盖，确保二元运算符 spacing 与 Postgres / MySQL 特殊运算符行为不回归
+* Fixed unary plus/minus spacing in the main formatter path so expressions such as `THEN -1`, `a=-1`, `a=+1`, `1*-1`, and `1/-1` are no longer rewritten into invalid forms like `- 1`, `=+ 1`, or `*- 1`
+* Added regression coverage for unary `+/-` in `CASE`, condition expressions, and arithmetic expressions to protect normal binary spacing and dialect-specific operators from regression
+
 ### 0.5.2 (2026/05/17)
 * 将核心 SQL formatter 进一步收敛为 canonical options + dialect/clause/operator registry + structured pipeline，减少对历史字符串熔炉 pass 的依赖
 * 将 `SELECT` / condition / `CASE` / comment 的职责边界拆开，主流程改为显式结构化 pass，而不是继续在 `special_wrap` / `condition_wrap` 之类混合逻辑里叠规则

@@ -71,6 +71,19 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'unary signed literals after comparison operators stay readable',
+	'select * from t where a=-1 and b=+2 and c>=-3 and d<=+4',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE a = -1',
+		'  AND b = +2',
+		'  AND c >= -3',
+		'  AND d <= +4'
+	].join('\n')
+);
+
 run_indent_case(
 	'condition alignment preserves nested where indent for space style',
 	[

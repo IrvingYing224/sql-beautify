@@ -64,6 +64,27 @@ run_case(
 );
 
 run_case(
+	'unary minus in case branch stays attached to numeric literal',
+	[
+		'select case',
+		'when a.age is null then -1',
+		'when a.age < 18 then 0',
+		'when a.age >= 18 and a.age < 30 then 1',
+		'else 2 end as age_group from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'       CASE',
+		'           WHEN a.age IS NULL              THEN -1',
+		'           WHEN a.age < 18                 THEN 0',
+		'           WHEN a.age >= 18 AND a.age < 30 THEN 1',
+		'           ELSE 2',
+		'       END                                         AS age_group',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
 	'end on the same line as final when still reformats',
 	"SELECT CASE  WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfa' THEN 123  -- c1\n            WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfb' THEN 132  -- c2\n            WHEN name = 'fdsfsdfsdafsdafd' THEN 25  END AS alias -- c3\nFROM t",
 	"SELECT\n       CASE\n           WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfa'\n               THEN 123                                                          -- c1\n           WHEN name = 'fdsfsdfsdafsdafdsfsdafsdfsdfsdfsdfsdfsdfsdafsdfsdafsdfb'\n               THEN 132                                                          -- c2\n           WHEN name = 'fdsfsdfsdafsdafd'\n               THEN 25\n       END                                                                       AS alias -- c3\nFROM t"

@@ -47,17 +47,38 @@ run_case(
 		'from t'
 	].join('\n'),
 	[
-		'SELECT  a.user_id                       AS user_id',
-		'       ,a.user_name                     AS name',
-		'       ,a.city                          AS city_name',
+		'SELECT  a.user_id                      AS user_id',
+		'       ,a.user_name                    AS name',
+		'       ,a.city                         AS city_name',
 		'       ,CASE',
-		'            WHEN a.age IS NULL THEN - 1',
+		'            WHEN a.age IS NULL THEN -1',
 		'            WHEN a.age < 18    THEN 0',
 		'            ELSE 1',
-		'        END                             AS age_group',
-		'       ,b.order_cnt                     AS order_count',
-		'       ,b.pay_amt                       AS pay_amount',
-		'       ,substr(c.last_login_time,1,10)  AS login_date',
+		'        END                            AS age_group',
+		'       ,b.order_cnt                    AS order_count',
+		'       ,b.pay_amt                      AS pay_amount',
+		'       ,substr(c.last_login_time,1,10) AS login_date',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
+	'unary minus keeps signed literal while binary minus stays spaced',
+	'select -1 as neg_value,a-1 as delta from t',
+	[
+		'SELECT  -1    AS neg_value',
+		'       ,a - 1 AS delta',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
+	'unary signed literals after arithmetic operators keep prefix sign separate from binary operator',
+	'select 1*-1 as mul_neg,1/-1 as div_neg,1*+2 as mul_pos from t',
+	[
+		'SELECT  1 * -1 AS mul_neg',
+		'       ,1 / -1 AS div_neg',
+		'       ,1 * +2 AS mul_pos',
 		'FROM t'
 	].join('\n')
 );
