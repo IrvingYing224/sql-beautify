@@ -13,12 +13,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Run regression tests
         run: npm run test:verify
@@ -33,18 +33,24 @@ jobs:
         run: npx --yes @vscode/vsce package --out vscode-sql-beautify-v${{ steps.package.outputs.version }}.vsix
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: vscode-sql-beautify-vsix
           path: "*.vsix"
           if-no-files-found: error
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.package.outputs.version }}
         run: |
-          gh release create "v${VERSION}" \
-            ./*.vsix \
-            --title "v${VERSION}" \
-            --notes "Manual VSIX build for v${VERSION}."
+          tag="v${VERSION}"
+
+          if gh release view "${tag}" > /dev/null 2>&1; then
+            gh release upload "${tag}" ./*.vsix --clobber
+          else
+            gh release create "${tag}" \
+              ./*.vsix \
+              --title "${tag}" \
+              --notes "Manual VSIX build for ${tag}."
+          fi
