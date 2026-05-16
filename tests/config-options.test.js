@@ -4,7 +4,7 @@ var path = require('path');
 
 var packageJson = require('../package.json');
 var sqlRenderOptions = require('../lib/sql-render-options');
-var extensionSource = fs.readFileSync(path.join(__dirname, '..', 'extension.js'), 'utf8');
+var configAdapterSource = fs.readFileSync(path.join(__dirname, '..', 'lib', 'adapters', 'vscode-config.js'), 'utf8');
 var properties = packageJson.contributes.configuration.properties;
 
 function assert_property(name) {
@@ -12,7 +12,7 @@ function assert_property(name) {
 }
 
 function assert_source_contains(name, pattern) {
-	assert.ok(pattern.test(extensionSource), name + '\n--- pattern ---\n' + pattern + '\n--- source ---\n' + extensionSource);
+	assert.ok(pattern.test(configAdapterSource), name + '\n--- pattern ---\n' + pattern + '\n--- source ---\n' + configAdapterSource);
 }
 
 [
@@ -64,7 +64,12 @@ assert_source_contains(
 
 assert_source_contains(
 	'new config defaults must not silently override legacy user settings',
-	/hasConfiguredValue\(scopedConfig, 'keywordCase'\)[\s\S]+hasConfiguredValue\(legacyConfig, 'keywordCase'\)[\s\S]+config\.inspect\(key\)/
+	/has_configured_value\(scopedConfig, 'keywordCase'\)[\s\S]+has_configured_value\(legacyConfig, 'keywordCase'\)/
+);
+
+assert_source_contains(
+	'explicit config detection must use VS Code inspect metadata',
+	/config\.inspect\(key\)/
 );
 
 assert_source_contains(
@@ -73,7 +78,7 @@ assert_source_contains(
 );
 
 assert.ok(
-	!/defaultLanguageValue/.test(extensionSource),
+	!/defaultLanguageValue/.test(configAdapterSource),
 	'defaultLanguageValue must not count as explicit user configuration'
 );
 
@@ -194,22 +199,25 @@ assert.strictEqual(
 );
 
 assert.deepStrictEqual(
-	sqlRenderOptions.to_legacy({
-		keywordCase: 'lower',
-		commaStyle: 'trailing',
-		indentStyle: 'space',
-		maxAlignWidth: 88,
-		caseWhenThenWrapLength: 33,
-		dialect: 'hive',
-		languageMode: 'hive-sql'
-	}),
-	{
+	sqlRenderOptions.normalize({
 		uppercase: false,
 		comma_location: true,
 		bracket_char: true,
 		as_loc_cnt: 88,
 		case_when_then_wrap_length: 33,
 		dialect: 'hive'
+	}, {
+		dialect: true
+	}),
+	{
+		keywordCase: 'lower',
+		commaStyle: 'trailing',
+		indentStyle: 'space',
+		maxAlignWidth: 88,
+		caseWhenThenWrapLength: 33,
+		dialect: 'hive',
+		languageMode: 'sql',
+		unsupportedSyntaxPolicy: 'preserve'
 	},
-	'canonical options must be convertible to the current legacy formatter bridge'
+	'legacy adapter inputs must normalize to canonical formatter options'
 );

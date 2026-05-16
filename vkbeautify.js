@@ -1,6 +1,6 @@
-var sqlFormatter = require('./lib/sql-formatter');
-var sqlDdlFormatter = require('./lib/sql-ddl-formatter');
-var sqlRenderOptions = require('./lib/sql-render-options');
+var sqlFormatter = require('./lib/core/sql-formatter');
+var sqlDdlFormatter = require('./lib/experimental/ddl');
+var sqlRenderOptions = require('./lib/adapters/sql-render-options');
 
 function vkbeautify() {}
 

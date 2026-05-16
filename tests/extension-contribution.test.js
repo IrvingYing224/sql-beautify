@@ -6,6 +6,7 @@ var path = require('path');
 var packageJson = require('../package.json');
 var sqlFormatter = require('../lib/sql-formatter');
 var extensionSource = fs.readFileSync(path.join(__dirname, '..', 'extension.js'), 'utf8');
+var extensionAdapterSource = fs.readFileSync(path.join(__dirname, '..', 'lib', 'adapters', 'vscode-extension.js'), 'utf8');
 
 function command_ids() {
 	return packageJson.contributes.commands.map(function(command) {
@@ -81,33 +82,38 @@ assert.ok(
 );
 
 assert.ok(
-	/registerDocumentFormattingEditProvider/.test(extensionSource),
-	'extension.js must register a standard document formatter'
+	/registerDocumentFormattingEditProvider/.test(extensionAdapterSource),
+	'VS Code extension adapter must register a standard document formatter'
 );
 
 assert.ok(
-	/registerDocumentRangeFormattingEditProvider/.test(extensionSource),
-	'extension.js must register a standard range formatter'
+	/registerDocumentRangeFormattingEditProvider/.test(extensionAdapterSource),
+	'VS Code extension adapter must register a standard range formatter'
 );
 
 assert.ok(
-	/showErrorMessage/.test(extensionSource),
+	/showErrorMessage/.test(extensionAdapterSource),
 	'formatter failures must show an error message without replacing source text'
 );
 
 assert.ok(
-	/overlapping selections are not supported/.test(extensionSource),
+	/overlapping selections are not supported/.test(extensionAdapterSource),
 	'overlapping selections must be rejected'
 );
 
 assert.ok(
-	/VS Code rejected the edit/.test(extensionSource),
+	/VS Code rejected the edit/.test(extensionAdapterSource),
 	'editor edit failures must be reported'
 );
 
 assert.ok(
-	/sqlBeautify/.test(extensionSource),
-	'extension source must register sqlBeautify command aliases and configuration'
+	/sqlBeautify/.test(extensionAdapterSource),
+	'VS Code extension adapter must register sqlBeautify command aliases and configuration'
+);
+
+assert.ok(
+	/create_extension\(vscode\)/.test(extensionSource),
+	'extension.js must stay a thin shell over the VS Code adapter'
 );
 
 assert.strictEqual(
@@ -279,10 +285,10 @@ async function run_mock_tests() {
 	assert.strictEqual(typeof vscodeMock.commandsById['extension.extractDdl'], 'function', 'activate must register old Extract DDL command');
 	assert.strictEqual(typeof vscodeMock.commandsById['sqlBeautify.extractHiveDdl'], 'function', 'activate must register new Extract DDL command alias');
 
-	var vkbeautify = require('../vkbeautify');
+	var ddlFormatter = require('../lib/experimental/ddl');
 	var originalFormatSql = sqlFormatter.format_sql;
-	var originalDdl = vkbeautify.sqlddl;
-	var originalExtract = vkbeautify.extractddl;
+	var originalDdl = ddlFormatter.ddl;
+	var originalExtract = ddlFormatter.extractddl;
 	var sqlCalls = [];
 	var ddlCalls = 0;
 	var extractCalls = 0;
@@ -293,11 +299,11 @@ async function run_mock_tests() {
 		});
 		return originalFormatSql(text, options);
 	};
-	vkbeautify.sqlddl = function(text) {
+	ddlFormatter.ddl = function(text) {
 		ddlCalls += 1;
 		return originalDdl(text);
 	};
-	vkbeautify.extractddl = function(text) {
+	ddlFormatter.extractddl = function(text) {
 		extractCalls += 1;
 		return originalExtract(text);
 	};
@@ -341,8 +347,8 @@ async function run_mock_tests() {
 		return /mock formatter failure/.test(message);
 	}), 'formatter failure must call showErrorMessage');
 	sqlFormatter.format_sql = originalFormatSql;
-	vkbeautify.sqlddl = originalDdl;
-	vkbeautify.extractddl = originalExtract;
+	ddlFormatter.ddl = originalDdl;
+	ddlFormatter.extractddl = originalExtract;
 
 	vscodeMock.errors = [];
 	var overlappingEditor = create_editor('select abc', [

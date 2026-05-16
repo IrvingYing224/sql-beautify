@@ -9,6 +9,10 @@ var sqlSelectFormatter = require('../lib/sql-select-formatter');
 var sqlConditionFormatter = require('../lib/sql-condition-formatter');
 var sqlDdlFormatter = require('../lib/sql-ddl-formatter');
 
+function format_core(sql, options) {
+	return sqlFormatter.format_sql(sql, options).trim();
+}
+
 function read_source(relative_path) {
 	return fs.readFileSync(path.join(__dirname, '..', relative_path), 'utf8');
 }
@@ -69,17 +73,63 @@ assert.strictEqual(typeof sqlDdlFormatter.extractddl, 'function', 'DDL formatter
 assert.strictEqual(typeof ''.times, 'undefined', 'formatter modules must not pollute String.prototype');
 
 var liveFormatterSources = collect_live_formatter_sources('lib/sql-formatter.js');
-var formatterSource = liveFormatterSources['lib/sql-formatter.js'];
-var lexicalNormalizerSource = liveFormatterSources['lib/sql-lexical-normalizer.js'];
-var conditionFormatterSource = liveFormatterSources['lib/sql-condition-formatter.js'];
+var formatterSource = liveFormatterSources['lib/core/sql-formatter.js'] || liveFormatterSources['lib/sql-formatter.js'];
+var lexicalNormalizerSource = liveFormatterSources['lib/core/sql-lexical-normalizer.js'] || liveFormatterSources['lib/sql-lexical-normalizer.js'];
+var conditionFormatterSource = liveFormatterSources['lib/core/sql-condition-formatter.js'] || liveFormatterSources['lib/sql-condition-formatter.js'];
 var combinedLiveFormatterSource = Object.keys(liveFormatterSources).sort().map(function(relative_path) {
 	return '\n/* ' + relative_path + ' */\n' + liveFormatterSources[relative_path];
 }).join('\n');
+var forbiddenLiveFormatterPatterns = [
+	{
+		pattern: /\bto_legacy\b/,
+		message: 'live formatter source graph must not bridge canonical options back to to_legacy'
+	},
+	{
+		pattern: /\breshape_comment\b/,
+		message: 'live formatter source graph must not use reshape_comment marker protocol'
+	},
+	{
+		pattern: /\brestore_reshaped_comment_markers\b/,
+		message: 'live formatter source graph must not restore reshaped comment markers'
+	},
+	{
+		pattern: /\bconvert_comma_loaction\b/,
+		message: 'live formatter source graph must not call the typo legacy comma API'
+	},
+	{
+		pattern: /WHEREiscomment/,
+		message: 'live formatter source graph must not contain WHEREiscomment marker cleanup'
+	},
+	{
+		pattern: /shouldhavenbehind/,
+		message: 'live formatter source graph must not contain shouldhavenbehind marker cleanup'
+	},
+	{
+		pattern: /\{comma\}/,
+		message: 'live formatter source graph must not contain {comma} marker cleanup'
+	},
+	{
+		pattern: /UNIONALLALL/,
+		message: 'live formatter source graph must not contain UNIONALLALL marker cleanup'
+	}
+];
 
 assert.ok(
 	conditionFormatterSource,
 	'live formatter dependency graph must include sql-condition-formatter so indirect condition_wrap calls are checked'
 );
+Object.keys(liveFormatterSources).forEach(function(relative_path) {
+	assert.strictEqual(
+		/^lib[\/\\]adapters[\/\\]/.test(relative_path),
+		false,
+		'core formatter live graph must not depend on adapter modules: ' + relative_path
+	);
+	assert.strictEqual(
+		/^lib[\/\\]experimental[\/\\]/.test(relative_path),
+		false,
+		'core formatter live graph must not depend on experimental modules: ' + relative_path
+	);
+});
 
 assert.strictEqual(
 	/replace_char\s*\(/.test(formatterSource + lexicalNormalizerSource),
@@ -106,13 +156,30 @@ assert.strictEqual(
 	false,
 	'live formatter path must not call legacy normalize layout helpers'
 );
+for (let i = 0; i < forbiddenLiveFormatterPatterns.length; i++) {
+	assert.strictEqual(
+		forbiddenLiveFormatterPatterns[i].pattern.test(combinedLiveFormatterSource),
+		false,
+		forbiddenLiveFormatterPatterns[i].message
+	);
+}
+assert.strictEqual(
+	/currentStep\s*=\s*currentStep\.replace\(\s*\/\\t\//.test(formatterSource),
+	false,
+	'live formatter path must not render tabs first and replace them with spaces later'
+);
+assert.strictEqual(
+	/var\s+deep\s*=\s*["']\\t["']/.test(combinedLiveFormatterSource),
+	false,
+	'live formatter source graph must not hard-code tab as the layout renderer indent unit'
+);
 
 var placeholderFormatted = sqlFormatter.format_sql('select NEEDReplace as c from t', {
-	uppercase: true,
-	comma_location: false,
-	bracket_char: true,
-	as_loc_cnt: 150,
-	case_when_then_wrap_length: 80,
+	keywordCase: 'upper',
+	commaStyle: 'leading',
+	indentStyle: 'space',
+	maxAlignWidth: 150,
+	caseWhenThenWrapLength: 80,
 	dialect: 'generic'
 });
 
@@ -127,11 +194,11 @@ assert.strictEqual(
 );
 
 var postgresFormatted = sqlFormatter.format_sql("select data->>'name' as name from t", {
-	uppercase: true,
-	comma_location: false,
-	bracket_char: true,
-	as_loc_cnt: 150,
-	case_when_then_wrap_length: 80,
+	keywordCase: 'upper',
+	commaStyle: 'leading',
+	indentStyle: 'space',
+	maxAlignWidth: 150,
+	caseWhenThenWrapLength: 80,
 	dialect: 'postgres'
 });
 
@@ -143,6 +210,68 @@ assert.strictEqual(
 	postgresFormatted.indexOf('->  >'),
 	-1,
 	'sql-formatter must not split PostgreSQL JSON operator'
+);
+
+var nestedSpaceConditionFormatted = format_core([
+	'select *',
+	'from (',
+	'select a',
+	'from t',
+	'where b=1 and c=2',
+	') x'
+].join('\n'), {
+	keywordCase: 'upper',
+	commaStyle: 'leading',
+	indentStyle: 'space',
+	maxAlignWidth: 150,
+	caseWhenThenWrapLength: 80,
+	dialect: 'generic'
+});
+
+assert.strictEqual(
+	nestedSpaceConditionFormatted,
+	[
+		'SELECT  *',
+		'FROM',
+		'(',
+		'    SELECT  a',
+		'    FROM t',
+		'    WHERE b = 1',
+		'      AND c = 2',
+		') x'
+	].join('\n').trim(),
+	'sql-formatter must preserve nested condition indentation for space indent style'
+);
+
+var multilineInlineQueryFormatted = format_core([
+	'select *',
+	'from t',
+	'where a.id in (',
+	'select id',
+	'from t2',
+	'where flag=1',
+	')'
+].join('\n'), {
+	keywordCase: 'upper',
+	commaStyle: 'leading',
+	indentStyle: 'tab',
+	maxAlignWidth: 150,
+	caseWhenThenWrapLength: 80,
+	dialect: 'generic'
+});
+
+assert.strictEqual(
+	multilineInlineQueryFormatted,
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE a.id IN (',
+		'\tSELECT  id',
+		'\tFROM t2',
+		'\tWHERE flag = 1',
+		')'
+	].join('\n').trim(),
+	'sql-formatter must indent multiline inline subqueries from the canonical core path'
 );
 
 console.log('module boundary tests passed');

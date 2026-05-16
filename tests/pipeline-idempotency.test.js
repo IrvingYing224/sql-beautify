@@ -3,9 +3,21 @@ var sqlShield = require('../lib/sql-shield');
 var sqlRenderOptions = require('../lib/sql-render-options');
 var sqlFormatPipeline = require('../lib/sql-format-pipeline');
 var vkbeautify = require('../vkbeautify');
+var sqlFormatter = require('../lib/sql-formatter');
 
 function format(sql) {
 	return vkbeautify.sql(sql, true, false, true, 150, 80).trim();
+}
+
+function format_with_indent(sql, indentStyle) {
+	return sqlFormatter.format_sql(sql, {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: indentStyle,
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'generic'
+	}).trim();
 }
 
 var shieldInput = [
@@ -88,7 +100,7 @@ assert.deepStrictEqual(
 );
 
 assert.deepStrictEqual(
-	sqlRenderOptions.to_legacy({
+	sqlRenderOptions.normalize({
 		keywordCase: 'upper',
 		commaStyle: 'leading',
 		indentStyle: 'tab',
@@ -96,16 +108,20 @@ assert.deepStrictEqual(
 		caseWhenThenWrapLength: 33,
 		dialect: 'generic',
 		languageMode: 'sql'
+	}, {
+		canonical: true
 	}),
 	{
-		uppercase: true,
-		comma_location: false,
-		bracket_char: false,
-		as_loc_cnt: 120,
-		case_when_then_wrap_length: 33,
-		dialect: 'generic'
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'tab',
+		maxAlignWidth: 120,
+		caseWhenThenWrapLength: 33,
+		dialect: 'generic',
+		languageMode: 'sql',
+		unsupportedSyntaxPolicy: 'preserve'
 	},
-	'canonical options can be bridged back to the current legacy formatter inputs during migration'
+	'canonical options remain canonical through render option normalization'
 );
 
 assert.strictEqual(
@@ -130,3 +146,104 @@ assert.strictEqual(
 	format(idempotentInput),
 	'full SQL formatting pipeline must be idempotent for protected token boundaries'
 );
+
+[
+	{
+		indentStyle: 'tab',
+		expected: [
+			'SELECT  *',
+			'FROM',
+			'(',
+			'\tSELECT  a',
+			'\tFROM t',
+			'\tWHERE EXISTS (',
+			'\t\tSELECT  1',
+			'\t\tFROM t2',
+			'\t\tWHERE t2.id = t.id',
+			'\t)',
+			') x'
+		].join('\n')
+	},
+	{
+		indentStyle: 'space',
+		expected: [
+			'SELECT  *',
+			'FROM',
+			'(',
+			'    SELECT  a',
+			'    FROM t',
+			'    WHERE EXISTS (',
+			'        SELECT  1',
+			'        FROM t2',
+			'        WHERE t2.id = t.id',
+			'    )',
+			') x'
+		].join('\n')
+	}
+].forEach(function(testCase) {
+	var input = [
+		'select *',
+		'from (',
+		'select a',
+		'from t',
+		'where exists (',
+		'select 1',
+		'from t2',
+		'where t2.id=t.id',
+		')',
+		') x'
+	].join('\n');
+	var actual = format_with_indent(input, testCase.indentStyle);
+
+	assert.strictEqual(
+		actual,
+		testCase.expected,
+		'line-tail opening parenthesis must increase next-line indent for exists subquery: ' + testCase.indentStyle
+			+ '\n--- actual ---\n' + actual + '\n--- expected ---\n' + testCase.expected
+	);
+});
+
+[
+	{
+		indentStyle: 'tab',
+		expected: [
+			'SELECT  *',
+			'FROM t',
+			'WHERE a.id IN (',
+			'\tSELECT  id',
+			'\tFROM t2',
+			'\tWHERE flag = 1',
+			')'
+		].join('\n')
+	},
+	{
+		indentStyle: 'space',
+		expected: [
+			'SELECT  *',
+			'FROM t',
+			'WHERE a.id IN (',
+			'    SELECT  id',
+			'    FROM t2',
+			'    WHERE flag = 1',
+			')'
+		].join('\n')
+	}
+].forEach(function(testCase) {
+	var input = [
+		'select *',
+		'from t',
+		'where a.id in (',
+		'select id',
+		'from t2',
+		'where flag=1',
+		')'
+	].join('\n');
+	var actual = format_with_indent(input, testCase.indentStyle);
+
+	assert.strictEqual(
+		actual,
+		testCase.expected,
+		'line-tail opening parenthesis must increase next-line indent for inline subquery: ' + testCase.indentStyle
+			+ '\n--- actual ---\n' + actual + '\n--- expected ---\n' + testCase.expected
+	);
+});

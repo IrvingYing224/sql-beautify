@@ -1,12 +1,29 @@
 var assert = require('assert');
 var vkbeautify = require('../vkbeautify');
+var sqlFormatter = require('../lib/sql-formatter');
 
 function format(sql) {
 	return vkbeautify.sql(sql, true, false, true, 150, 80).trim();
 }
 
+function format_with_indent(sql, indentStyle) {
+	return sqlFormatter.format_sql(sql, {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: indentStyle,
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'generic'
+	}).trim();
+}
+
 function run_case(name, input, expected) {
 	var actual = format(input);
+	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
+}
+
+function run_indent_case(name, input, indentStyle, expected) {
+	var actual = format_with_indent(input, indentStyle);
 	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
 }
 
@@ -51,6 +68,30 @@ run_case(
 		'          WHEN z = 1 AND k = 2 THEN 1',
 		'          ELSE 0',
 		'      END = 1'
+	].join('\n')
+);
+
+run_indent_case(
+	'condition alignment preserves nested where indent for space style',
+	[
+		'select *',
+		'from (',
+		'select a',
+		'from t',
+		'where b=1 and c=2 or d=3',
+		') x'
+	].join('\n'),
+	'space',
+	[
+		'SELECT  *',
+		'FROM',
+		'(',
+		'    SELECT  a',
+		'    FROM t',
+		'    WHERE b = 1',
+		'      AND c = 2',
+		'       OR d = 3',
+		') x'
 	].join('\n')
 );
 
