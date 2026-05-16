@@ -26,8 +26,8 @@ SQL / Hive SQL 格式化核心已经重构为 token 化 + shield + pipeline + �
 ## 经验规则：发布 VSIX 必须对应当前版本和 SHA
 - 触发信号：准备发布扩展、生成 Release 包或更新 `.vsix` 内容时。
 - 根因 / 约束：发布包必须对应当前提交和当前 `package.json` 版本；复用旧 artifact 或旧 Release 会发布过期代码；本地 `.vsix` 可用于预检，但制品不应提交。
-- 正确做法：完成自动化回归后，更新版本号、`CHANGELOG.md` 和必要的 `README.md`；提交并推送后触发 `.github/workflows/build-vsix.yml` 的 `Build VSIX` workflow，生成 artifact 和 GitHub Release。
-- 验证方法：检查 workflow 成功，且 GitHub Actions run 的 commit SHA、`package.json` 版本、Release tag 和 `.vsix` 文件名一致。
+- 正确做法：完成自动化回归后，更新版本号、`CHANGELOG.md` 和必要的 `README.md`；先将发布提交合入并推送到 `main`，再从 `main` 触发 `.github/workflows/build-vsix.yml` 的 `Build VSIX` workflow，生成 artifact 和 GitHub Release。不要从功能分支触发正式发布。
+- 验证方法：检查 workflow 成功，且 GitHub Actions run 的分支为 `main`，run commit SHA、`origin/main`、Release target、Release tag 和 `.vsix` 文件名一致。
 
 ## 经验规则：格式化改动复用 Hive SQL 回归集
 - 触发信号：修改任何 SQL / Hive SQL 格式化输出，尤其是注释对齐、`CASE WHEN`、`AS` 对齐、条件换行、关键词大小写或 Hive 特有语法。
