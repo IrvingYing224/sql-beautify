@@ -5,6 +5,14 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.4.4 (2026/05/16)
+* 修复独立行注释后紧跟 `DROP TABLE` 时，`DROP` 行前被错误保留一个空格的问题
+* 调整独立行注释保护占位符，避免被后续格式化流程误判为行尾注释
+* 补充独立行注释后接 `DROP TABLE` 的回归覆盖
+* Fixed an extra leading space being kept before `DROP TABLE` when it follows a standalone line comment
+* Adjusted the standalone line-comment placeholder so later formatting stages no longer treat it as a trailing comment
+* Added regression coverage for standalone line comments followed by `DROP TABLE`
+
 ### 0.4.3 (2026/05/13)
 * 修复连续 Hive `SET` 配置语句格式化后被合并成一行的问题
 * 保持 `SET hive.exec.dynamic.partition=true;` 和 `SET hive.exec.dynamic.partition.mode=non-strict;` 这类连续配置语句分行输出
@@ -275,7 +283,6 @@
 ### 0.0.1
 
 * Initial release
-
 
 
 

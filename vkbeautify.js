@@ -1984,7 +1984,7 @@ function protect_standalone_comments(str) {
 		if (/^\s*--/.exec(text_list[i])) {
 			var comment_text = text_list[i].replace(/^\s*/, "").replace(/\s+$/ig, "");
 			comment_store.push(comment_text);
-			text_list[i] = " --{}{LC" + (comment_store.length - 1) + "}";
+			text_list[i] = "{SQLSTANDALONECOMMENT" + (comment_store.length - 1) + "}";
 		}
 	}
 
@@ -2758,7 +2758,9 @@ vkbeautify.prototype.sql = function(text,uppercase,comma_location,bracket_char,a
 	var step8 = restore_strmark(step7);
 
 	// 恢复独立行注释的换行
-	var currentStep = step8.replace(/\s{0,1}--\{\}/g, "\n--");
+	var currentStep = step8.replace(/\s*\{SQLSTANDALONECOMMENT(\d+)\}\s*/g, function(match, comment_index, offset) {
+		return (offset == 0 ? "" : "\n") + "--{LC" + comment_index + "}\n";
+	}).replace(/\s{0,1}--\{\}/g, "\n--");
 	currentStep = restore_standalone_comments(currentStep, comment_shield.comments);
 	currentStep = restore_set_payloads(currentStep, set_shield.payloads);
 	currentStep = format_case_blocks(currentStep, case_when_then_wrap_length);

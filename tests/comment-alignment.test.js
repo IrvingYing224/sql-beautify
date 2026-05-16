@@ -400,6 +400,20 @@ run_case(
 );
 
 run_case(
+	'standalone comment before drop does not indent drop statement',
+	[
+		'-- vcdsfdsfds ',
+		'drop table dws.fdjsaf',
+		'create table dws.dfds'
+	].join('\n'),
+	[
+		'-- vcdsfdsfds',
+		'DROP TABLE dws.fdjsaf',
+		'CREATE TABLE dws.dfds'
+	].join('\n')
+);
+
+run_case(
 	'inline comment comma and quoted value stay original text',
 	[
 		'select case when a in (',
