@@ -5,7 +5,7 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
-### Unreleased
+### 0.5.2 (2026/05/17)
 * 将核心 SQL formatter 进一步收敛为 canonical options + dialect/clause/operator registry + structured pipeline，减少对历史字符串熔炉 pass 的依赖
 * 将 `SELECT` / condition / `CASE` / comment 的职责边界拆开，主流程改为显式结构化 pass，而不是继续在 `special_wrap` / `condition_wrap` 之类混合逻辑里叠规则
 * 收紧 unsupported 行为：`MATCH_RECOGNIZE(...)` 等未建模结构优先保守保护，不再尝试高风险重排
@@ -14,6 +14,7 @@
 * 移除 `String.prototype.times` 全局污染和一批无调用面死代码，明确 module boundary
 * 彻底将 `replace_char`、`condition_wrap`、`except_subquery`、`bracket_deep`、`extra` 等旧熔炉 / 状态机从 live formatter path 移除，并用依赖图级 module-boundary 测试防止间接回流
 * 新增 `operator-matrix`、`clause-registry`、`select-alignment`、`condition-alignment`、`extractddl-safety`、`unsupported-safety` 等 focused regression tests，并将其纳入 `npm run test:verify`
+* 更新 README 的用户说明，收敛技术实现细节，明确 Hive SQL 优先、其他方言建议人工复核，以及 DDL / Extract DDL 仍属 experimental
 * Further restructured the core formatter around canonical options, dialect/clause/operator registries, and a structured pipeline instead of continuing to grow legacy string-melting passes
 * Split responsibilities for `SELECT`, condition blocks, `CASE`, and comments into explicit passes rather than mixed `special_wrap` / `condition_wrap` behavior
 * Tightened unsupported behavior so unmodeled syntax such as `MATCH_RECOGNIZE(...)` is handled conservatively instead of being aggressively rewritten
@@ -22,6 +23,7 @@
 * Removed `String.prototype.times` global pollution and other dead code while tightening module boundaries
 * Fully removed legacy `replace_char`, `condition_wrap`, `except_subquery`, `bracket_deep`, and `extra` from the live formatter path, and added dependency-graph module-boundary checks to prevent indirect regressions
 * Added focused regression coverage for operator matrices, clause registries, select alignment, condition alignment, extractddl safety, and unsupported-syntax safety
+* Refreshed the README for end users by removing implementation-heavy details and clarifying Hive-first guidance, manual review expectations for other dialects, and the experimental scope of DDL / Extract DDL
 
 ### 0.5.1 (2026/05/16)
 * 将 `vkbeautify.js` 拆为轻量 wrapper，并把 SQL 格式化、注释处理、大小写转换、SELECT 对齐、条件对齐、DDL、方言边界和格式化上下文拆入 `lib/` 下的独立 CommonJS 模块
