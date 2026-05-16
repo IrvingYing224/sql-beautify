@@ -34,4 +34,51 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'continuation select lines split additional top level items after case expressions',
+	[
+		'select a.user_id as user_id,',
+		'       a.user_name as name,',
+		'       a.city as city_name,case',
+		'                                when a.age is null then -1',
+		'                                when a.age < 18 then 0',
+		'                                else 1',
+		'                            end as age_group,b.order_cnt as order_count,b.pay_amt as pay_amount,substr(c.last_login_time,1,10) as login_date',
+		'from t'
+	].join('\n'),
+	[
+		'SELECT  a.user_id                       AS user_id',
+		'       ,a.user_name                     AS name',
+		'       ,a.city                          AS city_name',
+		'       ,CASE',
+		'            WHEN a.age IS NULL THEN - 1',
+		'            WHEN a.age < 18    THEN 0',
+		'            ELSE 1',
+		'        END                             AS age_group',
+		'       ,b.order_cnt                     AS order_count',
+		'       ,b.pay_amt                       AS pay_amount',
+		'       ,substr(c.last_login_time,1,10)  AS login_date',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
+	'standalone comment between select items keeps next item comma without orphan comma line',
+	[
+		'select a as x,b as y,',
+		'-- cmt',
+		'case when z=1 then 1 else 0 end as z from t'
+	].join('\n'),
+	[
+		'SELECT  a                     AS x',
+		'       ,b                     AS y',
+		'-- cmt',
+		'       ,CASE',
+		'            WHEN z = 1 THEN 1',
+		'            ELSE 0',
+		'        END                   AS z',
+		'FROM t'
+	].join('\n')
+);
+
 console.log('select alignment tests passed');
