@@ -5,6 +5,16 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.5.3 (2026/05/17)
+* 完成二次清理后的稳定性收口，修复 `indentStyle=space` 下嵌套条件块缩进不正确的问题
+* 修复 `EXISTS (`、`IN (` 等行尾开括号多行子查询的缩进层级问题
+* 强化 `space` / `tab` 两种缩进风格下的多行条件块和子查询回归覆盖
+* 更新发布说明与用户文档，保持 README 面向使用说明、CHANGELOG 面向版本变更
+* Finalized the stabilization pass after the secondary cleanup, fixing nested condition indentation under `indentStyle=space`
+* Fixed indentation depth for multiline subqueries opened by line-tail parentheses such as `EXISTS (` and `IN (`
+* Expanded regression coverage for multiline condition blocks and subqueries under both `space` and `tab` indentation styles
+* Refreshed release notes and user-facing documentation while keeping the README focused on usage rather than implementation details
+
 ### 0.5.2 (2026/05/17)
 * 将核心 SQL formatter 进一步收敛为 canonical options + dialect/clause/operator registry + structured pipeline，减少对历史字符串熔炉 pass 的依赖
 * 将 `SELECT` / condition / `CASE` / comment 的职责边界拆开，主流程改为显式结构化 pass，而不是继续在 `special_wrap` / `condition_wrap` 之类混合逻辑里叠规则
