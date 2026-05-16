@@ -2,9 +2,17 @@ name: Build VSIX
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-vsix-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-vsix:
@@ -19,38 +27,42 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run regression tests
         run: npm run test:verify
 
-      - name: Read package version
-        id: package
-        run: |
-          version=$(node -p "require('./package.json').version")
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-
       - name: Package VSIX
-        run: npx --yes @vscode/vsce package --out vscode-sql-beautify-v${{ steps.package.outputs.version }}.vsix
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run package:vsix
 
       - name: Upload VSIX artifact
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v6
         with:
           name: vscode-sql-beautify-vsix
           path: "*.vsix"
           if-no-files-found: error
 
+      - name: Read package version
+        if: github.event_name == 'workflow_dispatch'
+        id: package
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
       - name: Create or update GitHub Release
+        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.package.outputs.version }}
         run: |
           tag="v${VERSION}"
-
           if gh release view "${tag}" > /dev/null 2>&1; then
             gh release upload "${tag}" ./*.vsix --clobber
           else
-            gh release create "${tag}" \
-              ./*.vsix \
-              --title "${tag}" \
-              --notes "Manual VSIX build for ${tag}."
+            gh release create "${tag}" ./*.vsix --title "${tag}" --notes "Manual VSIX build for ${tag}."
           fi

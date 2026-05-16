@@ -49,7 +49,8 @@ assert.deepStrictEqual(
 		comma_location: true,
 		bracket_char: true,
 		as_loc_cnt: 88,
-		case_when_then_wrap_length: 33
+		case_when_then_wrap_length: 33,
+		dialect: 'generic'
 	},
 	'legacy options remain effective when new options are not explicitly configured'
 );
@@ -76,7 +77,8 @@ assert.deepStrictEqual(
 		comma_location: false,
 		bracket_char: false,
 		as_loc_cnt: 120,
-		case_when_then_wrap_length: 33
+		case_when_then_wrap_length: 33,
+		dialect: 'generic'
 	},
 	'new options override legacy options when explicitly configured'
 );

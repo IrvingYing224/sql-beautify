@@ -5,6 +5,30 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.5.1 (2026/05/16)
+* 将 `vkbeautify.js` 拆为轻量 wrapper，并把 SQL 格式化、注释处理、大小写转换、SELECT 对齐、条件对齐、DDL、方言边界和格式化上下文拆入 `lib/` 下的独立 CommonJS 模块
+* 修复内部占位符与用户 SQL 文本碰撞的问题，避免 `NEEDReplace`、`--{LC0}`、`{SQLSETPAYLOAD0}`、`{SQLSTANDALONECOMMENT0}` 等 marker-like 文本被错误恢复或污染
+* 增加 PostgreSQL dollar quote、PostgreSQL JSON `->>`、MySQL `#` 注释等 best-effort 方言边界保护；Hive SQL 仍是主要支持目标
+* 新增 `sqlBeautify.*` 配置命名空间，同时保留 `extension.*` 兼容；显式优先级为 `sqlBeautify.*` > `extension` semantic settings > legacy fallback > package defaults
+* 增加现代命令别名 `sqlBeautify.formatSql`、`sqlBeautify.formatHiveDdl`、`sqlBeautify.extractHiveDdl`，并保留旧 `extension.*` 命令 ID
+* 强化 VS Code 标准 `Format Document` / `Format Selection`、多选区格式化、重叠选区拒绝和 edit 失败错误提示
+* 重构 `extractddl` 的 SELECT 字段提取逻辑，修复 INSERT 目标表被当作列、CTE 内部字段污染、字符串内 `--`、CASE 字符串、函数参数逗号、`a < b` 比较表达式等场景
+* 明确 `sqlddl` / `extractDdl` 仍为 Hive SQL experimental 能力；`extractDdl` 是有限 SELECT 列提取工具，不是完整 SQL parser，不推断真实字段类型
+* 现代化测试、CI 和本地 VSIX 打包链路，改用 `npm ci`、项目本地 `@vscode/vsce` / `@types/vscode`，并将最低 VS Code engine 提升到 `^1.90.0`
+* 更新 VSIX 清单排除规则，避免把 `.github/`、测试、计划文档、`node_modules/` 和本地 `.vsix` 制品打进发布包
+* 补充 placeholder collision、dialect boundary、formatter API、module boundary、extension mock、配置优先级、DDL / extract DDL 风险场景等回归测试，并纳入 `npm run test:verify`
+* Split `vkbeautify.js` into a thin wrapper and moved SQL formatting, comments, keyword casing, SELECT alignment, condition alignment, DDL, dialect boundaries, and formatting context into focused CommonJS modules under `lib/`
+* Fixed internal placeholder collisions with marker-like user SQL text such as `NEEDReplace`, `--{LC0}`, `{SQLSETPAYLOAD0}`, and `{SQLSTANDALONECOMMENT0}`
+* Added best-effort dialect boundary protection for PostgreSQL dollar quotes, PostgreSQL JSON `->>`, and MySQL `#` comments while keeping Hive SQL as the primary target
+* Added the `sqlBeautify.*` configuration namespace while preserving `extension.*` compatibility
+* Added modern command aliases while preserving legacy `extension.*` command IDs
+* Hardened standard VS Code document/range formatting, multi-selection formatting, overlapping selection rejection, and edit failure reporting
+* Reworked `extractddl` SELECT item extraction to avoid INSERT target, CTE, string/comment, function comma, CASE string, and `a < b` comparison contamination
+* Clarified that `sqlddl` / `extractDdl` remain experimental Hive SQL features; `extractDdl` is a limited SELECT column extractor, not a full SQL parser, and does not infer real column types
+* Modernized test, CI, and local VSIX packaging with `npm ci`, project-local `@vscode/vsce` / `@types/vscode`, and the `^1.90.0` VS Code engine baseline
+* Updated VSIX packaging exclusions for `.github/`, tests, planning docs, `node_modules/`, and local `.vsix` artifacts
+* Added placeholder collision, dialect boundary, formatter API, module boundary, extension mock, config precedence, and DDL / extract DDL regression coverage to `npm run test:verify`
+
 ### 0.5.0 (2026/05/16)
 * 增强 token 边界保护，`/* ... */` 块注释、反引号标识符、反斜杠转义字符串和双单引号字符串不再被当作真实 SQL 结构重排或改写大小写
 * 修复 shield 占位符与用户 SQL 标识符冲突的问题，并保持独立行块注释不被并入上一行

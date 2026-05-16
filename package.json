@@ -2,13 +2,13 @@
 	"name": "vscode-sql-beautify",
 	"displayName": "SQL Beautify",
 	"description": "More Powerful extension that beautifies SQL/一键美化你的SQL",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"publisher": "clarkyu",
 	"maintainers": [
 		"IrvingYing224"
 	],
 	"engines": {
-		"vscode": "^1.5.0"
+		"vscode": "^1.90.0"
 	},
 	"keywords": [
 		"hive",
@@ -25,8 +25,11 @@
 		"onLanguage:sql",
 		"onLanguage:hive-sql",
 		"onCommand:extension.beautifySql",
+		"onCommand:sqlBeautify.formatSql",
 		"onCommand:extension.beautifySqlddl",
-		"onCommand:extension.extractDdl"
+		"onCommand:sqlBeautify.formatHiveDdl",
+		"onCommand:extension.extractDdl",
+		"onCommand:sqlBeautify.extractHiveDdl"
 	],
 	"repository": {
 		"type": "git",
@@ -40,12 +43,24 @@
 				"title": "Beautify SQL"
 			},
 			{
+				"command": "sqlBeautify.formatSql",
+				"title": "SQL Beautify: Format SQL"
+			},
+			{
 				"command": "extension.beautifySqlddl",
 				"title": "Beautify SQL DDL (Experimental)"
 			},
 			{
+				"command": "sqlBeautify.formatHiveDdl",
+				"title": "SQL Beautify: Format Hive DDL (Experimental)"
+			},
+			{
 				"command": "extension.extractDdl",
 				"title": "Extract DDL (Experimental)"
+			},
+			{
+				"command": "sqlBeautify.extractHiveDdl",
+				"title": "SQL Beautify: Extract Hive DDL (Experimental)"
 			}
 		],
 		"keybindings": [
@@ -134,21 +149,83 @@
 					"type": "number",
 					"default": 150,
 					"description": "Maximum code width for AS and trailing comment alignment. Explicit values override extension.as_loc_cnt. /AS 和行尾注释对齐的最大代码宽度；显式配置后优先于 extension.as_loc_cnt"
+				},
+				"sqlBeautify.keywordCase": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"upper",
+						"lower"
+					],
+					"default": "upper",
+					"description": "Keyword case for formatted SQL. /格式化后的 SQL 关键词大小写"
+				},
+				"sqlBeautify.commaStyle": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"leading",
+						"trailing"
+					],
+					"default": "leading",
+					"description": "Comma placement style. /逗号位置风格"
+				},
+				"sqlBeautify.indentStyle": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"tab",
+						"space"
+					],
+					"default": "tab",
+					"description": "Indentation style for formatted SQL. /格式化缩进风格"
+				},
+				"sqlBeautify.maxAlignWidth": {
+					"scope": "resource",
+					"type": "number",
+					"default": 150,
+					"minimum": 1,
+					"maximum": 500,
+					"description": "Maximum code width for AS and trailing comment alignment. /AS 和行尾注释对齐的最大代码宽度"
+				},
+				"sqlBeautify.caseWhenThenWrapLength": {
+					"scope": "resource",
+					"type": "number",
+					"default": 50,
+					"minimum": 1,
+					"maximum": 300,
+					"description": "Wrap threshold for CASE WHEN THEN and ELSE values. /CASE WHEN 中 THEN 和 ELSE 值的换行阈值"
+				},
+				"sqlBeautify.dialect": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"generic",
+						"hive",
+						"postgres",
+						"mysql"
+					],
+					"default": "generic",
+					"description": "Best-effort SQL dialect boundary handling. Hive remains the primary formatting target. /SQL 方言边界处理；Hive 仍是主要格式化目标"
 				}
 			}
 		}
 	},
 	"scripts": {
-		"postinstall": "node ./node_modules/vscode/bin/install",
 		"test:case": "node tests/case-when.test.js",
 		"test:comment": "node tests/comment-alignment.test.js",
 		"test:config": "node tests/config-options.test.js",
 		"test:ddl": "node tests/ddl-regression.test.js",
 		"test:extension": "node tests/extension-contribution.test.js",
 		"test:hive": "node tests/hive-regression.test.js",
+		"test:placeholder": "node tests/placeholder-collision.test.js",
+		"test:dialect": "node tests/dialect-boundary.test.js",
+		"test:api": "node tests/formatter-api.test.js",
+		"test:modules": "node tests/module-boundary.test.js",
 		"test:pipeline": "node tests/pipeline-idempotency.test.js",
 		"test:token": "node tests/token-boundary.test.js",
-		"test:verify": "node tests/comment-alignment.test.js && node tests/case-when.test.js && node tests/hive-regression.test.js && node tests/token-boundary.test.js && node tests/extension-contribution.test.js && node tests/config-options.test.js && node tests/pipeline-idempotency.test.js && node tests/ddl-regression.test.js"
+		"test:verify": "node tests/comment-alignment.test.js && node tests/case-when.test.js && node tests/hive-regression.test.js && node tests/token-boundary.test.js && node tests/placeholder-collision.test.js && node tests/dialect-boundary.test.js && node tests/formatter-api.test.js && node tests/module-boundary.test.js && node tests/extension-contribution.test.js && node tests/config-options.test.js && node tests/pipeline-idempotency.test.js && node tests/ddl-regression.test.js",
+		"package:vsix": "vsce package --out vscode-sql-beautify-v${npm_package_version}.vsix"
 	},
 	"vsce": {
 		"dependencies": false
@@ -157,6 +234,7 @@
 	"dependencies": {
 	},
 	"devDependencies": {
-		"vscode": "^0.11.0"
+		"@types/vscode": "^1.90.0",
+		"@vscode/vsce": "^3.2.2"
 	}
 }

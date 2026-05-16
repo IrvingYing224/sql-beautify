@@ -1,7 +1,10 @@
 .gitignore
 .codex
+.github/**
 AGENTS.md
+docs/**
 tests/**
-node_modules/**
 *.vsix
 *.vsixmanifest
+node_modules/**
+.DS_Store

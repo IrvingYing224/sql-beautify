@@ -28,37 +28,70 @@ function replaceTargetRanges(formatter) {
     }
 
     var ranges = getTargetRanges(editor);
+    ranges.sort(function(a, b) {
+        if (a.start.isBefore(b.start)) {
+            return -1;
+        }
+        if (b.start.isBefore(a.start)) {
+            return 1;
+        }
+        return 0;
+    });
+
+    for (var i = 1; i < ranges.length; i++) {
+        if (ranges[i - 1].end.isAfter(ranges[i].start)) {
+            vscode.window.showErrorMessage('SQL Beautify failed: overlapping selections are not supported.');
+            return;
+        }
+    }
 
     editor.edit(function(builder) {
-        for (var i = 0; i < ranges.length; i++) {
-            var range = ranges[i];
+        for (var j = 0; j < ranges.length; j++) {
+            var range = ranges[j];
             var text = editor.document.getText(range).toString();
             var formatted = tryFormat(formatter, text);
             if (formatted !== null) {
                 builder.replace(range, formatted);
             }
         }
+    }).then(function(success) {
+        if (!success) {
+            vscode.window.showErrorMessage('SQL Beautify failed: VS Code rejected the edit.');
+        }
     });
 }
 
 function getSqlFormatterConfig() {
-    var config = vscode.workspace.getConfiguration('extension');
+    var scopedConfig = vscode.workspace.getConfiguration('sqlBeautify');
+    var legacyConfig = vscode.workspace.getConfiguration('extension');
     var raw = {
-        keywordCase: config.get('keywordCase'),
-        commaStyle: config.get('commaStyle'),
-        indentStyle: config.get('indentStyle'),
-        maxAlignWidth: config.get('maxAlignWidth'),
-        uppercase: config.get('uppercase'),
-        comma_location: config.get('comma_location'),
-        bracket_char: config.get('bracket_char'),
-        as_loc_cnt: config.get('as_loc_cnt'),
-        case_when_then_wrap_length: config.get('case_when_then_wrap_length')
+        sqlKeywordCase: scopedConfig.get('keywordCase'),
+        sqlCommaStyle: scopedConfig.get('commaStyle'),
+        sqlIndentStyle: scopedConfig.get('indentStyle'),
+        sqlMaxAlignWidth: scopedConfig.get('maxAlignWidth'),
+        sqlCaseWhenThenWrapLength: scopedConfig.get('caseWhenThenWrapLength'),
+        sqlDialect: scopedConfig.get('dialect'),
+        keywordCase: legacyConfig.get('keywordCase'),
+        commaStyle: legacyConfig.get('commaStyle'),
+        indentStyle: legacyConfig.get('indentStyle'),
+        maxAlignWidth: legacyConfig.get('maxAlignWidth'),
+        uppercase: legacyConfig.get('uppercase'),
+        comma_location: legacyConfig.get('comma_location'),
+        bracket_char: legacyConfig.get('bracket_char'),
+        as_loc_cnt: legacyConfig.get('as_loc_cnt'),
+        case_when_then_wrap_length: legacyConfig.get('case_when_then_wrap_length')
     };
     var explicit = {
-        keywordCase: hasConfiguredValue(config, 'keywordCase'),
-        commaStyle: hasConfiguredValue(config, 'commaStyle'),
-        indentStyle: hasConfiguredValue(config, 'indentStyle'),
-        maxAlignWidth: hasConfiguredValue(config, 'maxAlignWidth')
+        sqlKeywordCase: hasConfiguredValue(scopedConfig, 'keywordCase'),
+        sqlCommaStyle: hasConfiguredValue(scopedConfig, 'commaStyle'),
+        sqlIndentStyle: hasConfiguredValue(scopedConfig, 'indentStyle'),
+        sqlMaxAlignWidth: hasConfiguredValue(scopedConfig, 'maxAlignWidth'),
+        sqlCaseWhenThenWrapLength: hasConfiguredValue(scopedConfig, 'caseWhenThenWrapLength'),
+        sqlDialect: hasConfiguredValue(scopedConfig, 'dialect'),
+        keywordCase: hasConfiguredValue(legacyConfig, 'keywordCase'),
+        commaStyle: hasConfiguredValue(legacyConfig, 'commaStyle'),
+        indentStyle: hasConfiguredValue(legacyConfig, 'indentStyle'),
+        maxAlignWidth: hasConfiguredValue(legacyConfig, 'maxAlignWidth')
     };
 
     return sqlRenderOptions.normalize(raw, explicit);
@@ -77,7 +110,6 @@ function hasConfiguredValue(config, key) {
     return typeof inspected.globalValue !== 'undefined'
         || typeof inspected.workspaceValue !== 'undefined'
         || typeof inspected.workspaceFolderValue !== 'undefined'
-        || typeof inspected.defaultLanguageValue !== 'undefined'
         || typeof inspected.globalLanguageValue !== 'undefined'
         || typeof inspected.workspaceLanguageValue !== 'undefined'
         || typeof inspected.workspaceFolderLanguageValue !== 'undefined';
@@ -105,7 +137,10 @@ function formatSql(text) {
         config.comma_location,
         config.bracket_char,
         config.as_loc_cnt,
-        config.case_when_then_wrap_length
+        config.case_when_then_wrap_length,
+        {
+            dialect: config.dialect
+        }
     );
 }
 
@@ -157,25 +192,37 @@ function activate(context) {
     // The command has been defined in the package.json file
     // Now provide the implementation of the command with  registerCommand
     // The commandId parameter must match the command field in package.json
-    var disposable = vscode.commands.registerCommand('extension.beautifySql', function () {
+    function runFormatSql() {
         replaceTargetRanges(formatSql);
-    });
+    }
 
-    var disposable2 = vscode.commands.registerCommand('extension.beautifySqlddl', function () {
+    function runFormatHiveDdl() {
         replaceTargetRanges(function(text) {
             return vkbeautify.sqlddl(text);
         });
-    });
+    }
 
-    var disposable3 = vscode.commands.registerCommand('extension.extractDdl', function () {
+    function runExtractHiveDdl() {
         replaceTargetRanges(function(text) {
             return vkbeautify.extractddl(text);
         });
-    });
+    }
+
+    var disposable = vscode.commands.registerCommand('extension.beautifySql', runFormatSql);
+    var disposableAlias = vscode.commands.registerCommand('sqlBeautify.formatSql', runFormatSql);
+
+    var disposable2 = vscode.commands.registerCommand('extension.beautifySqlddl', runFormatHiveDdl);
+    var disposable2Alias = vscode.commands.registerCommand('sqlBeautify.formatHiveDdl', runFormatHiveDdl);
+
+    var disposable3 = vscode.commands.registerCommand('extension.extractDdl', runExtractHiveDdl);
+    var disposable3Alias = vscode.commands.registerCommand('sqlBeautify.extractHiveDdl', runExtractHiveDdl);
 
     context.subscriptions.push(disposable);
+    context.subscriptions.push(disposableAlias);
     context.subscriptions.push(disposable2);
+    context.subscriptions.push(disposable2Alias);
     context.subscriptions.push(disposable3);
+    context.subscriptions.push(disposable3Alias);
     registerSqlFormattingProviders(context);
 }
 exports.activate = activate;

@@ -3,6 +3,7 @@ var fs = require('fs');
 var path = require('path');
 
 var packageJson = require('../package.json');
+var sqlRenderOptions = require('../lib/sql-render-options');
 var extensionSource = fs.readFileSync(path.join(__dirname, '..', 'extension.js'), 'utf8');
 var properties = packageJson.contributes.configuration.properties;
 
@@ -29,6 +30,15 @@ function assert_source_contains(name, pattern) {
 	'extension.maxAlignWidth'
 ].forEach(assert_property);
 
+[
+	'sqlBeautify.keywordCase',
+	'sqlBeautify.commaStyle',
+	'sqlBeautify.indentStyle',
+	'sqlBeautify.maxAlignWidth',
+	'sqlBeautify.caseWhenThenWrapLength',
+	'sqlBeautify.dialect'
+].forEach(assert_property);
+
 assert.deepStrictEqual(
 	properties['extension.keywordCase'].enum,
 	['upper', 'lower'],
@@ -48,26 +58,115 @@ assert.deepStrictEqual(
 );
 
 assert_source_contains(
-	'keywordCase must be read before legacy uppercase',
-	/config\.get\('keywordCase'\)[\s\S]+config\.get\('uppercase'\)/
+	'scoped sqlBeautify config must be read separately from legacy extension config',
+	/getConfiguration\('sqlBeautify'\)[\s\S]+getConfiguration\('extension'\)/
 );
 
 assert_source_contains(
 	'new config defaults must not silently override legacy user settings',
-	/hasConfiguredValue\(config, 'keywordCase'\)[\s\S]+hasConfiguredValue\(config, 'commaStyle'\)[\s\S]+hasConfiguredValue\(config, 'indentStyle'\)[\s\S]+hasConfiguredValue\(config, 'maxAlignWidth'\)[\s\S]+config\.inspect\(key\)/
+	/hasConfiguredValue\(scopedConfig, 'keywordCase'\)[\s\S]+hasConfiguredValue\(legacyConfig, 'keywordCase'\)[\s\S]+config\.inspect\(key\)/
 );
 
 assert_source_contains(
-	'commaStyle must be read before legacy comma_location',
-	/config\.get\('commaStyle'\)[\s\S]+config\.get\('comma_location'\)/
+	'default language value must not count as explicit user configuration',
+	/typeof inspected\.globalValue[\s\S]+workspaceFolderLanguageValue[\s\S]+;/
 );
 
-assert_source_contains(
-	'indentStyle must be read before legacy bracket_char',
-	/config\.get\('indentStyle'\)[\s\S]+config\.get\('bracket_char'\)/
+assert.ok(
+	!/defaultLanguageValue/.test(extensionSource),
+	'defaultLanguageValue must not count as explicit user configuration'
 );
 
-assert_source_contains(
-	'maxAlignWidth must be read before legacy as_loc_cnt',
-	/config\.get\('maxAlignWidth'\)[\s\S]+config\.get\('as_loc_cnt'\)/
+assert.deepStrictEqual(
+	sqlRenderOptions.normalize({
+		sqlKeywordCase: 'lower',
+		keywordCase: 'upper',
+		uppercase: true
+	}, {
+		sqlKeywordCase: true,
+		keywordCase: true
+	}).uppercase,
+	false,
+	'sqlBeautify.keywordCase explicit overrides legacy keywordCase and uppercase'
+);
+
+assert.deepStrictEqual(
+	sqlRenderOptions.normalize({
+		keywordCase: 'lower',
+		uppercase: true
+	}, {
+		keywordCase: true
+	}).uppercase,
+	false,
+	'extension.keywordCase explicit overrides extension.uppercase'
+);
+
+assert.deepStrictEqual(
+	sqlRenderOptions.normalize({
+		uppercase: false
+	}, {}).uppercase,
+	false,
+	'extension.uppercase fallback still works'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		sqlCommaStyle: 'trailing',
+		commaStyle: 'leading',
+		comma_location: false
+	}, {
+		sqlCommaStyle: true,
+		commaStyle: true
+	}).comma_location,
+	true,
+	'sqlBeautify.commaStyle explicit overrides legacy comma config'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		sqlIndentStyle: 'space',
+		indentStyle: 'tab',
+		bracket_char: false
+	}, {
+		sqlIndentStyle: true,
+		indentStyle: true
+	}).bracket_char,
+	true,
+	'sqlBeautify.indentStyle explicit overrides legacy indent config'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		sqlMaxAlignWidth: 999
+	}, {
+		sqlMaxAlignWidth: true
+	}).as_loc_cnt,
+	500,
+	'maxAlignWidth clamps to maximum'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		sqlMaxAlignWidth: -2
+	}, {
+		sqlMaxAlignWidth: true
+	}).as_loc_cnt,
+	1,
+	'maxAlignWidth clamps to minimum'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		sqlCaseWhenThenWrapLength: 999
+	}, {
+		sqlCaseWhenThenWrapLength: true
+	}).case_when_then_wrap_length,
+	300,
+	'caseWhenThenWrapLength clamps to maximum'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({}, {}).dialect,
+	'generic',
+	'dialect defaults to generic'
 );
