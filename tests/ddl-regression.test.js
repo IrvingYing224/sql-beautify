@@ -151,6 +151,12 @@ assert_extract_columns(
 	[/^\s*,?\s*a\s+BIGINT\b/im]
 );
 
+assert.strictEqual(
+	vkbeautify.extractddl("select concat(a,b), sum(c + d), case when x=1 then y else z end from t").trim(),
+	'',
+	'extract ddl must not guess column names for unsupported expressions without alias'
+);
+
 run_contains(
 	'ddl keeps complex type comma boundaries',
 	"create table t (props map<string,string> comment '属性', info struct<a:int,b:string> comment '结构')",

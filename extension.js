@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 var vscode = require('vscode');
 var vkbeautify = require('./vkbeautify');
+var sqlFormatter = require('./lib/sql-formatter');
 var sqlRenderOptions = require('./lib/sql-render-options');
 
 function getTargetRanges(editor) {
@@ -61,7 +62,11 @@ function replaceTargetRanges(formatter) {
     });
 }
 
-function getSqlFormatterConfig() {
+function getDocumentLanguageId(document) {
+    return document && document.languageId ? document.languageId : 'sql';
+}
+
+function getSqlFormatterConfig(document) {
     var scopedConfig = vscode.workspace.getConfiguration('sqlBeautify');
     var legacyConfig = vscode.workspace.getConfiguration('extension');
     var raw = {
@@ -79,7 +84,8 @@ function getSqlFormatterConfig() {
         comma_location: legacyConfig.get('comma_location'),
         bracket_char: legacyConfig.get('bracket_char'),
         as_loc_cnt: legacyConfig.get('as_loc_cnt'),
-        case_when_then_wrap_length: legacyConfig.get('case_when_then_wrap_length')
+        case_when_then_wrap_length: legacyConfig.get('case_when_then_wrap_length'),
+        documentLanguageId: getDocumentLanguageId(document)
     };
     var explicit = {
         sqlKeywordCase: hasConfiguredValue(scopedConfig, 'keywordCase'),
@@ -91,7 +97,8 @@ function getSqlFormatterConfig() {
         keywordCase: hasConfiguredValue(legacyConfig, 'keywordCase'),
         commaStyle: hasConfiguredValue(legacyConfig, 'commaStyle'),
         indentStyle: hasConfiguredValue(legacyConfig, 'indentStyle'),
-        maxAlignWidth: hasConfiguredValue(legacyConfig, 'maxAlignWidth')
+        maxAlignWidth: hasConfiguredValue(legacyConfig, 'maxAlignWidth'),
+        languageMode: true
     };
 
     return sqlRenderOptions.normalize(raw, explicit);
@@ -129,19 +136,8 @@ function tryFormat(formatter, text) {
     }
 }
 
-function formatSql(text) {
-    var config = getSqlFormatterConfig();
-    return vkbeautify.sql(
-        text,
-        config.uppercase,
-        config.comma_location,
-        config.bracket_char,
-        config.as_loc_cnt,
-        config.case_when_then_wrap_length,
-        {
-            dialect: config.dialect
-        }
-    );
+function formatSql(text, document) {
+    return sqlFormatter.format_sql(text, getSqlFormatterConfig(document));
 }
 
 function getFullDocumentRange(document) {
@@ -153,7 +149,9 @@ function registerSqlFormattingProviders(context) {
 
     var documentFormatter = vscode.languages.registerDocumentFormattingEditProvider(selector, {
         provideDocumentFormattingEdits: function(document) {
-            var formatted = tryFormat(formatSql, document.getText());
+            var formatted = tryFormat(function(text) {
+                return formatSql(text, document);
+            }, document.getText());
             if (formatted === null) {
                 return [];
             }
@@ -166,7 +164,9 @@ function registerSqlFormattingProviders(context) {
 
     var rangeFormatter = vscode.languages.registerDocumentRangeFormattingEditProvider(selector, {
         provideDocumentRangeFormattingEdits: function(document, range) {
-            var formatted = tryFormat(formatSql, document.getText(range));
+            var formatted = tryFormat(function(text) {
+                return formatSql(text, document);
+            }, document.getText(range));
             if (formatted === null) {
                 return [];
             }
@@ -193,7 +193,10 @@ function activate(context) {
     // Now provide the implementation of the command with  registerCommand
     // The commandId parameter must match the command field in package.json
     function runFormatSql() {
-        replaceTargetRanges(formatSql);
+        replaceTargetRanges(function(text) {
+            var editor = vscode.window.activeTextEditor;
+            return formatSql(text, editor && editor.document);
+        });
     }
 
     function runFormatHiveDdl() {

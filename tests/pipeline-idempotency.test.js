@@ -45,14 +45,16 @@ assert.deepStrictEqual(
 		maxAlignWidth: false
 	}),
 	{
-		uppercase: false,
-		comma_location: true,
-		bracket_char: true,
-		as_loc_cnt: 88,
-		case_when_then_wrap_length: 33,
-		dialect: 'generic'
+		keywordCase: 'lower',
+		commaStyle: 'trailing',
+		indentStyle: 'space',
+		maxAlignWidth: 88,
+		caseWhenThenWrapLength: 33,
+		dialect: 'generic',
+		languageMode: 'sql',
+		unsupportedSyntaxPolicy: 'preserve'
 	},
-	'legacy options remain effective when new options are not explicitly configured'
+	'legacy options remain effective when new options are not explicitly configured through canonical normalization'
 );
 
 assert.deepStrictEqual(
@@ -73,6 +75,29 @@ assert.deepStrictEqual(
 		maxAlignWidth: true
 	}),
 	{
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'tab',
+		maxAlignWidth: 120,
+		caseWhenThenWrapLength: 33,
+		dialect: 'generic',
+		languageMode: 'sql',
+		unsupportedSyntaxPolicy: 'preserve'
+	},
+	'new options override legacy options when explicitly configured'
+);
+
+assert.deepStrictEqual(
+	sqlRenderOptions.to_legacy({
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'tab',
+		maxAlignWidth: 120,
+		caseWhenThenWrapLength: 33,
+		dialect: 'generic',
+		languageMode: 'sql'
+	}),
+	{
 		uppercase: true,
 		comma_location: false,
 		bracket_char: false,
@@ -80,7 +105,7 @@ assert.deepStrictEqual(
 		case_when_then_wrap_length: 33,
 		dialect: 'generic'
 	},
-	'new options override legacy options when explicitly configured'
+	'canonical options can be bridged back to the current legacy formatter inputs during migration'
 );
 
 assert.strictEqual(

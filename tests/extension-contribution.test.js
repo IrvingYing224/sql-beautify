@@ -4,6 +4,7 @@ var Module = require('module');
 var path = require('path');
 
 var packageJson = require('../package.json');
+var sqlFormatter = require('../lib/sql-formatter');
 var extensionSource = fs.readFileSync(path.join(__dirname, '..', 'extension.js'), 'utf8');
 
 function command_ids() {
@@ -279,8 +280,59 @@ async function run_mock_tests() {
 	assert.strictEqual(typeof vscodeMock.commandsById['sqlBeautify.extractHiveDdl'], 'function', 'activate must register new Extract DDL command alias');
 
 	var vkbeautify = require('../vkbeautify');
-	var originalSql = vkbeautify.sql;
-	vkbeautify.sql = function() {
+	var originalFormatSql = sqlFormatter.format_sql;
+	var originalDdl = vkbeautify.sqlddl;
+	var originalExtract = vkbeautify.extractddl;
+	var sqlCalls = [];
+	var ddlCalls = 0;
+	var extractCalls = 0;
+	sqlFormatter.format_sql = function(text, options) {
+		sqlCalls.push({
+			text: text,
+			options: options
+		});
+		return originalFormatSql(text, options);
+	};
+	vkbeautify.sqlddl = function(text) {
+		ddlCalls += 1;
+		return originalDdl(text);
+	};
+	vkbeautify.extractddl = function(text) {
+		extractCalls += 1;
+		return originalExtract(text);
+	};
+
+	var hiveDocument = create_document('select a from t');
+	hiveDocument.languageId = 'hive-sql';
+	vscodeMock.documentProvider.provideDocumentFormattingEdits(hiveDocument);
+	assert.strictEqual(sqlCalls[0].options.dialect, 'hive', 'hive-sql document formatter must use hive dialect by default');
+
+	var sqlEditor = create_editor('select a from t', [
+		new vscodeMock.Range(create_position(0), create_position(15))
+	], true);
+	sqlEditor.document.languageId = 'hive-sql';
+	vscodeMock.window.activeTextEditor = sqlEditor;
+	vscodeMock.commandsById['extension.beautifySql']();
+	await Promise.resolve();
+	assert.strictEqual(sqlCalls[1].options.dialect, 'hive', 'beautifySql command path must match provider hive dialect default');
+
+	var ddlEditor = create_editor('create table t (id bigint)', [
+		new vscodeMock.Range(create_position(0), create_position(26))
+	], true);
+	vscodeMock.window.activeTextEditor = ddlEditor;
+	vscodeMock.commandsById['extension.beautifySqlddl']();
+	await Promise.resolve();
+	assert.strictEqual(ddlCalls, 1, 'DDL command path must invoke the same sqlddl formatter entry');
+
+	var extractEditor = create_editor('select a as id from t', [
+		new vscodeMock.Range(create_position(0), create_position(21))
+	], true);
+	vscodeMock.window.activeTextEditor = extractEditor;
+	vscodeMock.commandsById['extension.extractDdl']();
+	await Promise.resolve();
+	assert.strictEqual(extractCalls, 1, 'Extract DDL command path must invoke the same extractddl formatter entry');
+
+	sqlFormatter.format_sql = function() {
 		throw new Error('mock formatter failure');
 	};
 	var edits = vscodeMock.documentProvider.provideDocumentFormattingEdits(create_document('select a'));
@@ -288,7 +340,9 @@ async function run_mock_tests() {
 	assert.ok(vscodeMock.errors.some(function(message) {
 		return /mock formatter failure/.test(message);
 	}), 'formatter failure must call showErrorMessage');
-	vkbeautify.sql = originalSql;
+	sqlFormatter.format_sql = originalFormatSql;
+	vkbeautify.sqlddl = originalDdl;
+	vkbeautify.extractddl = originalExtract;
 
 	vscodeMock.errors = [];
 	var overlappingEditor = create_editor('select abc', [

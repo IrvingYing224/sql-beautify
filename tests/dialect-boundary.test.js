@@ -43,4 +43,53 @@ assert_not_contains(
     'postgres'
 );
 
+assert_contains(
+    'MySQL null-safe equality operator keeps <=> token',
+    'select a<=>b from t where c<=>d',
+    'a <=> b',
+    'mysql'
+);
+
+assert_not_contains(
+    'MySQL null-safe equality operator is not split into <= and >',
+    'select a<=>b from t where c<=>d',
+    '<= >',
+    'mysql'
+);
+
+assert_contains(
+    'WITH RECURSIVE keeps recursive keyword under keyword casing',
+    'with recursive cte as (select 1 as n) select * from cte',
+    'WITH RECURSIVE cte AS',
+    'generic'
+);
+
+assert_contains(
+    'VALUES keyword is uppercased under keyword casing',
+    'values (1,2),(3,4)',
+    'VALUES',
+    'generic'
+);
+
+assert_contains(
+    'QUALIFY is treated as a keyword in postgres mode',
+    'select sum(x) over(partition by a) as s from t qualify s>1',
+    'QUALIFY',
+    'postgres'
+);
+
+assert_contains(
+    'PostgreSQL cast and JSON operators keep canonical operator text',
+    "select payload::json->>'name' #>> '{a,b}' from t",
+    "payload::json->>'name' #>> '{a,b}'",
+    'postgres'
+);
+
+assert_not_contains(
+    'PostgreSQL #>> operator is not split by spacing normalization',
+    "select payload::json->>'name' #>> '{a,b}' from t",
+    '# >  >',
+    'postgres'
+);
+
 console.log('dialect boundary tests passed');

@@ -85,8 +85,8 @@ assert.deepStrictEqual(
 	}, {
 		sqlKeywordCase: true,
 		keywordCase: true
-	}).uppercase,
-	false,
+	}).keywordCase,
+	'lower',
 	'sqlBeautify.keywordCase explicit overrides legacy keywordCase and uppercase'
 );
 
@@ -96,16 +96,16 @@ assert.deepStrictEqual(
 		uppercase: true
 	}, {
 		keywordCase: true
-	}).uppercase,
-	false,
+	}).keywordCase,
+	'lower',
 	'extension.keywordCase explicit overrides extension.uppercase'
 );
 
 assert.deepStrictEqual(
 	sqlRenderOptions.normalize({
 		uppercase: false
-	}, {}).uppercase,
-	false,
+	}, {}).keywordCase,
+	'lower',
 	'extension.uppercase fallback still works'
 );
 
@@ -117,8 +117,8 @@ assert.strictEqual(
 	}, {
 		sqlCommaStyle: true,
 		commaStyle: true
-	}).comma_location,
-	true,
+	}).commaStyle,
+	'trailing',
 	'sqlBeautify.commaStyle explicit overrides legacy comma config'
 );
 
@@ -130,8 +130,8 @@ assert.strictEqual(
 	}, {
 		sqlIndentStyle: true,
 		indentStyle: true
-	}).bracket_char,
-	true,
+	}).indentStyle,
+	'space',
 	'sqlBeautify.indentStyle explicit overrides legacy indent config'
 );
 
@@ -140,7 +140,7 @@ assert.strictEqual(
 		sqlMaxAlignWidth: 999
 	}, {
 		sqlMaxAlignWidth: true
-	}).as_loc_cnt,
+	}).maxAlignWidth,
 	500,
 	'maxAlignWidth clamps to maximum'
 );
@@ -150,7 +150,7 @@ assert.strictEqual(
 		sqlMaxAlignWidth: -2
 	}, {
 		sqlMaxAlignWidth: true
-	}).as_loc_cnt,
+	}).maxAlignWidth,
 	1,
 	'maxAlignWidth clamps to minimum'
 );
@@ -160,7 +160,7 @@ assert.strictEqual(
 		sqlCaseWhenThenWrapLength: 999
 	}, {
 		sqlCaseWhenThenWrapLength: true
-	}).case_when_then_wrap_length,
+	}).caseWhenThenWrapLength,
 	300,
 	'caseWhenThenWrapLength clamps to maximum'
 );
@@ -169,4 +169,47 @@ assert.strictEqual(
 	sqlRenderOptions.normalize({}, {}).dialect,
 	'generic',
 	'dialect defaults to generic'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		documentLanguageId: 'hive-sql'
+	}, {
+		languageMode: true
+	}).dialect,
+	'hive',
+	'hive-sql language mode should default to hive dialect'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		documentLanguageId: 'hive-sql',
+		sqlDialect: 'postgres'
+	}, {
+		sqlDialect: true,
+		languageMode: true
+	}).dialect,
+	'postgres',
+	'explicit dialect must override language-mode default'
+);
+
+assert.deepStrictEqual(
+	sqlRenderOptions.to_legacy({
+		keywordCase: 'lower',
+		commaStyle: 'trailing',
+		indentStyle: 'space',
+		maxAlignWidth: 88,
+		caseWhenThenWrapLength: 33,
+		dialect: 'hive',
+		languageMode: 'hive-sql'
+	}),
+	{
+		uppercase: false,
+		comma_location: true,
+		bracket_char: true,
+		as_loc_cnt: 88,
+		case_when_then_wrap_length: 33,
+		dialect: 'hive'
+	},
+	'canonical options must be convertible to the current legacy formatter bridge'
 );
