@@ -51,4 +51,51 @@ assert.strictEqual(
 	'unsupported complex expressions without alias must be skipped entirely'
 );
 
+var unionConsistent = vkbeautify.extractddl([
+	'select a as id -- ID from first branch',
+	'from t1',
+	'union all',
+	'select b as id -- ID from second branch',
+	'from t2'
+].join('\n'));
+assert_contains(
+	'extractddl supports consistent UNION branches',
+	unionConsistent,
+	['id', 'COMMENT "ID from first branch"']
+);
+
+var subqueryUnion = vkbeautify.extractddl([
+	'select x.id -- outer id',
+	'from (',
+	'select a as id from t1',
+	'union all',
+	'select b as id from t2',
+	') x'
+].join('\n'));
+assert_contains(
+	'extractddl ignores set operators inside subqueries when splitting branches',
+	subqueryUnion,
+	['id', 'COMMENT "outer id"']
+);
+
+var unionMismatch = vkbeautify.extractddl([
+	'select a as first_id -- first',
+	'from t1',
+	'union all',
+	'select b as second_id -- second',
+	'from t2'
+].join('\n'));
+assert.strictEqual(
+	unionMismatch.trim(),
+	'',
+	'extractddl must reject inconsistent UNION branch schemas instead of returning the final branch'
+);
+
+var escapedComment = vkbeautify.extractddl('select a as display_name -- user "display" name\nfrom t');
+assert_contains(
+	'extractddl escapes double quotes inside generated comment literal',
+	escapedComment,
+	['display_name BIGINT COMMENT "user \\"display\\" name"']
+);
+
 console.log('extractddl safety tests passed');

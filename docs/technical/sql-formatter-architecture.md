@@ -39,6 +39,10 @@ flowchart LR
 - Output whitespace contract: preserve at most one user blank line between logical blocks, normalize line endings to LF, and emit exactly one trailing newline.
 - Range formatting contract: only whole-line, clause-safe, structurally balanced fragments are formatted; unsafe fragments are rejected rather than speculatively rewritten.
 
+## Shared Format Model
+
+`lib/core/sql-format-model.js` provides reusable line-level facts for passes that need code/comment split, parenthesis delta, and CASE balance. It does not replace the tokenizer and must not become a mutable global cache. The model exists to reduce repeated tokenization and prevent comment / condition / layout passes from deriving conflicting facts from the same line.
+
 ## Verification Contract
 
 - `tests/module-boundary.test.js` checks the live core source graph for forbidden legacy markers and dependency direction.
@@ -48,13 +52,20 @@ flowchart LR
 
 ## Unsupported Policy
 
-The formatter is not a full SQL parser. When confidence is low, preserve syntax through token shielding or opaque protection rather than performing speculative rewrites. Experimental DDL should remain clearly labeled and tested separately.
+Unsupported syntax detection has two inputs:
+
+- Opaque protection for constructs whose body must not be rewritten.
+- A lightweight syntax risk detector for known dialect mismatches or known unmodeled constructs.
+
+This is still not a full parser. The policy means "known low-confidence syntax", not "every possible unsupported SQL grammar form". Opaque constructs must be preserved through shielding before broad rewrites; detector-only findings are context-aware and are reported without implying that every detected fragment was isolated as an opaque preserved segment. Experimental DDL should remain clearly labeled and tested separately.
+
+Detector findings must not be based on word value alone. Keyword-shaped identifiers, aliases, and expression function names such as `qualify`, `merge`, or `pivot` are valid formatter inputs unless they appear at a recognized clause or table-construct boundary. Clause splitting follows the same rule so a `SELECT qualify AS c` list item is not rewritten into a `QUALIFY` clause.
 
 `unsupportedSyntaxPolicy` currently supports:
 
-- `preserve`: keep unsupported syntax opaque and continue formatting around it
-- `warn`: keep unsupported syntax opaque, continue formatting around it, and emit a runtime warning through the adapter diagnostics path
-- `bail_out`: abort formatting when unsupported protected syntax is detected
+- `preserve`: keep protected opaque syntax intact, record detected low-confidence syntax, and continue formatting around it
+- `warn`: keep formatting behavior, and emit a runtime warning through the adapter diagnostics path; the warning does not imply every detected fragment was opaque-preserved
+- `bail_out`: abort formatting when known low-confidence syntax is detected
 
 ## Diagnostics Contract
 

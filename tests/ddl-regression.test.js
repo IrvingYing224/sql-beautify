@@ -170,4 +170,46 @@ run_contains(
 	]
 );
 
+run_contains(
+	'ddl keeps comma inside backtick column name',
+	"create table t (`a,b` string comment 'x', c int comment 'y')",
+	[
+		'`a,b`',
+		"STRING COMMENT 'x'",
+		'c',
+		"INT    COMMENT 'y'"
+	]
+);
+
+run_contains(
+	'ddl keeps nested complex type with backtick field names',
+	"create table t (info struct<`a,b`:string,c:int> comment '结构')",
+	[
+		'info',
+		'STRUCT<`a,b`:STRING,c:INT>',
+		"COMMENT '结构'"
+	]
+);
+
+run_contains(
+	'ddl preserves backtick field names during type normalization',
+	"create table t (info struct<`string`:string,`a, b`:string> comment '结构')",
+	[
+		'info',
+		'STRUCT<`string`:STRING,`a, b`:STRING>',
+		"COMMENT '结构'"
+	]
+);
+
+run_contains(
+	'ddl ignores close paren inside backtick column name',
+	"create table t (`a)b` string comment 'x', c int comment 'y')",
+	[
+		'`a)b`',
+		"STRING COMMENT 'x'",
+		'c',
+		"INT    COMMENT 'y'"
+	]
+);
+
 console.log('ddl regression tests passed');

@@ -36,8 +36,42 @@ jobs:
         run: npm run test:verify
 
       - name: Package VSIX
-        if: github.event_name == 'workflow_dispatch'
         run: npm run package:vsix
+
+      - name: Guard release branch
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Formal VSIX release must be built from main. Current ref: ${{ github.ref }}"
+          exit 1
+
+      - name: Read package version
+        if: github.event_name == 'workflow_dispatch'
+        id: package
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release tag target
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          tag="v${VERSION}"
+          tag_ref="refs/tags/${tag}"
+          peeled_ref="${tag_ref}^{}"
+          remote_refs="$(git ls-remote --tags origin "${tag_ref}" "${peeled_ref}")"
+          remote_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${peeled_ref}" '$2 == ref {print $1; exit}')"
+          if [ -z "${remote_sha}" ]; then
+            remote_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${tag_ref}" '$2 == ref {print $1; exit}')"
+          fi
+          if [ -n "${remote_sha}" ]; then
+            current_sha="$(git rev-parse HEAD)"
+            if [ "${remote_sha}" != "${current_sha}" ]; then
+              echo "Existing tag ${tag} resolves to ${remote_sha}, but current HEAD is ${current_sha}."
+              exit 1
+            fi
+          fi
 
       - name: Upload VSIX artifact
         if: github.event_name == 'workflow_dispatch'
@@ -46,13 +80,6 @@ jobs:
           name: vscode-sql-beautify-vsix
           path: "*.vsix"
           if-no-files-found: error
-
-      - name: Read package version
-        if: github.event_name == 'workflow_dispatch'
-        id: package
-        run: |
-          version=$(node -p "require('./package.json').version")
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Create or update GitHub Release
         if: github.event_name == 'workflow_dispatch'

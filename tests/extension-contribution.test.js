@@ -165,6 +165,7 @@ function create_vscode_mock() {
 		commandsById: {},
 		documentProvider: null,
 		rangeProvider: null,
+		configScopes: [],
 		errors: [],
 		warnings: [],
 		editCalls: 0,
@@ -178,7 +179,8 @@ function create_vscode_mock() {
 			}
 		},
 		workspace: {
-			getConfiguration: function() {
+			getConfiguration: function(section, scope) {
+				mock.configScopes.push({ section: section, scope: scope });
 				return {
 					get: function(key) {
 						var defaults = {
@@ -324,8 +326,15 @@ async function run_mock_tests() {
 
 	var hiveDocument = create_document('select a from t');
 	hiveDocument.languageId = 'hive-sql';
+	hiveDocument.uri = { fsPath: '/workspace/a.sql' };
 	vscodeMock.documentProvider.provideDocumentFormattingEdits(hiveDocument);
 	assert.strictEqual(sqlCalls[0].options.dialect, 'hive', 'hive-sql document formatter must use hive dialect by default');
+	assert.ok(
+		vscodeMock.configScopes.some(function(item) {
+			return item.section == 'sqlBeautify' && item.scope == hiveDocument.uri;
+		}),
+		'VS Code config must be read with document.uri scope'
+	);
 
 	var sqlEditor = create_editor('select a from t', [
 		new vscodeMock.Range(create_position(0), create_position(15))
@@ -362,6 +371,14 @@ async function run_mock_tests() {
 	assert.ok(vscodeMock.errors.some(function(message) {
 		return /unsafe range formatting fragment/.test(message);
 	}), 'unsafe range fragment must show an error message');
+
+	var cteDocument = create_document('with s as (select a from t)\nselect a from s\n');
+	cteDocument.languageId = 'sql';
+	var cteEdits = vscodeMock.rangeProvider.provideDocumentRangeFormattingEdits(
+		cteDocument,
+		new vscodeMock.Range(create_position(0), create_position(cteDocument.text.length))
+	);
+	assert.strictEqual(cteEdits.length, 1, 'complete CTE range should be accepted by VS Code range formatter');
 
 	vscodeMock.errors = [];
 	var unsafeCommandEditor = create_editor('select a,\n b\nfrom t', [

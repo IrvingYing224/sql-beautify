@@ -5,6 +5,24 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.5.5 (2026/05/17)
+* 修复 Hive DDL 字段拆分对反引号列名、复杂类型逗号、括号和尖括号的边界处理，避免 `` `a,b` ``、`` `a)b` ``、`MAP<STRING,STRING>`、`STRUCT<...>` 等结构被拆坏
+* 增强 `extractddl` 的顶层 `UNION` / `UNION ALL` 处理：字段形状一致时提取 schema，不一致时返回空，避免输出误导性字段；生成的 Hive `COMMENT` 字面量现在会转义双引号、反斜杠和换行
+* 允许完整 `WITH` / `WITH RECURSIVE` 选区格式化，同时继续拒绝非整行、结构不完整和 continuation-only 片段
+* 修复 VS Code 配置读取未绑定文档 URI 的问题，多工作区和 resource-scoped `sqlBeautify.*` 设置现在按目标文档解析
+* 收紧 `unsupportedSyntaxPolicy` 的可见语义：新增轻量低置信语法检测，`QUALIFY` / `PIVOT` / `MERGE` 等只在真实语法上下文触发，不再误杀普通字段名、别名或 `WHERE` 表达式函数
+* 引入 shared format model，减少 comment / condition / layout pass 的重复 tokenization，并新增 performance smoke 作为主回归的一部分
+* 加固 GitHub Actions VSIX workflow：PR / main push 也执行打包 smoke，手动 release 限制在 `main`，并校验已有 tag target，兼容 annotated tag 和 lightweight tag
+* 更新 README 的 experimental 边界说明、formatter 架构文档、生成的 support matrix 和相关回归覆盖
+* Fixed Hive DDL field splitting around backtick identifiers, commas inside complex types, parentheses, and angle brackets so structures such as `` `a,b` ``, `` `a)b` ``, `MAP<STRING,STRING>`, and `STRUCT<...>` are preserved
+* Improved `extractddl` for top-level `UNION` / `UNION ALL`: consistent branch shapes are extracted, mismatched schemas return empty output, and generated Hive `COMMENT` literals now escape quotes, backslashes, and newlines
+* Allowed complete `WITH` / `WITH RECURSIVE` range formatting while continuing to reject partial-line, structurally incomplete, and continuation-only fragments
+* Fixed VS Code configuration lookup to use the target document URI so multi-root and resource-scoped `sqlBeautify.*` settings resolve correctly
+* Tightened `unsupportedSyntaxPolicy` semantics with a lightweight low-confidence syntax detector; `QUALIFY`, `PIVOT`, and `MERGE` now trigger only in real syntax contexts instead of ordinary identifiers, aliases, or `WHERE` expression functions
+* Added a shared format model to reduce repeated tokenization across comment, condition, and layout passes, plus a performance smoke check in the main regression suite
+* Hardened the GitHub Actions VSIX workflow so PR / main push runs packaging smoke, manual releases are limited to `main`, and existing tag targets are validated for both annotated and lightweight tags
+* Updated README experimental boundaries, formatter architecture docs, the generated support matrix, and focused regression coverage
+
 ### 0.5.3 (2026/05/17)
 * Breaking cleanup：移除全部旧 `extension.*` 配置项，VS Code 侧只保留 `sqlBeautify.*`
 * `unsupportedSyntaxPolicy=warn` 现在具有真实行为：保留未建模片段并通过 VS Code warning 暴露诊断

@@ -62,6 +62,8 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 
 `Extract Hive DDL (Experimental)` 适合从常规 `SELECT` / `INSERT SELECT` 字段列表生成 DDL 草稿。
 
+它支持高置信的顶层 `UNION` / `UNION ALL` 分支提取；只有分支字段形状一致时才会生成 DDL，不一致时会跳过，避免输出误导性 schema。生成的字段注释会转义为 Hive 兼容字符串字面量。
+
 它不会推断真实字段类型；复杂表达式、非 Hive 语法、未加别名的表达式或复杂列推断场景，请人工复核输出。
 
 ## 简洁风险提示

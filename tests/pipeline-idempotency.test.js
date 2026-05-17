@@ -2,6 +2,7 @@ var assert = require('assert');
 var sqlShield = require('../lib/sql-shield');
 var sqlRenderOptions = require('../lib/sql-render-options');
 var sqlFormatPipeline = require('../lib/sql-format-pipeline');
+var sqlFormatModel = require('../lib/core/sql-format-model');
 var vkbeautify = require('../vkbeautify');
 var sqlFormatter = require('../lib/sql-formatter');
 
@@ -99,6 +100,17 @@ assert.strictEqual(
 	'SELECT A',
 	'format pipeline must run passes in order'
 );
+
+var modeled = sqlFormatModel.from_text([
+	'select a -- keep',
+	'from t',
+	'where x=(1 + 2) and y=2'
+].join('\n'), { dialect: 'generic' });
+
+assert.strictEqual(modeled.lines.length, 3, 'format model must preserve line count');
+assert.strictEqual(modeled.lines[0].comment, '-- keep', 'format model must expose trailing comments');
+assert.strictEqual(modeled.lines[0].hasTrailingComment, true, 'format model must expose trailing comment state');
+assert.strictEqual(modeled.lines[2].parenDelta, 0, 'format model must expose paren delta');
 
 var idempotentInput = [
 	"select `MiXeD From` as ident_name,",

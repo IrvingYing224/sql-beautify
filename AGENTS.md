@@ -57,10 +57,17 @@ SQL / Hive SQL 格式化核心已经重构为 `core / adapters / experimental` �
 
 ## 经验规则：DDL 能力按 experimental 隔离
 - 触发信号：修改 `sqlddl`、`extractddl`、`extension.beautifySqlddl`、`extension.extractDdl`、DDL 文档或 DDL 测试。
-- 根因 / 约束：当前 DDL 逻辑不是完整 SQL parser，只能覆盖 Hive DDL 的有限格式化和提取场景；复杂类型、注释文本、嵌套尖括号和括号内逗号很容易被简单逗号拆分破坏。
-- 正确做法：保持 `sqlddl` / `extractDdl` 为 Hive DDL experimental，不把它描述为通用 DDL parser；修复时优先修改 `lib/experimental/ddl/`，至少按字符串、括号深度和尖括号深度拆分顶层逗号，不为产品未定义的高级 DDL 能力臆造实现。
-- 验证方法：运行 `node tests/ddl-regression.test.js` 和 `npm run test:verify`；必须覆盖 `DECIMAL(18,2)`、`ARRAY<STRING>`、`MAP<STRING,STRING>`、`STRUCT<...>`、`COMMENT` 内含逗号，以及 `extractddl` 的 insert target、CTE、字符串内 `--`、CASE 字符串、函数参数逗号、`a < b` 比较表达式和复杂类型逗号场景。
+- 根因 / 约束：当前 DDL 逻辑不是完整 SQL parser，只能覆盖 Hive DDL 的有限格式化和提取场景；复杂类型、注释文本、反引号字段名、嵌套尖括号和括号内逗号很容易被简单逗号拆分或全局 regex normalize 破坏。
+- 正确做法：保持 `sqlddl` / `extractDdl` 为 Hive DDL experimental，不把它描述为通用 DDL parser；修复时优先修改 `lib/experimental/ddl/`，至少按字符串、反引号标识符、括号深度和尖括号深度拆分顶层逗号；类型 normalize 只能改写 quoted identifier / string literal 外部的类型关键字和分隔符空白，不为产品未定义的高级 DDL 能力臆造实现。
+- 验证方法：运行 `node tests/ddl-regression.test.js` 和 `npm run test:verify`；必须覆盖 `DECIMAL(18,2)`、`ARRAY<STRING>`、`MAP<STRING,STRING>`、`STRUCT<...>`、反引号列名 / 字段名中的逗号、右括号和类型关键字、`COMMENT` 内含逗号，以及 `extractddl` 的 insert target、CTE、字符串内 `--`、CASE 字符串、函数参数逗号、`a < b` 比较表达式和复杂类型逗号场景。
 - 适用范围：所有 DDL / Extract DDL formatter、命令贡献、README/CHANGELOG 中 DDL 能力说明相关改动。
+
+## 经验规则：低置信语法检测必须验证真实上下文
+- 触发信号：修改 `unsupportedSyntaxPolicy`、`lib/core/sql-syntax-risk-detector.js`、`lib/core/sql-clause-splitter.js`、`lib/core/sql-clause-registry.js`、dialect capability 或新增未建模 SQL 结构时。
+- 根因 / 约束：`QUALIFY`、`PIVOT`、`MERGE` 等词也可能是普通字段名、别名或表达式函数名；如果只按单词值判断 unsupported 或 clause split，会把 `SELECT qualify AS c`、`WHERE qualify = 1`、`WHERE x = pivot(y)` 等合法输入误拒绝或静默改写。
+- 正确做法：低置信语法检测和 clause splitting 必须同时验证前后 token、当前 SELECT/FROM/WHERE 等 clause 上下文、括号深度和真实 construct 边界；opaque 结构才走保护，detector-only 诊断不能声称内容一定被 opaque preserved。
+- 验证方法：运行 `node tests/unsupported-safety.test.js`、`node tests/dialect-boundary.test.js` 和 `npm run test:verify`；必须同时覆盖普通 identifier / alias / WHERE expression function 不触发 `bail_out`，以及真实 `QUALIFY` clause、`PIVOT` table construct、`MATCH_RECOGNIZE(...)` 仍按策略拒绝、警告或保护。
+- 适用范围：所有 unsupported policy、dialect-specific clause、clause registry、clause splitter、support matrix 和 diagnostics 文案相关改动。
 
 ## 经验规则：root lib shim 只做兼容导出
 - 触发信号：修改 `lib/sql-*.js`、`lib/sql-canonical-options.js` 或调整模块路径时。

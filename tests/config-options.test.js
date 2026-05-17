@@ -42,7 +42,12 @@ function assert_source_contains(name, pattern) {
 
 assert_source_contains(
 	'VS Code config adapter must only read sqlBeautify configuration namespace',
-	/getConfiguration\('sqlBeautify'\)/
+	/getConfiguration\('sqlBeautify'/
+);
+
+assert_source_contains(
+	'VS Code config adapter must read sqlBeautify configuration with document scope',
+	/getConfiguration\('sqlBeautify',\s*document\s*&&\s*document\.uri\)/
 );
 
 assert_source_contains(

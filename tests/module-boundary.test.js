@@ -72,6 +72,17 @@ assert.strictEqual(typeof sqlDdlFormatter.ddl, 'function', 'DDL formatter must e
 assert.strictEqual(typeof sqlDdlFormatter.extractddl, 'function', 'DDL formatter must export extractddl');
 assert.strictEqual(typeof ''.times, 'undefined', 'formatter modules must not pollute String.prototype');
 
+var ddlFormatSource = read_source('lib/experimental/ddl/sql-ddl-format.js');
+assert.ok(
+	/split_top_level_items/.test(ddlFormatSource),
+	'experimental DDL formatter must reuse token-aware top-level splitter'
+);
+assert.strictEqual(
+	/function\s+split_ddl_items[\s\S]+quote\s*=/.test(ddlFormatSource),
+	false,
+	'experimental DDL formatter must not maintain a private quote-scanning splitter'
+);
+
 var liveFormatterSources = collect_live_formatter_sources('lib/sql-formatter.js');
 var formatterSource = liveFormatterSources['lib/core/sql-formatter.js'] || liveFormatterSources['lib/sql-formatter.js'];
 var lexicalNormalizerSource = liveFormatterSources['lib/core/sql-lexical-normalizer.js'] || liveFormatterSources['lib/sql-lexical-normalizer.js'];
@@ -117,6 +128,10 @@ var forbiddenLiveFormatterPatterns = [
 assert.ok(
 	conditionFormatterSource,
 	'live formatter dependency graph must include sql-condition-formatter so indirect condition_wrap calls are checked'
+);
+assert.ok(
+	combinedLiveFormatterSource.indexOf('sql-format-model') >= 0,
+	'live formatter graph should include shared format model after pipeline coupling cleanup'
 );
 Object.keys(liveFormatterSources).forEach(function(relative_path) {
 	assert.strictEqual(

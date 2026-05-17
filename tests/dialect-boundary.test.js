@@ -87,6 +87,20 @@ assert_contains(
 );
 
 assert_contains(
+    'QUALIFY-shaped SELECT list identifier is not split as a clause in postgres mode',
+    'select qualify as c from t',
+    'SELECT  QUALIFY AS c',
+    'postgres'
+);
+
+assert_not_contains(
+    'QUALIFY-shaped SELECT list identifier does not create a standalone clause in postgres mode',
+    'select qualify as c from t',
+    'SELECT\nQUALIFY AS c',
+    'postgres'
+);
+
+assert_contains(
     'PostgreSQL cast and JSON operators keep canonical operator text',
     "select payload::json->>'name' #>> '{a,b}' from t",
     "payload::json->>'name' #>> '{a,b}'",

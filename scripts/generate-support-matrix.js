@@ -50,8 +50,8 @@ function render_operator_table() {
 
 function render_dialect_table() {
     var lines = [
-        '| Dialect | Dollar quoted strings | Hash line comments | PostgreSQL JSON operators | Clauses | Operators |',
-        '| --- | --- | --- | --- | --- | --- |'
+        '| Dialect | Dollar quoted strings | Hash line comments | PostgreSQL JSON operators | Clauses | Operators | Known low-confidence syntax |',
+        '| --- | --- | --- | --- | --- | --- | --- |'
     ];
 
     DIALECTS.forEach(function(dialect) {
@@ -62,11 +62,33 @@ function render_dialect_table() {
             yes_no(capabilities.hashLineComments),
             yes_no(capabilities.postgresJsonOperators),
             String(capabilities.clauseRegistry.length),
-            String(Object.keys(capabilities.operatorLookup).length) + ' |'
+            String(Object.keys(capabilities.operatorLookup).length),
+            String(capabilities.knownLowConfidenceSyntax.length) + ' |'
         ].join(' | '));
     });
 
     return lines.join('\n');
+}
+
+function render_known_low_confidence_syntax() {
+    return [
+        'The unsupported policy is driven by protected opaque segments plus a lightweight risk detector. It is not a full parser, but it must reject or warn for known constructs that the formatter cannot safely model.',
+        '',
+        'Detector findings are context-aware. A keyword-shaped word is not unsupported by name alone: identifiers, aliases, and expression function names such as `qualify`, `merge`, or `pivot` must remain format-safe unless they appear at a recognized clause or table-construct boundary.',
+        '',
+        '- `MATCH_RECOGNIZE(...)`: protected as opaque',
+        '- PostgreSQL `QUALIFY`: reported as dialect-unsupported only when it is a real `QUALIFY` clause',
+        '- `PIVOT` / `UNPIVOT`: reported as known unmodeled constructs only in table-construct context',
+        '- `MERGE`: reported as a known unmodeled construct only when it starts a `MERGE INTO` statement'
+    ].join('\n');
+}
+
+function render_extract_ddl_boundary() {
+    return [
+        '- Consistent top-level UNION branches may be extracted when column shape matches',
+        '- Inconsistent UNION branch schemas are skipped',
+        '- Comment text is rendered through Hive-compatible escaped string literals'
+    ].join('\n');
 }
 
 function render_matrix() {
@@ -89,6 +111,10 @@ function render_matrix() {
         '',
         render_operator_table(),
         '',
+        '## Known Low-Confidence Syntax',
+        '',
+        render_known_low_confidence_syntax(),
+        '',
         '## Experimental Hive DDL',
         '',
         'Hive DDL formatting and Extract DDL live under `lib/experimental/ddl/`.',
@@ -97,18 +123,24 @@ function render_matrix() {
         '- Non-goal: a general DDL parser or real type inference engine',
         '- Operational expectation: output may be useful as a draft, but complex DDL and extracted schemas still require human review',
         '',
+        '## Extract DDL Boundary',
+        '',
+        render_extract_ddl_boundary(),
+        '',
         '## Unsupported Policy',
         '',
-        'Unsupported or dialect-specific syntax should be preserved when confidence is low. Core formatting must prefer opaque protection over speculative rewrites.',
+        'Unsupported syntax detection has two inputs: opaque protection for constructs whose body must not be rewritten, and a lightweight syntax risk detector for known dialect mismatches or known unmodeled constructs.',
         '',
-        '- `preserve`: continue formatting around preserved unsupported fragments',
-        '- `warn`: same preservation behavior, plus runtime warning diagnostics in the adapter layer',
-        '- `bail_out`: reject formatting when protected unsupported fragments are detected',
+        'This policy means "known low-confidence syntax", not "every possible unsupported SQL grammar form". Opaque constructs must be preserved through shielding before broad rewrites; detector-only findings are context-aware and are reported without implying that every detected fragment was isolated as an opaque preserved segment.',
+        '',
+        '- `preserve`: keep protected opaque syntax intact, record detected low-confidence syntax, and continue formatting around it',
+        '- `warn`: same formatting behavior, plus runtime warning diagnostics in the adapter layer; the warning does not imply every detected fragment was opaque-preserved',
+        '- `bail_out`: reject formatting when known low-confidence fragments are detected',
         '',
         '## Diagnostics',
         '',
         '- Unsafe range fragments are rejected instead of being partially reformatted',
-        '- Runtime warnings are intended for low-confidence-but-preserved cases such as protected unsupported syntax',
+        '- Runtime warnings are intended for protected opaque syntax and context-aware detected dialect mismatches or unmodeled constructs',
         ''
     ].join('\n');
 }

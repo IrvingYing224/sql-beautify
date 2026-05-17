@@ -97,6 +97,182 @@ assert.ok(
     'warn policy must include the preserved unsupported fragment metadata'
 );
 
+[
+    'select qualify as c from t',
+    'select merge as c from t',
+    'select pivot as c from t'
+].forEach(function(sql) {
+    assert.doesNotThrow(
+        function() {
+            vkbeautify.sql(
+                sql,
+                true,
+                false,
+                true,
+                150,
+                80,
+                {
+                    dialect: 'postgres',
+                    unsupportedSyntaxPolicy: 'bail_out'
+                }
+            );
+        },
+        sql + ' must not be rejected when low-confidence words are identifiers or aliases'
+    );
+
+    var identifierWarning = sqlFormatter.format_sql_detailed(sql, {
+        keywordCase: 'upper',
+        commaStyle: 'leading',
+        indentStyle: 'space',
+        maxAlignWidth: 150,
+        caseWhenThenWrapLength: 80,
+        dialect: 'postgres',
+        unsupportedSyntaxPolicy: 'warn'
+    });
+
+    assert.ok(
+        !identifierWarning.diagnostics.some(function(item) {
+            return item.code == 'unsupported_syntax';
+        }),
+        sql + ' must not emit unsupported syntax diagnostics when the word is an identifier or alias'
+    );
+});
+
+assert.strictEqual(
+    format('select qualify as c from t', 'postgres'),
+    [
+        'SELECT  QUALIFY AS c',
+        'FROM t'
+    ].join('\n'),
+    'postgres QUALIFY-shaped identifier in SELECT list must not be split as a QUALIFY clause'
+);
+
+assert.strictEqual(
+    format('select qualify as c from t', 'generic'),
+    [
+        'SELECT  QUALIFY AS c',
+        'FROM t'
+    ].join('\n'),
+    'generic QUALIFY-shaped identifier in SELECT list must not be split as a QUALIFY clause'
+);
+
+[
+    {
+        sql: 'select * from t where qualify = 1',
+        dialect: 'postgres',
+        name: 'QUALIFY-shaped identifier in WHERE left operand'
+    },
+    {
+        sql: 'select * from t where x = qualify(y)',
+        dialect: 'postgres',
+        name: 'QUALIFY-shaped function name in WHERE expression'
+    },
+    {
+        sql: 'select * from t where x = pivot(y)',
+        dialect: 'generic',
+        name: 'PIVOT-shaped function name in WHERE expression'
+    }
+].forEach(function(testCase) {
+    assert.doesNotThrow(
+        function() {
+            vkbeautify.sql(
+                testCase.sql,
+                true,
+                false,
+                true,
+                150,
+                80,
+                {
+                    dialect: testCase.dialect,
+                    unsupportedSyntaxPolicy: 'bail_out'
+                }
+            );
+        },
+        testCase.name + ' must not be rejected as low-confidence syntax'
+    );
+
+    var detailed = sqlFormatter.format_sql_detailed(testCase.sql, {
+        keywordCase: 'upper',
+        commaStyle: 'leading',
+        indentStyle: 'space',
+        maxAlignWidth: 150,
+        caseWhenThenWrapLength: 80,
+        dialect: testCase.dialect,
+        unsupportedSyntaxPolicy: 'warn'
+    });
+
+    assert.ok(
+        !detailed.diagnostics.some(function(item) {
+            return item.code == 'unsupported_syntax';
+        }),
+        testCase.name + ' must not emit unsupported syntax diagnostics'
+    );
+});
+
+assert.throws(
+    function() {
+        vkbeautify.sql(
+            'select * from t qualify row_number() over(partition by a order by b)=1',
+            true,
+            false,
+            true,
+            150,
+            80,
+            {
+                dialect: 'postgres',
+                unsupportedSyntaxPolicy: 'bail_out'
+            }
+        );
+    },
+    /Unsupported SQL fragment detected/,
+    'bail_out must reject known low-confidence syntax for the selected dialect'
+);
+
+var warnedQualify = sqlFormatter.format_sql_detailed(
+    'select * from t qualify row_number() over(partition by a order by b)=1',
+    {
+        keywordCase: 'upper',
+        commaStyle: 'leading',
+        indentStyle: 'space',
+        maxAlignWidth: 150,
+        caseWhenThenWrapLength: 80,
+        dialect: 'postgres',
+        unsupportedSyntaxPolicy: 'warn'
+    }
+);
+
+assert.ok(
+    warnedQualify.diagnostics.some(function(item) {
+        return item.code == 'unsupported_syntax';
+    }),
+    'warn must emit diagnostics for known low-confidence dialect syntax'
+);
+
+assert_not_match(
+    'warn diagnostic must not claim every detected low-confidence syntax was preserved',
+    warnedQualify.diagnostics[0].message,
+    /were preserved without reformatting/
+);
+
+assert.throws(
+    function() {
+        vkbeautify.sql(
+            'select * from t pivot (sum(x) for y in (1))',
+            true,
+            false,
+            true,
+            150,
+            80,
+            {
+                dialect: 'generic',
+                unsupportedSyntaxPolicy: 'bail_out'
+            }
+        );
+    },
+    /Unsupported SQL fragment detected/,
+    'bail_out must reject known low-confidence PIVOT table constructs'
+);
+
 var unsupportedQualifyWindow = format(
     'select * from t qualify row_number() over(partition by a order by b)=1',
     'generic'
