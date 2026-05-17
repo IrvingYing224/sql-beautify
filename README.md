@@ -45,10 +45,10 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 | --- | --- | --- | --- |
 | `sqlBeautify.keywordCase` | `upper` / `lower` | `upper` | SQL 关键词大小写 |
 | `sqlBeautify.commaStyle` | `leading` / `trailing` | `leading` | 逗号位于行首或行尾 |
-| `sqlBeautify.indentStyle` | `tab` / `space` | `tab` | 缩进风格 |
+| `sqlBeautify.indentStyle` | `tab` / `space` | `space` | 缩进风格 |
 | `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
 | `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | `CASE WHEN` 中 `THEN` / `ELSE` 值的换行阈值 |
-| `sqlBeautify.dialect` | `generic` / `hive` / `postgres` / `mysql` | `generic` | SQL 方言边界处理 |
+| `sqlBeautify.dialect` | `generic` / `hive` / `postgres` / `mysql` | `hive` | SQL 方言边界处理 |
 | `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `preserve` | 未建模语法的处理策略 |
 | `sqlBeautify.debugDiagnostics` | `true` / `false` | `false` | 是否在扩展宿主控制台输出调试诊断 |
 

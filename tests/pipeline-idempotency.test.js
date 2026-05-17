@@ -60,7 +60,7 @@ assert.deepStrictEqual(
 		indentStyle: 'space',
 		maxAlignWidth: 88,
 		caseWhenThenWrapLength: 33,
-		dialect: 'generic',
+		dialect: 'hive',
 		languageMode: 'sql',
 		unsupportedSyntaxPolicy: 'preserve'
 	},

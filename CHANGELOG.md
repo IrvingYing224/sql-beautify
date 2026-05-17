@@ -5,6 +5,16 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.5.6 (2026/05/17)
+* 将 `sqlBeautify.indentStyle` 默认值从 `tab` 改为 `space`
+* 将 `sqlBeautify.dialect` 默认值从 `generic` 改为 `hive`，让默认格式化路径与 Hive-first 定位一致
+* 将 `INTERSECT` / `EXCEPT` 纳入 Hive clause registry，避免默认 Hive dialect 下 set operation 不拆行
+* 同步 README 配置表、generated support matrix 和相关配置 / pipeline 回归覆盖
+* Changed the default `sqlBeautify.indentStyle` from `tab` to `space`
+* Changed the default `sqlBeautify.dialect` from `generic` to `hive` so the default formatter path matches the Hive-first positioning
+* Added `INTERSECT` / `EXCEPT` to the Hive clause registry so set operations still split correctly under the default Hive dialect
+* Updated the README configuration table, generated support matrix, and focused config / pipeline regression coverage
+
 ### 0.5.5 (2026/05/17)
 * 修复 Hive DDL 字段拆分对反引号列名、复杂类型逗号、括号和尖括号的边界处理，避免 `` `a,b` ``、`` `a)b` ``、`MAP<STRING,STRING>`、`STRUCT<...>` 等结构被拆坏
 * 增强 `extractddl` 的顶层 `UNION` / `UNION ALL` 处理：字段形状一致时提取 schema，不一致时返回空，避免输出误导性字段；生成的 Hive `COMMENT` 字面量现在会转义双引号、反斜杠和换行

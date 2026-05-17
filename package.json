@@ -2,7 +2,7 @@
 	"name": "vscode-sql-beautify",
 	"displayName": "SQL Beautify",
 	"description": "More Powerful extension that beautifies SQL/一键美化你的SQL",
-	"version": "0.5.5",
+	"version": "0.5.6",
 	"publisher": "clarkyu",
 	"maintainers": [
 		"IrvingYing224"
@@ -111,7 +111,7 @@
 						"tab",
 						"space"
 					],
-					"default": "tab",
+					"default": "space",
 					"description": "Indentation style for formatted SQL. /格式化缩进风格"
 				},
 				"sqlBeautify.maxAlignWidth": {
@@ -139,7 +139,7 @@
 						"postgres",
 						"mysql"
 					],
-					"default": "generic",
+					"default": "hive",
 					"description": "Best-effort SQL dialect boundary handling. Hive remains the primary formatting target. /SQL 方言边界处理；Hive 仍是主要格式化目标"
 				},
 				"sqlBeautify.unsupportedSyntaxPolicy": {

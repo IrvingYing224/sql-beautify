@@ -186,10 +186,10 @@ function create_vscode_mock() {
 						var defaults = {
 							keywordCase: 'upper',
 							commaStyle: 'leading',
-							indentStyle: 'tab',
+							indentStyle: 'space',
 							maxAlignWidth: 150,
 							caseWhenThenWrapLength: 50,
-							dialect: 'generic',
+							dialect: 'hive',
 							unsupportedSyntaxPolicy: 'preserve',
 							debugDiagnostics: false,
 							uppercase: true,

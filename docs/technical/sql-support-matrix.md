@@ -9,7 +9,7 @@ This matrix is generated from the formatter registries. It describes the maintai
 | Dialect | Dollar quoted strings | Hash line comments | PostgreSQL JSON operators | Clauses | Operators | Known low-confidence syntax |
 | --- | --- | --- | --- | --- | --- | --- |
 | generic | yes | yes | yes | 35 | 10 | 4 |
-| hive | no | no | no | 31 | 7 | 4 |
+| hive | no | no | no | 33 | 7 | 4 |
 | postgres | yes | no | yes | 30 | 13 | 5 |
 | mysql | no | yes | no | 27 | 9 | 4 |
 
@@ -50,8 +50,8 @@ This matrix is generated from the formatter registries. It describes the maintai
 | DISTRIBUTE BY | generic, hive | no | yes | no | no |
 | LIMIT | generic, hive, postgres, mysql | no | yes | no | no |
 | UNION | generic, hive, postgres, mysql | no | yes | no | no |
-| INTERSECT | generic, postgres | no | yes | no | no |
-| EXCEPT | generic, postgres | no | yes | no | no |
+| INTERSECT | generic, hive, postgres | no | yes | no | no |
+| EXCEPT | generic, hive, postgres | no | yes | no | no |
 
 ## Operators
 

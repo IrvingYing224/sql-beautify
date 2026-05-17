@@ -96,6 +96,12 @@ assert.strictEqual(
 );
 
 assert.strictEqual(
+	sqlRenderOptions.normalize({}, {}).indentStyle,
+	'space',
+	'indentStyle defaults to space'
+);
+
+assert.strictEqual(
 	sqlRenderOptions.normalize({
 		maxAlignWidth: 999
 	}, {
@@ -127,8 +133,8 @@ assert.strictEqual(
 
 assert.strictEqual(
 	sqlRenderOptions.normalize({}, {}).dialect,
-	'generic',
-	'dialect defaults to generic'
+	'hive',
+	'dialect defaults to hive'
 );
 
 assert.strictEqual(
@@ -190,4 +196,16 @@ assert.deepStrictEqual(
 		unsupportedSyntaxPolicy: 'preserve'
 	},
 	'canonical adapter inputs must normalize to canonical formatter options without legacy fallback'
+);
+
+assert.strictEqual(
+	properties['sqlBeautify.indentStyle'].default,
+	'space',
+	'sqlBeautify.indentStyle package default must be space'
+);
+
+assert.strictEqual(
+	properties['sqlBeautify.dialect'].default,
+	'hive',
+	'sqlBeautify.dialect package default must be hive'
 );
