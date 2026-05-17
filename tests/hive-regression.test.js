@@ -202,6 +202,84 @@ run_case(
 	].join('\n')
 );
 
+var commented_multiline_conditions_actual = format([
+	'select',
+	'case -- CASE 内部注释',
+	'when u.age < 18 -- 年龄条件',
+	"then 'child' -- 结果1",
+	'when u.age between 18 and 60 -- 条件2',
+	"then 'adult' -- 结果2",
+	"else 'senior' -- 默认结果",
+	'end as age_phase',
+	'from dim.user_info u',
+	'join fact.order_info o',
+	'on -- ON 关键字单独成行',
+	'u.id = o.user_id -- 关联条件1',
+	"and o.dt = '2026-05-17' -- 关联条件2",
+	"where u.dt = '2026-05-17'",
+	'and u.city_id in ( -- 跨行 IN 列表',
+	'1001, -- 北京',
+	'1002, -- 上海',
+	'-- 夹在IN列表中间的独立注释',
+	'1003, -- 广州',
+	'1004 -- 深圳',
+	') -- IN 右括号',
+	'and ( -- 多层逻辑括号',
+	"o.pay_status = 'paid' -- 状态限制",
+	"or o.refund_status = 'none' -- 退款限制",
+	') -- 逻辑右括号'
+].join('\n'));
+
+assert.ok(
+	commented_multiline_conditions_actual.indexOf("-- 年龄条件 THEN 'child'") < 0,
+	'CASE WHEN trailing comment must not consume following THEN\n--- actual ---\n' + commented_multiline_conditions_actual
+);
+assert.ok(
+	/WHEN u\.age < 18\s+-- 年龄条件\n\s+THEN 'child'\s+-- 结果1/.test(commented_multiline_conditions_actual),
+	'CASE WHEN trailing comment should keep THEN on an active SQL line\n--- actual ---\n' + commented_multiline_conditions_actual
+);
+assert.ok(
+	commented_multiline_conditions_actual.indexOf('\n    1001, -- 北京') >= 0
+		&& commented_multiline_conditions_actual.indexOf('\n    1002, -- 上海') >= 0
+		&& commented_multiline_conditions_actual.indexOf('\n    1003, -- 广州') >= 0,
+	'IN-list value commas before trailing comments must be preserved\n--- actual ---\n' + commented_multiline_conditions_actual
+);
+assert.ok(
+	commented_multiline_conditions_actual.indexOf('\n  ) -- IN 右括号\n  AND (') >= 0,
+	'condition-list closing paren and following AND should inherit WHERE block indentation\n--- actual ---\n' + commented_multiline_conditions_actual
+);
+assert.ok(
+	commented_multiline_conditions_actual.indexOf('\n     ON -- ON 关键字单独成行\n        u.id = o.user_id') >= 0,
+	'first ON condition after an ON-only comment line should inherit the ON block indentation\n--- actual ---\n' + commented_multiline_conditions_actual
+);
+
+var commented_case_item_separator_actual = format([
+	'select',
+	'case -- CASE 注释',
+	'when a = 1 -- 条件注释',
+	"then 'x' -- 结果注释",
+	"else 'z'",
+	'end as age_phase, -- CASE 结束注释',
+	'coalesce(phone, -- 手机',
+	'email, -- 邮箱',
+	"'unknown' -- 兜底",
+	') as contact',
+	'from t'
+].join('\n'));
+
+assert.ok(
+	commented_case_item_separator_actual.indexOf('AS age_phase, -- CASE 结束注释\n       ,coalesce') < 0,
+	'CASE select item separator should not remain both trailing and leading\n--- actual ---\n' + commented_case_item_separator_actual
+);
+assert.ok(
+	commented_case_item_separator_actual.indexOf('AS age_phase -- CASE 结束注释\n       ,coalesce') >= 0,
+	'CASE select item separator should use the existing leading-comma style after a trailing comment\n--- actual ---\n' + commented_case_item_separator_actual
+);
+assert.ok(
+	/\n       \)\s+AS contact/.test(commented_case_item_separator_actual),
+	'multiline select expression closing paren should inherit the select item indentation\n--- actual ---\n' + commented_case_item_separator_actual
+);
+
 var bracket_index_actual = format([
 	"SELECT  u.matrix ['level' ]                         AS vl      -- Map 类型：故意在方括号内部留空格",
 	"       ,u.info.base.gender                          AS gen     -- Struct 类型：故意在点号前后留空格",

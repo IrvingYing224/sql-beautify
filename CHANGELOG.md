@@ -5,6 +5,18 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.5.8 (2026/05/17)
+* 修复 `CASE WHEN` 分支行尾注释吞掉后续 `THEN` 的问题，`WHEN ... -- comment` 后的 `THEN` 现在会保留在有效 SQL 行上
+* 修复 SELECT formatter 误迁移括号内部尾逗号的问题，跨行 `IN (...)` 列表、函数参数和带行尾注释的列表项不再丢失逗号
+* 修复 `ON -- comment` 后首个关联条件没有继承 `ON` 条件块缩进的问题
+* 修复条件块和多行 SELECT 表达式中的右括号缩进，右括号会继承所在代码块 / select item 的缩进
+* 补充 CASE 行尾注释、跨行 IN 列表注释、ON-only 注释行、条件括号缩进、SELECT 多行表达式闭括号和 CASE 字段逗号迁移的回归覆盖
+* Fixed `CASE WHEN` branches where trailing comments could swallow a following `THEN`; `THEN` after `WHEN ... -- comment` now remains on an active SQL line
+* Fixed SELECT formatter comma migration leaking into parenthesized scopes so multiline `IN (...)` lists, function arguments, and trailing-comment list items no longer lose commas
+* Fixed the first join condition after `ON -- comment` not inheriting the `ON` condition-block indentation
+* Fixed closing-parenthesis indentation in condition blocks and multiline SELECT expressions so closers inherit their containing block / select-item indentation
+* Added regression coverage for CASE trailing comments, commented multiline IN lists, ON-only comment lines, condition parenthesis indentation, multiline SELECT expression closers, and CASE item comma migration
+
 ### 0.5.7 (2026/05/17)
 * 修复 `SELECT` 后紧跟行尾注释时首个真实字段不参与 SELECT list 重排的问题，连续独立行注释不会再打断字段逗号和缩进状态
 * 修复 Hive `--+` hint 被普通注释 spacing 改写成 `-- +` 的问题，避免 `MAPJOIN` 等 hint 失效
