@@ -202,6 +202,91 @@ run_case(
 	].join('\n')
 );
 
+var bracket_index_actual = format([
+	"SELECT  u.matrix ['level' ]                         AS vl      -- Map 类型：故意在方括号内部留空格",
+	"       ,u.info.base.gender                          AS gen     -- Struct 类型：故意在点号前后留空格",
+	"       ,u.tags [0 ]                                 AS ain_tag -- Array 类型：紧贴与断开测试",
+	"       ,CAST( SUM( u.order_amt ) AS DECIMAL(10,2) ) AS amt",
+	"       ,gRoUpInG__iD                                AS gid     -- Hive 独有增强聚合内置变量",
+	"FROM dim.user_complex_profile u",
+	"WHERE dt = '2026-05-17'",
+	"  AND u.matrix [ 'status' ] = 'active'",
+	"GROUP BY  u.matrix ['level' ]",
+	"         ,u.info.base.gender",
+	"         ,u.tags [0 ]",
+	"         ,WITH GROUPING SETS ( ( u.matrix ['level' ],u.info.base.gender ) -- 组合一",
+	"             ,( u.tags [0 ] )                                             -- 组合二",
+	"             ,( )                                                         -- 空聚合组合",
+	");"
+].join('\n'));
+
+[
+	"u.matrix['level']",
+	"u.tags[0]",
+	"u.matrix['status']",
+	"WITH GROUPING SETS ( ( u.matrix['level'],u.info.base.gender )",
+	"AS vl",
+	"AS ain_tag"
+].forEach(function(expected) {
+	assert.ok(
+		bracket_index_actual.indexOf(expected) >= 0,
+		'Hive bracket index spacing should be compact for ' + expected + '\n--- actual ---\n' + bracket_index_actual
+	);
+});
+
+[
+	"matrix ['level' ]",
+	"matrix [ 'status' ]",
+	"tags [0 ]",
+	",WITH GROUPING SETS"
+].forEach(function(forbidden) {
+	assert.strictEqual(
+		bracket_index_actual.indexOf(forbidden),
+		-1,
+		'Hive bracket index spacing should not keep padded form ' + forbidden + '\n--- actual ---\n' + bracket_index_actual
+	);
+});
+
+run_case(
+	'hive group by with cube and rollup are suffixes without leading comma',
+	[
+		'select a,b,count(*) as cnt from t group by a,b with cube',
+		'union all',
+		'select a,b,count(*) as cnt from t group by a,b with rollup'
+	].join('\n'),
+	[
+		'SELECT  a',
+		'       ,b',
+		'       ,COUNT(*) AS cnt',
+		'FROM t',
+		'GROUP BY  a',
+		'         ,b',
+		'          WITH CUBE',
+		'UNION ALL',
+		'SELECT  a',
+		'       ,b',
+		'       ,COUNT(*) AS cnt',
+		'FROM t',
+		'GROUP BY  a',
+		'         ,b',
+		'          WITH ROLLUP'
+	].join('\n')
+);
+
+run_case(
+	'hive group by with grouping sets is a suffix without leading comma',
+	'select a,b,count(*) from t group by a,b with grouping sets ((a,b),(a),())',
+	[
+		'SELECT  a',
+		'       ,b',
+		'       ,COUNT(*)',
+		'FROM t',
+		'GROUP BY  a',
+		'         ,b',
+		'          WITH GROUPING SETS ((a,b),(a),())'
+	].join('\n')
+);
+
 run_case(
 	'where and-case condition keeps end aligned with case',
 	[

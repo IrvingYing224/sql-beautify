@@ -93,7 +93,7 @@ run_case(
 	[
 		'SELECT  a                     AS x',
 		'       ,b                     AS y',
-		'-- cmt',
+		'       -- cmt',
 		'       ,CASE',
 		'            WHEN z = 1 THEN 1',
 		'            ELSE 0',
@@ -118,7 +118,7 @@ run_case(
 		'(',
 		'    SELECT  a.dt                                                                            AS dt',
 		'           ,a.user_id                                                                       AS user_id',
-		'-- 订单金额口径',
+		'           -- 订单金额口径',
 		'           ,CASE',
 		'                WHEN a.pay_amt > 0 THEN a.pay_amt',
 		'                ELSE 0',
@@ -129,6 +129,72 @@ run_case(
 		'SELECT  *',
 		'FROM src'
 	].join('\n')
+);
+
+run_case(
+	'select header trailing comment does not become a select item',
+	[
+		'SELECT   -- 获取活跃用户基本信息',
+		'id, name -- 故意在逗号前面留一大堆空格',
+		'-- 这里故意塞进一长串',
+		'-- 连续的单行注释',
+		'-- 用来测试插件是否会把它们合并，或者打乱缩进',
+		"       ,sPlIt(hobbies,',') AS hobby_list",
+		'FROM dim.user_info_raw -- 紧贴在表名后面的注释',
+		"WHERE dt = '2026-05-17'",
+		"  AND status = 'active' -- 仅保留活跃状态"
+	].join('\n'),
+	[
+		'SELECT -- 获取活跃用户基本信息',
+		'        id',
+		'       ,name -- 故意在逗号前面留一大堆空格',
+		'       -- 这里故意塞进一长串',
+		'       -- 连续的单行注释',
+		'       -- 用来测试插件是否会把它们合并，或者打乱缩进',
+		"       ,sPlIt(hobbies,',') AS hobby_list",
+		'FROM dim.user_info_raw -- 紧贴在表名后面的注释',
+		"WHERE dt = '2026-05-17'",
+		"  AND status = 'active' -- 仅保留活跃状态"
+	].join('\n')
+);
+
+var hive_hint_select_input = [
+	'sElEcT   --+ MAPJOIN(tmp_user)',
+	'-- 💥 终极测试点：Hive 专属的单行 Hint 格式 (--+)',
+	'-- 绝大多数格式化工具（如 SQLFluff）遇到 `--+` 都会强行格式化为 `-- +`，从而直接导致 Hint 废掉！',
+	'tmp_user.id   aS   u_id,',
+	'tmp_user.name   ,   ',
+	'h.hobby   as   single_hobby,',
+	'nVl(t2.act_days,0)   +   1   as   score,   -- 基础分 +1（测试行尾对齐）',
+	'rOw_NuMbEr()   oVeR(   pArTiTiOn   bY   h.hobby   oRdEr   bY   nVl(t2.act_days,0)   dEsC   rOwS   bEtWeEn   uNbOuNdEd   pReCeDiNg   aNd   cUrReNt   rOw)   As   rank_id  -- 极其冗长的窗口边界定义',
+	'fRoM   tmp_user'
+].join('\n');
+var hive_hint_select_actual = format(hive_hint_select_input);
+
+assert.ok(
+	hive_hint_select_actual.indexOf('SELECT --+ MAPJOIN(tmp_user)') == 0,
+	'Hive --+ hint after SELECT must keep marker spacing\n--- actual ---\n' + hive_hint_select_actual
+);
+assert.ok(
+	hive_hint_select_actual.indexOf('-- + MAPJOIN') < 0,
+	'Hive --+ hint must not be normalized to a plain comment\n--- actual ---\n' + hive_hint_select_actual
+);
+assert.ok(
+	hive_hint_select_actual.indexOf('\n        tmp_user.id') >= 0,
+	'first real select item after SELECT hint should be indented without a leading comma\n--- actual ---\n' + hive_hint_select_actual
+);
+assert.ok(
+	hive_hint_select_actual.indexOf('\n       ,tmp_user.id') < 0,
+	'first real select item after SELECT hint must not receive a leading comma\n--- actual ---\n' + hive_hint_select_actual
+);
+assert.ok(
+	hive_hint_select_actual.indexOf('\n       tmp_user.id') < 0,
+	'first real select item after SELECT hint should align code with following comma-prefixed items\n--- actual ---\n' + hive_hint_select_actual
+);
+assert.strictEqual(
+	format(hive_hint_select_actual),
+	hive_hint_select_actual,
+	'Hive hint select formatting should be idempotent\n--- actual ---\n' + hive_hint_select_actual
 );
 
 console.log('select alignment tests passed');

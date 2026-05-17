@@ -184,7 +184,7 @@ assert_contains(
     ].join('\n'),
     [
         'SELECT  a',
-        '# keep hash comment',
+        '       # keep hash comment',
         '       ,b',
         'FROM t'
     ].join('\n'),

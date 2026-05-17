@@ -5,6 +5,22 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 0.5.7 (2026/05/17)
+* 修复 `SELECT` 后紧跟行尾注释时首个真实字段不参与 SELECT list 重排的问题，连续独立行注释不会再打断字段逗号和缩进状态
+* 修复 Hive `--+` hint 被普通注释 spacing 改写成 `-- +` 的问题，避免 `MAPJOIN` 等 hint 失效
+* 修复 `SELECT --+ ...` 后首个字段被错误补前导逗号或与后续字段错列的问题；首字段现在不显示逗号，但会保留逗号列占位以保持字段和 `AS` 对齐
+* 修复 Hive 方括号索引表达式的 spacing，`matrix ['level' ]`、`tags [0 ]`、`matrix [ 'status' ]` 现在会格式化为紧凑的 `matrix['level']`、`tags[0]`、`matrix['status']`，并保留后续 alias
+* 修复 Hive 增强聚合后缀被当成 `GROUP BY` 字段的问题，`WITH GROUPING SETS`、`WITH CUBE`、`WITH ROLLUP` 不再被补前导逗号
+* 修复 SELECT / GROUP BY list 中独立单行注释丢失所在代码块缩进的问题，注释仍保持独立成行且不参与字段逗号状态
+* 补充 SELECT header 注释、Hive `--+` hint、跨注释字段续接、独立单行注释缩进、Hive 方括号索引、Hive 增强聚合后缀和二次格式化幂等性回归覆盖
+* Fixed SELECT-list formatting when `SELECT` is followed by a trailing line comment; standalone comment runs no longer break comma or indentation state for the first real item
+* Fixed Hive `--+` hints being normalized to `-- +`, preserving hints such as `MAPJOIN`
+* Fixed the first field after `SELECT --+ ...` receiving a leading comma or drifting out of column alignment; it now omits the comma while preserving the comma column for expression and `AS` alignment
+* Fixed spacing for Hive bracket index expressions so `matrix ['level' ]`, `tags [0 ]`, and `matrix [ 'status' ]` format compactly as `matrix['level']`, `tags[0]`, and `matrix['status']` while preserving aliases
+* Fixed Hive enhanced aggregation suffixes being treated as `GROUP BY` fields; `WITH GROUPING SETS`, `WITH CUBE`, and `WITH ROLLUP` no longer receive a leading comma
+* Fixed standalone line comments inside SELECT / GROUP BY lists losing the surrounding code-block indentation while keeping them independent from field comma state
+* Added regression coverage for SELECT header comments, Hive `--+` hints, field continuation across comments, standalone comment indentation, Hive bracket indexes, Hive enhanced aggregation suffixes, and idempotent reformatting
+
 ### 0.5.6 (2026/05/17)
 * 将 `sqlBeautify.indentStyle` 默认值从 `tab` 改为 `space`
 * 将 `sqlBeautify.dialect` 默认值从 `generic` 改为 `hive`，让默认格式化路径与 Hive-first 定位一致

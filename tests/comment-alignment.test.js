@@ -443,11 +443,11 @@ run_case(
 		'       ,case when a.risk_score >= 80 then \'high\' else \'normal\' end as risk_tag -- 风险标签',
 		'from ads_user_risk a'
 	].join('\n'),
-	[
-		'SELECT  a.user_id                               AS user_id  -- 用户ID',
-		'       ,a.city                                  AS city     -- 城市',
-		'-- 风险标签口径: 仅统计近30天',
-		'       ,CASE',
+		[
+			'SELECT  a.user_id                               AS user_id  -- 用户ID',
+			'       ,a.city                                  AS city     -- 城市',
+			'       -- 风险标签口径: 仅统计近30天',
+			'       ,CASE',
 		'            WHEN a.risk_score >= 80 THEN \'high\'',
 		'            ELSE \'normal\'',
 		'        END                                     AS risk_tag -- 风险标签',
