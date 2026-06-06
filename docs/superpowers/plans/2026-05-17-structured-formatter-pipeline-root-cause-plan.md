@@ -16,21 +16,21 @@ Status as of 2026-06-06:
 - Structure passes run through `FormatDocument`, `ScopeModel`, `FormatNodes`, `MutationPlan`, and `StructuredRenderer`; restore-after structural pass calls are guarded by `tests/module-boundary.test.js`.
 - `npm run test:verify` includes the structured model tests, invariant tests, differential corpus, pipeline idempotency tests, window spacing regression, DDL safety tests, support matrix test, and unsupported syntax safety tests.
 - Latest local verification passed: `npm run test:verify` and `npm run package:vsix` after the `1.0.0` version bump.
-- `CHANGELOG.md` has been updated for the `1.0.0` structured formatter pipeline release because the user confirmed no additional manual verification wait is required. No commit or staging has been performed.
+- `CHANGELOG.md` has been updated for the `1.0.0` structured formatter pipeline release because the user confirmed no additional manual verification wait is required. The implementation is committed on the current branch as `37149f8 feat: complete structured formatter pipeline rewrite`; no staged or unstaged tracked changes remain before this status sync.
 
 ---
 
 ## 0. 执行纪律
 
-- [ ] 本计划是根治路线，不允许降级为继续给 `sql-case-formatter.js`、`sql-select-formatter.js`、`sql-condition-formatter.js` 零散追加局部状态补丁。
-- [ ] 每个任务先补失败测试或 invariant guard，再改实现。
-- [ ] 每个任务完成后运行任务列出的 targeted tests。
-- [ ] 所有实现任务完成后运行 `npm run test:verify`。
-- [ ] 涉及 VSIX 内容、发布清单、`package.json` 发布配置或 extension contribution 时，加跑 `npm run package:vsix`。
-- [ ] 不创建 standalone spec 文件，不提交代码；按项目规则，用户测试确认后再单独提交。
-- [ ] 不恢复 `extension.*` 配置兼容，不把真实逻辑塞回 root `lib/*.js` shim。
-- [ ] 不新增扫描注释、字符串、块注释或反引号标识符内容的全局正则补丁。
-- [ ] 新逻辑只写入 `lib/core/`、`lib/adapters/`、`lib/experimental/ddl/` 中符合边界的文件。
+- [x] 本计划是根治路线，不允许降级为继续给 `sql-case-formatter.js`、`sql-select-formatter.js`、`sql-condition-formatter.js` 零散追加局部状态补丁。
+- [x] 每个任务先补失败测试或 invariant guard，再改实现。
+- [x] 每个任务完成后运行任务列出的 targeted tests。
+- [x] 所有实现任务完成后运行 `npm run test:verify`。
+- [x] 涉及 VSIX 内容、发布清单、`package.json` 发布配置或 extension contribution 时，加跑 `npm run package:vsix`。
+- [x] 不创建 standalone spec 文件；按项目规则，用户测试确认后再单独提交，当前实现已在完成验证后单独提交。
+- [x] 不恢复 `extension.*` 配置兼容，不把真实逻辑塞回 root `lib/*.js` shim。
+- [x] 不新增扫描注释、字符串、块注释或反引号标识符内容的全局正则补丁。
+- [x] 新逻辑只写入 `lib/core/`、`lib/adapters/`、`lib/experimental/ddl/` 中符合边界的文件。
 
 ---
 
@@ -67,14 +67,14 @@ Status as of 2026-06-06:
 
 ### 2.1 新架构不变量
 
-- [ ] 注释、字符串、块注释、quoted identifier、opaque unsupported syntax 在结构 pass 中永远不是 active SQL code。
-- [ ] 每个 pass 只读取 `FormatDocument` / `ScopeModel` 提供的结构事实，不直接基于裸字符串重新推断 SELECT / CASE / condition / list scope。
-- [ ] 结构 pass 不在 comment restore 之后运行。
-- [ ] 逗号迁移只允许作用于明确 owner scope 的 separator node，例如 `selectList` 或 `groupByList` 顶层 separator。
-- [ ] `CASE` 的 `WHEN.condition`、`WHEN.trailingComment`、`THEN.value`、`THEN.trailingComment`、`ELSE.value` 分槽保存，不能通过拼接字符串表达结构关系。
-- [ ] `ON`、`WHERE`、`HAVING`、`QUALIFY` 后的注释行和首个表达式都绑定到同一个 condition block。
-- [ ] 右括号缩进来自 scope owner 的 close indent，而不是每个 pass 自行累计括号深度。
-- [ ] 无法高置信建模的 SQL 片段走 preserve / warn / bail_out 策略，不能猜着重排。
+- [x] 注释、字符串、块注释、quoted identifier、opaque unsupported syntax 在结构 pass 中永远不是 active SQL code。
+- [x] 每个 pass 只读取 `FormatDocument` / `ScopeModel` 提供的结构事实，不直接基于裸字符串重新推断 SELECT / CASE / condition / list scope。
+- [x] 结构 pass 不在 comment restore 之后运行。
+- [x] 逗号迁移只允许作用于明确 owner scope 的 separator node，例如 `selectList` 或 `groupByList` 顶层 separator。
+- [x] `CASE` 的 `WHEN.condition`、`WHEN.trailingComment`、`THEN.value`、`THEN.trailingComment`、`ELSE.value` 分槽保存，不能通过拼接字符串表达结构关系。
+- [x] `ON`、`WHERE`、`HAVING`、`QUALIFY` 后的注释行和首个表达式都绑定到同一个 condition block。
+- [x] 右括号缩进来自 scope owner 的 close indent，而不是每个 pass 自行累计括号深度。
+- [x] 无法高置信建模的 SQL 片段走 preserve / warn / bail_out 策略，不能猜着重排。
 
 ### 2.2 新模型核心概念
 
@@ -213,7 +213,7 @@ Status as of 2026-06-06:
 - Modify: `tests/condition-alignment.test.js`
 - Modify: `tests/pipeline-idempotency.test.js`
 
-- [ ] **Step 1: 运行当前基线**
+- [x] **Step 1: 运行当前基线**
 
 Run:
 
@@ -227,7 +227,7 @@ Expected:
 unsupported safety tests passed
 ```
 
-- [ ] **Step 2: 固化 CASE 注释吞 THEN 的回归**
+- [x] **Step 2: 固化 CASE 注释吞 THEN 的回归**
 
 Add to `tests/case-when.test.js`:
 
@@ -254,7 +254,7 @@ run_case(
 );
 ```
 
-- [ ] **Step 3: 固化 SELECT 逗号作用域回归**
+- [x] **Step 3: 固化 SELECT 逗号作用域回归**
 
 Add to `tests/select-alignment.test.js`:
 
@@ -295,7 +295,7 @@ run_case(
 );
 ```
 
-- [ ] **Step 4: 固化 ON 注释后首个条件缩进回归**
+- [x] **Step 4: 固化 ON 注释后首个条件缩进回归**
 
 Add to `tests/condition-alignment.test.js`:
 
@@ -321,7 +321,7 @@ run_case(
 );
 ```
 
-- [ ] **Step 5: 固化右括号缩进回归**
+- [x] **Step 5: 固化右括号缩进回归**
 
 Add to `tests/condition-alignment.test.js`:
 
@@ -354,7 +354,7 @@ run_case(
 );
 ```
 
-- [ ] **Step 6: 运行 targeted tests**
+- [x] **Step 6: 运行 targeted tests**
 
 Run:
 
@@ -382,7 +382,7 @@ condition alignment tests passed
 - Modify: `tests/module-boundary.test.js`
 - Modify: `package.json`
 
-- [ ] **Step 1: 写 `FormatDocument` 模型测试**
+- [x] **Step 1: 写 `FormatDocument` 模型测试**
 
 Create `tests/format-document-model.test.js`:
 
@@ -415,7 +415,7 @@ assert.ok(doc.lines[3].commentText == '-- one', 'nested list item comment is sep
 console.log('format document model tests passed');
 ```
 
-- [ ] **Step 2: 实现 `sql-format-document.js`**
+- [x] **Step 2: 实现 `sql-format-document.js`**
 
 Implement with these exports:
 
@@ -446,11 +446,11 @@ Implementation requirements:
 - Treat `string_literal`, `quoted_identifier`, `block_comment`, `placeholder` as non-structural active SQL for higher-level nodes unless a pass explicitly allows them as opaque leaf fragments.
 - Preserve token `value` byte-for-byte.
 
-- [ ] **Step 3: Wire legacy `sql-format-model.js` to document**
+- [x] **Step 3: Wire legacy `sql-format-model.js` to document**
 
 Modify `lib/core/sql-format-model.js` so `from_text()` internally calls `sql-format-document.from_text()` and keeps the current `lines[].code`, `lines[].comment`, `codeTokens`, `parenDelta`, `caseDelta` shape for old pass compatibility.
 
-- [ ] **Step 4: Add module boundary guard**
+- [x] **Step 4: Add module boundary guard**
 
 Extend `tests/module-boundary.test.js`:
 
@@ -461,11 +461,11 @@ assert.ok(
 );
 ```
 
-- [ ] **Step 5: Add test script**
+- [x] **Step 5: Add test script**
 
 Add `node tests/format-document-model.test.js` to `npm run test:verify` before `tests/pipeline-idempotency.test.js`.
 
-- [ ] **Step 6: Run verification**
+- [x] **Step 6: Run verification**
 
 Run:
 
@@ -490,7 +490,7 @@ unsupported safety tests passed
 - Create: `tests/format-scope-model.test.js`
 - Modify: `package.json`
 
-- [ ] **Step 1: 写 scope model 测试**
+- [x] **Step 1: 写 scope model 测试**
 
 Create `tests/format-scope-model.test.js`:
 
@@ -539,7 +539,7 @@ assert.ok(scopes.find(function(scope) {
 console.log('format scope model tests passed');
 ```
 
-- [ ] **Step 2: 实现 `sql-scope-model.js`**
+- [x] **Step 2: 实现 `sql-scope-model.js`**
 
 Implement with:
 
@@ -564,15 +564,15 @@ Implementation requirements:
 - Track `conditionBlock` from real `ON` / `WHERE` / `HAVING` / `QUALIFY` clause token until the next real clause boundary at the same query depth.
 - Store `startLine`, `endLine`, `startTokenIndex`, `endTokenIndex`, `parentScopeId`, `ownerText`, `keyword`.
 
-- [ ] **Step 3: Attach scopes to document**
+- [x] **Step 3: Attach scopes to document**
 
 Add `document.scopes = scopeModel.build(document, tokenizerOptions)` in the orchestration path only after Task 2 tests pass. Keep `sql-format-document.js` itself independent from `sql-scope-model.js` to avoid circular dependency.
 
-- [ ] **Step 4: Add test script**
+- [x] **Step 4: Add test script**
 
 Add `node tests/format-scope-model.test.js` to `npm run test:verify` after `tests/format-document-model.test.js`.
 
-- [ ] **Step 5: Run verification**
+- [x] **Step 5: Run verification**
 
 Run:
 
@@ -596,7 +596,7 @@ unsupported safety tests passed
 - Create: `tests/format-invariants.test.js`
 - Modify: `package.json`
 
-- [ ] **Step 1: 写 node / invariant 测试**
+- [x] **Step 1: 写 node / invariant 测试**
 
 Create `tests/format-invariants.test.js`:
 
@@ -640,7 +640,7 @@ assert.doesNotThrow(function() {
 console.log('format invariant tests passed');
 ```
 
-- [ ] **Step 2: 实现 `sql-format-nodes.js`**
+- [x] **Step 2: 实现 `sql-format-nodes.js`**
 
 Expose:
 
@@ -667,7 +667,7 @@ Implementation requirements:
   - `suffixTokens`
 - `conditionBlocks[]` must include `keyword`, `comment`, `segments`, `continuationLines`, `closeLines`.
 
-- [ ] **Step 3: 实现 invariant guard**
+- [x] **Step 3: 实现 invariant guard**
 
 Expose from `sql-format-invariants.js`:
 
@@ -685,7 +685,7 @@ Rules:
 - Throw if any SELECT separator mutation targets a non-`selectList` / non-`groupByList` owner.
 - Preserve original `string_literal`, `quoted_identifier`, `block_comment` values exactly.
 
-- [ ] **Step 4: Add test script and run**
+- [x] **Step 4: Add test script and run**
 
 Add `node tests/format-invariants.test.js` to `npm run test:verify`.
 
@@ -712,7 +712,7 @@ unsupported safety tests passed
 - Modify: `lib/core/sql-formatter.js`
 - Modify: `package.json`
 
-- [ ] **Step 1: 写 renderer smoke 测试**
+- [x] **Step 1: 写 renderer smoke 测试**
 
 Create `tests/structured-pipeline-regression.test.js`:
 
@@ -755,7 +755,7 @@ assert.strictEqual(format(actual), actual, 'structured pipeline output is idempo
 console.log('structured pipeline regression tests passed');
 ```
 
-- [ ] **Step 2: 实现 mutation container**
+- [x] **Step 2: 实现 mutation container**
 
 `sql-format-mutations.js` exports:
 
@@ -779,7 +779,7 @@ Mutation requirements:
   3. indentation
   4. comment alignment
 
-- [ ] **Step 3: 实现 structured renderer**
+- [x] **Step 3: 实现 structured renderer**
 
 `sql-structured-renderer.js` exports:
 
@@ -795,7 +795,7 @@ Renderer requirements:
 - Preserve string / quoted identifier / block comment byte-for-byte.
 - Apply final output contract: LF, at most one user blank line, exactly one trailing newline.
 
-- [ ] **Step 4: Add feature switch for migration**
+- [x] **Step 4: Add feature switch for migration**
 
 Modify `lib/core/sql-formatter.js` to allow internal structured path during migration:
 
@@ -805,7 +805,7 @@ var useStructuredPipeline = config.formatterEngine == 'structured';
 
 Keep this internal option undocumented until migration completes. Default remains legacy until Tasks 5-9 migrate enough behavior to pass full regression.
 
-- [ ] **Step 5: Run verification**
+- [x] **Step 5: Run verification**
 
 Run:
 
@@ -831,7 +831,7 @@ unsupported safety tests passed
 - Modify: `tests/hive-regression.test.js`
 - Modify: `tests/format-invariants.test.js`
 
-- [ ] **Step 1: Add separator ownership negative tests**
+- [x] **Step 1: Add separator ownership negative tests**
 
 Extend `tests/format-invariants.test.js`:
 
@@ -861,7 +861,7 @@ assert.ok(nestedNodes.separators.some(function(separator) {
 }), 'select item comma has selectList owner');
 ```
 
-- [ ] **Step 2: Implement structured SELECT pass**
+- [x] **Step 2: Implement structured SELECT pass**
 
 In `sql-select-formatter.js`, add:
 
@@ -878,7 +878,7 @@ Requirements:
 - Preserve Hive `--+` hint after `SELECT`.
 - Keep existing leading comma style by default.
 
-- [ ] **Step 3: Wire structured SELECT pass under internal engine**
+- [x] **Step 3: Wire structured SELECT pass under internal engine**
 
 In `sql-formatter.js` structured path:
 
@@ -886,11 +886,11 @@ In `sql-formatter.js` structured path:
 sqlSelectFormatter.apply_select_list_mutations(document, extractedNodes, mutations, config);
 ```
 
-- [ ] **Step 4: Remove matching old responsibility when parity is reached**
+- [x] **Step 4: Remove matching old responsibility when parity is reached**
 
 After structured SELECT tests pass, make legacy `format_select_clause_lists()` call the structured implementation where possible or mark it as compatibility-only for the legacy path. Do not keep both implementations active in the same pipeline.
 
-- [ ] **Step 5: Run verification**
+- [x] **Step 5: Run verification**
 
 Run:
 
@@ -922,7 +922,7 @@ unsupported safety tests passed
 - Modify: `tests/token-boundary.test.js`
 - Modify: `tests/structured-pipeline-regression.test.js`
 
-- [ ] **Step 1: Add CASE branch binding tests**
+- [x] **Step 1: Add CASE branch binding tests**
 
 Extend `tests/case-when.test.js` with cases covering:
 
@@ -934,7 +934,7 @@ Extend `tests/case-when.test.js` with cases covering:
 
 Use explicit expected strings, following existing `run_case()` style.
 
-- [ ] **Step 2: Implement structured CASE pass**
+- [x] **Step 2: Implement structured CASE pass**
 
 In `sql-case-formatter.js`, add:
 
@@ -959,7 +959,7 @@ Requirements:
 - Nested CASE is rendered as nested expression inside branch value unless it spans multiple physical branches.
 - Long branch wrapping still honors `caseWhenThenWrapLength`.
 
-- [ ] **Step 3: Delete CASE-specific comment patching from old parser path**
+- [x] **Step 3: Delete CASE-specific comment patching from old parser path**
 
 Remove or bypass ad hoc logic equivalent to:
 
@@ -969,7 +969,7 @@ Remove or bypass ad hoc logic equivalent to:
 
 The structured CASE pass owns those concerns.
 
-- [ ] **Step 4: Run verification**
+- [x] **Step 4: Run verification**
 
 Run:
 
@@ -1000,7 +1000,7 @@ unsupported safety tests passed
 - Modify: `tests/hive-regression.test.js`
 - Modify: `tests/dialect-boundary.test.js`
 
-- [ ] **Step 1: Add condition block ownership tests**
+- [x] **Step 1: Add condition block ownership tests**
 
 Extend `tests/condition-alignment.test.js` with:
 
@@ -1011,7 +1011,7 @@ Extend `tests/condition-alignment.test.js` with:
 
 Each case must assert exact output or clear fragments that prove active SQL remains active and comments remain comments.
 
-- [ ] **Step 2: Implement structured condition pass**
+- [x] **Step 2: Implement structured condition pass**
 
 In `sql-condition-formatter.js`, add:
 
@@ -1029,11 +1029,11 @@ Requirements:
 - Do not split nested boolean operators inside `caseExpr`, `functionCall`, `inList`, `windowSpec`, or nested parenthesized expression unless the owner block explicitly allows it.
 - Apply indentation to bare continuation expressions after `ON -- comment`.
 
-- [ ] **Step 3: Remove local condition paren depth as source of truth**
+- [x] **Step 3: Remove local condition paren depth as source of truth**
 
 Replace local `condition_paren_depth` ownership decisions with `ScopeRecord` owner lookup. Temporary visual indentation helpers may remain only if their inputs are scope owner facts.
 
-- [ ] **Step 4: Run verification**
+- [x] **Step 4: Run verification**
 
 Run:
 
@@ -1065,7 +1065,7 @@ unsupported safety tests passed
 - Modify: `tests/condition-alignment.test.js`
 - Modify: `tests/select-alignment.test.js`
 
-- [ ] **Step 1: Add close-indent model tests**
+- [x] **Step 1: Add close-indent model tests**
 
 Extend `tests/format-scope-model.test.js`:
 
@@ -1075,7 +1075,7 @@ assert.ok(scopes.find(function(scope) {
 }), 'IN-list closing paren inherits condition block owner');
 ```
 
-- [ ] **Step 2: Implement scope-based close indent**
+- [x] **Step 2: Implement scope-based close indent**
 
 In `sql-scope-model.js`, store for parenthesized scopes:
 
@@ -1093,15 +1093,15 @@ Rules:
 - Function call close indent matches select item owner if function spans multiple lines.
 - Nested boolean paren close indent matches condition block owner.
 
-- [ ] **Step 3: Update layout renderer**
+- [x] **Step 3: Update layout renderer**
 
 In `sql-structured-renderer.js`, render lines beginning with closing parens using scope `closeIndent` instead of global `bracket_deep`.
 
-- [ ] **Step 4: Retire split-trailing-closing-parens as structural behavior**
+- [x] **Step 4: Retire split-trailing-closing-parens as structural behavior**
 
 Keep `split_trailing_closing_parens()` only for legacy path or remove it if structured renderer covers all tests. Do not run it in structured pipeline.
 
-- [ ] **Step 5: Run verification**
+- [x] **Step 5: Run verification**
 
 Run:
 
@@ -1132,7 +1132,7 @@ unsupported safety tests passed
 - Modify: `tests/token-boundary.test.js`
 - Modify: `tests/dialect-boundary.test.js`
 
-- [ ] **Step 1: Add token-safe keyword/comment tests**
+- [x] **Step 1: Add token-safe keyword/comment tests**
 
 Extend `tests/token-boundary.test.js` with:
 
@@ -1141,7 +1141,7 @@ Extend `tests/token-boundary.test.js` with:
 - `` `select from where` `` remains byte-for-byte.
 - PostgreSQL dollar string remains byte-for-byte in `postgres` dialect.
 
-- [ ] **Step 2: Implement keyword case mutation**
+- [x] **Step 2: Implement keyword case mutation**
 
 In `sql-keywords.js`, add:
 
@@ -1154,7 +1154,7 @@ Requirements:
 - Only mutate `word` tokens marked as active SQL code.
 - Never mutate comment, string literal, quoted identifier, block comment, placeholder, opaque segment.
 
-- [ ] **Step 3: Implement structured comment alignment**
+- [x] **Step 3: Implement structured comment alignment**
 
 In `sql-comment-formatter.js`, add:
 
@@ -1174,7 +1174,7 @@ Requirements:
 - Preserve Hive `--+` hint marker.
 - Do not let standalone comments split SELECT or CASE groups when they are bound to those owner scopes.
 
-- [ ] **Step 4: Run verification**
+- [x] **Step 4: Run verification**
 
 Run:
 
@@ -1207,7 +1207,7 @@ unsupported safety tests passed
 - Modify: `tests/module-boundary.test.js`
 - Modify: `docs/technical/sql-formatter-architecture.md`
 
-- [ ] **Step 1: Add module boundary assertion**
+- [x] **Step 1: Add module boundary assertion**
 
 Extend `tests/module-boundary.test.js` to fail if `sql-formatter.js` runs these structure functions after comment restore:
 
@@ -1220,7 +1220,7 @@ Extend `tests/module-boundary.test.js` to fail if `sql-formatter.js` runs these 
 
 The test should read `lib/core/sql-formatter.js`, find `restore_comments`, and assert those names do not appear after that position.
 
-- [ ] **Step 2: Flip default engine to structured**
+- [x] **Step 2: Flip default engine to structured**
 
 In `sql-formatter.js`, make structured path the default and remove undocumented `formatterEngine` branching once full regression passes.
 
@@ -1240,11 +1240,11 @@ canonical options
 -> final whitespace contract
 ```
 
-- [ ] **Step 3: Remove old restore-after structure pass calls**
+- [x] **Step 3: Remove old restore-after structure pass calls**
 
 Delete or isolate old calls from the default path. Compatibility helper functions may remain exported temporarily only if tests or public API still require them, but they must not be active in `format_sql_detailed()`.
 
-- [ ] **Step 4: Update architecture doc**
+- [x] **Step 4: Update architecture doc**
 
 Replace the old pipeline diagram in `docs/technical/sql-formatter-architecture.md` with:
 
@@ -1262,7 +1262,7 @@ flowchart LR
     J --> K["controlled restore and final whitespace"]
 ```
 
-- [ ] **Step 5: Run verification**
+- [x] **Step 5: Run verification**
 
 Run:
 
@@ -1285,7 +1285,7 @@ unsupported safety tests passed
 - Modify: `tests/performance-smoke.test.js`
 - Modify: `package.json`
 
-- [ ] **Step 1: Add differential corpus test**
+- [x] **Step 1: Add differential corpus test**
 
 Create `tests/structured-differential.test.js`:
 
@@ -1352,11 +1352,11 @@ corpus.forEach(function(item) {
 console.log('structured differential tests passed');
 ```
 
-- [ ] **Step 2: Add script to `test:verify`**
+- [x] **Step 2: Add script to `test:verify`**
 
 Add `node tests/structured-differential.test.js` near the end of `npm run test:verify`, before `tests/generated-support-matrix.test.js`.
 
-- [ ] **Step 3: Update performance smoke**
+- [x] **Step 3: Update performance smoke**
 
 Ensure `tests/performance-smoke.test.js` includes:
 
@@ -1367,7 +1367,7 @@ Ensure `tests/performance-smoke.test.js` includes:
 
 Acceptance threshold: current CI must complete performance smoke in under 5000ms for the configured corpus.
 
-- [ ] **Step 4: Run verification**
+- [x] **Step 4: Run verification**
 
 Run:
 
@@ -1395,7 +1395,7 @@ unsupported safety tests passed
 - Modify: `CHANGELOG.md`
 - Modify: `tests/generated-support-matrix.test.js`
 
-- [ ] **Step 1: Update technical architecture only**
+- [x] **Step 1: Update technical architecture only**
 
 In `docs/technical/sql-formatter-architecture.md`, document:
 
@@ -1407,15 +1407,15 @@ In `docs/technical/sql-formatter-architecture.md`, document:
 - restore-after structural pass ban
 - unsupported preserve / warn / bail_out behavior in structured model
 
-- [ ] **Step 2: Keep README user-facing**
+- [x] **Step 2: Keep README user-facing**
 
 Only update `README.md` if user-visible behavior changes. Do not copy internal architecture details into README.
 
-- [ ] **Step 3: Update support matrix if registry changed**
+- [x] **Step 3: Update support matrix if registry changed**
 
 If scope / dialect support metadata was added to registries, update `scripts/generate-support-matrix.js` and regenerate `docs/technical/sql-support-matrix.md`.
 
-- [ ] **Step 4: Update changelog after user verification**
+- [x] **Step 4: Update changelog after user verification**
 
 Only after user confirms behavior, update `CHANGELOG.md` with user-facing summary:
 
@@ -1424,7 +1424,7 @@ Only after user confirms behavior, update `CHANGELOG.md` with user-facing summar
 - condition block indentation is scope-aware.
 - comments / strings / quoted identifiers remain protected through structured pipeline.
 
-- [ ] **Step 5: Final verification**
+- [x] **Step 5: Final verification**
 
 Run:
 
@@ -1444,16 +1444,16 @@ DONE Packaged:
 
 ## 5. Acceptance Criteria
 
-- [ ] `sql-formatter.js` 默认路径中不存在 comment restore 后结构 pass。
-- [ ] `CASE WHEN ... -- comment` 后续 `THEN` 永远是 active SQL，不会拼到注释后。
-- [ ] SELECT comma migration 只作用于 SELECT / GROUP BY 顶层 item separator。
-- [ ] `IN (...)`、函数参数、window spec、nested parenthesized expression 内部逗号不会被 SELECT pass 移动或删除。
-- [ ] `ON -- comment` 后首个 bare condition 继承 ON block 缩进。
-- [ ] condition / expression 右括号缩进来自 owner scope。
-- [ ] keyword case 不改写注释、字符串、quoted identifier、block comment、opaque protected fragment。
-- [ ] comment alignment 使用统一 scope ownership，不再自建与 SELECT / CASE / condition 不一致的结构状态。
-- [ ] `npm run test:verify` 通过。
-- [ ] 涉及 VSIX 内容时 `npm run package:vsix` 通过。
+- [x] `sql-formatter.js` 默认路径中不存在 comment restore 后结构 pass。
+- [x] `CASE WHEN ... -- comment` 后续 `THEN` 永远是 active SQL，不会拼到注释后。
+- [x] SELECT comma migration 只作用于 SELECT / GROUP BY 顶层 item separator。
+- [x] `IN (...)`、函数参数、window spec、nested parenthesized expression 内部逗号不会被 SELECT pass 移动或删除。
+- [x] `ON -- comment` 后首个 bare condition 继承 ON block 缩进。
+- [x] condition / expression 右括号缩进来自 owner scope。
+- [x] keyword case 不改写注释、字符串、quoted identifier、block comment、opaque protected fragment。
+- [x] comment alignment 使用统一 scope ownership，不再自建与 SELECT / CASE / condition 不一致的结构状态。
+- [x] `npm run test:verify` 通过。
+- [x] 涉及 VSIX 内容时 `npm run package:vsix` 通过。
 
 ---
 
@@ -1486,8 +1486,8 @@ codex/structured-formatter-pipeline-plan
 
 ## 7. Plan Self-Review
 
-- [ ] 覆盖性：本计划覆盖了已确认的 restore 后结构 pass、SELECT comma scope、CASE comment binding、condition block ownership、right paren indentation、comment alignment、keyword case 和 production-fit verification。
-- [ ] 文件边界：新增结构模型文件均位于 `lib/core/`；没有要求 root `lib/*.js` shim 承载新逻辑。
-- [ ] 风险控制：采用 strangler rewrite，但目标是移除旧字符串结构 pass，不是保守修补。
-- [ ] 验证：每个任务有 targeted tests，最终有 `npm run test:verify` 和必要时 `npm run package:vsix`。
-- [ ] 文档边界：内部架构写入 `docs/technical/`；README 只在用户可见行为变化时更新。
+- [x] 覆盖性：本计划覆盖了已确认的 restore 后结构 pass、SELECT comma scope、CASE comment binding、condition block ownership、right paren indentation、comment alignment、keyword case 和 production-fit verification。
+- [x] 文件边界：新增结构模型文件均位于 `lib/core/`；没有要求 root `lib/*.js` shim 承载新逻辑。
+- [x] 风险控制：采用 strangler rewrite，但目标是移除旧字符串结构 pass，不是保守修补。
+- [x] 验证：每个任务有 targeted tests，最终有 `npm run test:verify` 和必要时 `npm run package:vsix`。
+- [x] 文档边界：内部架构写入 `docs/technical/`；README 只在用户可见行为变化时更新。
