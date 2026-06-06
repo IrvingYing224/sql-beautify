@@ -21,6 +21,16 @@ assert.ok(doc.tokens.some(function(token) {
 assert.ok(doc.tokens.some(function(token) {
 	return token.type == 'string_literal' && token.value == "'-- THEN'";
 }), 'string literal containing comment marker is preserved as literal');
+var firstToken = doc.tokens[0];
+assert.strictEqual(doc.tokenById[String(firstToken.id)], firstToken, 'document indexes tokens by id');
+assert.strictEqual(doc.tokenByIndex[String(firstToken.index)], firstToken, 'document indexes tokens by tokenizer index');
+assert.ok(doc.codeTokens.length > 0, 'document exposes active code tokens');
+assert.strictEqual(
+	doc.codeTokens[doc.codeTokenPositionByIndex[String(firstToken.index)]],
+	firstToken,
+	'document indexes active code token positions by tokenizer index'
+);
+assert.strictEqual(doc.lineByIndex[String(doc.lines[0].index)], doc.lines[0], 'document indexes lines by line index');
 assert.ok(doc.lines[3].commentText == '-- one', 'nested list item comment is separated');
 
 console.log('format document model tests passed');

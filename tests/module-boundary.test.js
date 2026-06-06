@@ -75,12 +75,53 @@ assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-format-document.js')),
 	'structured formatter must expose sql-format-document.js'
 );
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-format-navigation.js')),
+	'structured formatter must expose sql-format-navigation.js'
+);
+
+[
+	'lib/core/sql-structured-renderer.js',
+	'lib/core/sql-layout-formatter.js',
+	'lib/core/sql-case-formatter.js',
+	'lib/core/sql-condition-formatter.js',
+	'lib/core/sql-format-nodes.js'
+].forEach(function(relativePath) {
+	var source = read_source(relativePath);
+	[
+		'token_by_index',
+		'previous_code_token',
+		'next_code_token',
+		'active_tokens'
+	].forEach(function(helperName) {
+		assert.strictEqual(
+			new RegExp('function\\s+' + helperName + '\\s*\\(').test(source),
+			false,
+			relativePath + ' must use sql-format-navigation for ' + helperName
+		);
+	});
+});
+
+[
+	'lib/core/sql-structured-renderer.js',
+	'lib/core/sql-case-formatter.js',
+	'lib/core/sql-condition-formatter.js',
+	'lib/core/sql-format-nodes.js'
+].forEach(function(relativePath) {
+	var source = read_source(relativePath);
+	assert.strictEqual(
+		/function\s+scope_by_id\s*\(\s*document\s*,/.test(source),
+		false,
+		relativePath + ' must use sql-format-navigation for document scope lookup'
+	);
+});
 
 var packageJson = JSON.parse(read_source('package.json'));
 var verifyScript = packageJson.scripts && packageJson.scripts['test:verify'] || '';
 [
 	'tests/format-document-model.test.js',
 	'tests/format-scope-model.test.js',
+	'tests/format-navigation.test.js',
 	'tests/format-invariants.test.js',
 	'tests/structured-pipeline-regression.test.js',
 	'tests/structured-differential.test.js',
