@@ -71,6 +71,29 @@ assert.strictEqual(typeof sqlConditionFormatter.align_condition_clauses, 'functi
 assert.strictEqual(typeof sqlDdlFormatter.ddl, 'function', 'DDL formatter must export ddl');
 assert.strictEqual(typeof sqlDdlFormatter.extractddl, 'function', 'DDL formatter must export extractddl');
 assert.strictEqual(typeof ''.times, 'undefined', 'formatter modules must not pollute String.prototype');
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-format-document.js')),
+	'structured formatter must expose sql-format-document.js'
+);
+
+var packageJson = JSON.parse(read_source('package.json'));
+var verifyScript = packageJson.scripts && packageJson.scripts['test:verify'] || '';
+[
+	'tests/format-document-model.test.js',
+	'tests/format-scope-model.test.js',
+	'tests/format-invariants.test.js',
+	'tests/structured-pipeline-regression.test.js',
+	'tests/structured-differential.test.js',
+	'tests/window-function-spacing.test.js',
+	'tests/pipeline-idempotency.test.js',
+	'tests/generated-support-matrix.test.js',
+	'tests/unsupported-safety.test.js'
+].forEach(function(testFile) {
+	assert.ok(
+		verifyScript.indexOf(testFile) >= 0,
+		'test:verify must include structured pipeline guard: ' + testFile
+	);
+});
 
 var ddlFormatSource = read_source('lib/experimental/ddl/sql-ddl-format.js');
 assert.ok(
@@ -171,6 +194,16 @@ assert.strictEqual(
 	false,
 	'live formatter path must not call legacy normalize layout helpers'
 );
+assert.strictEqual(
+	/\bformatterEngine\b/.test(formatterSource),
+	false,
+	'core formatter default path must not keep the undocumented formatterEngine pipeline branch'
+);
+assert.strictEqual(
+	/\bsqlFormatPipeline\.run\s*\(/.test(formatterSource),
+	false,
+	'core formatter default path must not run the legacy string pipeline after structured migration'
+);
 for (let i = 0; i < forbiddenLiveFormatterPatterns.length; i++) {
 	assert.strictEqual(
 		forbiddenLiveFormatterPatterns[i].pattern.test(combinedLiveFormatterSource),
@@ -187,6 +220,55 @@ assert.strictEqual(
 	/var\s+deep\s*=\s*["']\\t["']/.test(combinedLiveFormatterSource),
 	false,
 	'live formatter source graph must not hard-code tab as the layout renderer indent unit'
+);
+
+var restoreCommentsIndex = formatterSource.indexOf('restore_comments');
+[
+	'repair_orphan_leading_commas',
+	'format_case_blocks',
+	'align_as_in_select_blocks',
+	'align_condition_clauses',
+	'apply_trailing_comma_style',
+	'order_comment'
+].forEach(function(functionName) {
+	assert.strictEqual(
+		new RegExp('\\b' + functionName + '\\s*\\(').test(formatterSource),
+		false,
+		'sql-formatter structured default path must not directly call legacy structure function ' + functionName
+	);
+	if (restoreCommentsIndex < 0) {
+		return;
+	}
+	assert.strictEqual(
+		formatterSource.indexOf(functionName, restoreCommentsIndex),
+		-1,
+		'sql-formatter must not run ' + functionName + ' after comment restore'
+	);
+});
+
+var documentInvariantIndex = formatterSource.indexOf('sqlFormatInvariants.assert_document_safe');
+var mutationInvariantIndex = formatterSource.indexOf('sqlFormatInvariants.assert_mutation_plan_safe');
+var structuredRenderIndex = formatterSource.indexOf('sqlStructuredRenderer.render');
+
+assert.ok(
+	documentInvariantIndex >= 0,
+	'sql-formatter structured path must assert document invariants before rendering'
+);
+assert.ok(
+	mutationInvariantIndex >= 0,
+	'sql-formatter structured path must assert mutation plan invariants before rendering'
+);
+assert.ok(
+	structuredRenderIndex >= 0,
+	'sql-formatter structured path must render through StructuredRenderer'
+);
+assert.ok(
+	documentInvariantIndex < structuredRenderIndex,
+	'sql-formatter must assert document invariants before StructuredRenderer.render'
+);
+assert.ok(
+	mutationInvariantIndex < structuredRenderIndex,
+	'sql-formatter must assert mutation plan invariants before StructuredRenderer.render'
 );
 
 var placeholderFormatted = sqlFormatter.format_sql('select NEEDReplace as c from t', {

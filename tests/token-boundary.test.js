@@ -1,5 +1,6 @@
 var assert = require('assert');
 var vkbeautify = require('../vkbeautify');
+var sqlFormatter = require('../lib/sql-formatter');
 
 function format(sql, uppercase) {
 	return vkbeautify.sql(sql, uppercase !== false, false, true, 150, 80).trim();
@@ -22,6 +23,25 @@ function assert_idempotent(name, input) {
 function assert_exact(name, input, expected) {
 	var actual = format(input);
 	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
+}
+
+function format_structured(sql, dialect) {
+	return sqlFormatter.format_sql(sql, {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'space',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: dialect || 'generic'
+	}).trim();
+}
+
+function assert_structured_contains(name, input, expectedFragment, dialect) {
+	var actual = format_structured(input, dialect);
+	assert.ok(
+		actual.indexOf(expectedFragment) >= 0,
+		name + '\n--- missing fragment ---\n' + expectedFragment + '\n--- actual ---\n' + actual
+	);
 }
 
 assert_contains(
@@ -105,4 +125,29 @@ assert_idempotent(
 		"from t",
 		"where note = '-- CASE WHEN THEN FROM WHERE';"
 	].join('\n')
+);
+
+assert_structured_contains(
+	'structured keyword mutation preserves SQL-looking line comment text',
+	"select a -- select from where case when then\nfrom t",
+	"-- select from where case when then"
+);
+
+assert_structured_contains(
+	'structured keyword mutation preserves SQL-looking string literal text',
+	"select 'select from where case when then' as s from t",
+	"'select from where case when then'"
+);
+
+assert_structured_contains(
+	'structured keyword mutation preserves SQL-looking quoted identifier text',
+	"select `select from where` as ident from t",
+	"`select from where`"
+);
+
+assert_structured_contains(
+	'structured keyword mutation preserves postgres dollar string text',
+	"select $$select from where case when then$$ as s from t",
+	"$$select from where case when then$$",
+	'postgres'
 );

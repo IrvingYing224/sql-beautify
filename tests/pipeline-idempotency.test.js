@@ -3,6 +3,9 @@ var sqlShield = require('../lib/sql-shield');
 var sqlRenderOptions = require('../lib/sql-render-options');
 var sqlFormatPipeline = require('../lib/sql-format-pipeline');
 var sqlFormatModel = require('../lib/core/sql-format-model');
+var sqlFormatContext = require('../lib/core/sql-format-context');
+var sqlNormalizePasses = require('../lib/core/sql-normalize-passes');
+var sqlDialect = require('../lib/core/sql-dialect');
 var vkbeautify = require('../vkbeautify');
 var sqlFormatter = require('../lib/sql-formatter');
 
@@ -153,8 +156,21 @@ assert.strictEqual(
 	'formatter must preserve a single user blank line, normalize CRLF to LF, and keep a single trailing newline'
 );
 
+var setPayloadSource = 'set key=$$a  b$$;\nselect 1';
+var setPayloadContext = sqlFormatContext.create_context(setPayloadSource);
+var setPayloadProtected = sqlNormalizePasses.protect_set_payloads(
+	setPayloadSource,
+	setPayloadContext,
+	sqlDialect.get_capabilities('postgres')
+).text;
+
+assert.ok(
+	setPayloadProtected.indexOf(';\nselect 1') >= 0,
+	'SET payload protection must preserve physical newline before the next statement'
+);
+
 assert.strictEqual(
-	sqlFormatter.format_sql('set key=$$a  b$$;\nselect 1', {
+	sqlFormatter.format_sql(setPayloadSource, {
 		keywordCase: 'upper',
 		commaStyle: 'leading',
 		indentStyle: 'tab',
@@ -207,8 +223,8 @@ assert.strictEqual(
 		'SELECT  *',
 		'FROM t',
 		'WHERE a IN ( 1 # keep ) ) comment',
-		'  AND b = 2',
-		')',
+		'\tAND b = 2',
+		'  )',
 		''
 	].join('\n'),
 	'layout indentation must ignore parentheses inside MySQL hash line comments'

@@ -294,13 +294,13 @@ run_case(
 		'FROM orders o;'
 	].join('\n'),
 	[
-		align_comment('SELECT  o.user_id                                                                                                            AS user_id', 143, '用户ID'),
-		align_comment('       ,o.order_id                                                                                                           AS order_id', 143, '订单ID'),
-		align_comment('       ,o.amount                                                                                                             AS amount', 143, '金额'),
-		align_comment('       ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.amount DESC,o.order_id ASC)                                     AS rn', 143, '行号'),
-		align_comment('       ,rank() OVER (PARTITION BY o.user_id ORDER BY o.amount DESC)                                                          AS rk', 143, '排名'),
-		align_comment('       ,dense_rank() OVER(PARTITION BY o.user_id ORDER BY o.amount DESC)                                                     AS drk', 143, '稠密排名'),
-		align_comment('       ,SUM(o.amount) OVER( PARTITION BY o.user_id ORDER BY o.create_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) AS running_amount', 143, '累计金额'),
+			align_comment('SELECT  o.user_id                                                                                                           AS user_id', 142, '用户ID'),
+			align_comment('       ,o.order_id                                                                                                          AS order_id', 142, '订单ID'),
+			align_comment('       ,o.amount                                                                                                            AS amount', 142, '金额'),
+			align_comment('       ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.amount DESC,o.order_id ASC)                                    AS rn', 142, '行号'),
+			align_comment('       ,rank() OVER (PARTITION BY o.user_id ORDER BY  o.amount DESC)                                                         AS rk', 142, '排名'),
+			align_comment('       ,dense_rank() OVER(PARTITION BY o.user_id ORDER BY  o.amount DESC)                                                   AS drk', 142, '稠密排名'),
+			align_comment('       ,SUM(o.amount) OVER(PARTITION BY o.user_id ORDER BY  o.create_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_amount', 142, '累计金额'),
 		'FROM orders o;'
 	].join('\n')
 );

@@ -15,17 +15,15 @@ This document is for maintainers. User-facing behavior belongs in `README.md`.
 ```mermaid
 flowchart LR
     A["adapter canonical options"] --> B["core sql-formatter"]
-    B --> C["SET payload protection"]
-    C --> D["token shield"]
-    D --> E["comment protection"]
-    E --> F["opaque clause protection"]
-    F --> G["lexical normalization"]
-    G --> H["clause splitting"]
-    H --> I["select/condition/layout passes"]
-    I --> J["restore comments and shields"]
-    J --> K["case/select/comment alignment"]
-    K --> L["keyword case"]
-    L --> M["opaque restore and comment spacing"]
+    B --> C["SET / opaque protection"]
+    C --> D["tokenize once"]
+    D --> E["FormatDocument"]
+    E --> F["ScopeModel"]
+    F --> G["FormatNodes"]
+    G --> H["structured passes create MutationPlan"]
+    H --> I["invariant guard"]
+    I --> J["StructuredRenderer"]
+    J --> K["controlled restore and final whitespace"]
 ```
 
 ## Core Rules
@@ -33,15 +31,25 @@ flowchart LR
 - Core accepts canonical option names only: `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `dialect`, and `unsupportedSyntaxPolicy`.
 - Core must not import `lib/adapters/` or `lib/experimental/`.
 - VS Code configuration accepts `sqlBeautify.*` only. Positional `vkbeautify.sql(...)` arguments remain a wrapper responsibility for the JS API.
-- Comments, strings, block comments, quoted identifiers, and opaque unsupported syntax must be protected before broad formatting passes.
-- Comment/layout interaction must use code/comment models or explicit state, not fake SQL marker strings.
+- Comments, strings, block comments, quoted identifiers, and opaque unsupported syntax must never be treated as active SQL code by structure passes.
+- Structure passes consume `FormatDocument`, `ScopeModel`, and `FormatNodes`; they must not re-derive SELECT, CASE, condition, list, or comment ownership from restored raw strings.
+- No structural pass may run after line comments are restored to real user-authored comment text.
+- Comment/layout interaction must use code/comment records, scope ownership, or mutation records, not fake SQL marker strings.
 - Layout must render the requested indentation directly. It must not render tabs first and globally replace them later.
 - Output whitespace contract: preserve at most one user blank line between logical blocks, normalize line endings to LF, and emit exactly one trailing newline.
 - Range formatting contract: only whole-line, clause-safe, structurally balanced fragments are formatted; unsafe fragments are rejected rather than speculatively rewritten.
 
-## Shared Format Model
+## Structured Format Model
 
-`lib/core/sql-format-model.js` provides reusable line-level facts for passes that need code/comment split, parenthesis delta, and CASE balance. It does not replace the tokenizer and must not become a mutable global cache. The model exists to reduce repeated tokenization and prevent comment / condition / layout passes from deriving conflicting facts from the same line.
+`lib/core/sql-format-document.js` builds the lossless per-format `FormatDocument`: source text, tokenizer records, physical line records, protected token classification, diagnostics, scopes, and extracted nodes. `lib/core/sql-format-model.js` remains a legacy compatibility facade for old line-level consumers and should not gain new structure ownership logic.
+
+`lib/core/sql-scope-model.js` owns structural ranges such as query, CASE expression, condition block, function call, IN-list, window spec, and parenthesized list. Close-paren indentation facts belong on the owning scope, not in per-pass bracket counters.
+
+`lib/core/sql-format-nodes.js` extracts pass-level nodes such as SELECT/GROUP BY items, CASE branches, condition segments, comment bindings, and separators. Separators must always carry an owner scope so comma mutations cannot accidentally affect function arguments or IN-list values.
+
+`lib/core/sql-format-mutations.js` is the only write plan for structure passes. Passes add declarative token, separator, indentation, and comment-alignment mutations; they do not edit final strings directly.
+
+`lib/core/sql-structured-renderer.js` is the single rendering boundary for the structured pipeline. It applies mutations deterministically, renders comments from bound comment tokens, preserves protected token bytes, and enforces the final whitespace contract.
 
 ## Verification Contract
 

@@ -197,4 +197,40 @@ assert.strictEqual(
 	'Hive hint select formatting should be idempotent\n--- actual ---\n' + hive_hint_select_actual
 );
 
+run_case(
+	'select comma migration never touches nested in-list or function arguments',
+	[
+		'select',
+		'case when city_id in (',
+		'1001, -- 北京',
+		'1002, -- 上海',
+		'1003 -- 广州',
+		") then concat_ws(',', name, city)",
+		"else 'unknown'",
+		'end as city_label,',
+		'coalesce(phone, -- 手机',
+		'email, -- 邮箱',
+		"'unknown' -- 兜底",
+		') as contact',
+		'from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'       CASE',
+		'           WHEN city_id IN (',
+		'                   1001, -- 北京',
+		'                   1002, -- 上海',
+		'                   1003  -- 广州',
+		"               ) THEN concat_ws(',', name, city)",
+		'           ELSE',
+		"               'unknown'",
+		'       END                                       AS city_label',
+		'       ,coalesce(phone, -- 手机',
+		'           email,    -- 邮箱',
+		"           'unknown' -- 兜底",
+		'       )                                         AS contact',
+		'FROM t'
+	].join('\n')
+);
+
 console.log('select alignment tests passed');

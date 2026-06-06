@@ -430,4 +430,25 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'when trailing comment never consumes following then',
+	[
+		'select case',
+		'when u.age < 18 -- 年龄条件',
+		"then 'child' -- 结果1",
+		"else 'adult'",
+		'end as age_phase',
+		'from dim_user u'
+	].join('\n'),
+	[
+		'SELECT',
+		'       CASE',
+		'           WHEN u.age < 18  -- 年龄条件',
+		"               THEN 'child' -- 结果1",
+		"           ELSE 'adult'",
+		'       END                  AS age_phase',
+		'FROM dim_user u'
+	].join('\n')
+);
+
 console.log('case-when tests passed');

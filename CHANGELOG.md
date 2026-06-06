@@ -5,17 +5,23 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
-### 0.5.8 (2026/05/17)
-* 修复 `CASE WHEN` 分支行尾注释吞掉后续 `THEN` 的问题，`WHEN ... -- comment` 后的 `THEN` 现在会保留在有效 SQL 行上
-* 修复 SELECT formatter 误迁移括号内部尾逗号的问题，跨行 `IN (...)` 列表、函数参数和带行尾注释的列表项不再丢失逗号
-* 修复 `ON -- comment` 后首个关联条件没有继承 `ON` 条件块缩进的问题
-* 修复条件块和多行 SELECT 表达式中的右括号缩进，右括号会继承所在代码块 / select item 的缩进
-* 补充 CASE 行尾注释、跨行 IN 列表注释、ON-only 注释行、条件括号缩进、SELECT 多行表达式闭括号和 CASE 字段逗号迁移的回归覆盖
-* Fixed `CASE WHEN` branches where trailing comments could swallow a following `THEN`; `THEN` after `WHEN ... -- comment` now remains on an active SQL line
-* Fixed SELECT formatter comma migration leaking into parenthesized scopes so multiline `IN (...)` lists, function arguments, and trailing-comment list items no longer lose commas
-* Fixed the first join condition after `ON -- comment` not inheriting the `ON` condition-block indentation
-* Fixed closing-parenthesis indentation in condition blocks and multiline SELECT expressions so closers inherit their containing block / select-item indentation
-* Added regression coverage for CASE trailing comments, commented multiline IN lists, ON-only comment lines, condition parenthesis indentation, multiline SELECT expression closers, and CASE item comma migration
+### 1.0.0 (2026/06/06)
+* 完成默认 SQL formatter 的结构化 pipeline 根治重构，主路径从旧字符串 pass 串联切换为 tokenizer 驱动的 `FormatDocument` / `ScopeModel` / `FormatNodes` / `MutationPlan` / `StructuredRenderer`
+* 移除默认路径中的 legacy `formatterEngine` / `sqlFormatPipeline.run` 回流和 restore 后结构 pass，避免注释恢复后再次被当作真实 SQL 重排
+* 将 SELECT / GROUP BY、CASE、condition、layout、keyword case 和 comment alignment 迁移为结构化 mutation pass，共用同一份 token、line、scope 和 node 事实源
+* 新增 formatter invariant guard，保护注释、字符串、块注释、quoted identifier、opaque unsupported syntax 不进入 active SQL 结构节点或被 mutation 删除 / 改写
+* 收紧 SELECT / GROUP BY separator ownership，逗号迁移只作用于明确 owner scope 的顶层 item separator，不再误碰 `IN (...)`、函数参数、window spec 或嵌套括号表达式
+* 统一 CASE branch、condition block、右括号缩进和 comment alignment 的 scope ownership，修复 `CASE WHEN ... -- comment` 吞 `THEN`、`ON -- comment` 后首个条件缩进、条件 / SELECT 表达式右括号缩进等长期风险
+* 扩展结构模型、invariant、differential、pipeline idempotency、performance smoke、module boundary、token boundary、Hive / DDL / unsupported safety 等回归覆盖，并纳入 `npm run test:verify`
+* 将扩展版本提升至 `1.0.0`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.0.vsix`
+* Completed the root-cause structured pipeline rewrite for the default SQL formatter, replacing chained legacy string passes with tokenizer-driven `FormatDocument` / `ScopeModel` / `FormatNodes` / `MutationPlan` / `StructuredRenderer`
+* Removed legacy `formatterEngine` / `sqlFormatPipeline.run` fallback from the default path and banned structural passes after restore so restored comments are not parsed as real SQL again
+* Migrated SELECT / GROUP BY, CASE, condition, layout, keyword case, and comment alignment behavior to structured mutation passes that share one token, line, scope, and node fact source
+* Added formatter invariant guards to keep comments, strings, block comments, quoted identifiers, and opaque unsupported syntax out of active SQL structure nodes and protected from deletion or rewriting
+* Tightened SELECT / GROUP BY separator ownership so comma migration only touches top-level item separators with an explicit owner scope and no longer leaks into `IN (...)`, function arguments, window specs, or nested parenthesized expressions
+* Unified scope ownership for CASE branches, condition blocks, closing-parenthesis indentation, and comment alignment, fixing long-standing risks around `CASE WHEN ... -- comment` swallowing `THEN`, `ON -- comment` first-condition indentation, and condition / SELECT expression closers
+* Expanded structured model, invariant, differential, pipeline idempotency, performance smoke, module boundary, token boundary, Hive / DDL / unsupported safety coverage and included it in `npm run test:verify`
+* Bumped the extension version to `1.0.0`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.0.vsix`
 
 ### 0.5.7 (2026/05/17)
 * 修复 `SELECT` 后紧跟行尾注释时首个真实字段不参与 SELECT list 重排的问题，连续独立行注释不会再打断字段逗号和缩进状态

@@ -108,4 +108,51 @@ run_indent_case(
 	].join('\n')
 );
 
+run_case(
+	'on-only comment line keeps first condition in on block',
+	[
+		'select *',
+		'from a',
+		'left join b',
+		'on -- ON 关键字单独成行',
+		'a.id = b.id -- 关联条件1',
+		"and b.dt = '2026-05-17' -- 关联条件2"
+	].join('\n'),
+	[
+		'SELECT  *',
+		'FROM a',
+		'LEFT JOIN b',
+		'     ON -- ON 关键字单独成行',
+		'        a.id = b.id -- 关联条件1',
+		"    AND b.dt = '2026-05-17' -- 关联条件2"
+	].join('\n')
+);
+
+run_case(
+	'condition closing parens inherit owner block indentation',
+	[
+		'select * from t',
+		'where city_id in (',
+		'1001, -- 北京',
+		'1002 -- 上海',
+		') -- IN 右括号',
+		'and (',
+		"status = 'paid'",
+		"or refund_status = 'none'",
+		') -- 逻辑右括号'
+	].join('\n'),
+		[
+			'SELECT  *',
+			'FROM t',
+			'WHERE city_id IN (',
+			'    1001, -- 北京',
+			'    1002 -- 上海',
+			'  ) -- IN 右括号',
+			'  AND (',
+			"      status = 'paid'",
+			"      OR refund_status = 'none'",
+			'  ) -- 逻辑右括号'
+		].join('\n')
+	);
+
 console.log('condition alignment tests passed');
