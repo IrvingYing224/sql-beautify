@@ -7,6 +7,7 @@ var sqlCommentFormatter = require('../lib/sql-comment-formatter');
 var sqlCaseFormatter = require('../lib/sql-case-formatter');
 var sqlSelectFormatter = require('../lib/sql-select-formatter');
 var sqlSelectMutations = require('../lib/core/sql-select-mutations');
+var sqlCaseMutations = require('../lib/core/sql-case-mutations');
 var sqlConditionFormatter = require('../lib/sql-condition-formatter');
 var sqlDdlFormatter = require('../lib/sql-ddl-formatter');
 
@@ -65,6 +66,9 @@ function collect_live_formatter_sources(entry_relative_path) {
 assert.strictEqual(typeof sqlFormatter.format_sql, 'function', 'sql-formatter must export format_sql');
 assert.strictEqual(typeof sqlCommentFormatter.normalize_line_comment_spacing, 'function', 'comment formatter must export normalize_line_comment_spacing');
 assert.strictEqual(typeof sqlCaseFormatter.format_case_blocks, 'function', 'case formatter must export format_case_blocks');
+assert.strictEqual(typeof sqlCaseFormatter.apply_case_mutations, 'function', 'case formatter must export apply_case_mutations');
+assert.strictEqual(typeof sqlCaseFormatter.render_case_node, 'function', 'case formatter must export render_case_node');
+assert.strictEqual(typeof sqlCaseMutations.apply_case_mutations, 'function', 'structured case mutations must export apply_case_mutations');
 assert.strictEqual(typeof sqlSelectFormatter.format_select_clause_lists, 'function', 'select formatter must export format_select_clause_lists');
 assert.strictEqual(typeof sqlSelectFormatter.align_as_in_select_blocks, 'function', 'select formatter must export align_as_in_select_blocks');
 assert.strictEqual(typeof sqlSelectMutations.apply_select_list_mutations, 'function', 'structured select mutations must export apply_select_list_mutations');
@@ -97,12 +101,17 @@ assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-select-mutations.js')),
 	'structured SELECT mutation module must exist'
 );
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-case-mutations.js')),
+	'structured CASE mutation module must exist'
+);
 
 [
 	'lib/core/sql-structured-renderer.js',
 	'lib/core/sql-render-indent.js',
 	'lib/core/sql-render-token-spacing.js',
 	'lib/core/sql-select-mutations.js',
+	'lib/core/sql-case-mutations.js',
 	'lib/core/sql-layout-formatter.js',
 	'lib/core/sql-case-formatter.js',
 	'lib/core/sql-condition-formatter.js',
@@ -128,6 +137,7 @@ assert.ok(
 	'lib/core/sql-render-indent.js',
 	'lib/core/sql-render-token-spacing.js',
 	'lib/core/sql-select-mutations.js',
+	'lib/core/sql-case-mutations.js',
 	'lib/core/sql-case-formatter.js',
 	'lib/core/sql-condition-formatter.js',
 	'lib/core/sql-format-nodes.js'
@@ -191,6 +201,7 @@ assert.strictEqual(
 var liveFormatterSources = collect_live_formatter_sources('lib/sql-formatter.js');
 var formatterSource = liveFormatterSources['lib/core/sql-formatter.js'] || liveFormatterSources['lib/sql-formatter.js'];
 var selectFormatterFacadeSource = read_source('lib/core/sql-select-formatter.js');
+var caseFormatterFacadeSource = read_source('lib/core/sql-case-formatter.js');
 var lexicalNormalizerSource = liveFormatterSources['lib/core/sql-lexical-normalizer.js'] || liveFormatterSources['lib/sql-lexical-normalizer.js'];
 var conditionFormatterSource = liveFormatterSources['lib/core/sql-condition-formatter.js'] || liveFormatterSources['lib/sql-condition-formatter.js'];
 var combinedLiveFormatterSource = Object.keys(liveFormatterSources).sort().map(function(relative_path) {
@@ -246,6 +257,18 @@ assert.ok(
 assert.ok(
 	/sqlSelectMutations\.apply_select_list_mutations\s*\(/.test(selectFormatterFacadeSource),
 	'sql-select-formatter facade must delegate apply_select_list_mutations to sql-select-mutations'
+);
+assert.ok(
+	caseFormatterFacadeSource.indexOf("require('./sql-case-mutations')") >= 0,
+	'sql-case-formatter facade must require structured case mutations'
+);
+assert.ok(
+	/sqlCaseMutations\.apply_case_mutations\s*\(/.test(caseFormatterFacadeSource),
+	'sql-case-formatter facade must delegate apply_case_mutations to sql-case-mutations'
+);
+assert.ok(
+	/function\s+render_case_node\s*\(/.test(caseFormatterFacadeSource),
+	'sql-case-formatter facade must keep render_case_node for compatibility'
 );
 Object.keys(liveFormatterSources).forEach(function(relative_path) {
 	assert.strictEqual(
