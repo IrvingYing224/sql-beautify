@@ -9,6 +9,7 @@ This document is for maintainers. User-facing behavior belongs in `README.md`.
 - `lib/experimental/ddl/`: experimental Hive DDL formatting and Extract DDL. It is intentionally outside the main SQL formatter responsibility layer.
 - Root `lib/*.js` files are compatibility shims only. They must remain single-line re-exports and must not contain formatter logic.
 - `lib/core/sql-token-primitives.js`: shared token-aware primitives for top-level item splitting and code/comment boundaries. New SQL boundary logic must reuse it instead of re-implementing character scans.
+- `lib/core/sql-clause-context.js`: shared token-aware context helper for clause splitting, syntax-risk detection, and structured clause mutation boundaries. `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` detection must use this helper rather than duplicating local word-value checks.
 - Obsolete structured formatter facades such as `sql-select-formatter.js`, `sql-case-formatter.js`, `sql-comment-formatter.js`, and `sql-condition-formatter.js` are removed. Do not recreate them as compatibility wrappers; live structured behavior belongs in the focused modules below.
 
 ## Pipeline
@@ -90,7 +91,7 @@ This is still not a full parser. The policy means "known low-confidence syntax",
 
 Detector findings must not be based on word value alone. Keyword-shaped identifiers, aliases, and expression function names such as `qualify`, `merge`, or `pivot` are valid formatter inputs unless they appear at a recognized clause or table-construct boundary. Clause splitting follows the same rule so a `SELECT qualify AS c` list item is not rewritten into a `QUALIFY` clause.
 
-The next planned hardening step is to centralize this shared clause/risk context in a focused core helper so clause splitting, syntax-risk detection, and structured clause mutations do not keep separate `QUALIFY` / `PIVOT` / `MERGE` boundary implementations.
+`lib/core/sql-clause-context.js` is the shared boundary implementation for this policy. Clause splitting, syntax-risk detection, and structured clause mutations must route low-confidence clause decisions through it so `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` context rules do not drift across separate modules.
 
 `unsupportedSyntaxPolicy` currently supports:
 

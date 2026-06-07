@@ -5,6 +5,16 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 1.0.6 (2026/06/08)
+* 增加 shared `sql-clause-context.js`，统一结构化 clause splitting、syntax risk detection 和 structured clause formatting 的上下文判断
+* 将 `QUALIFY`、`PIVOT` / `UNPIVOT`、`MERGE` 和 `MATCH_RECOGNIZE` 的低置信语法识别收敛到 token-aware boundary helper，避免字段名、别名或表达式函数名被误判为真实 clause / table construct
+* 增加 clause context 回归、unsupported safety fixture 和 module-boundary 断言，固定新 helper 是 live core graph 的唯一共享边界
+* 将扩展包版本同步至 `1.0.6`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.6.vsix`
+* Added shared `sql-clause-context.js` to centralize context checks across structured clause splitting, syntax risk detection, and structured clause formatting
+* Consolidated low-confidence syntax recognition for `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` into token-aware boundary helpers so identifiers, aliases, and expression functions are not mistaken for real clauses or table constructs
+* Added clause context regressions, unsupported safety fixtures, and module-boundary assertions to keep the new helper as the shared live-core boundary
+* Bumped the extension package version to `1.0.6`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.6.vsix`
+
 ### 1.0.5 (2026/06/08)
 * 拆分 `FormatNodes` 提取逻辑为 list/separator、SELECT item、CASE expression、condition block 和 shared node utility 模块，`sql-format-nodes.js` 保持薄 orchestrator
 * 增加 structured node shape guard 和 module-boundary 断言，固定 `selectSpans`、`separators`、`selectItems`、`caseExpressions`、`conditionBlocks` 的节点形状和导出边界
