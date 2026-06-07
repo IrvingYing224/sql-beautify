@@ -81,7 +81,21 @@ assert.ok(
 );
 
 [
+	'lib/core/sql-render-move-state.js',
+	'lib/core/sql-render-indent.js',
+	'lib/core/sql-render-token-spacing.js',
+	'lib/core/sql-render-line.js'
+].forEach(function(relativePath) {
+	assert.ok(
+		fs.existsSync(path.join(__dirname, '..', relativePath)),
+		'structured renderer split module must exist: ' + relativePath
+	);
+});
+
+[
 	'lib/core/sql-structured-renderer.js',
+	'lib/core/sql-render-indent.js',
+	'lib/core/sql-render-token-spacing.js',
 	'lib/core/sql-layout-formatter.js',
 	'lib/core/sql-case-formatter.js',
 	'lib/core/sql-condition-formatter.js',
@@ -104,6 +118,8 @@ assert.ok(
 
 [
 	'lib/core/sql-structured-renderer.js',
+	'lib/core/sql-render-indent.js',
+	'lib/core/sql-render-token-spacing.js',
 	'lib/core/sql-case-formatter.js',
 	'lib/core/sql-condition-formatter.js',
 	'lib/core/sql-format-nodes.js'
@@ -113,6 +129,23 @@ assert.ok(
 		/function\s+scope_by_id\s*\(\s*document\s*,/.test(source),
 		false,
 		relativePath + ' must use sql-format-navigation for document scope lookup'
+	);
+});
+
+var structuredRendererSource = read_source('lib/core/sql-structured-renderer.js');
+[
+	'build_move_state',
+	'build_close_indent_by_line',
+	'build_body_indent_by_line',
+	'append_visible_token',
+	'render_line_from_tokens',
+	'apply_comment_alignment',
+	'normalize_output_whitespace'
+].forEach(function(functionName) {
+	assert.strictEqual(
+		new RegExp('function\\s+' + functionName + '\\s*\\(').test(structuredRendererSource),
+		false,
+		'sql-structured-renderer.js must delegate helper implementation: ' + functionName
 	);
 });
 
