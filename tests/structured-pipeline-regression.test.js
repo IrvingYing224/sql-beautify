@@ -1,9 +1,9 @@
 var assert = require('assert');
 var sqlFormatter = require('../lib/sql-formatter');
-var sqlSelectFormatter = require('../lib/core/sql-select-formatter');
-var sqlCaseFormatter = require('../lib/core/sql-case-formatter');
-var sqlConditionFormatter = require('../lib/core/sql-condition-formatter');
-var sqlCommentFormatter = require('../lib/core/sql-comment-formatter');
+var sqlSelectMutations = require('../lib/core/sql-select-mutations');
+var sqlCaseMutations = require('../lib/core/sql-case-mutations');
+var sqlConditionMutations = require('../lib/core/sql-condition-mutations');
+var sqlCommentMutations = require('../lib/core/sql-comment-mutations');
 
 function format(sql) {
 	return sqlFormatter.format_sql(sql, {
@@ -38,29 +38,24 @@ assert.ok(actual.indexOf(',coalesce') >= 0, 'next select item keeps leading comm
 assert.strictEqual(format(actual), actual, 'structured pipeline output is idempotent');
 
 assert.strictEqual(
-	typeof sqlSelectFormatter.apply_select_list_mutations,
+	typeof sqlSelectMutations.apply_select_list_mutations,
 	'function',
-	'structured SELECT pass must expose apply_select_list_mutations'
+	'structured SELECT mutation module must expose apply_select_list_mutations'
 );
 assert.strictEqual(
-	typeof sqlCaseFormatter.apply_case_mutations,
+	typeof sqlCaseMutations.apply_case_mutations,
 	'function',
-	'structured CASE pass must expose apply_case_mutations'
+	'structured CASE mutation module must expose apply_case_mutations'
 );
 assert.strictEqual(
-	typeof sqlCaseFormatter.render_case_node,
+	typeof sqlConditionMutations.apply_condition_mutations,
 	'function',
-	'structured CASE pass must expose render_case_node'
+	'structured condition mutation module must expose apply_condition_mutations'
 );
 assert.strictEqual(
-	typeof sqlConditionFormatter.apply_condition_mutations,
+	typeof sqlCommentMutations.apply_comment_alignment_mutations,
 	'function',
-	'structured condition pass must expose apply_condition_mutations'
-);
-assert.strictEqual(
-	typeof sqlCommentFormatter.apply_comment_alignment_mutations,
-	'function',
-	'structured comment pass must expose apply_comment_alignment_mutations'
+	'structured comment mutation module must expose apply_comment_alignment_mutations'
 );
 
 var nestedSelectActual = format([
