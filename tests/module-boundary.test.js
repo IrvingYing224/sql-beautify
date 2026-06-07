@@ -10,6 +10,11 @@ var sqlConditionMutations = require('../lib/core/sql-condition-mutations');
 var sqlCommentSpacing = require('../lib/core/sql-comment-spacing');
 var sqlTokenRenderer = require('../lib/core/sql-token-renderer');
 var sqlRenderWidth = require('../lib/core/sql-render-width');
+var sqlNodeUtils = require('../lib/core/sql-node-utils');
+var sqlListNodes = require('../lib/core/sql-list-nodes');
+var sqlSelectItemNodes = require('../lib/core/sql-select-item-nodes');
+var sqlCaseNodes = require('../lib/core/sql-case-nodes');
+var sqlConditionNodes = require('../lib/core/sql-condition-nodes');
 var sqlDdlFormatter = require('../lib/sql-ddl-formatter');
 
 function format_core(sql, options) {
@@ -113,6 +118,31 @@ assert.deepStrictEqual(
 	['create_width_context'],
 	'render width helper must expose only create_width_context'
 );
+assert.deepStrictEqual(
+	Object.keys(sqlNodeUtils).sort(),
+	['is_code_token', 'is_word', 'token_in_range', 'tokens_in_range'],
+	'node utils must expose only shared token helpers'
+);
+assert.deepStrictEqual(
+	Object.keys(sqlListNodes).sort(),
+	['create_list_spans', 'find_separators'],
+	'list node extractor must expose only list span and separator extraction'
+);
+assert.deepStrictEqual(
+	Object.keys(sqlSelectItemNodes).sort(),
+	['find_select_items'],
+	'select item node extractor must expose only find_select_items'
+);
+assert.deepStrictEqual(
+	Object.keys(sqlCaseNodes).sort(),
+	['find_case_expressions'],
+	'case node extractor must expose only find_case_expressions'
+);
+assert.deepStrictEqual(
+	Object.keys(sqlConditionNodes).sort(),
+	['find_condition_blocks'],
+	'condition node extractor must expose only find_condition_blocks'
+);
 assert.strictEqual(typeof sqlDdlFormatter.ddl, 'function', 'DDL formatter must export ddl');
 assert.strictEqual(typeof sqlDdlFormatter.extractddl, 'function', 'DDL formatter must export extractddl');
 assert.strictEqual(typeof ''.times, 'undefined', 'formatter modules must not pollute String.prototype');
@@ -134,6 +164,18 @@ assert.ok(
 	assert.ok(
 		fs.existsSync(path.join(__dirname, '..', relativePath)),
 		'structured renderer split module must exist: ' + relativePath
+	);
+});
+[
+	'lib/core/sql-node-utils.js',
+	'lib/core/sql-list-nodes.js',
+	'lib/core/sql-select-item-nodes.js',
+	'lib/core/sql-case-nodes.js',
+	'lib/core/sql-condition-nodes.js'
+].forEach(function(relativePath) {
+	assert.ok(
+		fs.existsSync(path.join(__dirname, '..', relativePath)),
+		'structured node extractor split module must exist: ' + relativePath
 	);
 });
 assert.ok(
@@ -181,7 +223,11 @@ obsolete_formatter_files().forEach(function(relativePath) {
 	'lib/core/sql-case-mutations.js',
 	'lib/core/sql-layout-formatter.js',
 	'lib/core/sql-condition-mutations.js',
-	'lib/core/sql-format-nodes.js'
+	'lib/core/sql-format-nodes.js',
+	'lib/core/sql-list-nodes.js',
+	'lib/core/sql-select-item-nodes.js',
+	'lib/core/sql-case-nodes.js',
+	'lib/core/sql-condition-nodes.js'
 ].forEach(function(relativePath) {
 	var source = read_source(relativePath);
 	[
@@ -205,7 +251,11 @@ obsolete_formatter_files().forEach(function(relativePath) {
 	'lib/core/sql-select-mutations.js',
 	'lib/core/sql-case-mutations.js',
 	'lib/core/sql-condition-mutations.js',
-	'lib/core/sql-format-nodes.js'
+	'lib/core/sql-format-nodes.js',
+	'lib/core/sql-list-nodes.js',
+	'lib/core/sql-select-item-nodes.js',
+	'lib/core/sql-case-nodes.js',
+	'lib/core/sql-condition-nodes.js'
 ].forEach(function(relativePath) {
 	var source = read_source(relativePath);
 	assert.strictEqual(
@@ -229,6 +279,35 @@ var structuredRendererSource = read_source('lib/core/sql-structured-renderer.js'
 		new RegExp('function\\s+' + functionName + '\\s*\\(').test(structuredRendererSource),
 		false,
 		'sql-structured-renderer.js must delegate helper implementation: ' + functionName
+	);
+});
+
+var formatNodesSource = read_source('lib/core/sql-format-nodes.js');
+[
+	'is_list_boundary_token',
+	'list_boundary_end_token',
+	'span_contains_token',
+	'select_span_for_token',
+	'owner_scope_for_separator',
+	'line_has_word',
+	'apply_case_comments',
+	'is_clause_start_token'
+].forEach(function(functionName) {
+	assert.strictEqual(
+		new RegExp('function\\s+' + functionName + '\\s*\\(').test(formatNodesSource),
+		false,
+		'sql-format-nodes.js must delegate extractor helper implementation: ' + functionName
+	);
+});
+[
+	"require('./sql-list-nodes')",
+	"require('./sql-select-item-nodes')",
+	"require('./sql-case-nodes')",
+	"require('./sql-condition-nodes')"
+].forEach(function(requireText) {
+	assert.ok(
+		formatNodesSource.indexOf(requireText) >= 0,
+		'sql-format-nodes.js must delegate to focused extractor module: ' + requireText
 	);
 });
 
