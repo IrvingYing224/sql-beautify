@@ -284,6 +284,117 @@ assert_not_match(
     /ROW_NUMBER\s*\n\s*\(\s*\n\s*\)\s*OVER/i
 );
 
+assert.throws(
+    function() {
+        vkbeautify.sql(
+            'select * from (select a, row_number() over(partition by k order by ts) as rn from t qualify rn=1) q',
+            true,
+            false,
+            true,
+            150,
+            80,
+            {
+                dialect: 'postgres',
+                unsupportedSyntaxPolicy: 'bail_out'
+            }
+        );
+    },
+    /Unsupported SQL fragment detected/,
+    'bail_out must reject real QUALIFY inside nested subqueries'
+);
+
+assert.doesNotThrow(
+    function() {
+        vkbeautify.sql(
+            'with qualify_alias as (select qualify as c from t) select * from qualify_alias where c=1',
+            true,
+            false,
+            true,
+            150,
+            80,
+            {
+                dialect: 'postgres',
+                unsupportedSyntaxPolicy: 'bail_out'
+            }
+        );
+    },
+    'bail_out must allow CTEs and SELECT-list aliases named qualify'
+);
+
+assert.doesNotThrow(
+    function() {
+        vkbeautify.sql(
+            'select merge as c from t where merge = 1',
+            true,
+            false,
+            true,
+            150,
+            80,
+            {
+                dialect: 'generic',
+                unsupportedSyntaxPolicy: 'bail_out'
+            }
+        );
+    },
+    'bail_out must allow MERGE-shaped identifiers outside statement-start context'
+);
+
+assert.throws(
+    function() {
+        vkbeautify.sql(
+            'merge into target t using source s on t.id=s.id when matched then update set v=s.v',
+            true,
+            false,
+            true,
+            150,
+            80,
+            {
+                dialect: 'generic',
+                unsupportedSyntaxPolicy: 'bail_out'
+            }
+        );
+    },
+    /Unsupported SQL fragment detected/,
+    'bail_out must reject real MERGE INTO statements'
+);
+
+assert.doesNotThrow(
+    function() {
+        vkbeautify.sql(
+            'select * from t where x = pivot(y)',
+            true,
+            false,
+            true,
+            150,
+            80,
+            {
+                dialect: 'generic',
+                unsupportedSyntaxPolicy: 'bail_out'
+            }
+        );
+    },
+    'bail_out must allow PIVOT-shaped expression functions'
+);
+
+assert.throws(
+    function() {
+        vkbeautify.sql(
+            'select * from t pivot (sum(x) for y in (1)) where x = pivot(y)',
+            true,
+            false,
+            true,
+            150,
+            80,
+            {
+                dialect: 'generic',
+                unsupportedSyntaxPolicy: 'bail_out'
+            }
+        );
+    },
+    /Unsupported SQL fragment detected/,
+    'bail_out must reject real PIVOT table constructs even when PIVOT-shaped functions also exist'
+);
+
 var extractedAdd = vkbeautify.extractddl('select a + b from t');
 assert.strictEqual(
     extractedAdd.trim(),
