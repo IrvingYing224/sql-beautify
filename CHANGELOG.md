@@ -5,6 +5,48 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 1.0.5 (2026/06/08)
+* 拆分 `FormatNodes` 提取逻辑为 list/separator、SELECT item、CASE expression、condition block 和 shared node utility 模块，`sql-format-nodes.js` 保持薄 orchestrator
+* 增加 structured node shape guard 和 module-boundary 断言，固定 `selectSpans`、`separators`、`selectItems`、`caseExpressions`、`conditionBlocks` 的节点形状和导出边界
+* 保持 formatter 输出不变，降低后续扩展 SELECT / CASE / condition 节点提取时误改 mutation 消费契约的风险
+* 将扩展包版本同步至 `1.0.5`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.5.vsix`
+* Split `FormatNodes` extraction into list/separator, SELECT item, CASE expression, condition block, and shared node utility modules while keeping `sql-format-nodes.js` as a thin orchestrator
+* Added structured node shape guards and module-boundary assertions for `selectSpans`, `separators`, `selectItems`, `caseExpressions`, and `conditionBlocks`
+* Preserved formatter output while lowering the risk of breaking mutation consumers when extending SELECT / CASE / condition extraction
+* Bumped the extension package version to `1.0.5`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.5.vsix`
+
+### 1.0.4 (2026/06/07)
+* 增加 tokenizer profile 回归，监控结构化 pipeline 的 tokenizer 调用次数和字符量，防止后续维护性拆分引入隐性退化
+* 拆分 shared token rendering 和 comment alignment width context，减少 SELECT / CASE / comment mutation 中重复的 token 渲染与宽度计算逻辑
+* 增加 renderer helper boundary 和 VSIX 内容检查，确认新 runtime helper 模块进入包内且旧 formatter facade 不出现在包内
+* Added tokenizer profile regression coverage to watch tokenizer call count and tokenized character volume in the structured pipeline
+* Extracted shared token rendering and comment-alignment width context to reduce duplicate token rendering and width calculation logic in SELECT / CASE / comment mutations
+* Added renderer helper boundary and VSIX content checks to confirm new runtime helper modules are packaged and obsolete formatter facades are absent
+
+### 1.0.3 (2026/06/07)
+* 移除旧 `sql-*-formatter` facade 和旧内部兼容导出，默认 live formatter graph 只通过 focused structured modules，不再保留“旧 API 还存在但不调用”的半迁移状态
+* 抽出 condition mutation 和 comment spacing live modules，并让 `sql-formatter.js` 直接依赖 focused mutation / spacing 模块
+* 收紧 module-boundary 测试，禁止 obsolete formatter API、legacy marker protocol、restore 后结构 pass 和旧 string pipeline 间接回流
+* Removed obsolete `sql-*-formatter` facades and old internal compatibility exports; the default live formatter graph now goes only through focused structured modules
+* Extracted condition mutation and comment-spacing live modules and routed `sql-formatter.js` directly through focused mutation / spacing modules
+* Tightened module-boundary tests to prevent obsolete formatter APIs, legacy marker protocols, post-restore structure passes, and the old string pipeline from returning indirectly
+
+### 1.0.2 (2026/06/07)
+* 拆分 SELECT、CASE 和 comment mutation 实现到 focused mutation modules，并用精确导出断言防止旧 formatter API 回流
+* 保持 `apply_select_list_mutations`、`apply_case_mutations`、`apply_comment_alignment_mutations` 的结构化入口稳定，降低大文件维护成本
+* 将 mutation 拆分过程纳入 targeted regression、module-boundary 和 `npm run test:verify` 验证
+* Split SELECT, CASE, and comment mutation implementations into focused mutation modules, with exact export assertions preventing obsolete formatter APIs from returning
+* Kept `apply_select_list_mutations`, `apply_case_mutations`, and `apply_comment_alignment_mutations` as stable structured entry points while reducing large-file maintenance cost
+* Covered the mutation split with targeted regression, module-boundary checks, and `npm run test:verify`
+
+### 1.0.1 (2026/06/07)
+* 集中 `FormatDocument` navigation 索引和 scope/token lookup，减少 renderer、mutation 和 node 模块重复扫描同一份 token / scope 数据
+* 拆分 `StructuredRenderer` 的 move state、indent、token spacing 和 line assembly helper，渲染边界仍由 `sql-structured-renderer.js` 统一对外承载
+* 增加 renderer split boundary tests，防止 `sql-structured-renderer.js` 重新长回多职责大文件
+* Centralized `FormatDocument` navigation indexes and scope/token lookup to reduce repeated scans across renderer, mutation, and node modules
+* Split `StructuredRenderer` move state, indentation, token spacing, and line assembly helpers while keeping `sql-structured-renderer.js` as the rendering boundary
+* Added renderer split boundary tests to keep `sql-structured-renderer.js` from regrowing into a multi-responsibility file
+
 ### 1.0.0 (2026/06/06)
 * 完成默认 SQL formatter 的结构化 pipeline 根治重构，主路径从旧字符串 pass 串联切换为 tokenizer 驱动的 `FormatDocument` / `ScopeModel` / `FormatNodes` / `MutationPlan` / `StructuredRenderer`
 * 移除默认路径中的 legacy `formatterEngine` / `sqlFormatPipeline.run` 回流和 restore 后结构 pass，避免注释恢复后再次被当作真实 SQL 重排

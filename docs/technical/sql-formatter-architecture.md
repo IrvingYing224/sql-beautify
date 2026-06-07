@@ -9,6 +9,7 @@ This document is for maintainers. User-facing behavior belongs in `README.md`.
 - `lib/experimental/ddl/`: experimental Hive DDL formatting and Extract DDL. It is intentionally outside the main SQL formatter responsibility layer.
 - Root `lib/*.js` files are compatibility shims only. They must remain single-line re-exports and must not contain formatter logic.
 - `lib/core/sql-token-primitives.js`: shared token-aware primitives for top-level item splitting and code/comment boundaries. New SQL boundary logic must reuse it instead of re-implementing character scans.
+- Obsolete structured formatter facades such as `sql-select-formatter.js`, `sql-case-formatter.js`, `sql-comment-formatter.js`, and `sql-condition-formatter.js` are removed. Do not recreate them as compatibility wrappers; live structured behavior belongs in the focused modules below.
 
 ## Pipeline
 
@@ -45,11 +46,29 @@ flowchart LR
 
 `lib/core/sql-scope-model.js` owns structural ranges such as query, CASE expression, condition block, function call, IN-list, window spec, and parenthesized list. Close-paren indentation facts belong on the owning scope, not in per-pass bracket counters.
 
-`lib/core/sql-format-nodes.js` extracts pass-level nodes such as SELECT/GROUP BY items, CASE branches, condition segments, comment bindings, and separators. Separators must always carry an owner scope so comma mutations cannot accidentally affect function arguments or IN-list values.
+`lib/core/sql-format-nodes.js` is the thin public orchestrator for pass-level nodes. Concrete extraction is split into focused modules:
+
+- `sql-list-nodes.js`: SELECT/GROUP BY list spans and separator ownership
+- `sql-select-item-nodes.js`: SELECT/GROUP BY item nodes
+- `sql-case-nodes.js`: CASE expression and branch nodes
+- `sql-condition-nodes.js`: condition block and segment nodes
+- `sql-node-utils.js`: shared token predicates and range helpers
+
+Separators must always carry an owner scope so comma mutations cannot accidentally affect function arguments or IN-list values.
 
 `lib/core/sql-format-mutations.js` is the only write plan for structure passes. Passes add declarative token, separator, indentation, and comment-alignment mutations; they do not edit final strings directly.
 
-`lib/core/sql-structured-renderer.js` is the single rendering boundary for the structured pipeline. It applies mutations deterministically, renders comments from bound comment tokens, preserves protected token bytes, and enforces the final whitespace contract.
+Structured mutation implementations are split by responsibility:
+
+- `sql-select-mutations.js`: SELECT/GROUP BY item layout, comma placement, and AS alignment mutations
+- `sql-case-mutations.js`: CASE branch layout mutations
+- `sql-condition-mutations.js`: condition clause and connector mutations
+- `sql-comment-mutations.js`: trailing and bound comment alignment mutations
+- `sql-comment-spacing.js`: final line-comment spacing normalization
+
+These modules expose only their `apply_*_mutations` entry points, except `sql-comment-spacing.js`, which exposes only `normalize_line_comment_spacing`.
+
+`lib/core/sql-structured-renderer.js` is the single rendering boundary for the structured pipeline. It applies mutations deterministically, renders comments from bound comment tokens, preserves protected token bytes, and enforces the final whitespace contract. Its implementation delegates focused helper work to `sql-render-move-state.js`, `sql-render-indent.js`, `sql-render-token-spacing.js`, `sql-render-line.js`, `sql-render-width.js`, and `sql-token-renderer.js`.
 
 ## Verification Contract
 
@@ -57,6 +76,8 @@ flowchart LR
 - `tests/canonical-core-boundary.test.js` checks canonical options through the core path.
 - `tests/layout-marker-leakage.test.js` protects user-authored text that resembles removed historical markers.
 - `tests/generated-support-matrix.test.js` keeps `docs/technical/sql-support-matrix.md` synchronized with clause/operator registries.
+- `tests/tokenizer-profile.test.js` and the performance smoke test are regression guards for tokenizer churn and accidental path blowups. They are not proof that every maintainability refactor improves wall-clock time.
+- Packaging smoke must confirm new runtime core modules are included in the VSIX and obsolete formatter facades are absent when module structure changes.
 
 ## Unsupported Policy
 
@@ -68,6 +89,8 @@ Unsupported syntax detection has two inputs:
 This is still not a full parser. The policy means "known low-confidence syntax", not "every possible unsupported SQL grammar form". Opaque constructs must be preserved through shielding before broad rewrites; detector-only findings are context-aware and are reported without implying that every detected fragment was isolated as an opaque preserved segment. Experimental DDL should remain clearly labeled and tested separately.
 
 Detector findings must not be based on word value alone. Keyword-shaped identifiers, aliases, and expression function names such as `qualify`, `merge`, or `pivot` are valid formatter inputs unless they appear at a recognized clause or table-construct boundary. Clause splitting follows the same rule so a `SELECT qualify AS c` list item is not rewritten into a `QUALIFY` clause.
+
+The next planned hardening step is to centralize this shared clause/risk context in a focused core helper so clause splitting, syntax-risk detection, and structured clause mutations do not keep separate `QUALIFY` / `PIVOT` / `MERGE` boundary implementations.
 
 `unsupportedSyntaxPolicy` currently supports:
 
