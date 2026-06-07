@@ -6,6 +6,7 @@ var sqlFormatter = require('../lib/sql-formatter');
 var sqlCommentFormatter = require('../lib/sql-comment-formatter');
 var sqlCaseFormatter = require('../lib/sql-case-formatter');
 var sqlSelectFormatter = require('../lib/sql-select-formatter');
+var sqlSelectMutations = require('../lib/core/sql-select-mutations');
 var sqlConditionFormatter = require('../lib/sql-condition-formatter');
 var sqlDdlFormatter = require('../lib/sql-ddl-formatter');
 
@@ -66,6 +67,7 @@ assert.strictEqual(typeof sqlCommentFormatter.normalize_line_comment_spacing, 'f
 assert.strictEqual(typeof sqlCaseFormatter.format_case_blocks, 'function', 'case formatter must export format_case_blocks');
 assert.strictEqual(typeof sqlSelectFormatter.format_select_clause_lists, 'function', 'select formatter must export format_select_clause_lists');
 assert.strictEqual(typeof sqlSelectFormatter.align_as_in_select_blocks, 'function', 'select formatter must export align_as_in_select_blocks');
+assert.strictEqual(typeof sqlSelectMutations.apply_select_list_mutations, 'function', 'structured select mutations must export apply_select_list_mutations');
 assert.strictEqual(typeof sqlConditionFormatter.wrap_condition_clauses, 'function', 'condition formatter must export wrap_condition_clauses');
 assert.strictEqual(typeof sqlConditionFormatter.align_condition_clauses, 'function', 'condition formatter must export align_condition_clauses');
 assert.strictEqual(typeof sqlDdlFormatter.ddl, 'function', 'DDL formatter must export ddl');
@@ -91,11 +93,16 @@ assert.ok(
 		'structured renderer split module must exist: ' + relativePath
 	);
 });
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-select-mutations.js')),
+	'structured SELECT mutation module must exist'
+);
 
 [
 	'lib/core/sql-structured-renderer.js',
 	'lib/core/sql-render-indent.js',
 	'lib/core/sql-render-token-spacing.js',
+	'lib/core/sql-select-mutations.js',
 	'lib/core/sql-layout-formatter.js',
 	'lib/core/sql-case-formatter.js',
 	'lib/core/sql-condition-formatter.js',
@@ -120,6 +127,7 @@ assert.ok(
 	'lib/core/sql-structured-renderer.js',
 	'lib/core/sql-render-indent.js',
 	'lib/core/sql-render-token-spacing.js',
+	'lib/core/sql-select-mutations.js',
 	'lib/core/sql-case-formatter.js',
 	'lib/core/sql-condition-formatter.js',
 	'lib/core/sql-format-nodes.js'
@@ -182,6 +190,7 @@ assert.strictEqual(
 
 var liveFormatterSources = collect_live_formatter_sources('lib/sql-formatter.js');
 var formatterSource = liveFormatterSources['lib/core/sql-formatter.js'] || liveFormatterSources['lib/sql-formatter.js'];
+var selectFormatterFacadeSource = read_source('lib/core/sql-select-formatter.js');
 var lexicalNormalizerSource = liveFormatterSources['lib/core/sql-lexical-normalizer.js'] || liveFormatterSources['lib/sql-lexical-normalizer.js'];
 var conditionFormatterSource = liveFormatterSources['lib/core/sql-condition-formatter.js'] || liveFormatterSources['lib/sql-condition-formatter.js'];
 var combinedLiveFormatterSource = Object.keys(liveFormatterSources).sort().map(function(relative_path) {
@@ -229,6 +238,14 @@ assert.ok(
 assert.ok(
 	combinedLiveFormatterSource.indexOf('sql-format-model') >= 0,
 	'live formatter graph should include shared format model after pipeline coupling cleanup'
+);
+assert.ok(
+	selectFormatterFacadeSource.indexOf("require('./sql-select-mutations')") >= 0,
+	'sql-select-formatter facade must require structured select mutations'
+);
+assert.ok(
+	/sqlSelectMutations\.apply_select_list_mutations\s*\(/.test(selectFormatterFacadeSource),
+	'sql-select-formatter facade must delegate apply_select_list_mutations to sql-select-mutations'
 );
 Object.keys(liveFormatterSources).forEach(function(relative_path) {
 	assert.strictEqual(
