@@ -8,6 +8,8 @@ var sqlCaseMutations = require('../lib/core/sql-case-mutations');
 var sqlCommentMutations = require('../lib/core/sql-comment-mutations');
 var sqlConditionMutations = require('../lib/core/sql-condition-mutations');
 var sqlCommentSpacing = require('../lib/core/sql-comment-spacing');
+var sqlTokenRenderer = require('../lib/core/sql-token-renderer');
+var sqlRenderWidth = require('../lib/core/sql-render-width');
 var sqlDdlFormatter = require('../lib/sql-ddl-formatter');
 
 function format_core(sql, options) {
@@ -101,6 +103,16 @@ assert.deepStrictEqual(
 	['normalize_line_comment_spacing'],
 	'comment spacing module must expose only normalize_line_comment_spacing'
 );
+assert.deepStrictEqual(
+	Object.keys(sqlTokenRenderer).sort(),
+	['render_tokens'],
+	'token renderer must expose only render_tokens'
+);
+assert.deepStrictEqual(
+	Object.keys(sqlRenderWidth).sort(),
+	['create_width_context'],
+	'render width helper must expose only create_width_context'
+);
 assert.strictEqual(typeof sqlDdlFormatter.ddl, 'function', 'DDL formatter must export ddl');
 assert.strictEqual(typeof sqlDdlFormatter.extractddl, 'function', 'DDL formatter must export extractddl');
 assert.strictEqual(typeof ''.times, 'undefined', 'formatter modules must not pollute String.prototype');
@@ -143,6 +155,14 @@ assert.ok(
 assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-comment-spacing.js')),
 	'comment spacing module must exist'
+);
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-token-renderer.js')),
+	'structured token renderer module must exist'
+);
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-render-width.js')),
+	'structured render width module must exist'
 );
 
 obsolete_formatter_files().forEach(function(relativePath) {
@@ -212,6 +232,32 @@ var structuredRendererSource = read_source('lib/core/sql-structured-renderer.js'
 	);
 });
 
+[
+	'lib/core/sql-case-mutations.js',
+	'lib/core/sql-select-mutations.js'
+].forEach(function(relativePath) {
+	var source = read_source(relativePath);
+	assert.strictEqual(
+		/function\s+render_tokens\s*\(/.test(source),
+		false,
+		relativePath + ' must delegate shared token rendering to sql-token-renderer'
+	);
+});
+
+var commentMutationSource = read_source('lib/core/sql-comment-mutations.js');
+[
+	'planned_code_width',
+	'planned_alignment_width',
+	'planned_join_prefix_width',
+	'planned_code_segment'
+].forEach(function(functionName) {
+	assert.strictEqual(
+		new RegExp('function\\s+' + functionName + '\\s*\\(').test(commentMutationSource),
+		false,
+		'sql-comment-mutations.js must delegate width helper implementation: ' + functionName
+	);
+});
+
 var packageJson = JSON.parse(read_source('package.json'));
 var verifyScript = packageJson.scripts && packageJson.scripts['test:verify'] || '';
 [
@@ -224,7 +270,10 @@ var verifyScript = packageJson.scripts && packageJson.scripts['test:verify'] || 
 	'tests/window-function-spacing.test.js',
 	'tests/pipeline-idempotency.test.js',
 	'tests/generated-support-matrix.test.js',
-	'tests/unsupported-safety.test.js'
+	'tests/unsupported-safety.test.js',
+	'tests/tokenizer-profile.test.js',
+	'tests/sql-token-renderer.test.js',
+	'tests/render-width.test.js'
 ].forEach(function(testFile) {
 	assert.ok(
 		verifyScript.indexOf(testFile) >= 0,
