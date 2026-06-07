@@ -10,6 +10,7 @@ var sqlConditionMutations = require('../lib/core/sql-condition-mutations');
 var sqlCommentSpacing = require('../lib/core/sql-comment-spacing');
 var sqlTokenRenderer = require('../lib/core/sql-token-renderer');
 var sqlRenderWidth = require('../lib/core/sql-render-width');
+var sqlClauseContext = require('../lib/core/sql-clause-context');
 var sqlNodeUtils = require('../lib/core/sql-node-utils');
 var sqlListNodes = require('../lib/core/sql-list-nodes');
 var sqlSelectItemNodes = require('../lib/core/sql-select-item-nodes');
@@ -119,6 +120,24 @@ assert.deepStrictEqual(
 	'render width helper must expose only create_width_context'
 );
 assert.deepStrictEqual(
+	Object.keys(sqlClauseContext).sort(),
+	[
+		'can_follow_qualify_clause',
+		'can_precede_qualify_clause',
+		'create_query_context',
+		'find_matching_paren',
+		'is_merge_statement',
+		'is_pivot_construct',
+		'is_real_qualify_clause',
+		'match_recognize_range',
+		'next_code_index',
+		'next_code_token',
+		'previous_code_token',
+		'update_query_clause_context'
+	],
+	'clause context module must expose only shared clause/risk helpers'
+);
+assert.deepStrictEqual(
 	Object.keys(sqlNodeUtils).sort(),
 	['is_code_token', 'is_word', 'token_in_range', 'tokens_in_range'],
 	'node utils must expose only shared token helpers'
@@ -205,6 +224,10 @@ assert.ok(
 assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-render-width.js')),
 	'structured render width module must exist'
+);
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-clause-context.js')),
+	'structured clause context module must exist'
 );
 
 obsolete_formatter_files().forEach(function(relativePath) {
@@ -337,6 +360,58 @@ var commentMutationSource = read_source('lib/core/sql-comment-mutations.js');
 	);
 });
 
+[
+	'lib/core/sql-clause-splitter.js',
+	'lib/core/sql-syntax-risk-detector.js',
+	'lib/core/sql-clause-formatter.js'
+].forEach(function(relativePath) {
+	var source = read_source(relativePath);
+	assert.ok(
+		source.indexOf("require('./sql-clause-context')") >= 0,
+		relativePath + ' must use shared sql-clause-context'
+	);
+});
+
+[
+	'lib/core/sql-clause-splitter.js',
+	'lib/core/sql-syntax-risk-detector.js',
+	'lib/core/sql-clause-formatter.js'
+].forEach(function(relativePath) {
+	var source = read_source(relativePath);
+	[
+		'can_precede_qualify_clause',
+		'can_follow_qualify_clause',
+		'is_pivot_construct',
+		'is_merge_statement',
+		'match_recognize_range'
+	].forEach(function(functionName) {
+		assert.strictEqual(
+			new RegExp('function\\s+' + functionName + '\\s*\\(').test(source),
+			false,
+			relativePath + ' must delegate shared clause/risk helper implementation: ' + functionName
+		);
+	});
+});
+
+[
+	'lib/core/sql-clause-splitter.js',
+	'lib/core/sql-syntax-risk-detector.js',
+	'lib/core/sql-clause-formatter.js'
+].forEach(function(relativePath) {
+	var source = read_source(relativePath);
+	[
+		'previous_code_token',
+		'next_code_token',
+		'find_matching_paren'
+	].forEach(function(functionName) {
+		assert.strictEqual(
+			new RegExp('function\\s+' + functionName + '\\s*\\(').test(source),
+			false,
+			relativePath + ' must delegate raw token helper implementation: ' + functionName
+		);
+	});
+});
+
 var packageJson = JSON.parse(read_source('package.json'));
 var verifyScript = packageJson.scripts && packageJson.scripts['test:verify'] || '';
 [
@@ -346,6 +421,7 @@ var verifyScript = packageJson.scripts && packageJson.scripts['test:verify'] || 
 	'tests/format-invariants.test.js',
 	'tests/structured-pipeline-regression.test.js',
 	'tests/structured-differential.test.js',
+	'tests/clause-context.test.js',
 	'tests/window-function-spacing.test.js',
 	'tests/pipeline-idempotency.test.js',
 	'tests/generated-support-matrix.test.js',
