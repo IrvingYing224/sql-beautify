@@ -1,9 +1,313 @@
 var assert = require('assert');
 var formatDocument = require('../lib/core/sql-format-document');
-var scopeModel = require('../lib/core/sql-scope-model');
 var nodes = require('../lib/core/sql-format-nodes');
-var invariants = require('../lib/core/sql-format-invariants');
 var mutations = require('../lib/core/sql-format-mutations');
+var invariants = require('../lib/core/sql-format-invariants');
+var scopeModel = require('../lib/core/sql-scope-model');
+var formatNavigation = require('../lib/core/sql-format-navigation');
+
+function extract_structured_nodes(sql, config) {
+	config = Object.assign({ dialect: 'generic' }, config || {});
+	var doc = formatDocument.from_text(sql, config);
+	doc.scopes = scopeModel.build(doc, config);
+	formatNavigation.attach_scope_index(doc);
+	return nodes.extract(doc, config);
+}
+
+function token_values(tokens) {
+	return (tokens || []).map(function(token) {
+		return token.value;
+	});
+}
+
+var nodeShapeSql = [
+	'select',
+	'case when city_id in (',
+	'1001, -- city one',
+	'1002 -- city two',
+	") then concat_ws(',', name, city)",
+	"else 'unknown'",
+	'end as city_label,',
+	'sum(amount) over(partition by user_id order by ds) as total_amount',
+	'from fact_orders',
+	"where ds = '2026-06-07'",
+	'and status between 1 and 3',
+	'group by city_label, user_id'
+].join('\n');
+
+var nodeShape = extract_structured_nodes(nodeShapeSql);
+
+assert.deepStrictEqual(
+	nodeShape.selectSpans.map(function(span) {
+		return {
+			id: span.id,
+			kind: span.kind,
+			startLine: span.startLine,
+			endLine: span.endLine
+		};
+	}),
+	[
+		{
+			id: 'selectList:0',
+			kind: 'selectList',
+			startLine: 0,
+			endLine: 7
+		},
+		{
+			id: 'groupByList:1',
+			kind: 'groupByList',
+			startLine: 11,
+			endLine: 11
+		}
+	],
+	'node extractor must preserve select and group-by list spans'
+);
+
+assert.deepStrictEqual(
+	nodeShape.separators.map(function(separator) {
+		return {
+			id: separator.id,
+			ownerScopeId: separator.ownerScopeId,
+			ownerKind: separator.ownerKind,
+			line: separator.line
+		};
+	}),
+	[
+		{
+			id: 'separator:0',
+			ownerScopeId: 2,
+			ownerKind: 'inList',
+			line: 2
+		},
+		{
+			id: 'separator:1',
+			ownerScopeId: 3,
+			ownerKind: 'functionCall',
+			line: 4
+		},
+		{
+			id: 'separator:2',
+			ownerScopeId: 3,
+			ownerKind: 'functionCall',
+			line: 4
+		},
+		{
+			id: 'separator:3',
+			ownerScopeId: 'selectList:0',
+			ownerKind: 'selectList',
+			line: 6
+		},
+		{
+			id: 'separator:4',
+			ownerScopeId: 'groupByList:1',
+			ownerKind: 'groupByList',
+			line: 11
+		}
+	],
+	'node extractor must preserve separator ownership and ID order'
+);
+
+assert.deepStrictEqual(
+	nodeShape.selectItems.map(function(item) {
+		return {
+			id: item.id,
+			ownerScopeId: item.ownerScopeId,
+			ownerKind: item.ownerKind,
+			startLine: item.startLine,
+			endLine: item.endLine,
+			separatorId: item.separatorId,
+			tokens: token_values(item.tokens)
+		};
+	}),
+	[
+		{
+			id: 'selectItem:0',
+			ownerScopeId: 'selectList:0',
+			ownerKind: 'selectList',
+			startLine: 1,
+			endLine: 6,
+			separatorId: 'separator:3',
+			tokens: [
+				'case',
+				'when',
+				'city_id',
+				'in',
+				'(',
+				'1001',
+				',',
+				'1002',
+				')',
+				'then',
+				'concat_ws',
+				'(',
+				"','",
+				',',
+				'name',
+				',',
+				'city',
+				')',
+				'else',
+				"'unknown'",
+				'end',
+				'as',
+				'city_label'
+			]
+		},
+		{
+			id: 'selectItem:1',
+			ownerScopeId: 'selectList:0',
+			ownerKind: 'selectList',
+			startLine: 7,
+			endLine: 7,
+			separatorId: null,
+			tokens: [
+				'sum',
+				'(',
+				'amount',
+				')',
+				'over',
+				'(',
+				'partition',
+				'by',
+				'user_id',
+				'order',
+				'by',
+				'ds',
+				')',
+				'as',
+				'total_amount'
+			]
+		},
+		{
+			id: 'selectItem:2',
+			ownerScopeId: 'groupByList:1',
+			ownerKind: 'groupByList',
+			startLine: 11,
+			endLine: 11,
+			separatorId: 'separator:4',
+			tokens: [
+				'by',
+				'city_label'
+			]
+		},
+		{
+			id: 'selectItem:3',
+			ownerScopeId: 'groupByList:1',
+			ownerKind: 'groupByList',
+			startLine: 11,
+			endLine: 11,
+			separatorId: null,
+			tokens: [
+				'user_id'
+			]
+		}
+	],
+	'node extractor must preserve select item shape and token attribution'
+);
+
+assert.strictEqual(nodeShape.caseExpressions.length, 1, 'node shape fixture must extract one CASE expression');
+assert.deepStrictEqual(
+	{
+		id: nodeShape.caseExpressions[0].id,
+		startLine: nodeShape.caseExpressions[0].startLine,
+		endLine: nodeShape.caseExpressions[0].endLine,
+		caseKeyword: nodeShape.caseExpressions[0].caseKeywordToken.value,
+		endKeyword: nodeShape.caseExpressions[0].endKeywordToken.value,
+		whenTokens: token_values(nodeShape.caseExpressions[0].branches[0].whenTokens),
+		thenTokens: token_values(nodeShape.caseExpressions[0].branches[0].thenTokens),
+		elseKeyword: nodeShape.caseExpressions[0].elseKeywordToken.value,
+		elseTokens: token_values(nodeShape.caseExpressions[0].elseTokens)
+	},
+	{
+		id: 'caseExpr:0',
+		startLine: 1,
+		endLine: 6,
+		caseKeyword: 'case',
+		endKeyword: 'end',
+		whenTokens: [
+			'city_id',
+			'in',
+			'(',
+			'1001',
+			',',
+			'1002',
+			')'
+		],
+		thenTokens: [
+			'concat_ws',
+			'(',
+			"','",
+			',',
+			'name',
+			',',
+			'city',
+			')'
+		],
+		elseKeyword: 'else',
+		elseTokens: [
+			"'unknown'"
+		]
+	},
+	'node extractor must preserve CASE branch token ownership'
+);
+
+assert.deepStrictEqual(
+	nodeShape.conditionBlocks.map(function(block) {
+		return {
+			id: block.id,
+			keyword: block.keyword,
+			startLine: block.startLine,
+			endLine: block.endLine,
+			segments: block.segments.map(function(segment) {
+				return {
+					lineIndex: segment.lineIndex,
+					kind: segment.kind,
+					connector: segment.connector,
+					tokens: token_values(segment.tokens)
+				};
+			}),
+			continuationLines: block.continuationLines,
+			closeLines: block.closeLines
+		};
+	}),
+	[
+		{
+			id: 'conditionBlock:0',
+			keyword: 'WHERE',
+			startLine: 9,
+			endLine: 10,
+			segments: [
+				{
+					lineIndex: 9,
+					kind: 'clause',
+					connector: 'WHERE',
+					tokens: [
+						'where',
+						'ds',
+						'=',
+						"'2026-06-07'"
+					]
+				},
+				{
+					lineIndex: 10,
+					kind: 'connector',
+					connector: 'AND',
+					tokens: [
+						'and',
+						'status',
+						'between',
+						'1',
+						'and',
+						'3'
+					]
+				}
+			],
+			continuationLines: [],
+			closeLines: []
+		}
+	],
+	'node extractor must preserve condition block segment shape'
+);
 
 var sql = [
 	'select',
