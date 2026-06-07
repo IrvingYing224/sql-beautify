@@ -53,7 +53,6 @@ function collect_live_formatter_sources(entry_relative_path) {
 
 var liveFormatterSources = collect_live_formatter_sources('lib/sql-formatter.js');
 var formatterSource = liveFormatterSources['lib/core/sql-formatter.js'] || liveFormatterSources['lib/sql-formatter.js'];
-var selectFormatterSource = liveFormatterSources['lib/core/sql-select-formatter.js'] || liveFormatterSources['lib/sql-select-formatter.js'] || '';
 var combinedLiveFormatterSource = Object.keys(liveFormatterSources).sort().map(function(relative_path) {
 	return '\n/* ' + relative_path + ' */\n' + liveFormatterSources[relative_path];
 }).join('\n');
@@ -74,9 +73,9 @@ assert.strictEqual(
 	'core live formatter source graph must not use legacy scalar option names'
 );
 assert.strictEqual(
-	/\bconvert_comma_loaction\b/.test(selectFormatterSource),
+	/\bconvert_comma_loaction\b/.test(combinedLiveFormatterSource),
 	false,
-	'select formatter must not expose the typo legacy comma API'
+	'core live formatter source graph must not expose the typo legacy comma API'
 );
 
 var formatted = sqlFormatter.format_sql('select a as c from t', {

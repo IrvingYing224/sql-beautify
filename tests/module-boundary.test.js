@@ -62,6 +62,14 @@ function collect_live_formatter_sources(entry_relative_path) {
 	return sources;
 }
 
+function obsolete_formatter_files() {
+	return ['select', 'case', 'comment', 'condition'].reduce(function(paths, role) {
+		paths.push('lib/core/sql-' + role + '-formatter.js');
+		paths.push('lib/sql-' + role + '-formatter.js');
+		return paths;
+	}, []);
+}
+
 assert.strictEqual(typeof sqlFormatter.format_sql, 'function', 'sql-formatter must export format_sql');
 assert.strictEqual(typeof sqlSelectMutations.apply_select_list_mutations, 'function', 'structured select mutations must export apply_select_list_mutations');
 assert.strictEqual(typeof sqlCaseMutations.apply_case_mutations, 'function', 'structured case mutations must export apply_case_mutations');
@@ -137,16 +145,7 @@ assert.ok(
 	'comment spacing module must exist'
 );
 
-[
-	'lib/core/sql-select-formatter.js',
-	'lib/core/sql-case-formatter.js',
-	'lib/core/sql-comment-formatter.js',
-	'lib/core/sql-condition-formatter.js',
-	'lib/sql-select-formatter.js',
-	'lib/sql-case-formatter.js',
-	'lib/sql-comment-formatter.js',
-	'lib/sql-condition-formatter.js'
-].forEach(function(relativePath) {
+obsolete_formatter_files().forEach(function(relativePath) {
 	assert.strictEqual(
 		fs.existsSync(path.join(__dirname, '..', relativePath)),
 		false,
@@ -250,16 +249,7 @@ var lexicalNormalizerSource = liveFormatterSources['lib/core/sql-lexical-normali
 var combinedLiveFormatterSource = Object.keys(liveFormatterSources).sort().map(function(relative_path) {
 	return '\n/* ' + relative_path + ' */\n' + liveFormatterSources[relative_path];
 }).join('\n');
-var obsoleteFormatterFiles = [
-	'lib/core/sql-select-formatter.js',
-	'lib/core/sql-case-formatter.js',
-	'lib/core/sql-comment-formatter.js',
-	'lib/core/sql-condition-formatter.js',
-	'lib/sql-select-formatter.js',
-	'lib/sql-case-formatter.js',
-	'lib/sql-comment-formatter.js',
-	'lib/sql-condition-formatter.js'
-];
+var obsoleteFormatterFiles = obsolete_formatter_files();
 var forbiddenLiveFormatterPatterns = [
 	{
 		pattern: /\bto_legacy\b/,
