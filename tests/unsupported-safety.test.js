@@ -395,6 +395,19 @@ assert.throws(
     'bail_out must reject real PIVOT table constructs even when PIVOT-shaped functions also exist'
 );
 
+var spacedMatchRecognize = format(
+    'select * from t match recognize (partition by a order by b measures match_number() as mn one row per match pattern (A B+) define A as x=1, B as y=2)',
+    'generic'
+);
+
+var originalSpacedMatchRecognizeClause = 'match recognize (partition by a order by b measures match_number() as mn one row per match pattern (A B+) define A as x=1, B as y=2)';
+
+assert_contains(
+    'unsupported MATCH RECOGNIZE spaced clause must be preserved exactly before normal formatting resumes',
+    spacedMatchRecognize,
+    originalSpacedMatchRecognizeClause
+);
+
 var extractedAdd = vkbeautify.extractddl('select a + b from t');
 assert.strictEqual(
     extractedAdd.trim(),
