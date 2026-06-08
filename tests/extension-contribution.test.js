@@ -410,6 +410,33 @@ async function run_mock_tests() {
         return call.options && call.options.includeTelemetry === true && call.options.phase == 'command_format';
     }), 'safe diagnostic command must request command telemetry from the formatter');
 
+    vscodeMock.errors = [];
+    vscodeMock.env.clipboard.writeText = function() {
+        return Promise.reject(new Error('/workspace/private.sql select private_column secret-value'));
+    };
+    var failedClipboardEditor = create_editor([
+        "select private_column, 'secret-value' as literal_value",
+        'from private_table -- private comment'
+    ].join('\n'), [
+        new vscodeMock.Range(create_position(0), create_position(80))
+    ], true);
+    failedClipboardEditor.document.languageId = 'hive-sql';
+    failedClipboardEditor.document.uri = { fsPath: '/workspace/private.sql' };
+    vscodeMock.window.activeTextEditor = failedClipboardEditor;
+    var failedClipboardResult = await vscodeMock.commandsById['sqlBeautify.copySafeDiagnosticReport']();
+    var failedClipboardErrors = vscodeMock.errors.join('\n');
+    assert.strictEqual(failedClipboardResult, false, 'safe diagnostic command must report clipboard copy failure');
+    assert.ok(vscodeMock.errors.some(function(message) {
+        return /SQL Beautify failed: could not copy safe diagnostic report\./.test(message);
+    }), 'clipboard failure must show a generic safe error message');
+    assert.ok(!/\/workspace\/private\.sql/.test(failedClipboardErrors), 'clipboard failure error must not leak file paths');
+    assert.ok(!/private_column/.test(failedClipboardErrors), 'clipboard failure error must not leak private column names');
+    assert.ok(!/secret-value/.test(failedClipboardErrors), 'clipboard failure error must not leak private string literals');
+    assert.ok(!/select private_column/.test(failedClipboardErrors), 'clipboard failure error must not leak SQL fragments');
+    assert.ok(vscodeMock.errors.some(function(message) {
+        return message == 'SQL Beautify failed: could not copy safe diagnostic report.';
+    }), 'clipboard failure must use the fixed safe error message');
+
 	var ddlEditor = create_editor('create table t (id bigint)', [
 		new vscodeMock.Range(create_position(0), create_position(26))
 	], true);
