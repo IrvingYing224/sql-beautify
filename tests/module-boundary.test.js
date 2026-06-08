@@ -27,6 +27,15 @@ function read_source(relative_path) {
 	return fs.readFileSync(path.join(__dirname, '..', relative_path), 'utf8');
 }
 
+function collect_require_requests_from_source(source) {
+	var requests = [];
+	source.replace(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/g, function(_, request) {
+		requests.push(request);
+		return _;
+	});
+	return requests;
+}
+
 function resolve_local_require(from_relative_path, request) {
 	if (!/^\.\.?\//.test(request)) {
 		return null;
@@ -44,7 +53,7 @@ function resolve_local_require(from_relative_path, request) {
 	return resolved;
 }
 
-function collect_live_formatter_sources(entry_relative_path) {
+function collect_local_source_graph(entry_relative_path) {
 	var pending = [entry_relative_path];
 	var seen = {};
 	var sources = {};
@@ -59,16 +68,19 @@ function collect_live_formatter_sources(entry_relative_path) {
 		var source = read_source(current);
 		sources[current] = source;
 
-		source.replace(/require\(['"]([^'"]+)['"]\)/g, function(_, request) {
+		collect_require_requests_from_source(source).forEach(function(request) {
 			var resolved = resolve_local_require(current, request);
 			if (resolved && !seen[resolved]) {
 				pending.push(resolved);
 			}
-			return _;
 		});
 	}
 
 	return sources;
+}
+
+function collect_live_formatter_sources(entry_relative_path) {
+	return collect_local_source_graph(entry_relative_path);
 }
 
 function obsolete_formatter_files() {
@@ -78,6 +90,12 @@ function obsolete_formatter_files() {
 		return paths;
 	}, []);
 }
+
+assert.deepStrictEqual(
+	collect_require_requests_from_source("var x = require ('vscode'); var y = require ( '../adapters/foo' );"),
+	['vscode', '../adapters/foo'],
+	'require parser must tolerate whitespace around require calls'
+);
 
 assert.strictEqual(typeof sqlFormatter.format_sql, 'function', 'sql-formatter must export format_sql');
 assert.strictEqual(typeof sqlSelectMutations.apply_select_list_mutations, 'function', 'structured select mutations must export apply_select_list_mutations');
@@ -435,17 +453,19 @@ var commentMutationSource = read_source('lib/core/sql-comment-mutations.js');
 	});
 });
 
-var safeReportCoreSource = read_source('lib/core/sql-safe-diagnostic-report.js');
-assert.strictEqual(
-	/require\(['"]\.\.\/adapters\//.test(safeReportCoreSource),
-	false,
-	'safe diagnostic report core must not import adapters'
-);
-assert.strictEqual(
-	/require\(['"]vscode['"]\)/.test(safeReportCoreSource),
-	false,
-	'safe diagnostic report core must not import vscode'
-);
+var safeReportCoreSources = collect_local_source_graph('lib/core/sql-safe-diagnostic-report.js');
+Object.keys(safeReportCoreSources).forEach(function(relativePath) {
+	assert.strictEqual(
+		/^lib[\/\\]adapters[\/\\]/.test(relativePath),
+		false,
+		'safe diagnostic report core dependency graph must not include adapter modules: ' + relativePath
+	);
+	assert.strictEqual(
+		collect_require_requests_from_source(safeReportCoreSources[relativePath]).indexOf('vscode'),
+		-1,
+		'safe diagnostic report core dependency graph must not import vscode: ' + relativePath
+	);
+});
 assert.deepStrictEqual(
 	Object.keys(require('../lib/core/sql-safe-diagnostic-report')).sort(),
 	[
@@ -459,7 +479,7 @@ assert.deepStrictEqual(
 
 var safeReportAdapterSource = read_source('lib/adapters/safe-diagnostic-report.js');
 assert.ok(
-	/require\(['"]\.\.\/core\/sql-safe-diagnostic-report['"]\)/.test(safeReportAdapterSource),
+	collect_require_requests_from_source(safeReportAdapterSource).indexOf('../core/sql-safe-diagnostic-report') >= 0,
 	'safe diagnostic report adapter must import the core report helper'
 );
 
