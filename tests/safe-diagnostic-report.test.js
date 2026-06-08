@@ -210,6 +210,88 @@ safeReport.assert_report_safe(untrustedMetadataMarkdown, [
     'sql-beautify-1.0.6.vsix'
 ]);
 
+var unsafeExtensionVersionReport = safeReport.create_report({
+    text: sensitiveSql,
+    phase: 'command_format',
+    options: {
+        dialect: 'hive',
+        unsupportedSyntaxPolicy: 'warn'
+    },
+    result: {
+        diagnostics: [],
+        telemetry: {
+            totalMs: 1,
+            phases: []
+        }
+    },
+    extensionVersion: '1.0.0-secret-orders'
+});
+assert.strictEqual(
+    unsafeExtensionVersionReport.extensionVersion,
+    'unknown',
+    'extension version must not preserve semver metadata'
+);
+
+var unsafeRawReportMarkdown = safeReport.render_markdown({
+    extensionVersion: '1.0.0-secret-orders',
+    reportVersion: 1,
+    phase: 'private_cte.customer_id',
+    classification: 'customer_name',
+    dialect: 'prod_schema.secret_orders',
+    unsupportedSyntaxPolicy: 'Alice Internal',
+    input: {
+        chars: 1,
+        lines: 1,
+        tokens: 1,
+        codeTokens: 1,
+        commentTokens: 0,
+        stringLiterals: 0,
+        quotedIdentifiers: 0
+    },
+    structure: {
+        SELECT: 1,
+        JOIN: 0,
+        CASE: 0,
+        WINDOW: 0,
+        CTE: 0,
+        SUBQUERY: 0
+    },
+    diagnostics: [
+        {
+            code: 'private_cte.customer_id',
+            labels: ['secret_orders'],
+            sources: ['prod_schema'],
+            count: 1
+        }
+    ],
+    telemetry: {
+        totalMs: 1,
+        phases: [
+            { name: 'private_cte.customer_id', ms: 1, status: 'Alice Internal' }
+        ]
+    },
+    reproductionHints: ['private_cte customer_id secret_orders']
+});
+assert.ok(/extensionVersion: unknown/.test(unsafeRawReportMarkdown), 'renderer must normalize unsafe extension version');
+assert.ok(/phase: unknown/.test(unsafeRawReportMarkdown), 'renderer must normalize unsafe phase');
+assert.ok(/classification: unknown/.test(unsafeRawReportMarkdown), 'renderer must normalize unsafe classification');
+assert.ok(/dialect: unknown/.test(unsafeRawReportMarkdown), 'renderer must normalize unsafe dialect');
+assert.ok(/unsupportedSyntaxPolicy: unknown/.test(unsafeRawReportMarkdown), 'renderer must normalize unsafe unsupported policy');
+assert.ok(/code: unknown/.test(unsafeRawReportMarkdown), 'renderer must normalize unsafe diagnostic code');
+assert.ok(/unknown: 1 \(unknown\)/.test(unsafeRawReportMarkdown), 'renderer must normalize unsafe telemetry phase');
+safeReport.assert_report_safe(unsafeRawReportMarkdown, [
+    '1.0.0-secret-orders',
+    'private_cte.customer_id',
+    'private_cte_customer_id',
+    'customer_name',
+    'prod_schema.secret_orders',
+    'secret_orders',
+    'prod_schema',
+    'Alice Internal',
+    'Alice_Internal',
+    'private_cte customer_id secret_orders'
+]);
+
 assert.strictEqual(
     safeReport.classify_result({
         diagnostics: [unsupportedDiagnostic]
