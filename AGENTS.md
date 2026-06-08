@@ -11,6 +11,7 @@
 - GitHub Actions `Build VSIX`：发布时通过远端 workflow 构建 `.vsix` 并创建对应 Release。
 
 该仓库已有轻量 CLI 回归集。格式化逻辑变更至少运行 `npm run test:verify`；涉及 VSIX 内容、发布清单或打包配置时，加跑 `npm run package:vsix` 并检查打包清单。
+`npm run test:verify`、`npm run package:vsix`、VSIX 内容检查、`node tests/*.test.js`、`git diff --check` 等本地命令不需要代理，也不要额外设置 `ALL_PROXY`。只有真实访问网络的命令才按当前机器网络要求配置代理，例如远端 git push/fetch、依赖下载、GitHub CLI/API、Homebrew 或 npm install/ci。
 
 ## 编码风格与命名约定
 遵循现有 JavaScript 风格：4 空格缩进、使用分号，以及基于 `var` 的 CommonJS 模块写法。旧命令 ID 仍需保留兼容；VS Code 配置面只使用 `sqlBeautify.*` 命名空间，不再新增或恢复 `extension.*` 配置兼容。优先对格式化逻辑做小而集中的修改，除非是有意变更，否则应保持 Hive SQL 的当前行为不变。
@@ -28,6 +29,12 @@ SQL / Hive SQL 格式化核心已经重构为 `core / adapters / experimental` �
 - 根因 / 约束：发布包必须对应当前提交和当前 `package.json` 版本；复用旧 artifact 或旧 Release 会发布过期代码；本地 `.vsix` 可用于预检，但制品不应提交。
 - 正确做法：完成自动化回归后，更新版本号、`CHANGELOG.md` 和必要的 `README.md`；先将发布提交合入并推送到 `main`，再从 `main` 触发 `.github/workflows/build-vsix.yml` 的 `Build VSIX` workflow，生成 artifact 和 GitHub Release。不要从功能分支触发正式发布。
 - 验证方法：检查 workflow 成功，且 GitHub Actions run 的分支为 `main`，run commit SHA、`origin/main`、Release target、Release tag 和 `.vsix` 文件名一致。
+
+## 经验规则：本地验证命令不用代理
+- 触发信号：运行本地测试、格式化验证、本地 `.vsix` 打包或 VSIX 内容检查时。
+- 根因 / 约束：`npm run test:verify`、`npm run package:vsix`、`node tests/*.test.js`、`git diff --check` 和本地 VSIX 清单检查都只依赖当前仓库与项目本地依赖；给这些命令强行加 `ALL_PROXY` 会制造噪音，也容易让后续计划误判“本地打包等于网络操作”。
+- 正确做法：这些本地命令直接运行，不加代理。只有命令确实访问外部网络时才设置代理，例如远端 git 操作、依赖下载、GitHub API/CLI、Homebrew、`npm install` 或 `npm ci`。
+- 验证方法：计划和最终记录里的本地命令应写成 `npm run package:vsix`、`npm run test:verify` 等原始形式；不要写成 `ALL_PROXY=... npm run package:vsix`。
 
 ## 经验规则：格式化改动复用 Hive SQL 回归集
 - 触发信号：修改任何 SQL / Hive SQL 格式化输出，尤其是注释对齐、`CASE WHEN`、`AS` 对齐、条件换行、关键词大小写或 Hive 特有语法。
