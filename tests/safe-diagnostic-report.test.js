@@ -102,6 +102,76 @@ safeReport.assert_report_safe(markdown, [
     'SQLBEAUTIFY_'
 ]);
 
+var leakingCodeReport = safeReport.create_report({
+    text: sensitiveSql,
+    phase: 'command_format',
+    options: {
+        dialect: 'hive',
+        unsupportedSyntaxPolicy: 'warn'
+    },
+    result: {
+        diagnostics: [
+            {
+                level: 'warning',
+                code: 'private_cte.customer_id',
+                unsupportedSegments: [
+                    {
+                        label: 'MATCH_RECOGNIZE',
+                        source: 'opaque_protection'
+                    }
+                ]
+            }
+        ],
+        telemetry: {
+            totalMs: 1,
+            phases: []
+        }
+    },
+    extensionVersion: '1.0.6'
+});
+var leakingCodeMarkdown = safeReport.render_markdown(leakingCodeReport);
+assert.strictEqual(leakingCodeReport.diagnostics[0].code, 'unknown', 'unsafe diagnostic code must be normalized');
+safeReport.assert_report_safe(leakingCodeMarkdown, [
+    'private_cte',
+    'customer_id',
+    'private_cte_customer_id',
+    'private_cte.customer_id'
+]);
+
+var emptyReport = safeReport.create_report({
+    text: sensitiveSql,
+    phase: 'command_format',
+    options: {
+        dialect: 'hive',
+        unsupportedSyntaxPolicy: 'warn'
+    },
+    result: {
+        diagnostics: [],
+        telemetry: {
+            totalMs: 3,
+            phases: []
+        }
+    },
+    extensionVersion: '1.0.6'
+});
+var emptyMarkdown = safeReport.render_markdown(emptyReport);
+assert.ok(/- diagnostics:\n  - none/.test(emptyMarkdown), 'markdown must render none for empty diagnostics');
+assert.ok(/- phases:\n    - none/.test(emptyMarkdown), 'markdown must render none for empty telemetry phases');
+safeReport.assert_report_safe(emptyMarkdown, [
+    sensitiveSql,
+    'private_cte',
+    'customer_id',
+    'secret-column',
+    'prod_schema',
+    'secret_orders',
+    'customer comment',
+    'customer_name',
+    'Alice Internal',
+    'sensitive_table',
+    'https://internal.example/path?id=42',
+    'SQLBEAUTIFY_'
+]);
+
 assert.strictEqual(
     safeReport.classify_result({
         diagnostics: [unsupportedDiagnostic]
