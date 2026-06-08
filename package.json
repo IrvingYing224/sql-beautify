@@ -193,6 +193,7 @@
 		"test:format-invariants": "node tests/format-invariants.test.js",
 		"test:structured": "node tests/structured-pipeline-regression.test.js",
 		"test:production-corpus": "node tests/production-corpus-golden.test.js",
+		"test:production-private": "node tests/production-corpus-private.test.js",
 		"test:pipeline": "node tests/pipeline-idempotency.test.js",
 		"test:token": "node tests/token-boundary.test.js",
 		"test:support-matrix": "node tests/generated-support-matrix.test.js",
