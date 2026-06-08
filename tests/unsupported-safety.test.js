@@ -97,6 +97,18 @@ assert.ok(
     'warn policy must include the preserved unsupported fragment metadata'
 );
 
+assert.ok(warned.diagnostics[0].action, 'warn policy diagnostic must include actionable guidance');
+assert.strictEqual(
+    warned.diagnostics[0].unsupportedSegments[0].label,
+    'MATCH_RECOGNIZE',
+    'warn policy segment must label MATCH_RECOGNIZE explicitly'
+);
+assert.strictEqual(
+    warned.diagnostics[0].unsupportedSegments[0].source,
+    'opaque_protection',
+    'warn policy segment must identify opaque protection as the preservation source'
+);
+
 [
     'select qualify as c from t',
     'select merge as c from t',

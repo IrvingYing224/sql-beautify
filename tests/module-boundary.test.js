@@ -16,6 +16,7 @@ var sqlListNodes = require('../lib/core/sql-list-nodes');
 var sqlSelectItemNodes = require('../lib/core/sql-select-item-nodes');
 var sqlCaseNodes = require('../lib/core/sql-case-nodes');
 var sqlConditionNodes = require('../lib/core/sql-condition-nodes');
+var sqlDiagnostics = require('../lib/core/sql-diagnostics');
 var sqlDdlFormatter = require('../lib/sql-ddl-formatter');
 
 function format_core(sql, options) {
@@ -162,6 +163,16 @@ assert.deepStrictEqual(
 	['find_condition_blocks'],
 	'condition node extractor must expose only find_condition_blocks'
 );
+assert.deepStrictEqual(
+	Object.keys(sqlDiagnostics).sort(),
+	[
+		'create_unsupported_runtime_diagnostic',
+		'normalize_unsupported_segment',
+		'unsupported_action',
+		'unsupported_summary'
+	],
+	'diagnostics module must expose only structured unsupported diagnostics helpers'
+);
 assert.strictEqual(typeof sqlDdlFormatter.ddl, 'function', 'DDL formatter must export ddl');
 assert.strictEqual(typeof sqlDdlFormatter.extractddl, 'function', 'DDL formatter must export extractddl');
 assert.strictEqual(typeof ''.times, 'undefined', 'formatter modules must not pollute String.prototype');
@@ -228,6 +239,10 @@ assert.ok(
 assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-clause-context.js')),
 	'structured clause context module must exist'
+);
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-diagnostics.js')),
+	'structured diagnostics helper module must exist'
 );
 
 obsolete_formatter_files().forEach(function(relativePath) {

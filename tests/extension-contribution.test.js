@@ -161,10 +161,27 @@ function create_document(text) {
 }
 
 function create_vscode_mock() {
+	var defaults = {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'space',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 50,
+		dialect: 'hive',
+		unsupportedSyntaxPolicy: 'preserve',
+		debugDiagnostics: false,
+		uppercase: true,
+		comma_location: false,
+		bracket_char: false,
+		as_loc_cnt: 150,
+		case_when_then_wrap_length: 50
+	};
 	var mock = {
 		commandsById: {},
 		documentProvider: null,
 		rangeProvider: null,
+		configValues: {},
+		configuredKeys: {},
 		configScopes: [],
 		errors: [],
 		warnings: [],
@@ -183,25 +200,18 @@ function create_vscode_mock() {
 				mock.configScopes.push({ section: section, scope: scope });
 				return {
 					get: function(key) {
-						var defaults = {
-							keywordCase: 'upper',
-							commaStyle: 'leading',
-							indentStyle: 'space',
-							maxAlignWidth: 150,
-							caseWhenThenWrapLength: 50,
-							dialect: 'hive',
-							unsupportedSyntaxPolicy: 'preserve',
-							debugDiagnostics: false,
-							uppercase: true,
-							comma_location: false,
-							bracket_char: false,
-							as_loc_cnt: 150,
-							case_when_then_wrap_length: 50
-						};
+						if (Object.prototype.hasOwnProperty.call(mock.configValues, key)) {
+							return mock.configValues[key];
+						}
 						return defaults[key];
 					},
-					inspect: function() {
-						return {};
+					inspect: function(key) {
+						if (!mock.configuredKeys[key]) {
+							return {};
+						}
+						return {
+							workspaceValue: mock.configValues[key]
+						};
 					}
 				};
 			}
@@ -234,6 +244,10 @@ function create_vscode_mock() {
 				};
 			}
 		}
+	};
+	mock.setConfig = function(key, value) {
+		mock.configValues[key] = value;
+		mock.configuredKeys[key] = true;
 	};
 
 	return mock;
@@ -428,6 +442,20 @@ async function run_mock_tests() {
 		return /Unsupported SQL fragments were preserved/.test(message);
 	}), 'warn diagnostics must surface through VS Code warning UI');
 	sqlFormatter.format_sql_detailed = originalFormatSqlDetailed;
+
+	vscodeMock.warnings = [];
+	vscodeMock.setConfig('dialect', 'generic');
+	vscodeMock.setConfig('unsupportedSyntaxPolicy', 'warn');
+	vscodeMock.setConfig('debugDiagnostics', false);
+	var matchRecognizeDocument = create_document(
+		'select * from t match_recognize (partition by a order by b measures match_number() as mn)'
+	);
+	matchRecognizeDocument.languageId = 'sql';
+	var matchRecognizeEdits = vscodeMock.documentProvider.provideDocumentFormattingEdits(matchRecognizeDocument);
+	assert.strictEqual(matchRecognizeEdits.length, 1, 'document formatting should still return edits for unsupported warn policy');
+	assert.ok(vscodeMock.warnings.some(function(message) {
+		return /MATCH_RECOGNIZE/.test(message) && /bail_out/.test(message);
+	}), 'unsupported warning must name MATCH_RECOGNIZE and suggest bail_out');
 
 	vscodeMock.errors = [];
 	var overlappingEditor = create_editor('select abc', [
