@@ -310,7 +310,7 @@ Update `docs/technical/sql-formatter-architecture.md`:
 - telemetry is local and opt-in through internal detailed formatting
 - report command is `sqlBeautify.copySafeDiagnosticReport`
 
-README update is optional. Because this feature is user-facing, a short README note is acceptable if it remains end-user focused and does not include internal architecture detail.
+Because this feature is user-facing, add a short README note that names the copy command and its no-content purpose. Keep internal telemetry details in maintainer docs only.
 
 ## Risks And Mitigations
 
