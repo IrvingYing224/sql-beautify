@@ -1449,12 +1449,12 @@ npm run test:verify
 
 Expected: PASS.
 
-- [ ] **Step 2: Run package build with required proxy**
+- [ ] **Step 2: Run local package build**
 
 Run:
 
 ```bash
-ALL_PROXY=socks5://127.0.0.1:7897 npm run package:vsix
+npm run package:vsix
 ```
 
 Expected: PASS and produces `vscode-sql-beautify-v1.0.6.vsix` unless the version was intentionally changed before execution.
@@ -1537,7 +1537,7 @@ Expected: commit succeeds. If no tracked files changed, do not create an empty c
 - [ ] `node tests/extension-contribution.test.js` passes.
 - [ ] `node tests/module-boundary.test.js` passes.
 - [ ] `npm run test:verify` passes.
-- [ ] `ALL_PROXY=socks5://127.0.0.1:7897 npm run package:vsix` passes.
+- [ ] `npm run package:vsix` passes.
 - [ ] VSIX smoke confirms runtime safe report modules are included and tests/docs/obsolete facades are excluded.
 - [ ] `git status --short --ignored` has no tracked/staged changes.
 - [ ] The final response lists commits, validation commands, VSIX artifact name, and any residual risk.
