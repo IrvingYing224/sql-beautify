@@ -83,6 +83,14 @@ run_case(
 	].join('\n')
 );
 
+var qualify_identifier_select_actual = format('select qualify as c, pivot as p from keyword_named_columns where pivot(p) = 1;');
+
+assert.strictEqual(
+	format(qualify_identifier_select_actual),
+	qualify_identifier_select_actual,
+	'QUALIFY-shaped select-list identifier with leading comma alignment must be idempotent\n--- actual ---\n' + qualify_identifier_select_actual
+);
+
 run_case(
 	'standalone comment between select items keeps next item comma without orphan comma line',
 	[

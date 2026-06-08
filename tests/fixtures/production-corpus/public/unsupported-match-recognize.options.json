@@ -1,0 +1,4 @@
+{
+	"dialect": "generic",
+	"unsupportedSyntaxPolicy": "warn"
+}
