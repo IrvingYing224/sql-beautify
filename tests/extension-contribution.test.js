@@ -71,6 +71,18 @@ assert_includes(
 	'sqlBeautify.extractHiveDdl'
 );
 
+assert_includes(
+    'package.json contributes safe diagnostic report command',
+    command_ids(),
+    'sqlBeautify.copySafeDiagnosticReport'
+);
+
+assert.strictEqual(
+    command_by_id('sqlBeautify.copySafeDiagnosticReport').title,
+    'SQL Beautify: Copy Safe Diagnostic Report',
+    'safe diagnostic report command title must match the public command label'
+);
+
 assert.ok(
 	/experimental/i.test(command_by_id('extension.beautifySqlddl').title),
 	'Beautify SQL DDL command title must mark the DDL formatter as experimental'
@@ -185,6 +197,8 @@ function create_vscode_mock() {
 		configScopes: [],
 		errors: [],
 		warnings: [],
+        infos: [],
+        clipboardWrites: [],
 		editCalls: 0,
 		window: {
 			activeTextEditor: null,
@@ -193,8 +207,19 @@ function create_vscode_mock() {
 			},
 			showWarningMessage: function(message) {
 				mock.warnings.push(message);
+			},
+			showInformationMessage: function(message) {
+				mock.infos.push(message);
 			}
 		},
+        env: {
+            clipboard: {
+                writeText: function(text) {
+                    mock.clipboardWrites.push(text);
+                    return Promise.resolve();
+                }
+            }
+        },
 		workspace: {
 			getConfiguration: function(section, scope) {
 				mock.configScopes.push({ section: section, scope: scope });
@@ -306,6 +331,7 @@ async function run_mock_tests() {
 	assert.strictEqual(typeof vscodeMock.commandsById['sqlBeautify.formatHiveDdl'], 'function', 'activate must register new DDL command alias');
 	assert.strictEqual(typeof vscodeMock.commandsById['extension.extractDdl'], 'function', 'activate must register old Extract DDL command');
 	assert.strictEqual(typeof vscodeMock.commandsById['sqlBeautify.extractHiveDdl'], 'function', 'activate must register new Extract DDL command alias');
+    assert.strictEqual(typeof vscodeMock.commandsById['sqlBeautify.copySafeDiagnosticReport'], 'function', 'activate must register safe diagnostic report command');
 
 	var ddlFormatter = require('../lib/experimental/ddl');
 	var originalFormatSql = sqlFormatter.format_sql;
@@ -358,6 +384,31 @@ async function run_mock_tests() {
 	vscodeMock.commandsById['extension.beautifySql']();
 	await Promise.resolve();
 	assert.strictEqual(sqlCalls[1].options.dialect, 'hive', 'beautifySql command path must match provider hive dialect default');
+
+    var diagnosticReportEditor = create_editor([
+        "select private_column, 'secret-value' as literal_value",
+        'from private_table -- private comment'
+    ].join('\n'), [
+        new vscodeMock.Range(create_position(0), create_position(80))
+    ], true);
+    diagnosticReportEditor.document.languageId = 'hive-sql';
+    diagnosticReportEditor.document.uri = { fsPath: '/workspace/private.sql' };
+    vscodeMock.window.activeTextEditor = diagnosticReportEditor;
+    await vscodeMock.commandsById['sqlBeautify.copySafeDiagnosticReport']();
+    assert.strictEqual(vscodeMock.clipboardWrites.length, 1, 'safe diagnostic command must write one report to clipboard');
+    assert.ok(/^# SQL Beautify Safe Diagnostic Report/m.test(vscodeMock.clipboardWrites[0]), 'safe diagnostic report must render a markdown title');
+    assert.ok(!/private_column/.test(vscodeMock.clipboardWrites[0]), 'safe diagnostic report must not leak private column names');
+    assert.ok(!/secret-value/.test(vscodeMock.clipboardWrites[0]), 'safe diagnostic report must not leak private string literals');
+    assert.ok(!/literal_value/.test(vscodeMock.clipboardWrites[0]), 'safe diagnostic report must not leak private aliases');
+    assert.ok(!/private_table/.test(vscodeMock.clipboardWrites[0]), 'safe diagnostic report must not leak private table names');
+    assert.ok(!/private comment/.test(vscodeMock.clipboardWrites[0]), 'safe diagnostic report must not leak private comments');
+    assert.ok(!/\/workspace\/private\.sql/.test(vscodeMock.clipboardWrites[0]), 'safe diagnostic report must not leak file paths');
+    assert.ok(vscodeMock.infos.some(function(message) {
+        return /safe diagnostic report copied/.test(message);
+    }), 'safe diagnostic command must show a success message');
+    assert.ok(sqlCalls.some(function(call) {
+        return call.options && call.options.includeTelemetry === true && call.options.phase == 'command_format';
+    }), 'safe diagnostic command must request command telemetry from the formatter');
 
 	var ddlEditor = create_editor('create table t (id bigint)', [
 		new vscodeMock.Range(create_position(0), create_position(26))

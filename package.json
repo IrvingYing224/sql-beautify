@@ -29,7 +29,8 @@
 		"onCommand:extension.beautifySqlddl",
 		"onCommand:sqlBeautify.formatHiveDdl",
 		"onCommand:extension.extractDdl",
-		"onCommand:sqlBeautify.extractHiveDdl"
+		"onCommand:sqlBeautify.extractHiveDdl",
+		"onCommand:sqlBeautify.copySafeDiagnosticReport"
 	],
 	"repository": {
 		"type": "git",
@@ -61,6 +62,10 @@
 			{
 				"command": "sqlBeautify.extractHiveDdl",
 				"title": "SQL Beautify: Extract Hive DDL (Experimental)"
+			},
+			{
+				"command": "sqlBeautify.copySafeDiagnosticReport",
+				"title": "SQL Beautify: Copy Safe Diagnostic Report"
 			}
 		],
 		"keybindings": [
