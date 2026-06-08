@@ -25,6 +25,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 
 - 执行 `Format Document` 或 `Format Selection`
 - 执行命令 `SQL Beautify: Format SQL`
+- 执行命令 `SQL Beautify: Copy Safe Diagnostic Report`：复制一份不包含 SQL 内容的诊断报告，用于在不能外发真实 SQL 的环境里反馈 warning、error 或慢格式化问题
 - 使用快捷键 `Alt+Shift+F`
 
 实验性命令：

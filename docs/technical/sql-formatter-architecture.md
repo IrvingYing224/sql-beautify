@@ -10,6 +10,8 @@ This document is for maintainers. User-facing behavior belongs in `README.md`.
 - Root `lib/*.js` files are compatibility shims only. They must remain single-line re-exports and must not contain formatter logic.
 - `lib/core/sql-token-primitives.js`: shared token-aware primitives for top-level item splitting and code/comment boundaries. New SQL boundary logic must reuse it instead of re-implementing character scans.
 - `lib/core/sql-clause-context.js`: shared token-aware context helper for clause splitting, syntax-risk detection, and structured clause mutation boundaries. `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` detection must use this helper rather than duplicating local word-value checks.
+- `lib/core/sql-safe-diagnostic-report.js`: local-only report builder for restricted production debugging. It emits counts, classifications, safe labels, and timings only; it must not render raw SQL, formatted SQL, token values, file paths, URLs, unsupported snippets, or adapter state.
+- `lib/adapters/safe-diagnostic-report.js`: VS Code command adapter for copying a fresh safe diagnostic report from the active document or selection. It owns clipboard integration and user messages.
 - Obsolete structured formatter facades such as `sql-select-formatter.js`, `sql-case-formatter.js`, `sql-comment-formatter.js`, and `sql-condition-formatter.js` are removed. Do not recreate them as compatibility wrappers; live structured behavior belongs in the focused modules below.
 
 ## Pipeline
@@ -108,5 +110,7 @@ Detector findings must not be based on word value alone. Keyword-shaped identifi
 - `warn` diagnostics are user-visible warnings, not debug-only logs.
 - `sqlBeautify.debugDiagnostics=true` adds structured payloads to the extension host console; it does not change formatting behavior.
 - Unsupported syntax diagnostics use structured segment metadata: `kind`, `code`, `label`, `text`, `snippet`, `range`, `source`, `confidence`, and `action`.
-- `format_sql()` remains text-only. `format_sql_detailed()` remains `{ text, diagnostics }` and is the diagnostics-bearing API.
+- `format_sql()` remains text-only. Normal `format_sql_detailed()` remains `{ text, diagnostics }` and is the diagnostics-bearing API.
+- `format_sql_detailed(text, { includeTelemetry: true })` is an internal diagnostic mode. It may return `telemetry` and `safeReport`, and formatter errors may carry `error.sqlBeautifyTelemetry`; this flag is not a public VS Code setting and must not change formatted output.
+- `SQL Beautify: Copy Safe Diagnostic Report` (`sqlBeautify.copySafeDiagnosticReport`) copies a local Markdown report only when the user explicitly runs the command. The report is for restricted-environment debugging and must not contain SQL content, formatted SQL, identifiers, literals, comments, paths, URLs, or unsupported segment snippets.
 - Private production SQL can be checked locally with `SQL_BEAUTIFY_CORPUS_DIR=/path/to/sql node tests/production-corpus-private.test.js`; private corpus contents must not be committed.

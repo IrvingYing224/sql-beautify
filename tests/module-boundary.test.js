@@ -244,6 +244,14 @@ assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-diagnostics.js')),
 	'structured diagnostics helper module must exist'
 );
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-safe-diagnostic-report.js')),
+	'safe diagnostic report core module must exist'
+);
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/adapters/safe-diagnostic-report.js')),
+	'safe diagnostic report adapter module must exist'
+);
 
 obsolete_formatter_files().forEach(function(relativePath) {
 	assert.strictEqual(
@@ -427,6 +435,34 @@ var commentMutationSource = read_source('lib/core/sql-comment-mutations.js');
 	});
 });
 
+var safeReportCoreSource = read_source('lib/core/sql-safe-diagnostic-report.js');
+assert.strictEqual(
+	/require\(['"]\.\.\/adapters\//.test(safeReportCoreSource),
+	false,
+	'safe diagnostic report core must not import adapters'
+);
+assert.strictEqual(
+	/require\(['"]vscode['"]\)/.test(safeReportCoreSource),
+	false,
+	'safe diagnostic report core must not import vscode'
+);
+assert.deepStrictEqual(
+	Object.keys(require('../lib/core/sql-safe-diagnostic-report')).sort(),
+	[
+		'assert_report_safe',
+		'classify_result',
+		'create_report',
+		'render_markdown'
+	],
+	'safe diagnostic report core export surface must stay narrow'
+);
+
+var safeReportAdapterSource = read_source('lib/adapters/safe-diagnostic-report.js');
+assert.ok(
+	/require\(['"]\.\.\/core\/sql-safe-diagnostic-report['"]\)/.test(safeReportAdapterSource),
+	'safe diagnostic report adapter must import the core report helper'
+);
+
 var packageJson = JSON.parse(read_source('package.json'));
 var verifyScript = packageJson.scripts && packageJson.scripts['test:verify'] || '';
 [
@@ -443,7 +479,9 @@ var verifyScript = packageJson.scripts && packageJson.scripts['test:verify'] || 
 	'tests/unsupported-safety.test.js',
 	'tests/tokenizer-profile.test.js',
 	'tests/sql-token-renderer.test.js',
-	'tests/render-width.test.js'
+	'tests/render-width.test.js',
+	'tests/safe-diagnostic-report.test.js',
+	'tests/formatter-telemetry.test.js'
 ].forEach(function(testFile) {
 	assert.ok(
 		verifyScript.indexOf(testFile) >= 0,
