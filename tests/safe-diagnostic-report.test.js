@@ -372,6 +372,47 @@ safeReport.assert_report_safe(stringDiagnosticsMarkdown, [
     'private_cte customer_id secret_orders'
 ]);
 
+var inheritedAllowlistMarkdown = safeReport.render_markdown({
+    extensionVersion: '1.0.6',
+    reportVersion: 1,
+    phase: 'constructor',
+    classification: 'toString',
+    dialect: 'constructor',
+    unsupportedSyntaxPolicy: 'toString',
+    input: {},
+    structure: {},
+    diagnostics: [
+        {
+            code: 'constructor',
+            labels: ['constructor'],
+            sources: ['constructor'],
+            count: 1
+        }
+    ],
+    telemetry: {
+        totalMs: 1,
+        phases: [
+            { name: 'constructor', ms: 1, status: 'toString' }
+        ]
+    },
+    reproductionHints: []
+});
+assert.ok(/phase: unknown/.test(inheritedAllowlistMarkdown), 'inherited phase property must not be allowed');
+assert.ok(/classification: unknown/.test(inheritedAllowlistMarkdown), 'inherited classification property must not be allowed');
+assert.ok(/dialect: unknown/.test(inheritedAllowlistMarkdown), 'inherited dialect property must not be allowed');
+assert.ok(/unsupportedSyntaxPolicy: unknown/.test(inheritedAllowlistMarkdown), 'inherited unsupported policy property must not be allowed');
+assert.ok(/code: unknown/.test(inheritedAllowlistMarkdown), 'inherited diagnostic code property must not be allowed');
+assert.ok(/labels: $/m.test(inheritedAllowlistMarkdown), 'inherited diagnostic label property must not be allowed');
+assert.ok(/sources: $/m.test(inheritedAllowlistMarkdown), 'inherited diagnostic source property must not be allowed');
+assert.ok(/unknown: 1 \(unknown\)/.test(inheritedAllowlistMarkdown), 'inherited telemetry values must not be allowed');
+assert.strictEqual(
+    safeReport.classify_result({
+        failureType: 'constructor'
+    }),
+    'unknown',
+    'inherited classification property must normalize to unknown'
+);
+
 assert.strictEqual(
     safeReport.classify_result({
         diagnostics: [unsupportedDiagnostic]
