@@ -78,6 +78,8 @@ These modules expose only their `apply_*_mutations` entry points, except `sql-co
 - `tests/layout-marker-leakage.test.js` protects user-authored text that resembles removed historical markers.
 - `tests/generated-support-matrix.test.js` keeps `docs/technical/sql-support-matrix.md` synchronized with clause/operator registries.
 - `tests/tokenizer-profile.test.js` and the performance smoke test are regression guards for tokenizer churn and accidental path blowups. They are not proof that every maintainability refactor improves wall-clock time.
+- `tests/production-corpus-golden.test.js` locks committed anonymized production-shaped SQL against readable `.formatted.sql` snapshots. Snapshot updates require `SQL_BEAUTIFY_UPDATE_SNAPSHOTS=1`.
+- `tests/production-performance-budget.test.js` reports corpus p50/p95/max timing and uses wide gates as disaster guards, not exact performance promises.
 - Packaging smoke must confirm new runtime core modules are included in the VSIX and obsolete formatter facades are absent when module structure changes.
 
 ## Unsupported Policy
@@ -105,3 +107,6 @@ Detector findings must not be based on word value alone. Keyword-shaped identifi
 - Unsafe range fragments are rejected in both the VS Code range formatter and command-driven selection formatting.
 - `warn` diagnostics are user-visible warnings, not debug-only logs.
 - `sqlBeautify.debugDiagnostics=true` adds structured payloads to the extension host console; it does not change formatting behavior.
+- Unsupported syntax diagnostics use structured segment metadata: `kind`, `code`, `label`, `text`, `snippet`, `range`, `source`, `confidence`, and `action`.
+- `format_sql()` remains text-only. `format_sql_detailed()` remains `{ text, diagnostics }` and is the diagnostics-bearing API.
+- Private production SQL can be checked locally with `SQL_BEAUTIFY_CORPUS_DIR=/path/to/sql node tests/production-corpus-private.test.js`; private corpus contents must not be committed.
