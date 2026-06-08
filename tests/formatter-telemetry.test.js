@@ -74,7 +74,7 @@ assert.ok(
 var threw = false;
 try {
     sqlFormatter.format_sql_detailed(
-        'select * from t match_recognize (partition by a order by b measures match_number() as mn)',
+        'select * from t match_recognize (partition by a order by b measures \'secret-literal-987\' as mn)',
         default_options({
             dialect: 'generic',
             unsupportedSyntaxPolicy: 'bail_out',
@@ -91,6 +91,27 @@ try {
     assert.ok(
         error.sqlBeautifyDiagnostics[0].unsupportedSegments[0].label == 'MATCH_RECOGNIZE',
         'telemetry-enabled throw must attach safe unsupported label'
+    );
+    var errorDiagnosticsMetadata = JSON.stringify(error.sqlBeautifyDiagnostics);
+    assert.strictEqual(
+        errorDiagnosticsMetadata.indexOf('secret-literal-987'),
+        -1,
+        'telemetry-enabled throw diagnostics must not leak secret literal'
+    );
+    assert.strictEqual(
+        errorDiagnosticsMetadata.indexOf('match_recognize (partition by'),
+        -1,
+        'telemetry-enabled throw diagnostics must not leak unsupported SQL fragment'
+    );
+    assert.strictEqual(
+        errorDiagnosticsMetadata.indexOf('snippet'),
+        -1,
+        'telemetry-enabled throw diagnostics must not expose snippet field'
+    );
+    assert.strictEqual(
+        errorDiagnosticsMetadata.indexOf('text'),
+        -1,
+        'telemetry-enabled throw diagnostics must not expose text field'
     );
 }
 assert.ok(threw, 'bail_out unsupported syntax must still throw');
