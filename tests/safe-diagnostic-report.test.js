@@ -1,6 +1,14 @@
 var assert = require('assert');
 var safeReport = require('../lib/core/sql-safe-diagnostic-report');
 
+function assert_does_not_throw(fn, message) {
+    try {
+        fn();
+    } catch (error) {
+        assert.fail(message + ': ' + error.message);
+    }
+}
+
 var sensitiveSql = [
     'with private_cte as (',
     "    select customer_id, `secret-column`, 'https://internal.example/path?id=42' as url_value",
@@ -289,6 +297,78 @@ safeReport.assert_report_safe(unsafeRawReportMarkdown, [
     'prod_schema',
     'Alice Internal',
     'Alice_Internal',
+    'private_cte customer_id secret_orders'
+]);
+
+var malformedSummaryMarkdown;
+assert_does_not_throw(function() {
+    malformedSummaryMarkdown = safeReport.render_markdown({
+        extensionVersion: '1.0.6',
+        reportVersion: 1,
+        phase: 'command_format',
+        classification: 'ok',
+        dialect: 'hive',
+        unsupportedSyntaxPolicy: 'warn',
+        input: {},
+        structure: {},
+        diagnostics: [
+            {
+                code: 'private_cte.customer_id',
+                labels: 'secret_orders',
+                sources: 'prod_schema',
+                count: 'not-a-number'
+            }
+        ],
+        telemetry: {
+            totalMs: 1,
+            phases: [
+                { name: 'private_cte.customer_id', ms: 1, status: 'Alice Internal' }
+            ]
+        },
+        reproductionHints: ['private_cte customer_id secret_orders']
+    });
+}, 'malformed diagnostic summary must not throw');
+assert.ok(/code: unknown/.test(malformedSummaryMarkdown), 'malformed diagnostic code must normalize safely');
+assert.ok(/labels: $/m.test(malformedSummaryMarkdown), 'malformed labels must render empty');
+assert.ok(/sources: $/m.test(malformedSummaryMarkdown), 'malformed sources must render empty');
+assert.ok(/count: 0/.test(malformedSummaryMarkdown), 'malformed count must normalize to 0');
+safeReport.assert_report_safe(malformedSummaryMarkdown, [
+    'private_cte',
+    'customer_id',
+    'private_cte_customer_id',
+    'secret_orders',
+    'prod_schema',
+    'Alice Internal',
+    'Alice_Internal',
+    'private_cte customer_id secret_orders'
+]);
+
+var stringDiagnosticsMarkdown;
+assert_does_not_throw(function() {
+    stringDiagnosticsMarkdown = safeReport.render_markdown({
+        extensionVersion: '1.0.6',
+        reportVersion: 1,
+        phase: 'command_format',
+        classification: 'ok',
+        dialect: 'hive',
+        unsupportedSyntaxPolicy: 'warn',
+        input: {},
+        structure: {},
+        diagnostics: 'private_cte.customer_id',
+        telemetry: {
+            totalMs: 1,
+            phases: 'private_cte.customer_id'
+        },
+        reproductionHints: ['private_cte customer_id secret_orders']
+    });
+}, 'string diagnostics and telemetry phases must not throw');
+assert.ok(/- diagnostics:\n  - none/.test(stringDiagnosticsMarkdown), 'string diagnostics must render as empty diagnostics');
+assert.ok(/- phases:\n    - none/.test(stringDiagnosticsMarkdown), 'string telemetry phases must render as empty phases');
+safeReport.assert_report_safe(stringDiagnosticsMarkdown, [
+    'private_cte',
+    'customer_id',
+    'private_cte_customer_id',
+    'private_cte.customer_id',
     'private_cte customer_id secret_orders'
 ]);
 
