@@ -172,6 +172,44 @@ safeReport.assert_report_safe(emptyMarkdown, [
     'SQLBEAUTIFY_'
 ]);
 
+var untrustedMetadataReport = safeReport.create_report({
+    text: sensitiveSql,
+    phase: 'private_cte.customer_id',
+    options: {
+        dialect: 'https://internal.example/path?id=42',
+        unsupportedSyntaxPolicy: 'customer_name'
+    },
+    result: {
+        diagnostics: [],
+        telemetry: {
+            totalMs: 4,
+            phases: [
+                { name: 'private_cte.customer_id', ms: 1, status: 'Alice Internal' }
+            ]
+        }
+    },
+    extensionVersion: 'https://internal.example/ext/sql-beautify-1.0.6.vsix'
+});
+var untrustedMetadataMarkdown = safeReport.render_markdown(untrustedMetadataReport);
+assert.strictEqual(untrustedMetadataReport.phase, 'unknown', 'unsafe report phase must be normalized');
+assert.strictEqual(untrustedMetadataReport.dialect, 'unknown', 'unsafe dialect must be normalized');
+assert.strictEqual(untrustedMetadataReport.unsupportedSyntaxPolicy, 'unknown', 'unsafe unsupported policy must be normalized');
+assert.strictEqual(untrustedMetadataReport.extensionVersion, 'unknown', 'unsafe extension version must be normalized');
+assert.strictEqual(untrustedMetadataReport.telemetry.phases[0].name, 'unknown', 'unsafe telemetry phase name must be normalized');
+assert.strictEqual(untrustedMetadataReport.telemetry.phases[0].status, 'unknown', 'unsafe telemetry phase status must be normalized');
+safeReport.assert_report_safe(untrustedMetadataMarkdown, [
+    'private_cte.customer_id',
+    'private_cte_customer_id',
+    'https://internal.example/path?id=42',
+    'https_internal_example_path_id_42',
+    'https:_internal_example_path_id_42',
+    'customer_name',
+    'Alice Internal',
+    'Alice_Internal',
+    'https://internal.example/ext/sql-beautify-1.0.6.vsix',
+    'sql-beautify-1.0.6.vsix'
+]);
+
 assert.strictEqual(
     safeReport.classify_result({
         diagnostics: [unsupportedDiagnostic]
