@@ -333,6 +333,33 @@ run_case(
 	].join('\n')
 );
 
+var multiline_case_alias_comment_actual = format([
+	'SELECT  base.user_id',
+	'       ,bAsE.user_type',
+	'       ,CAST(bAsE.total_score AS InTeGeR)                AS score        -- 基础类型转换',
+	"       ,CoAlEsCe(base.phone,bAsE.email,'unknown')        AS contact_info -- 多参数函数",
+	'       ,CASE',
+	"            WHEN base.age < 18              THEN 'minor'",
+	"            WHEN base.age BETWEEN 18 AND 60 THEN 'adult'",
+	"            ELSE 'senior'",
+	'        END                                              AS age_group -- 多行 CASE 字段',
+	'       ,dAtE_sUb(CAST(base.login_date AS DATE),7)        AS wEeK_aGo  -- 函数套函数',
+	'FROM a'
+].join('\n'));
+
+var multiline_case_alias_comment_lines = multiline_case_alias_comment_actual.split('\n');
+var multiline_case_alias_comment_columns = multiline_case_alias_comment_lines.filter(function(line) {
+	return line.indexOf('--') >= 0;
+}).map(function(line) {
+	return line.indexOf('--');
+});
+
+assert.deepStrictEqual(
+	multiline_case_alias_comment_columns,
+	[73, 73, 73, 73],
+	'multiline CASE alias select item should align trailing field comments with sibling select items\n--- actual ---\n' + multiline_case_alias_comment_actual
+);
+
 run_case(
 	'case in-list comments align within the select item',
 	[
@@ -360,8 +387,8 @@ run_case(
 		'FROM users u;'
 	].join('\n'),
 	[
-		'SELECT  u.user_id                     AS user_id   -- 用户id',
-		'       ,u.user_name                   AS user_name -- 用户名',
+		'SELECT  u.user_id                     AS user_id    -- 用户id',
+		'       ,u.user_name                   AS user_name  -- 用户名',
 		'       ,CASE',
 		'            WHEN u.city IN (',
 		"                    'NY', -- 纽约",

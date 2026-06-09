@@ -93,7 +93,7 @@ run_case(
 run_case(
 	'mixed columns align AS after the widest CASE branch',
 	"SELECT  1 AS f -- com1\n       ,2 AS cc -- fdsfa\n       ,3 AS bb -- ccc\n       ,CASE\n            WHEN name = 'aa'  THEN 123 -- c1\n            WHEN name = 'bbb' THEN 132 -- c2\n            WHEN name = 'ccc' THEN 25\n        END  AS alias -- c3\nFROM t;",
-	"SELECT  1                              AS f  -- com1\n       ,2                              AS cc -- fdsfa\n       ,3                              AS bb -- ccc\n       ,CASE\n            WHEN name = 'aa'  THEN 123 -- c1\n            WHEN name = 'bbb' THEN 132 -- c2\n            WHEN name = 'ccc' THEN 25\n        END                            AS alias -- c3\nFROM t;"
+	"SELECT  1                              AS f     -- com1\n       ,2                              AS cc    -- fdsfa\n       ,3                              AS bb    -- ccc\n       ,CASE\n            WHEN name = 'aa'  THEN 123 -- c1\n            WHEN name = 'bbb' THEN 132 -- c2\n            WHEN name = 'ccc' THEN 25\n        END                            AS alias -- c3\nFROM t;"
 );
 
 run_case(
