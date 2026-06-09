@@ -10,6 +10,7 @@ var sqlConditionMutations = require('../lib/core/sql-condition-mutations');
 var sqlCommentSpacing = require('../lib/core/sql-comment-spacing');
 var sqlTokenRenderer = require('../lib/core/sql-token-renderer');
 var sqlRenderWidth = require('../lib/core/sql-render-width');
+var sqlRenderTokenSpacing = require('../lib/core/sql-render-token-spacing');
 var sqlClauseContext = require('../lib/core/sql-clause-context');
 var sqlNodeUtils = require('../lib/core/sql-node-utils');
 var sqlListNodes = require('../lib/core/sql-list-nodes');
@@ -137,6 +138,11 @@ assert.deepStrictEqual(
 	Object.keys(sqlRenderWidth).sort(),
 	['create_width_context'],
 	'render width helper must expose only create_width_context'
+);
+assert.deepStrictEqual(
+	Object.keys(sqlRenderTokenSpacing).sort(),
+	['append_visible_token', 'render_visible_tokens', 'token_value'],
+	'token spacing policy module must expose only token_value, append_visible_token, and render_visible_tokens'
 );
 assert.deepStrictEqual(
 	Object.keys(sqlClauseContext).sort(),
@@ -384,6 +390,29 @@ var formatNodesSource = read_source('lib/core/sql-format-nodes.js');
 		/function\s+render_tokens\s*\(/.test(source),
 		false,
 		relativePath + ' must delegate shared token rendering to sql-token-renderer'
+	);
+});
+
+var tokenRendererSource = read_source('lib/core/sql-token-renderer.js');
+assert.ok(
+	tokenRendererSource.indexOf("require('./sql-render-token-spacing')") >= 0,
+	'sql-token-renderer.js must delegate spacing policy to sql-render-token-spacing'
+);
+[
+	'trim_trailing_space',
+	'output_is_leading_comma_prefix',
+	'follows_window_order_by',
+	'token_inside_scope_kind',
+	'owner_function_scope',
+	'should_preserve_comma_gap',
+	'should_join_unary_number',
+	'token_scope_by_open_index',
+	'token_scope_by_close_index'
+].forEach(function(functionName) {
+	assert.strictEqual(
+		new RegExp('function\\s+' + functionName + '\\s*\\(').test(tokenRendererSource),
+		false,
+		'sql-token-renderer.js must not carry private spacing helper implementation: ' + functionName
 	);
 });
 
