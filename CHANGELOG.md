@@ -5,6 +5,20 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 1.0.7 (2026/06/09)
+* 增加 `SQL Beautify: Copy Safe Diagnostic Report` 命令，用户可在受限生产环境中主动复制不包含 SQL 内容的本地诊断报告，用于反馈 warning、error 或慢格式化问题
+* 增加内部 opt-in formatter phase telemetry 和 safe report 生成路径；普通 `format_sql()` / `format_sql_detailed()` 输出保持兼容，不上传、不落盘、不改变格式化结果
+* 加固 safe report 清洗与 allowlist，避免原始 SQL、格式化 SQL、标识符、字面量、注释、文件路径、URL、unsupported snippet 或 adapter state 泄漏到报告中
+* 修复 safe report 方言标签，`generic`、`hive`、`postgres`、`mysql` 会保留配置值，不再把公开配置里的 PostgreSQL / MySQL 归为 `unknown`
+* 将 VSIX 内容预检改为基于 `unzip -Z1` 的本地包清单检查，并确认 safe diagnostic report runtime modules 进入包内、测试 / superpowers 文档 / obsolete formatter facade 不进入包内
+* 将扩展包版本同步至 `1.0.7`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.7.vsix`
+* Added the `SQL Beautify: Copy Safe Diagnostic Report` command so users can explicitly copy a local no-SQL-content report from restricted production environments when reporting warnings, errors, or slow formatting
+* Added internal opt-in formatter phase telemetry and safe report generation while keeping normal `format_sql()` / `format_sql_detailed()` output compatible, local-only, and behavior-neutral
+* Hardened safe report sanitization and allowlists so raw SQL, formatted SQL, identifiers, literals, comments, file paths, URLs, unsupported snippets, and adapter state cannot leak into the report
+* Fixed safe report dialect labels so configured `generic`, `hive`, `postgres`, and `mysql` values are preserved instead of collapsing public PostgreSQL / MySQL settings to `unknown`
+* Switched the VSIX smoke check to a local `unzip -Z1` package listing validation and verified safe diagnostic report runtime modules are packaged while tests, superpowers docs, and obsolete formatter facades stay excluded
+* Bumped the extension package version to `1.0.7`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.7.vsix`
+
 ### 1.0.6 (2026/06/08)
 * 增加 shared `sql-clause-context.js`，统一结构化 clause splitting、syntax risk detection 和 structured clause formatting 的上下文判断
 * 将 `QUALIFY`、`PIVOT` / `UNPIVOT`、`MERGE` 和 `MATCH_RECOGNIZE` 的低置信语法识别收敛到 token-aware boundary helper，避免字段名、别名或表达式函数名被误判为真实 clause / table construct

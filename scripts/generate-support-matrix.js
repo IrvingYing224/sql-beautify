@@ -141,6 +141,8 @@ function render_matrix() {
         '',
         '- Unsafe range fragments are rejected instead of being partially reformatted',
         '- Runtime warnings are intended for protected opaque syntax and context-aware detected dialect mismatches or unmodeled constructs',
+        '- `SQL Beautify: Copy Safe Diagnostic Report` produces a local-only Markdown report on explicit user action; the report contains safe counts, labels, classifications, and timings only',
+        '- Safe diagnostic reports must not contain SQL content, formatted SQL, identifiers, literals, comments, file paths, URLs, unsupported snippets, or adapter state',
         ''
     ].join('\n');
 }
