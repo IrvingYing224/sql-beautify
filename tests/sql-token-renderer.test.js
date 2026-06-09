@@ -38,7 +38,7 @@ assert.strictEqual(
 		unaryNumberMode: 'select',
 		windowOrderBySpacing: true
 	}),
-	'ROW_NUMBER() OVER(PARTITION BY a ORDER BY  b DESC,c DESC)',
+	'ROW_NUMBER() OVER(PARTITION BY a ORDER BY  b DESC, c DESC)',
 	'token renderer preserves existing window ORDER BY spacing'
 );
 
@@ -86,8 +86,8 @@ assert.strictEqual(
 		preserveCommaGapExceptFunctionName: 'COALESCE',
 		unaryNumberMode: 'case'
 	}),
-	'case when x in (1, 2) then a +1 else coalesce(b,c) end',
-	'token renderer preserves CASE-specific IN, unary number, and COALESCE comma behavior'
+	'case when x in (1, 2) then a +1 else coalesce(b, c) end',
+	'token renderer preserves CASE-specific IN spacing, unary number, and function comma spacing'
 );
 
 console.log('sql token renderer tests passed');

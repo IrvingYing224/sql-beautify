@@ -294,13 +294,13 @@ run_case(
 		'FROM orders o;'
 	].join('\n'),
 	[
-			align_comment('SELECT  o.user_id                                                                                                           AS user_id', 142, '用户ID'),
-			align_comment('       ,o.order_id                                                                                                          AS order_id', 142, '订单ID'),
-			align_comment('       ,o.amount                                                                                                            AS amount', 142, '金额'),
-			align_comment('       ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.amount DESC,o.order_id ASC)                                    AS rn', 142, '行号'),
-			align_comment('       ,rank() OVER (PARTITION BY o.user_id ORDER BY  o.amount DESC)                                                         AS rk', 142, '排名'),
-			align_comment('       ,dense_rank() OVER(PARTITION BY o.user_id ORDER BY  o.amount DESC)                                                   AS drk', 142, '稠密排名'),
-			align_comment('       ,SUM(o.amount) OVER(PARTITION BY o.user_id ORDER BY  o.create_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_amount', 142, '累计金额'),
+		align_comment('SELECT  o.user_id                                                                                                           AS user_id', 142, '用户ID'),
+		align_comment('       ,o.order_id                                                                                                          AS order_id', 142, '订单ID'),
+		align_comment('       ,o.amount                                                                                                            AS amount', 142, '金额'),
+		align_comment('       ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.amount DESC, o.order_id ASC)                                   AS rn', 142, '行号'),
+		align_comment('       ,rank() OVER (PARTITION BY o.user_id ORDER BY  o.amount DESC)                                                         AS rk', 142, '排名'),
+		align_comment('       ,dense_rank() OVER(PARTITION BY o.user_id ORDER BY  o.amount DESC)                                                   AS drk', 142, '稠密排名'),
+		align_comment('       ,SUM(o.amount) OVER(PARTITION BY o.user_id ORDER BY  o.create_time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_amount', 142, '累计金额'),
 		'FROM orders o;'
 	].join('\n')
 );
@@ -320,15 +320,15 @@ run_case(
 		'FROM users u;'
 	].join('\n'),
 	[
-		'SELECT  u.user_id                                                                                                                           AS user_id   -- 用户ID',
-		'       ,u.user_name                                                                                                                         AS user_name -- 用户名',
+		'SELECT  u.user_id                                                                                                                               AS user_id   -- 用户ID',
+		'       ,u.user_name                                                                                                                             AS user_name -- 用户名',
 		'       ,CASE',
-		"            WHEN u.status = 'active' AND u.age >= 18 AND nvl(u.email,'') <> '' AND length(regexp_replace(nvl(u.phone,''),'[^0-9]','')) = 11",
+		"            WHEN u.status = 'active' AND u.age >= 18 AND nvl(u.email, '') <> '' AND length(regexp_replace(nvl(u.phone, ''), '[^0-9]', '')) = 11",
 		"                THEN 'valid_active_user'",
 		'            ELSE',
 		"                'invalid_or_inactive_user'",
-		'        END                                                                                                                                 AS user_flag -- 用户标记',
-		'       ,u.city                                                                                                                              AS city      -- 城市',
+		'        END                                                                                                                                     AS user_flag -- 用户标记',
+		'       ,u.city                                                                                                                                  AS city      -- 城市',
 		'FROM users u;'
 	].join('\n')
 );

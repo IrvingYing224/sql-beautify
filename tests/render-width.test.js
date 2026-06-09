@@ -35,6 +35,14 @@ assert.strictEqual(width.planned_code_width(base.document.lines[0]), 'select a a
 assert.strictEqual(width.planned_alignment_width(base.document.lines[0]), 'select a'.length, 'alignment width stops before top-level AS');
 assert.strictEqual(width.planned_join_prefix_width(base.document.lines[0]), 0, 'unjoined line has no join prefix width');
 
+var comma = build_context("select coalesce(phone,email,'unknown') as contact_info -- c\nfrom users\n");
+width = renderWidth.create_width_context(comma.document, comma.nodes, comma.mutations, comma.config);
+assert.strictEqual(
+	width.planned_code_segment(comma.document.lines[0]),
+	"select  coalesce(phone, email, 'unknown') as contact_info",
+	'planned code segment uses final inline comma spacing'
+);
+
 mutations.add_line_indent(base.mutations, 0, '    ');
 width = renderWidth.create_width_context(base.document, base.nodes, base.mutations, base.config);
 assert.strictEqual(width.planned_code_width(base.document.lines[0]), 4 + 'select a as col'.length, 'line indent mutation contributes to code width');

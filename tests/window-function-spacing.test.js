@@ -41,7 +41,7 @@ assert_contains(
 assert_contains(
 	'window ORDER BY keeps double-space before the first ordered expression only',
 	'select row_number() over(partition by ds order by pay_time desc, created_at desc) as rn from orders',
-	'ROW_NUMBER() OVER(PARTITION BY ds ORDER BY  pay_time DESC,created_at DESC) AS rn'
+	'ROW_NUMBER() OVER(PARTITION BY ds ORDER BY  pay_time DESC, created_at DESC) AS rn'
 );
 
 console.log('window function spacing tests passed');

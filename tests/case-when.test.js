@@ -217,7 +217,7 @@ run_case(
 		'       ,p.channel                       AS channel',
 		'       ,CASE',
 		'            WHEN p.channel IN (',
-		"                    'ALIPAY','WECHAT' -- ,'ABC'",
+		"                    'ALIPAY', 'WECHAT' -- ,'ABC'",
 		"                ) THEN 'online_payment' -- 主流线上支付渠道",
 		'            ELSE',
 		"                'other_payment'         -- 其他支付方式",
@@ -289,15 +289,15 @@ run_case(
 		'FROM payments p;'
 	].join('\n'),
 	[
-		'SELECT  p.order_id                                                       AS order_id',
-		'       ,p.channel                                                        AS channel',
+		'SELECT  p.order_id                                                        AS order_id',
+		'       ,p.channel                                                         AS channel',
 		'       ,CASE',
-		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment'  -- 主流线上支付渠道",
+		"            WHEN p.channel IN ('ALIPAY', 'WECHAT') THEN 'online_payment'  -- 主流线上支付渠道",
 		"            -- WHEN p.channel IN ('BANK','TRANSFER') THEN 'offline_payment' -- 银行线下支付",
 		"            -- WHEN p.channel IN ('CASH','POS')      THEN 'store_payment'   -- 门店支付方式",
-		"            WHEN p.channel IN ('COUPON','POINT')  THEN 'virtual_payment' -- 虚拟资产支付",
-		"            ELSE 'other_payment'                                         -- 其他支付方式",
-		'        END                                                              AS payment_type',
+		"            WHEN p.channel IN ('COUPON', 'POINT')  THEN 'virtual_payment' -- 虚拟资产支付",
+		"            ELSE 'other_payment'                                          -- 其他支付方式",
+		'        END                                                               AS payment_type',
 		'FROM payments p;'
 	].join('\n')
 );
@@ -316,14 +316,14 @@ run_case(
 		'FROM payments p;'
 	].join('\n'),
 	[
-		'SELECT  p.order_id                                                      AS order_id',
-		'       ,p.channel                                                       AS channel',
+		'SELECT  p.order_id                                                       AS order_id',
+		'       ,p.channel                                                        AS channel',
 		'       ,CASE',
-		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment' -- 主流线上支付渠道",
+		"            WHEN p.channel IN ('ALIPAY', 'WECHAT') THEN 'online_payment' -- 主流线上支付渠道",
 		"            -- WHEN p.channel = 'TEST'",
 		"            -- THEN 'offline_payment' -- 银行线下支付",
-		"            ELSE 'other_payment'                                        -- 其他支付方式",
-		'        END                                                             AS payment_type',
+		"            ELSE 'other_payment'                                         -- 其他支付方式",
+		'        END                                                              AS payment_type',
 		'FROM payments p;'
 	].join('\n')
 );
@@ -357,14 +357,14 @@ run_case(
 		'FROM payments p;'
 	].join('\n'),
 	[
-		'SELECT  p.order_id                                                      AS order_id',
-		'       ,p.channel                                                       AS channel',
+		'SELECT  p.order_id                                                       AS order_id',
+		'       ,p.channel                                                        AS channel',
 		'       ,CASE',
-		"            WHEN p.channel IN ('ALIPAY','WECHAT') THEN 'online_payment' -- 主流线上支付渠道",
+		"            WHEN p.channel IN ('ALIPAY', 'WECHAT') THEN 'online_payment' -- 主流线上支付渠道",
 		"            -- WHEN p.channel = 'TEST' THEN 'offline_payment' -- 银行线下支付",
-		'            ELSE                                                        -- test',
-		"                'other_payment'                                         -- 其他支付方式",
-		'        END                                                             AS payment_type',
+		'            ELSE                                                         -- test',
+		"                'other_payment'                                          -- 其他支付方式",
+		'        END                                                              AS payment_type',
 		'FROM payments p;'
 	].join('\n')
 );
@@ -418,13 +418,13 @@ run_case(
 		'       ,T1.ORDER_BY_FLAG',
 		'       ,T1.WITHRI_SITU_CD',
 		'       ,CASE',
-		'            WHEN MONTH(T1.LOAD_BIZ_DT) = MONTH(T3.LOAD_BIZ_DT) THEN NVL(T1.DPL_COUPON,0)+NVL(T3.MPL_COUPON,0)',
+		'            WHEN MONTH(T1.LOAD_BIZ_DT) = MONTH(T3.LOAD_BIZ_DT) THEN NVL(T1.DPL_COUPON, 0)+NVL(T3.MPL_COUPON, 0)',
 		'            ELSE T1.DPL_COUPON',
-		'        END                                                                                                   AS MPL_COUPON',
+		'        END                                                                                                     AS MPL_COUPON',
 		'       ,CASE',
-		'            WHEN MONTH(T1.LOAD_BIZ_DT) = MONTH(T3.LOAD_BIZ_DT) THEN NVL(T1.DPL_WRTOFF,0)+NVL(T3.MPL_WRTOFF,0)',
+		'            WHEN MONTH(T1.LOAD_BIZ_DT) = MONTH(T3.LOAD_BIZ_DT) THEN NVL(T1.DPL_WRTOFF, 0)+NVL(T3.MPL_WRTOFF, 0)',
 		'            ELSE T1.DPL_WRTOFF',
-		'        END                                                                                                   AS MPL_WRTOFF',
+		'        END                                                                                                     AS MPL_WRTOFF',
 		'       ,T1.LOAD_BIZ_DT',
 		'FROM dwd_pa_t_mea_bond_pl_reg_t1'
 	].join('\n')

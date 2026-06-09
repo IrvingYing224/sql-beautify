@@ -171,7 +171,7 @@ assert.ok(
 	'structured clause mutation does not split ORDER BY inside window spec'
 );
 assert.ok(
-	structuredWindowJoinActual.indexOf('ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY  a.dt DESC,a.ts DESC)') >= 0,
+	structuredWindowJoinActual.indexOf('ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY  a.dt DESC, a.ts DESC)') >= 0,
 	'structured renderer preserves existing ROW_NUMBER window spacing contract'
 );
 
@@ -281,7 +281,7 @@ var longFunctionItemActual = format([
 ].join('\n'));
 
 assert.ok(
-	longFunctionItemActual.indexOf("       ,concat_ws( '-',CAST(u.user_id AS STRING),nvl(trim(u.user_name),'unknown'),regexp_replace") >= 0,
+	longFunctionItemActual.indexOf("       ,concat_ws( '-', CAST(u.user_id AS STRING), nvl(trim(u.user_name), 'unknown'), regexp_replace") >= 0,
 	'structured SELECT pass collapses over-threshold multiline function item to one logical select item'
 );
 assert.strictEqual(format(longFunctionItemActual), longFunctionItemActual, 'collapsed multiline function select item is idempotent');

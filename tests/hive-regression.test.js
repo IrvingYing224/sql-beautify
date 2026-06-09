@@ -105,7 +105,7 @@ run_case(
 	].join('\n'),
 	[
 		'SELECT  u.user_id AS user_id -- 用户ID',
-		"       ,concat_ws( '-',CAST(u.user_id AS STRING),nvl(trim(u.user_name),'unknown'),regexp_replace(date_format(from_unixtime(unix_timestamp(u.create_time,'yyyy-MM-dd HH:mm:ss')),'yyyyMMddHHmmss'),'-','') ) AS user_profile_key -- 用户画像Key",
+		"       ,concat_ws( '-', CAST(u.user_id AS STRING), nvl(trim(u.user_name), 'unknown'), regexp_replace(date_format(from_unixtime(unix_timestamp(u.create_time, 'yyyy-MM-dd HH:mm:ss')), 'yyyyMMddHHmmss'), '-', '') ) AS user_profile_key -- 用户画像Key",
 		'       ,u.status  AS status  -- 状态',
 		'       ,u.dt      AS dt      -- 分区日期',
 		'FROM users u;'
@@ -124,16 +124,16 @@ run_case(
 		'group by o.user_id;'
 	].join('\n'),
 	[
-		align_comment(align_as('SELECT  o.user_id', 97, 'user_id'), 121, '用户ID'),
+		align_comment(align_as('SELECT  o.user_id', 98, 'user_id'), 122, '用户ID'),
 		'       ,SUM(CASE',
-		"                WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN coalesce(o.amount,0)",
+		"                WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN coalesce(o.amount, 0)",
 		'                ELSE 0',
-		align_comment(align_as('            END)', 97, 'success_paid_amount'), 121, '成功支付金额'),
+		align_comment(align_as('            END)', 98, 'success_paid_amount'), 122, '成功支付金额'),
 		'       ,COUNT(DISTINCT CASE',
-		"                           WHEN o.status = 'SUCCESS' AND coalesce(o.amount,0) > 0 THEN o.order_id",
+		"                           WHEN o.status = 'SUCCESS' AND coalesce(o.amount, 0) > 0 THEN o.order_id",
 		'                           ELSE NULL',
-		align_comment(align_as('                       END)', 97, 'success_order_cnt'), 121, '成功订单数'),
-		align_comment(align_as('       ,MAX(o.pay_time)', 97, 'last_pay_time'), 121, '最近支付时间'),
+		align_comment(align_as('                       END)', 98, 'success_order_cnt'), 122, '成功订单数'),
+		align_comment(align_as('       ,MAX(o.pay_time)', 98, 'last_pay_time'), 122, '最近支付时间'),
 		'FROM orders o',
 		'GROUP BY  o.user_id;'
 	].join('\n')
@@ -166,9 +166,9 @@ run_case(
 		"HAVING SUM(coalesce(o.amount, 0)) > 1000 AND COUNT(*) >= 3 AND MAX(case WHEN o.status = 'SUCCESS' THEN 1 else 0 end) = 1; -- 分组过滤条件"
 	].join('\n'),
 	[
-		'SELECT  o.user_id                 AS user_id      -- 用户ID',
-		'       ,SUM(coalesce(o.amount,0)) AS total_amount -- 总金额',
-		'       ,COUNT(*)                  AS order_cnt    -- 订单数',
+		'SELECT  o.user_id                  AS user_id      -- 用户ID',
+		'       ,SUM(coalesce(o.amount, 0)) AS total_amount -- 总金额',
+		'       ,COUNT(*)                   AS order_cnt    -- 订单数',
 		'FROM orders o',
 		'GROUP BY  o.user_id',
 		'HAVING SUM(coalesce(o.amount, 0)) > 1000',
@@ -176,7 +176,7 @@ run_case(
 		'   AND MAX(CASE',
 		"               WHEN o.status = 'SUCCESS' THEN 1",
 		'               ELSE 0',
-		'           END) = 1;                              -- 分组过滤条件'
+		'           END) = 1;                               -- 分组过滤条件'
 	].join('\n')
 );
 
@@ -302,7 +302,7 @@ var bracket_index_actual = format([
 	"u.matrix['level']",
 	"u.tags[0]",
 	"u.matrix['status']",
-	"WITH GROUPING SETS ( ( u.matrix['level'],u.info.base.gender )",
+	"WITH GROUPING SETS ( ( u.matrix['level'], u.info.base.gender )",
 	"AS vl",
 	"AS ain_tag"
 ].forEach(function(expected) {
@@ -361,7 +361,7 @@ run_case(
 		'FROM t',
 		'GROUP BY  a',
 		'         ,b',
-		'          WITH GROUPING SETS ((a,b),(a),())'
+		'          WITH GROUPING SETS ((a, b),(a),())'
 	].join('\n')
 );
 
@@ -498,13 +498,13 @@ run_case(
 	[
 		'WITH order_base AS',
 		'(',
-		'    SELECT  o.user_id                                                                                                                         AS user_id     -- 用户ID',
-		'           ,o.order_id                                                                                                                        AS order_id    -- 订单ID',
+		'    SELECT  o.user_id                                                                                                                           AS user_id     -- 用户ID',
+		'           ,o.order_id                                                                                                                          AS order_id    -- 订单ID',
 		'           ,CASE',
-		"                WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN concat_ws('#',CAST(o.order_id AS STRING),CAST(o.user_id AS STRING))",
+		"                WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN concat_ws('#', CAST(o.order_id AS STRING), CAST(o.user_id AS STRING))",
 		"                ELSE 'INVALID_ORDER'",
-		'            END                                                                                                                               AS order_token -- 订单标识',
-		'           ,o.amount                                                                                                                          AS amount      -- 金额',
+		'            END                                                                                                                                 AS order_token -- 订单标识',
+		'           ,o.amount                                                                                                                            AS amount      -- 金额',
 		'    FROM orders o',
 		')',
 		'SELECT  us.user_id      AS user_id      -- 用户ID',
@@ -529,13 +529,13 @@ run_case(
 		'FROM orders o'
 	].join('\n'),
 	[
-		'SELECT  o.user_id                                                                                                                         AS user_id     -- 用户ID',
-		'       ,o.order_id                                                                                                                        AS order_id    -- 订单ID',
+		'SELECT  o.user_id                                                                                                                           AS user_id     -- 用户ID',
+		'       ,o.order_id                                                                                                                          AS order_id    -- 订单ID',
 		'       ,CASE',
-		"            WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN concat_ws('#',CAST(o.order_id AS STRING),CAST(o.user_id AS STRING))",
+		"            WHEN o.status = 'SUCCESS' AND o.pay_time IS NOT NULL THEN concat_ws('#', CAST(o.order_id AS STRING), CAST(o.user_id AS STRING))",
 		"            ELSE 'INVALID_ORDER'",
-		'        END                                                                                                                               AS order_token -- 订单标识',
-		'       ,o.amount                                                                                                                          AS amount      -- 金额',
+		'        END                                                                                                                                 AS order_token -- 订单标识',
+		'       ,o.amount                                                                                                                            AS amount      -- 金额',
 		'FROM orders o'
 	].join('\n')
 );
@@ -618,7 +618,7 @@ run_case(
 	"select distinct cast(a as string) as s, if(a is null, true, false) as f from t where a is not null and b rlike '^x' and c regexp 'y' and d not like 'z'",
 	[
 		'SELECT  DISTINCT CAST(a AS STRING) AS s',
-		'       ,if(a IS NULL,TRUE,FALSE)   AS f',
+		'       ,if(a IS NULL, TRUE, FALSE) AS f',
 		'FROM t',
 		'WHERE a IS NOT NULL',
 		"  AND b RLIKE '^x'",

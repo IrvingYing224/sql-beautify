@@ -9,8 +9,8 @@ WITH source_orders AS
                     ) THEN concat_ws(',', o.city_name, o.region_name)
                 ELSE
                     'unknown'
-            END                                                                                 AS city_label
-           ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.pay_time DESC,o.order_id DESC) AS rn
+            END                                                                                  AS city_label
+           ,ROW_NUMBER() OVER(PARTITION BY o.user_id ORDER BY  o.pay_time DESC, o.order_id DESC) AS rn
     FROM dwd_order_detail o
     LEFT JOIN dim_user_profile u
          ON -- user join

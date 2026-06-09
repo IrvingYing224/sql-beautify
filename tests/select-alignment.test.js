@@ -28,9 +28,19 @@ run_case(
 	'select item normalization stays inside select formatter',
 	"select concat_ws('-', cast(id as string), name) as user_key,status as status from users",
 	[
-		"SELECT  concat_ws('-',CAST(id AS STRING),name) AS user_key",
-		'       ,status                                 AS status',
+		"SELECT  concat_ws('-', CAST(id AS STRING), name) AS user_key",
+		'       ,status                                   AS status',
 		'FROM users'
+	].join('\n')
+);
+
+run_case(
+	'comma spacing normalizes function arguments and order keys',
+	"select coalesce(phone,email,'unknown') as contact_info from users order by dt desc,event_time desc",
+	[
+		"SELECT  coalesce(phone, email, 'unknown') AS contact_info",
+		'FROM users',
+		'ORDER BY dt DESC, event_time DESC'
 	].join('\n')
 );
 
@@ -47,17 +57,17 @@ run_case(
 		'from t'
 	].join('\n'),
 	[
-		'SELECT  a.user_id                      AS user_id',
-		'       ,a.user_name                    AS name',
-		'       ,a.city                         AS city_name',
+		'SELECT  a.user_id                        AS user_id',
+		'       ,a.user_name                      AS name',
+		'       ,a.city                           AS city_name',
 		'       ,CASE',
 		'            WHEN a.age IS NULL THEN -1',
 		'            WHEN a.age < 18    THEN 0',
 		'            ELSE 1',
-		'        END                            AS age_group',
-		'       ,b.order_cnt                    AS order_count',
-		'       ,b.pay_amt                      AS pay_amount',
-		'       ,substr(c.last_login_time,1,10) AS login_date',
+		'        END                              AS age_group',
+		'       ,b.order_cnt                      AS order_count',
+		'       ,b.pay_amt                        AS pay_amount',
+		'       ,substr(c.last_login_time, 1, 10) AS login_date',
 		'FROM t'
 	].join('\n')
 );
@@ -124,14 +134,14 @@ run_case(
 	[
 		'WITH src AS',
 		'(',
-		'    SELECT  a.dt                                                                            AS dt',
-		'           ,a.user_id                                                                       AS user_id',
+		'    SELECT  a.dt                                                                             AS dt',
+		'           ,a.user_id                                                                        AS user_id',
 		'           -- 订单金额口径',
 		'           ,CASE',
 		'                WHEN a.pay_amt > 0 THEN a.pay_amt',
 		'                ELSE 0',
-		'            END                                                                             AS pay_amt',
-		'           ,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY  a.dt DESC,a.event_time DESC) AS rn',
+		'            END                                                                              AS pay_amt',
+		'           ,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY  a.dt DESC, a.event_time DESC) AS rn',
 		'    FROM dwd_orders a',
 		')',
 		'SELECT  *',
@@ -159,7 +169,7 @@ run_case(
 		'       -- 这里故意塞进一长串',
 		'       -- 连续的单行注释',
 		'       -- 用来测试插件是否会把它们合并，或者打乱缩进',
-		"       ,sPlIt(hobbies,',') AS hobby_list",
+		"       ,sPlIt(hobbies, ',') AS hobby_list",
 		'FROM dim.user_info_raw -- 紧贴在表名后面的注释',
 		"WHERE dt = '2026-05-17'",
 		"  AND status = 'active' -- 仅保留活跃状态"

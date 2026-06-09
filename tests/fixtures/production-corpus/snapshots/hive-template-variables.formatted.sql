@@ -5,7 +5,7 @@ SELECT  a.user_id
             WHEN a.event_name = 'select from where' THEN 1
             ELSE 0
         END                                                AS has_sql_text
-       ,concat_ws('|',a.app_id,a.channel,'${bizdate}')     AS compound_key -- output key
+       ,concat_ws('|', a.app_id, a.channel, '${bizdate}')  AS compound_key -- output key
 FROM ods_event_log a
 WHERE a.ds = '${bizdate}'
   AND a.hour BETWEEN '${start_hour}' AND '${end_hour}'
