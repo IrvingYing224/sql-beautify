@@ -240,6 +240,65 @@ assert.strictEqual(
     'extension version must not preserve semver metadata'
 );
 
+[
+    'generic',
+    'hive',
+    'postgres',
+    'mysql'
+].forEach(function(dialect) {
+    var dialectReport = safeReport.create_report({
+        text: sensitiveSql,
+        phase: 'command_format',
+        options: {
+            dialect: dialect,
+            unsupportedSyntaxPolicy: 'warn'
+        },
+        result: {
+            diagnostics: [],
+            telemetry: {
+                totalMs: 1,
+                phases: []
+            }
+        },
+        extensionVersion: '1.0.6'
+    });
+
+    assert.strictEqual(
+        dialectReport.dialect,
+        dialect,
+        dialect + ' dialect must be preserved in safe report'
+    );
+});
+
+[
+    'sqlite',
+    'oracle',
+    'prod_schema.secret_orders'
+].forEach(function(dialect) {
+    var dialectReport = safeReport.create_report({
+        text: sensitiveSql,
+        phase: 'command_format',
+        options: {
+            dialect: dialect,
+            unsupportedSyntaxPolicy: 'warn'
+        },
+        result: {
+            diagnostics: [],
+            telemetry: {
+                totalMs: 1,
+                phases: []
+            }
+        },
+        extensionVersion: '1.0.6'
+    });
+
+    assert.strictEqual(
+        dialectReport.dialect,
+        'unknown',
+        dialect + ' dialect must normalize to unknown'
+    );
+});
+
 var unsafeRawReportMarkdown = safeReport.render_markdown({
     extensionVersion: '1.0.0-secret-orders',
     reportVersion: 1,

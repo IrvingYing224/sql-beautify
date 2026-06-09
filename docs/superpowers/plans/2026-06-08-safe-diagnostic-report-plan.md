@@ -1472,27 +1472,36 @@ var vsix = 'vscode-sql-beautify-v' + packageJson.version + '.vsix';
 if (!fs.existsSync(vsix)) {
     throw new Error('missing package: ' + vsix);
 }
-var listing = cp.execFileSync('npx', ['--no-install', 'vsce', 'ls', '--packagePath', vsix], {
+var entries = cp.execFileSync('unzip', ['-Z1', vsix], {
     encoding: 'utf8'
+}).split(/\r?\n/).filter(Boolean);
+var entryMap = {};
+entries.forEach(function(entry) {
+    entryMap[entry] = true;
 });
 [
     'extension/lib/core/sql-safe-diagnostic-report.js',
     'extension/lib/adapters/safe-diagnostic-report.js'
 ].forEach(function(expected) {
-    if (listing.indexOf(expected) < 0) {
+    if (!entryMap[expected]) {
         throw new Error('VSIX missing runtime module: ' + expected);
     }
 });
 [
-    'extension/tests/safe-diagnostic-report.test.js',
-    'extension/tests/formatter-telemetry.test.js',
     'extension/docs/superpowers/',
+    'extension/tests/'
+].forEach(function(forbiddenPrefix) {
+    if (entries.some(function(entry) { return entry.indexOf(forbiddenPrefix) == 0; })) {
+        throw new Error('VSIX included forbidden path prefix: ' + forbiddenPrefix);
+    }
+});
+[
     'extension/lib/core/sql-select-formatter.js',
     'extension/lib/core/sql-case-formatter.js',
     'extension/lib/core/sql-comment-formatter.js',
     'extension/lib/core/sql-condition-formatter.js'
 ].forEach(function(forbidden) {
-    if (listing.indexOf(forbidden) >= 0) {
+    if (entryMap[forbidden]) {
         throw new Error('VSIX included forbidden path: ' + forbidden);
     }
 });
