@@ -89,4 +89,17 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'case exists width planning keeps existing end alias alignment',
+	'select case when exists(select 1) then 1 else 0 end as flag from t',
+	[
+		'SELECT',
+		'        CASE',
+		'            WHEN EXISTS ( SELECT 1) THEN 1',
+		'            ELSE 0',
+		'        END                              AS flag',
+		'FROM t'
+	].join('\n')
+);
+
 console.log('token spacing policy tests passed');

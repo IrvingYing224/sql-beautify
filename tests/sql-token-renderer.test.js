@@ -131,6 +131,20 @@ assert_render(
 	'case when x in (1, 2) then a +1 else coalesce(b, c) end'
 );
 
+var existsCaseDoc = document_for('select case when exists(select 1) then 1 else 0 end as flag from t');
+assert_render(
+	'token renderer keeps non-IN parens compact for CASE width planning',
+	existsCaseDoc,
+	tokens_between(code_tokens(existsCaseDoc), 'CASE', 'AS'),
+	{
+		spaceBeforeInParen: true,
+		preserveCommaGapTokenIndexes: {},
+		preserveCommaGapExceptFunctionName: 'COALESCE',
+		unaryNumberMode: 'case'
+	},
+	'case when exists(select 1) then 1 else 0 end'
+);
+
 var commaDoc = document_for("select coalesce(phone,email,'unknown') as contact_info from users where channel in ('app','web') order by dt desc,event_time desc");
 assert_render(
 	'token renderer normalizes function argument comma spacing',
