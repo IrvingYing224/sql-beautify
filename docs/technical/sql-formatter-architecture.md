@@ -71,7 +71,7 @@ Structured mutation implementations are split by responsibility:
 
 These modules expose only their `apply_*_mutations` entry points, except `sql-comment-spacing.js`, which exposes only `normalize_line_comment_spacing`.
 
-`lib/core/sql-structured-renderer.js` is the single rendering boundary for the structured pipeline. It applies mutations deterministically, renders comments from bound comment tokens, preserves protected token bytes, and enforces the final whitespace contract. Its implementation delegates focused helper work to `sql-render-move-state.js`, `sql-render-indent.js`, `sql-render-token-spacing.js`, `sql-render-line.js`, `sql-render-width.js`, and `sql-token-renderer.js`.
+`lib/core/sql-structured-renderer.js` is the single rendering boundary for the structured pipeline. It applies mutations deterministically, renders comments from bound comment tokens, preserves protected token bytes, and enforces the final whitespace contract. Its implementation delegates focused helper work to `sql-render-move-state.js`, `sql-render-indent.js`, `sql-render-token-spacing.js`, `sql-render-line.js`, `sql-render-width.js`, and `sql-token-renderer.js`. Token-adjacency spacing policy lives in `sql-render-token-spacing.js`; final line rendering, planned-width calculation, and snippet rendering must share that policy. `sql-token-renderer.js` is the mutation-facing facade and must not carry private comma, parenthesis, operator, or window spacing rules.
 
 ## Verification Contract
 
