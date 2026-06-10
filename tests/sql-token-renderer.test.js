@@ -177,6 +177,26 @@ assert_render(
 	',b'
 );
 
+var aggregateDoc = document_for('select count(*) as order_cnt from orders');
+assert_render(
+	'token renderer keeps aggregate star compact for width planning',
+	aggregateDoc,
+	tokens_between(code_tokens(aggregateDoc), 'COUNT', 'AS'),
+	{},
+	'count(*)'
+);
+
+var postgresJsonDoc = document_for("select payload->>'order_id' as order_id, payload ? 'coupon' as has_coupon from events", {
+	dialect: 'postgres'
+});
+assert_render(
+	'token renderer preserves legacy snippet width for no-space json operators',
+	postgresJsonDoc,
+	tokens_between(code_tokens(postgresJsonDoc), 'PAYLOAD', 'AS'),
+	{},
+	"payload ->> 'order_id'"
+);
+
 var spacedScopeDoc = document_for('select fn(a,b) as c from t');
 var fnTokens = tokens_between(code_tokens(spacedScopeDoc), 'FN', 'AS');
 var spacedScopeId = null;

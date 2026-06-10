@@ -102,4 +102,15 @@ run_case(
 	].join('\n')
 );
 
+run_case(
+	'postgres no-space json operators keep existing select alias alignment',
+	"select payload->>'order_id' as order_id, payload ? 'coupon' as has_coupon, $$CASE WHEN -- keep raw text$$ as raw_sql_text from events",
+	[
+		"SELECT  payload->>'order_id'         AS order_id",
+		"       ,payload ? 'coupon'             AS has_coupon",
+		'       ,$$CASE WHEN -- keep raw text$$ AS raw_sql_text',
+		'FROM events'
+	].join('\n')
+);
+
 console.log('token spacing policy tests passed');
