@@ -743,6 +743,20 @@ assert.ok(groupNodes.separators.some(function(separator) {
 	return separator.ownerKind == 'groupByList';
 }), 'GROUP BY top-level comma has groupByList owner');
 
+var orderBySql = [
+	'select a',
+	'from t',
+	'order by a,',
+	'b'
+].join('\n');
+var orderDoc = formatDocument.from_text(orderBySql, { dialect: 'generic' });
+orderDoc.scopes = scopeModel.build(orderDoc, { dialect: 'generic' });
+var orderNodes = nodes.extract(orderDoc, { dialect: 'generic' });
+
+assert.ok(orderNodes.separators.some(function(separator) {
+	return separator.ownerKind == 'orderByList';
+}), 'ORDER BY top-level comma has orderByList owner');
+
 var nestedCaseSql = [
 	'select',
 	'case when a = 1 then case when b = 2 then x else y end',

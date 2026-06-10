@@ -40,7 +40,23 @@ run_case(
 	[
 		"SELECT  coalesce(phone, email, 'unknown') AS contact_info",
 		'FROM users',
-		'ORDER BY dt DESC, event_time DESC'
+		'ORDER BY  dt DESC',
+		'         ,event_time DESC'
+	].join('\n')
+);
+
+run_case(
+	'top-level order by keeps function args and in-list commas inline while splitting sort keys',
+	"select id from users order by coalesce(last_login,created_at) desc,case when status in ('active','trial') then 0 else 1 end asc,id",
+	[
+		'SELECT  id',
+		'FROM users',
+		'ORDER BY  coalesce(last_login, created_at) DESC',
+		"         ,CASE",
+		"              WHEN status IN ('active', 'trial') THEN 0",
+		'              ELSE 1',
+		'          END ASC',
+		'         ,id'
 	].join('\n')
 );
 

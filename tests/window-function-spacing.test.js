@@ -44,4 +44,21 @@ assert_contains(
 	'ROW_NUMBER() OVER(PARTITION BY ds ORDER BY  pay_time DESC, created_at DESC) AS rn'
 );
 
+var topLevelAndWindow = format(
+	'select row_number() over(partition by ds order by pay_time desc,created_at desc) as rn from orders order by ds desc,pay_time desc'
+);
+
+assert.ok(
+	topLevelAndWindow.indexOf('ROW_NUMBER() OVER(PARTITION BY ds ORDER BY  pay_time DESC, created_at DESC) AS rn') >= 0,
+	'window ORDER BY must remain inline with existing double-space contract\n--- actual ---\n' + topLevelAndWindow
+);
+assert.ok(
+	topLevelAndWindow.indexOf('ORDER BY  ds DESC\n         ,pay_time DESC') >= 0,
+	'top-level ORDER BY should split while window ORDER BY stays inline\n--- actual ---\n' + topLevelAndWindow
+);
+assert.ok(
+	topLevelAndWindow.indexOf('OVER(PARTITION BY ds ORDER BY  pay_time DESC\n') < 0,
+	'window ORDER BY must not be split as orderByList\n--- actual ---\n' + topLevelAndWindow
+);
+
 console.log('window function spacing tests passed');

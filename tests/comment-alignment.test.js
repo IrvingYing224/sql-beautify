@@ -98,7 +98,7 @@ run_case(
 		'GROUP BY  u.country',
 		'HAVING COUNT(*) > 10                  -- 用户数过滤',
 		'   AND SUM(o.amount) > 1000           -- 金额过滤',
-		'ORDER BY total_amount DESC;'
+		'ORDER BY  total_amount DESC;'
 	].join('\n')
 );
 

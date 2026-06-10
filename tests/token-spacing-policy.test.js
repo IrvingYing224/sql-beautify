@@ -38,7 +38,8 @@ run_case(
 		"SELECT  coalesce(phone, email, 'unknown') AS contact_info",
 		'FROM users',
 		"WHERE channel IN ('app', 'web')",
-		'ORDER BY dt DESC, event_time DESC'
+		'ORDER BY  dt DESC',
+		'         ,event_time DESC'
 	].join('\n')
 );
 
