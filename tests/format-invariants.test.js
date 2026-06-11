@@ -5,6 +5,7 @@ var mutations = require('../lib/core/sql-format-mutations');
 var invariants = require('../lib/core/sql-format-invariants');
 var scopeModel = require('../lib/core/sql-scope-model');
 var formatNavigation = require('../lib/core/sql-format-navigation');
+var listLayoutPolicy = require('../lib/core/sql-list-layout-policy');
 
 function extract_structured_nodes(sql, config) {
 	config = Object.assign({ dialect: 'generic' }, config || {});
@@ -12,6 +13,24 @@ function extract_structured_nodes(sql, config) {
 	doc.scopes = scopeModel.build(doc, config);
 	formatNavigation.attach_scope_index(doc);
 	return nodes.extract(doc, config);
+}
+
+function build_structured_document(sql, config) {
+	config = Object.assign({ dialect: 'generic' }, config || {});
+	var doc = formatDocument.from_text(sql, config);
+	doc.scopes = scopeModel.build(doc, config);
+	formatNavigation.attach_scope_index(doc);
+	doc.nodes = nodes.extract(doc, config);
+	return doc;
+}
+
+function first_item_for_owner(extractedNodes, ownerKind) {
+	for (var i = 0; i < (extractedNodes.selectItems || []).length; i++) {
+		if (extractedNodes.selectItems[i].ownerKind == ownerKind) {
+			return extractedNodes.selectItems[i];
+		}
+	}
+	return null;
 }
 
 function token_values(tokens) {
@@ -756,6 +775,66 @@ var orderNodes = nodes.extract(orderDoc, { dialect: 'generic' });
 assert.ok(orderNodes.separators.some(function(separator) {
 	return separator.ownerKind == 'orderByList';
 }), 'ORDER BY top-level comma has orderByList owner');
+
+assert.strictEqual(listLayoutPolicy.first_item_prefix('selectList'), 'SELECT  ', 'SELECT list first item prefix is stable');
+assert.strictEqual(listLayoutPolicy.first_item_prefix('groupByList'), 'GROUP BY  ', 'GROUP BY list first item prefix is stable');
+assert.strictEqual(listLayoutPolicy.first_item_prefix('orderByList'), 'ORDER BY  ', 'ORDER BY list first item prefix is stable');
+assert.strictEqual(listLayoutPolicy.continuation_width('selectList'), 7, 'SELECT continuation width is stable');
+assert.strictEqual(listLayoutPolicy.continuation_width('groupByList'), 9, 'GROUP BY continuation width is stable');
+assert.strictEqual(listLayoutPolicy.continuation_width('orderByList'), 9, 'ORDER BY continuation width is stable');
+
+var selectPolicyDoc = build_structured_document([
+	'select a,',
+	'b',
+	'from t'
+].join('\n'));
+var selectPolicyItem = first_item_for_owner(selectPolicyDoc.nodes, 'selectList');
+assert.ok(selectPolicyItem, 'SELECT policy fixture must extract a selectList item');
+assert.strictEqual(
+	listLayoutPolicy.item_indent(selectPolicyDoc, selectPolicyDoc.nodes, selectPolicyItem),
+	'SELECT  ',
+	'SELECT first item indentation is policy-owned'
+);
+assert.strictEqual(
+	listLayoutPolicy.case_item_indent(selectPolicyDoc, selectPolicyDoc.nodes, selectPolicyItem),
+	'       ',
+	'SELECT first CASE item indentation is policy-owned'
+);
+
+var groupPolicyItem = first_item_for_owner(groupNodes, 'groupByList');
+assert.ok(groupPolicyItem, 'GROUP BY policy fixture must extract a groupByList item');
+assert.strictEqual(
+	listLayoutPolicy.structured_list_indent(groupDoc, groupNodes, groupPolicyItem.ownerScopeId, groupPolicyItem.ownerKind),
+	'         ',
+	'GROUP BY continuation indentation is policy-owned'
+);
+assert.strictEqual(
+	listLayoutPolicy.case_item_indent(groupDoc, groupNodes, groupPolicyItem),
+	'         ',
+	'GROUP BY CASE item indentation is policy-owned'
+);
+
+var orderPolicyItem = first_item_for_owner(orderNodes, 'orderByList');
+assert.ok(orderPolicyItem, 'ORDER BY policy fixture must extract an orderByList item');
+assert.strictEqual(
+	listLayoutPolicy.structured_list_indent(orderDoc, orderNodes, orderPolicyItem.ownerScopeId, orderPolicyItem.ownerKind),
+	'         ',
+	'ORDER BY continuation indentation is policy-owned'
+);
+assert.strictEqual(
+	listLayoutPolicy.case_item_indent(orderDoc, orderNodes, orderPolicyItem),
+	'          ',
+	'ORDER BY CASE item indentation is policy-owned'
+);
+
+var windowOnlyDoc = build_structured_document(
+	'select row_number() over(partition by ds order by pay_time desc, created_at desc) as rn from orders'
+);
+assert.strictEqual(
+	windowOnlyDoc.nodes.selectSpans.some(function(span) { return span.kind == 'orderByList'; }),
+	false,
+	'window ORDER BY must remain outside top-level orderByList extraction'
+);
 
 var nestedCaseSql = [
 	'select',

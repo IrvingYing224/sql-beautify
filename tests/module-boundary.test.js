@@ -5,6 +5,7 @@ var path = require('path');
 var sqlFormatter = require('../lib/sql-formatter');
 var sqlSelectMutations = require('../lib/core/sql-select-mutations');
 var sqlListMutations = require('../lib/core/sql-list-mutations');
+var sqlListLayoutPolicy = require('../lib/core/sql-list-layout-policy');
 var sqlCaseMutations = require('../lib/core/sql-case-mutations');
 var sqlCommentMutations = require('../lib/core/sql-comment-mutations');
 var sqlConditionMutations = require('../lib/core/sql-condition-mutations');
@@ -102,8 +103,13 @@ assert.deepStrictEqual(
 assert.strictEqual(typeof sqlFormatter.format_sql, 'function', 'sql-formatter must export format_sql');
 assert.strictEqual(typeof sqlSelectMutations.apply_select_list_mutations, 'function', 'structured select mutations must export apply_select_list_mutations');
 assert.strictEqual(typeof sqlListMutations.apply_list_layout_mutations, 'function', 'structured list mutations must export apply_list_layout_mutations');
-assert.strictEqual(typeof sqlListMutations.structured_list_indent, 'function', 'structured list mutations must export structured_list_indent');
-assert.strictEqual(typeof sqlListMutations.item_indent, 'function', 'structured list mutations must export item_indent');
+assert.strictEqual(typeof sqlListLayoutPolicy.first_item_prefix, 'function', 'list layout policy must export first_item_prefix');
+assert.strictEqual(typeof sqlListLayoutPolicy.continuation_width, 'function', 'list layout policy must export continuation_width');
+assert.strictEqual(typeof sqlListLayoutPolicy.list_base_indent, 'function', 'list layout policy must export list_base_indent');
+assert.strictEqual(typeof sqlListLayoutPolicy.structured_list_indent, 'function', 'list layout policy must export structured_list_indent');
+assert.strictEqual(typeof sqlListLayoutPolicy.item_indent, 'function', 'list layout policy must export item_indent');
+assert.strictEqual(typeof sqlListLayoutPolicy.case_item_indent, 'function', 'list layout policy must export case_item_indent');
+assert.strictEqual(typeof sqlListLayoutPolicy.is_first_item_in_owner, 'function', 'list layout policy must export is_first_item_in_owner');
 assert.strictEqual(typeof sqlCaseMutations.apply_case_mutations, 'function', 'structured case mutations must export apply_case_mutations');
 assert.strictEqual(typeof sqlCommentMutations.apply_comment_alignment_mutations, 'function', 'structured comment mutations must export apply_comment_alignment_mutations');
 assert.strictEqual(typeof sqlConditionMutations.apply_condition_mutations, 'function', 'structured condition mutations must export apply_condition_mutations');
@@ -115,8 +121,21 @@ assert.deepStrictEqual(
 );
 assert.deepStrictEqual(
 	Object.keys(sqlListMutations).sort(),
-	['apply_list_layout_mutations', 'item_indent', 'structured_list_indent'],
-	'structured list mutations must expose only generic list layout entry points and indent helpers'
+	['apply_list_layout_mutations'],
+	'structured list mutations must expose only the generic list layout mutation pass'
+);
+assert.deepStrictEqual(
+	Object.keys(sqlListLayoutPolicy).sort(),
+	[
+		'case_item_indent',
+		'continuation_width',
+		'first_item_prefix',
+		'is_first_item_in_owner',
+		'item_indent',
+		'list_base_indent',
+		'structured_list_indent'
+	],
+	'list layout policy must expose only pure list layout helpers'
 );
 assert.deepStrictEqual(
 	Object.keys(sqlCaseMutations).sort(),
@@ -250,6 +269,10 @@ assert.ok(
 	'structured list mutation module must exist'
 );
 assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-list-layout-policy.js')),
+	'structured list layout policy module must exist'
+);
+assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-case-mutations.js')),
 	'structured CASE mutation module must exist'
 );
@@ -304,6 +327,7 @@ obsolete_formatter_files().forEach(function(relativePath) {
 	'lib/core/sql-render-token-spacing.js',
 	'lib/core/sql-select-mutations.js',
 	'lib/core/sql-list-mutations.js',
+	'lib/core/sql-list-layout-policy.js',
 	'lib/core/sql-case-mutations.js',
 	'lib/core/sql-layout-formatter.js',
 	'lib/core/sql-condition-mutations.js',
@@ -334,6 +358,7 @@ obsolete_formatter_files().forEach(function(relativePath) {
 	'lib/core/sql-render-token-spacing.js',
 	'lib/core/sql-select-mutations.js',
 	'lib/core/sql-list-mutations.js',
+	'lib/core/sql-list-layout-policy.js',
 	'lib/core/sql-case-mutations.js',
 	'lib/core/sql-condition-mutations.js',
 	'lib/core/sql-format-nodes.js',
@@ -398,6 +423,7 @@ var formatNodesSource = read_source('lib/core/sql-format-nodes.js');
 
 var selectMutationsSource = read_source('lib/core/sql-select-mutations.js');
 var listMutationsSource = read_source('lib/core/sql-list-mutations.js');
+var listLayoutPolicySource = read_source('lib/core/sql-list-layout-policy.js');
 
 assert.ok(
 	selectMutationsSource.indexOf("require('./sql-list-mutations')") >= 0,
@@ -412,8 +438,17 @@ assert.ok(
 	'sql-list-mutations must write list layout through MutationPlan helpers'
 );
 assert.ok(
-	listMutationsSource.indexOf("require('./sql-scope-model')") >= 0,
-	'sql-list-mutations must use scope model ownership for list indentation'
+	listMutationsSource.indexOf("require('./sql-list-layout-policy')") >= 0,
+	'sql-list-mutations must read list indentation facts from sql-list-layout-policy'
+);
+assert.ok(
+	listLayoutPolicySource.indexOf("require('./sql-scope-model')") >= 0,
+	'list layout policy must use scope model ownership for base indentation'
+);
+assert.strictEqual(
+	listLayoutPolicySource.indexOf("require('./sql-format-mutations')"),
+	-1,
+	'list layout policy must not write mutations'
 );
 
 [
