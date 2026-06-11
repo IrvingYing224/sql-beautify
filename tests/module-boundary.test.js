@@ -434,6 +434,7 @@ var formatNodesSource = read_source('lib/core/sql-format-nodes.js');
 var selectMutationsSource = read_source('lib/core/sql-select-mutations.js');
 var listMutationsSource = read_source('lib/core/sql-list-mutations.js');
 var listLayoutPolicySource = read_source('lib/core/sql-list-layout-policy.js');
+var caseMutationsSource = read_source('lib/core/sql-case-mutations.js');
 
 assert.ok(
 	selectMutationsSource.indexOf("require('./sql-list-mutations')") >= 0,
@@ -464,6 +465,26 @@ assert.strictEqual(
 	-1,
 	'list layout policy must not write mutations'
 );
+assert.ok(
+	caseMutationsSource.indexOf("require('./sql-list-layout-policy')") >= 0,
+	'sql-case-mutations must read list indentation facts from sql-list-layout-policy'
+);
+assert.ok(
+	/sqlListLayoutPolicy\.case_item_indent\s*\(/.test(caseMutationsSource),
+	'sql-case-mutations must use policy-owned CASE-in-list indentation'
+);
+[
+	"baseIndent + '          '",
+	"baseIndent + '         '",
+	"baseIndent + '       '",
+	"baseIndent + '        '"
+].forEach(function(fragment) {
+	assert.strictEqual(
+		caseMutationsSource.indexOf(fragment),
+		-1,
+		'sql-case-mutations must not hard-code list indentation fragment: ' + fragment
+	);
+});
 
 [
 	'lib/core/sql-case-mutations.js',
