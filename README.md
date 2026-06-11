@@ -13,6 +13,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 ## 这个扩展做什么
 
 - 格式化 SQL / HQL
+- 对 `SELECT`、`GROUP BY` 和顶层 `ORDER BY` 做列表换行与逗号对齐
 - 支持 VS Code 标准 `Format Document` / `Format Selection`
 - 提供实验性的 Hive DDL 格式化
 - 提供实验性的 Hive `extractddl` 草稿提取
@@ -49,9 +50,14 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 | `sqlBeautify.indentStyle` | `tab` / `space` | `space` | 缩进风格 |
 | `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
 | `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | `CASE WHEN` 中 `THEN` / `ELSE` 值的换行阈值 |
+| `sqlBeautify.caseLayout` | `expanded` / `compactShort` | `expanded` | `CASE` 表达式布局；`compactShort` 会在安全且较短时保持单行 |
 | `sqlBeautify.dialect` | `generic` / `hive` / `postgres` / `mysql` | `hive` | SQL 方言边界处理 |
 | `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `preserve` | 未建模语法的处理策略 |
 | `sqlBeautify.debugDiagnostics` | `true` / `false` | `false` | 是否在扩展宿主控制台输出调试诊断 |
+
+顶层 `ORDER BY` 会像 `GROUP BY` 一样拆成多行并对齐逗号；窗口函数里的 `ORDER BY` 仍保持原有行内格式。
+
+`sqlBeautify.caseLayout` 默认为 `expanded`，保持原有展开式 `CASE` 排版。设置为 `compactShort` 后，只有短的、CASE 内部无注释、无嵌套且不需要多行保护的 `CASE` 会保持单行；不满足条件时会自动回退到展开式排版。
 
 ## Experimental 能力
 

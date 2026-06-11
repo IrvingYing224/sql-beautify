@@ -5,6 +5,18 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 1.0.8 (2026/06/11)
+* 将结构化 list layout 抽出为 `lib/core/sql-list-mutations.js`，`SELECT` 专属 mutation 保持负责 `AS`、尾注释和 CASE 字段协作等行为
+* 顶层 `ORDER BY` 现在像 `GROUP BY` 一样拆成多行并对齐逗号；窗口函数 `ORDER BY`、函数参数逗号、`IN (...)` 逗号和 SELECT 前导逗号行为保持不变
+* 新增 `sqlBeautify.caseLayout` 配置，默认 `expanded` 保持原有展开式 `CASE` 排版；`compactShort` 会在安全且较短的单行 CASE 场景中保持紧凑布局
+* 加固 `compactShort` 的保护条件，遇到多行来源、CASE 内部注释、嵌套 CASE 或复杂多行 `IN` 时回退到展开式布局，并用 invariant 检查防止 alias、suffix 或尾注释被误删
+* 更新 README 配置说明，并将扩展包版本同步至 `1.0.8`；本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.8.vsix`
+* Extracted structured list layout into `lib/core/sql-list-mutations.js` while keeping SELECT-specific mutation behavior such as `AS`, trailing comments, and CASE item coordination in the SELECT layer
+* Top-level `ORDER BY` now wraps and aligns like `GROUP BY`; window `ORDER BY`, function argument commas, `IN (...)` commas, and SELECT leading commas remain unchanged
+* Added `sqlBeautify.caseLayout`, defaulting to `expanded` for the existing expanded CASE layout; `compactShort` keeps safe short single-line CASE expressions compact
+* Hardened `compactShort` guards so multiline source CASE expressions, comments inside CASE, nested CASE expressions, and complex multiline `IN` conditions fall back to expanded layout, with invariant checks preventing alias, suffix, or trailing-comment omission
+* Updated README configuration docs and bumped the extension package version to `1.0.8`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.8.vsix`
+
 ### 1.0.7 (2026/06/09)
 * 增加 `SQL Beautify: Copy Safe Diagnostic Report` 命令，用户可在受限生产环境中主动复制不包含 SQL 内容的本地诊断报告，用于反馈 warning、error 或慢格式化问题
 * 增加内部 opt-in formatter phase telemetry 和 safe report 生成路径；普通 `format_sql()` / `format_sql_detailed()` 输出保持兼容，不上传、不落盘、不改变格式化结果
