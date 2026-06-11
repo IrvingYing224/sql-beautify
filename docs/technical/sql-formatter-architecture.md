@@ -63,7 +63,8 @@ Separators must always carry an owner scope so comma mutations cannot accidental
 
 Structured mutation implementations are split by responsibility:
 
-- `sql-list-mutations.js`: generic SELECT/GROUP BY/top-level ORDER BY list layout and comma placement mutations
+- `lib/core/sql-list-layout-policy.js`: pure structured list layout facts for SELECT, GROUP BY, and top-level ORDER BY prefixes, continuation indentation, item indentation, and CASE-in-list indentation. Mutation modules consume this policy instead of duplicating list-kind spacing widths.
+- `sql-list-mutations.js`: generic SELECT/GROUP BY/top-level ORDER BY list layout and comma placement mutations; list indentation facts come from `sql-list-layout-policy.js`
 - `sql-select-mutations.js`: SELECT-specific item layout, AS alignment, CASE item coordination, and SELECT comment/hint behavior
 - `sql-case-mutations.js`: CASE branch layout mutations and explicit CASE layout strategies
 - `sql-condition-mutations.js`: condition clause and connector mutations
