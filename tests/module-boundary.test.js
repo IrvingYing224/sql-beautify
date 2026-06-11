@@ -124,6 +124,16 @@ assert.deepStrictEqual(
 	['apply_list_layout_mutations'],
 	'structured list mutations must expose only the generic list layout mutation pass'
 );
+assert.strictEqual(
+	Object.prototype.hasOwnProperty.call(sqlListMutations, 'structured_list_indent'),
+	false,
+	'structured list mutations must not expose structured_list_indent'
+);
+assert.strictEqual(
+	Object.prototype.hasOwnProperty.call(sqlListMutations, 'item_indent'),
+	false,
+	'structured list mutations must not expose item_indent'
+);
 assert.deepStrictEqual(
 	Object.keys(sqlListLayoutPolicy).sort(),
 	[
@@ -428,6 +438,10 @@ var listLayoutPolicySource = read_source('lib/core/sql-list-layout-policy.js');
 assert.ok(
 	selectMutationsSource.indexOf("require('./sql-list-mutations')") >= 0,
 	'sql-select-mutations must delegate generic list layout to sql-list-mutations'
+);
+assert.ok(
+	selectMutationsSource.indexOf("require('./sql-list-layout-policy')") >= 0,
+	'sql-select-mutations must read list indentation facts from sql-list-layout-policy'
 );
 assert.ok(
 	/sqlListMutations\.apply_list_layout_mutations\s*\(/.test(selectMutationsSource),
