@@ -1,12 +1,30 @@
 var assert = require('assert');
 var vkbeautify = require('../vkbeautify');
+var sqlFormatter = require('../lib/sql-formatter');
 
 function format(sql, uppercase, wrapLength) {
 	return vkbeautify.sql(sql, uppercase !== false, false, false, 150, wrapLength || 50).trim();
 }
 
+function format_with_options(sql, options) {
+	return sqlFormatter.format_sql(sql, Object.assign({
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'space',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'generic',
+		unsupportedSyntaxPolicy: 'preserve'
+	}, options || {})).trim();
+}
+
 function run_case(name, input, expected, uppercase, wrapLength) {
 	var actual = format(input, uppercase, wrapLength);
+	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
+}
+
+function run_option_case(name, input, options, expected) {
+	var actual = format_with_options(input, options);
 	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
 }
 
@@ -448,6 +466,86 @@ run_case(
 		"           ELSE 'adult'",
 		'       END                  AS age_phase',
 		'FROM dim_user u'
+	].join('\n')
+);
+
+run_option_case(
+	'default expanded case layout remains unchanged',
+	"select case when status=1 then 'Y' else 'N' end as is_active from users",
+	{},
+	[
+		'SELECT',
+		'       CASE',
+		"           WHEN status = 1 THEN 'Y'",
+		"           ELSE 'N'",
+		'       END                          AS is_active',
+		'FROM users'
+	].join('\n')
+);
+
+run_option_case(
+	'compactShort keeps short safe case on one line',
+	"select case when status=1 then 'Y' else 'N' end as is_active from users",
+	{ caseLayout: 'compactShort' },
+	[
+		"SELECT  CASE WHEN status = 1 THEN 'Y' ELSE 'N' END AS is_active",
+		'FROM users'
+	].join('\n')
+);
+
+run_option_case(
+	'compactShort does not compact case with comments',
+	[
+		"select case when status=1 then 'Y' -- active",
+		"else 'N' end as is_active from users"
+	].join('\n'),
+	{ caseLayout: 'compactShort' },
+	[
+		'SELECT',
+		'       CASE',
+		"           WHEN status = 1 THEN 'Y' -- active",
+		"           ELSE 'N'",
+		'       END                          AS is_active',
+		'FROM users'
+	].join('\n')
+);
+
+run_option_case(
+	'compactShort does not compact nested case',
+	[
+		'select case when a=1 then case when b=2 then x else y end else z end as flag from t'
+	].join('\n'),
+	{ caseLayout: 'compactShort' },
+	[
+		'SELECT',
+		'       CASE',
+		'           WHEN a = 1 THEN CASE WHEN b = 2 THEN x ELSE y END',
+		'           ELSE z',
+		'       END                                                   AS flag',
+		'FROM t'
+	].join('\n')
+);
+
+run_option_case(
+	'compactShort does not compact multiline in-list case',
+	[
+		'select case when city in (',
+		"'NY',",
+		"'LA'",
+		") then 'coast' else 'other' end as city_group from users"
+	].join('\n'),
+	{ caseLayout: 'compactShort' },
+	[
+		'SELECT',
+		'       CASE',
+		'           WHEN city IN (',
+		"                   'NY',",
+		"                   'LA'",
+		"               ) THEN 'coast'",
+		'           ELSE',
+		"               'other'",
+		'       END                    AS city_group',
+		'FROM users'
 	].join('\n')
 );
 

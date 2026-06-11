@@ -1,5 +1,6 @@
 var assert = require('assert');
 var vkbeautify = require('../vkbeautify');
+var sqlFormatter = require('../lib/sql-formatter');
 
 function format(sql) {
 	return vkbeautify.sql(sql, true, false, true, 150, 80).trim();
@@ -8,6 +9,22 @@ function format(sql) {
 function run_case(name, input, expected) {
 	var actual = format(input);
 	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
+}
+
+function format_with_options(sql, options) {
+	return sqlFormatter.format_sql(sql, Object.assign({
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'space',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'generic',
+		unsupportedSyntaxPolicy: 'preserve'
+	}, options || {})).trim();
+}
+
+function comment_column(line) {
+	return line.indexOf('--');
 }
 
 function align_comment(code, targetWidth, comment) {
@@ -480,6 +497,38 @@ run_case(
 		'        END                                     AS risk_tag -- 风险标签',
 		'FROM ads_user_risk a'
 	].join('\n')
+);
+
+var compactCaseCommentAlignment = format_with_options(
+	[
+		"select id as id -- 用户ID",
+		",case when status=1 then 'Y' else 'N' end as is_active -- 是否活跃",
+		",created_at as created_at -- 创建时间",
+		"from users"
+	].join('\n'),
+	{ caseLayout: 'compactShort' }
+);
+var compactCaseCommentLines = compactCaseCommentAlignment.split('\n').filter(function(line) {
+	return line.indexOf('--') >= 0;
+});
+assert.strictEqual(
+	compactCaseCommentLines.length,
+	3,
+	'compact CASE comment alignment test must keep three trailing comments\n--- actual ---\n' + compactCaseCommentAlignment
+);
+assert.strictEqual(
+	comment_column(compactCaseCommentLines[0]),
+	comment_column(compactCaseCommentLines[1]),
+	'compact CASE trailing comment must align with preceding select item\n--- actual ---\n' + compactCaseCommentAlignment
+);
+assert.strictEqual(
+	comment_column(compactCaseCommentLines[1]),
+	comment_column(compactCaseCommentLines[2]),
+	'compact CASE trailing comment must align with following select item\n--- actual ---\n' + compactCaseCommentAlignment
+);
+assert.ok(
+	compactCaseCommentAlignment.indexOf("CASE WHEN status = 1 THEN 'Y' ELSE 'N' END AS is_active") >= 0,
+	'compact CASE should stay on one line in comment alignment path\n--- actual ---\n' + compactCaseCommentAlignment
 );
 
 console.log('comment alignment tests passed');

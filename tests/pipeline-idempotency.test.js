@@ -63,6 +63,7 @@ assert.deepStrictEqual(
 		indentStyle: 'space',
 		maxAlignWidth: 88,
 		caseWhenThenWrapLength: 33,
+		caseLayout: 'expanded',
 		dialect: 'hive',
 		languageMode: 'sql',
 		unsupportedSyntaxPolicy: 'preserve'
@@ -88,6 +89,7 @@ assert.deepStrictEqual(
 		indentStyle: 'tab',
 		maxAlignWidth: 120,
 		caseWhenThenWrapLength: 33,
+		caseLayout: 'expanded',
 		dialect: 'generic',
 		languageMode: 'sql',
 		unsupportedSyntaxPolicy: 'preserve'

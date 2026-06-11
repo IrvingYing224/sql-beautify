@@ -32,7 +32,7 @@ flowchart LR
 
 ## Core Rules
 
-- Core accepts canonical option names only: `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `dialect`, and `unsupportedSyntaxPolicy`.
+- Core accepts canonical option names only: `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `caseLayout`, `dialect`, and `unsupportedSyntaxPolicy`.
 - Core must not import `lib/adapters/` or `lib/experimental/`.
 - VS Code configuration accepts `sqlBeautify.*` only. Positional `vkbeautify.sql(...)` arguments remain a wrapper responsibility for the JS API.
 - Comments, strings, block comments, quoted identifiers, and opaque unsupported syntax must never be treated as active SQL code by structure passes.
@@ -51,7 +51,7 @@ flowchart LR
 
 `lib/core/sql-format-nodes.js` is the thin public orchestrator for pass-level nodes. Concrete extraction is split into focused modules:
 
-- `sql-list-nodes.js`: SELECT/GROUP BY list spans and separator ownership
+- `sql-list-nodes.js`: SELECT/GROUP BY/top-level ORDER BY list spans and separator ownership
 - `sql-select-item-nodes.js`: SELECT/GROUP BY item nodes
 - `sql-case-nodes.js`: CASE expression and branch nodes
 - `sql-condition-nodes.js`: condition block and segment nodes
@@ -63,8 +63,9 @@ Separators must always carry an owner scope so comma mutations cannot accidental
 
 Structured mutation implementations are split by responsibility:
 
-- `sql-select-mutations.js`: SELECT/GROUP BY item layout, comma placement, and AS alignment mutations
-- `sql-case-mutations.js`: CASE branch layout mutations
+- `sql-list-mutations.js`: generic SELECT/GROUP BY/top-level ORDER BY list layout and comma placement mutations
+- `sql-select-mutations.js`: SELECT-specific item layout, AS alignment, CASE item coordination, and SELECT comment/hint behavior
+- `sql-case-mutations.js`: CASE branch layout mutations and explicit CASE layout strategies
 - `sql-condition-mutations.js`: condition clause and connector mutations
 - `sql-comment-mutations.js`: trailing and bound comment alignment mutations
 - `sql-comment-spacing.js`: final line-comment spacing normalization

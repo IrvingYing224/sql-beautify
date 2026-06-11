@@ -35,6 +35,7 @@ function assert_source_contains(name, pattern) {
 	'sqlBeautify.indentStyle',
 	'sqlBeautify.maxAlignWidth',
 	'sqlBeautify.caseWhenThenWrapLength',
+	'sqlBeautify.caseLayout',
 	'sqlBeautify.dialect',
 	'sqlBeautify.unsupportedSyntaxPolicy',
 	'sqlBeautify.debugDiagnostics'
@@ -53,6 +54,11 @@ assert_source_contains(
 assert_source_contains(
 	'unsupported syntax policy must be read from sqlBeautify config',
 	/has_configured_value\(scopedConfig, 'unsupportedSyntaxPolicy'\)/
+);
+
+assert_source_contains(
+	'caseLayout must be read from sqlBeautify config',
+	/has_configured_value\(scopedConfig, 'caseLayout'\)/
 );
 
 assert_source_contains(
@@ -132,6 +138,32 @@ assert.strictEqual(
 );
 
 assert.strictEqual(
+	sqlRenderOptions.normalize({}, {}).caseLayout,
+	'expanded',
+	'caseLayout defaults to expanded'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		caseLayout: 'compactShort'
+	}, {
+		caseLayout: true
+	}).caseLayout,
+	'compactShort',
+	'explicit sqlBeautify.caseLayout compactShort should flow into canonical options'
+);
+
+assert.strictEqual(
+	sqlRenderOptions.normalize({
+		caseLayout: 'unknown'
+	}, {
+		caseLayout: true
+	}).caseLayout,
+	'expanded',
+	'invalid caseLayout values fall back to expanded'
+);
+
+assert.strictEqual(
 	sqlRenderOptions.normalize({}, {}).dialect,
 	'hive',
 	'dialect defaults to hive'
@@ -176,6 +208,7 @@ assert.deepStrictEqual(
 		indentStyle: 'space',
 		maxAlignWidth: 88,
 		caseWhenThenWrapLength: 33,
+		caseLayout: 'compactShort',
 		dialect: 'hive'
 	}, {
 		keywordCase: true,
@@ -183,6 +216,7 @@ assert.deepStrictEqual(
 		indentStyle: true,
 		maxAlignWidth: true,
 		caseWhenThenWrapLength: true,
+		caseLayout: true,
 		dialect: true
 	}),
 	{
@@ -191,6 +225,7 @@ assert.deepStrictEqual(
 		indentStyle: 'space',
 		maxAlignWidth: 88,
 		caseWhenThenWrapLength: 33,
+		caseLayout: 'compactShort',
 		dialect: 'hive',
 		languageMode: 'sql',
 		unsupportedSyntaxPolicy: 'preserve'

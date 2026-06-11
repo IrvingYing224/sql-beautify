@@ -135,6 +135,16 @@
 					"maximum": 300,
 					"description": "Wrap threshold for CASE WHEN THEN and ELSE values. /CASE WHEN 中 THEN 和 ELSE 值的换行阈值"
 				},
+				"sqlBeautify.caseLayout": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"expanded",
+						"compactShort"
+					],
+					"default": "expanded",
+					"description": "CASE expression layout strategy. /CASE 表达式布局策略"
+				},
 				"sqlBeautify.dialect": {
 					"scope": "resource",
 					"type": "string",
