@@ -494,6 +494,49 @@ run_option_case(
 );
 
 run_option_case(
+	'compactShort keeps short case in non-first select item compact',
+	'select a,case when status=1 then 0 else 1 end as flag from t',
+	{ caseLayout: 'compactShort' },
+	[
+		'SELECT  a',
+		'       ,CASE WHEN status = 1 THEN 0 ELSE 1 END AS flag',
+		'FROM t'
+	].join('\n')
+);
+
+run_option_case(
+	'compactShort keeps short order by case compact without splitting nested commas',
+	'select a from t order by case when status=1 then 0 else 1 end,a',
+	{ caseLayout: 'compactShort' },
+	[
+		'SELECT  a',
+		'FROM t',
+		'ORDER BY  CASE WHEN status = 1 THEN 0 ELSE 1 END',
+		'         ,a'
+	].join('\n')
+);
+
+run_option_case(
+	'compactShort falls back for multiline source case with alias suffix',
+	[
+		'select',
+		'case',
+		"when status=1 then 'Y'",
+		"else 'N' end as is_active",
+		'from users'
+	].join('\n'),
+	{ caseLayout: 'compactShort' },
+	[
+		'SELECT',
+		'       CASE',
+		"           WHEN status = 1 THEN 'Y'",
+		"           ELSE 'N'",
+		'       END                          AS is_active',
+		'FROM users'
+	].join('\n')
+);
+
+run_option_case(
 	'compactShort does not compact case with comments',
 	[
 		"select case when status=1 then 'Y' -- active",
