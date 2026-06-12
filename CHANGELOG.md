@@ -5,6 +5,18 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 1.0.9 (2026/06/12)
+* 新增 `lib/core/sql-list-layout-policy.js`，集中 SELECT、GROUP BY 和顶层 ORDER BY 的 list prefix、continuation indent、item indent 与 CASE-in-list 缩进事实
+* 收敛 `sql-list-mutations.js` 为纯 generic list mutation pass，`sql-select-mutations.js` 和 `sql-case-mutations.js` 通过 policy 读取布局事实，不再复制 list-kind spacing 宽度
+* 保持现有格式化输出不变，覆盖顶层 ORDER BY、window ORDER BY、函数参数逗号、`IN (...)`、SELECT leading comma、`AS` 对齐、尾注释对齐和 CASE `expanded` / `compactShort`
+* 增加 module-boundary 和 format invariant 回归，固定 list layout policy 的导出边界、mutation 依赖方向、window ORDER BY 排除规则和 token renderer 薄 facade
+* 将扩展包版本同步至 `1.0.9`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.9.vsix`
+* Added `lib/core/sql-list-layout-policy.js` to centralize SELECT, GROUP BY, and top-level ORDER BY list prefixes, continuation indentation, item indentation, and CASE-in-list indentation facts
+* Kept `sql-list-mutations.js` as the generic list mutation pass while routing `sql-select-mutations.js` and `sql-case-mutations.js` through policy-owned layout facts instead of duplicated list-kind spacing widths
+* Preserved existing formatter output across top-level ORDER BY, window ORDER BY, function argument commas, `IN (...)`, SELECT leading commas, `AS` alignment, trailing comments, and CASE `expanded` / `compactShort`
+* Added module-boundary and format invariant regressions for the list layout policy export surface, mutation dependency direction, window ORDER BY exclusion, and thin token renderer facade
+* Bumped the extension package version to `1.0.9`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.9.vsix`
+
 ### 1.0.8 (2026/06/11)
 * 将结构化 list layout 抽出为 `lib/core/sql-list-mutations.js`，`SELECT` 专属 mutation 保持负责 `AS`、尾注释和 CASE 字段协作等行为
 * 顶层 `ORDER BY` 现在像 `GROUP BY` 一样拆成多行并对齐逗号；窗口函数 `ORDER BY`、函数参数逗号、`IN (...)` 逗号和 SELECT 前导逗号行为保持不变
