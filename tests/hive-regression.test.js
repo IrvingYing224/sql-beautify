@@ -719,4 +719,25 @@ run_lower_case(
 	].join('\n')
 );
 
+run_case(
+	'hive variable substitutions preserve bytes in table names and predicates',
+	"select a from ${db}.tbl where dt=${hivevar:day} and path=${hiveconf:warehouse}",
+	[
+		'SELECT  a',
+		'FROM ${db}.tbl',
+		'WHERE dt = ${hivevar:day}',
+		'  AND path = ${hiveconf:warehouse}'
+	].join('\n')
+);
+
+run_case(
+	'hive variable substitutions remain stable after formatting',
+	format("select a from ${db}.tbl where dt=${hivevar:day}"),
+	[
+		'SELECT  a',
+		'FROM ${db}.tbl',
+		'WHERE dt = ${hivevar:day}'
+	].join('\n')
+);
+
 console.log('hive regression tests passed');
