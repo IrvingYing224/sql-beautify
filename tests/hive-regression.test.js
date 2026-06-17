@@ -583,33 +583,45 @@ run_lower_case(
 );
 
 run_case(
-	'exists subquery keeps inner sql on one line',
+	'exists subquery expands compact inner query',
 	"select * from a where exists (select 1 from b where b.id=a.id and b.ds='2026-04-24') and a.x=1",
 	[
 		'SELECT  *',
 		'FROM a',
-		"WHERE EXISTS ( SELECT 1 FROM b WHERE b.id = a.id AND b.ds = '2026-04-24')",
+		'WHERE EXISTS (',
+		'    SELECT  1',
+		'    FROM b',
+		"    WHERE b.id = a.id AND b.ds = '2026-04-24'",
+		')',
 		'  AND a.x = 1'
 	].join('\n')
 );
 
 run_case(
-	'not exists without bracket space keeps inner sql on one line',
+	'not exists without bracket space expands compact inner query',
 	"select * from a where not exists(select 1 from b where b.id=a.id)",
 	[
 		'SELECT  *',
 		'FROM a',
-		'WHERE NOT EXISTS ( SELECT 1 FROM b WHERE b.id = a.id)'
+		'WHERE NOT EXISTS (',
+		'    SELECT  1',
+		'    FROM b',
+		'    WHERE b.id = a.id',
+		')'
 	].join('\n')
 );
 
 run_lower_case(
-	'lowercase exists subquery keeps inner sql on one line',
+	'lowercase exists subquery expands compact inner query',
 	"select * from a where exists(select 1 from b where b.id=a.id)",
 	[
 		'select  *',
 		'from a',
-		'where exists ( select 1 from b where b.id = a.id)'
+		'where exists (',
+		'    select  1',
+		'    from b',
+		'    where b.id = a.id',
+		')'
 	].join('\n')
 );
 

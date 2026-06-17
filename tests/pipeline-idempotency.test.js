@@ -192,6 +192,96 @@ assert_format_once_and_twice(
 	].join('\n')
 );
 
+assert_format_once_and_twice(
+	'nested compact EXISTS and IN subqueries expand with stable inner indent',
+	'select * from t where exists (select 1 from u where u.id in (select id from v where v.x=u.x))',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE EXISTS (',
+		'    SELECT  1',
+		'    FROM u',
+		'    WHERE u.id IN (',
+		'        SELECT  id',
+		'        FROM v',
+		'        WHERE v.x = u.x',
+		'    )',
+		')'
+	].join('\n')
+);
+
+assert_format_once_and_twice(
+	'nested compact IN subquery with ORDER BY keeps close paren indent stable',
+	'select * from t where exists (select x from u where x in (select y from v order by y))',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE EXISTS (',
+		'    SELECT  x',
+		'    FROM u',
+		'    WHERE x IN (',
+		'        SELECT  y',
+		'        FROM v',
+		'        ORDER BY  y',
+		'    )',
+		')'
+	].join('\n')
+);
+
+assert_format_once_and_twice(
+	'compact EXISTS subquery keeps QUALIFY-shaped select identifier in select list',
+	'select * from t where exists (select qualify as c from u)',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE EXISTS (',
+		'    SELECT  QUALIFY AS c',
+		'    FROM u',
+		')'
+	].join('\n')
+);
+
+assert_format_once_and_twice(
+	'compact EXISTS subquery keeps QUALIFY-shaped where expression value',
+	'select * from t where exists (select x from u where y = qualify)',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE EXISTS (',
+		'    SELECT  x',
+		'    FROM u',
+		'    WHERE y = QUALIFY',
+		')'
+	].join('\n')
+);
+
+assert_format_once_and_twice(
+	'compact EXISTS subquery expands real QUALIFY clause',
+	'select * from t where exists (select x from u qualify row_number() over(partition by k order by ts)=1)',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE EXISTS (',
+		'    SELECT  x',
+		'    FROM u',
+		'    QUALIFY ROW_NUMBER() OVER(PARTITION BY k ORDER BY  ts) = 1',
+		')'
+	].join('\n')
+);
+
+assert_format_once_and_twice(
+	'compact EXISTS subquery does not split window ORDER BY as query clause',
+	'select * from t where exists (select row_number() over(partition by k order by ts) as rn from u)',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE EXISTS (',
+		'    SELECT  ROW_NUMBER() OVER(PARTITION BY k ORDER BY  ts) AS rn',
+		'    FROM u',
+		')'
+	].join('\n')
+);
+
 var whitespaceContractInput = [
 	'select a,b from t',
 	'',
