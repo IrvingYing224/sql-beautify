@@ -53,6 +53,11 @@ assert.strictEqual(
 	shieldInput,
 	'shield restore must reproduce original text exactly'
 );
+assert.strictEqual(
+	sqlShield.restore('SQLSHIELDX0X', ['SHOULD_NOT_APPEAR']),
+	'SQLSHIELDX0X',
+	'shield restore must not synthesize obsolete SQLSHIELDX placeholders'
+);
 
 assert.deepStrictEqual(
 	sqlRenderOptions.normalize({
