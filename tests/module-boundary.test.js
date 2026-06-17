@@ -20,6 +20,7 @@ var sqlSelectItemNodes = require('../lib/core/sql-select-item-nodes');
 var sqlCaseNodes = require('../lib/core/sql-case-nodes');
 var sqlConditionNodes = require('../lib/core/sql-condition-nodes');
 var sqlDiagnostics = require('../lib/core/sql-diagnostics');
+var sqlOpaqueProtector = require('../lib/core/sql-opaque-protector');
 var sqlDdlFormatter = require('../lib/sql-ddl-formatter');
 
 function format_core(sql, options) {
@@ -235,6 +236,11 @@ assert.deepStrictEqual(
 	],
 	'diagnostics module must expose only structured unsupported diagnostics helpers'
 );
+assert.deepStrictEqual(
+	Object.keys(sqlOpaqueProtector).sort(),
+	['protect_opaque_segments', 'restore_opaque_segments'],
+	'opaque protector must expose only opaque protection helpers'
+);
 assert.strictEqual(typeof sqlDdlFormatter.ddl, 'function', 'DDL formatter must export ddl');
 assert.strictEqual(typeof sqlDdlFormatter.extractddl, 'function', 'DDL formatter must export extractddl');
 assert.strictEqual(typeof ''.times, 'undefined', 'formatter modules must not pollute String.prototype');
@@ -313,6 +319,20 @@ assert.ok(
 assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-diagnostics.js')),
 	'structured diagnostics helper module must exist'
+);
+assert.ok(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-opaque-protector.js')),
+	'opaque protector module must exist'
+);
+assert.strictEqual(
+	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-clause-splitter.js')),
+	false,
+	'obsolete core clause splitter must not exist'
+);
+assert.strictEqual(
+	fs.existsSync(path.join(__dirname, '..', 'lib/sql-clause-splitter.js')),
+	false,
+	'obsolete root clause splitter shim must not exist'
 );
 assert.ok(
 	fs.existsSync(path.join(__dirname, '..', 'lib/core/sql-safe-diagnostic-report.js')),
@@ -536,7 +556,7 @@ var commentMutationSource = read_source('lib/core/sql-comment-mutations.js');
 });
 
 [
-	'lib/core/sql-clause-splitter.js',
+	'lib/core/sql-opaque-protector.js',
 	'lib/core/sql-syntax-risk-detector.js',
 	'lib/core/sql-clause-formatter.js'
 ].forEach(function(relativePath) {
@@ -548,7 +568,7 @@ var commentMutationSource = read_source('lib/core/sql-comment-mutations.js');
 });
 
 [
-	'lib/core/sql-clause-splitter.js',
+	'lib/core/sql-opaque-protector.js',
 	'lib/core/sql-syntax-risk-detector.js',
 	'lib/core/sql-clause-formatter.js'
 ].forEach(function(relativePath) {
@@ -569,7 +589,7 @@ var commentMutationSource = read_source('lib/core/sql-comment-mutations.js');
 });
 
 [
-	'lib/core/sql-clause-splitter.js',
+	'lib/core/sql-opaque-protector.js',
 	'lib/core/sql-syntax-risk-detector.js',
 	'lib/core/sql-clause-formatter.js'
 ].forEach(function(relativePath) {
@@ -696,6 +716,20 @@ var forbiddenLiveFormatterPatterns = [
 	}
 ];
 
+assert.ok(
+	formatterSource.indexOf("require('./sql-opaque-protector')") >= 0,
+	'sql-formatter must import the opaque protector module'
+);
+assert.strictEqual(
+	combinedLiveFormatterSource.indexOf('sql-clause-splitter'),
+	-1,
+	'live formatter source graph must not reference obsolete sql-clause-splitter'
+);
+assert.strictEqual(
+	/\bsplit_clauses\b/.test(combinedLiveFormatterSource),
+	false,
+	'live formatter source graph must not retain split_clauses'
+);
 assert.ok(
 	combinedLiveFormatterSource.indexOf('sql-format-model') >= 0,
 	'live formatter graph should include shared format model after pipeline coupling cleanup'
