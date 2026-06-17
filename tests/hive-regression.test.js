@@ -629,7 +629,8 @@ run_case(
 	'hive keyword uppercase covers select expressions and predicates',
 	"select distinct cast(a as string) as s, if(a is null, true, false) as f from t where a is not null and b rlike '^x' and c regexp 'y' and d not like 'z'",
 	[
-		'SELECT  DISTINCT CAST(a AS STRING) AS s',
+		'SELECT DISTINCT',
+		'        CAST(a AS STRING)          AS s',
 		'       ,if(a IS NULL, TRUE, FALSE) AS f',
 		'FROM t',
 		'WHERE a IS NOT NULL',
@@ -720,7 +721,8 @@ run_lower_case(
 	'lowercase hive keyword coverage remains lowercase',
 	"select distinct cast(a as string) as s from t lateral view outer posexplode(arr) lv as pos,item where a is not null group by rollup(a), grouping sets ((a)) intersect select a from s",
 	[
-		'select  distinct cast(a as string) as s',
+		'select distinct',
+		'        cast(a as string) as s',
 		'from t lateral view outer posexplode(arr) lv as pos, item',
 		'where a is not null',
 		'group by  rollup(a)',

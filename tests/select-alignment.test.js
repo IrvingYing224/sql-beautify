@@ -243,6 +243,32 @@ run_case(
 );
 
 run_case(
+	'compact SELECT DISTINCT with trailing item comment is one-pass stable',
+	'select distinct a as a, b as b -- cb\nfrom t',
+	[
+		'SELECT DISTINCT',
+		'        a AS a',
+		'       ,b AS b  -- cb',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
+	'split SELECT DISTINCT header canonicalizes before fields',
+	[
+		'select',
+		'distinct',
+		'a, b from t'
+	].join('\n'),
+	[
+		'SELECT DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
 	'multiline SELECT DISTINCT keeps modifier header and aligned fields',
 	[
 		'SELECT DISTINCT',
@@ -287,6 +313,25 @@ assert.ok(
 assert.ok(
 	nestedModifierActual.indexOf('SELECT ALL\n            c\n           ,d') >= 0,
 	'inner SELECT ALL fields must align below header\n--- actual ---\n' + nestedModifierActual
+);
+
+var nestedModifierCommentActual = format(
+	'select x from (select distinct a as a, b as b -- cb\nfrom t) s'
+);
+assert.strictEqual(
+	format(nestedModifierCommentActual),
+	nestedModifierCommentActual,
+	'nested SELECT DISTINCT with trailing field comment must be idempotent\n--- actual ---\n' + nestedModifierCommentActual
+);
+assert.ok(
+	nestedModifierCommentActual.indexOf('SELECT DISTINCT\n            a AS a\n           ,b AS b  -- cb') >= 0,
+	'nested SELECT DISTINCT trailing field comment must align after one pass\n--- actual ---\n' + nestedModifierCommentActual
+);
+
+var nestedModifierOuterCommentActual = format('select (select distinct a from t) as x -- cx\nfrom s');
+assert.ok(
+	nestedModifierOuterCommentActual.indexOf(') AS x  -- cx') < 0,
+	'inner SELECT DISTINCT must not add modifier padding to an outer select item comment\n--- actual ---\n' + nestedModifierOuterCommentActual
 );
 
 run_case(
