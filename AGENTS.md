@@ -70,11 +70,11 @@ SQL / Hive SQL 格式化核心已经重构为 `core / adapters / experimental` �
 - 适用范围：所有 DDL / Extract DDL formatter、命令贡献、README/CHANGELOG 中 DDL 能力说明相关改动。
 
 ## 经验规则：低置信语法检测必须验证真实上下文
-- 触发信号：修改 `unsupportedSyntaxPolicy`、`lib/core/sql-syntax-risk-detector.js`、`lib/core/sql-clause-splitter.js`、`lib/core/sql-clause-registry.js`、dialect capability 或新增未建模 SQL 结构时。
-- 根因 / 约束：`QUALIFY`、`PIVOT`、`MERGE` 等词也可能是普通字段名、别名或表达式函数名；如果只按单词值判断 unsupported 或 clause split，会把 `SELECT qualify AS c`、`WHERE qualify = 1`、`WHERE x = pivot(y)` 等合法输入误拒绝或静默改写。
-- 正确做法：低置信语法检测和 clause splitting 必须同时验证前后 token、当前 SELECT/FROM/WHERE 等 clause 上下文、括号深度和真实 construct 边界；opaque 结构才走保护，detector-only 诊断不能声称内容一定被 opaque preserved。
+- 触发信号：修改 `unsupportedSyntaxPolicy`、`lib/core/sql-syntax-risk-detector.js`、`lib/core/sql-opaque-protector.js`、`lib/core/sql-clause-registry.js`、dialect capability 或新增未建模 SQL 结构时。
+- 根因 / 约束：`QUALIFY`、`PIVOT`、`MERGE` 等词也可能是普通字段名、别名或表达式函数名；如果只按单词值判断 unsupported 或 clause boundary handling，会把 `SELECT qualify AS c`、`WHERE qualify = 1`、`WHERE x = pivot(y)` 等合法输入误拒绝或静默改写。
+- 正确做法：低置信语法检测和 clause boundary handling 必须同时验证前后 token、当前 SELECT/FROM/WHERE 等 clause 上下文、括号深度和真实 construct 边界；opaque 结构才走保护，detector-only 诊断不能声称内容一定被 opaque preserved。
 - 验证方法：运行 `node tests/unsupported-safety.test.js`、`node tests/dialect-boundary.test.js` 和 `npm run test:verify`；必须同时覆盖普通 identifier / alias / WHERE expression function 不触发 `bail_out`，以及真实 `QUALIFY` clause、`PIVOT` table construct、`MATCH_RECOGNIZE(...)` 仍按策略拒绝、警告或保护。
-- 适用范围：所有 unsupported policy、dialect-specific clause、clause registry、clause splitter、support matrix 和 diagnostics 文案相关改动。
+- 适用范围：所有 unsupported policy、dialect-specific clause、clause registry、clause boundary handling、support matrix 和 diagnostics 文案相关改动。
 
 ## 经验规则：root lib shim 只做兼容导出
 - 触发信号：修改 `lib/sql-*.js`、`lib/sql-canonical-options.js` 或调整模块路径时。

@@ -4,12 +4,13 @@ This document is for maintainers. User-facing behavior belongs in `README.md`.
 
 ## Boundaries
 
-- `lib/core/`: SQL formatting core. It owns tokenization, shielding, canonical options, registries, clause splitting, comment/code line modeling, case/select/condition formatting, layout rendering, and keyword casing.
+- `lib/core/`: SQL formatting core. It owns tokenization, shielding, canonical options, registries, opaque unsupported-segment protection, clause line-break mutations, comment/code line modeling, case/select/condition formatting, layout rendering, and keyword casing.
 - `lib/adapters/`: host integration. It owns VS Code configuration mapping, VS Code command/provider orchestration, range-safety enforcement, and user-facing diagnostics.
 - `lib/experimental/ddl/`: experimental Hive DDL formatting and Extract DDL. It is intentionally outside the main SQL formatter responsibility layer.
 - Root `lib/*.js` files are compatibility shims only. They must remain single-line re-exports and must not contain formatter logic.
 - `lib/core/sql-token-primitives.js`: shared token-aware primitives for top-level item splitting and code/comment boundaries. New SQL boundary logic must reuse it instead of re-implementing character scans.
-- `lib/core/sql-clause-context.js`: shared token-aware context helper for clause splitting, syntax-risk detection, and structured clause mutation boundaries. `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` detection must use this helper rather than duplicating local word-value checks.
+- `lib/core/sql-clause-context.js`: shared token-aware context helper for opaque protection, syntax-risk detection, and structured clause mutation boundaries. `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` detection must use this helper rather than duplicating local word-value checks.
+- `lib/core/sql-opaque-protector.js`: tokenizer-backed protection for complete `MATCH_RECOGNIZE(...)` opaque unsupported clauses. It stores and restores complete opaque ranges, records unsupported metadata, and must not own general clause splitting or layout.
 - `lib/core/sql-safe-diagnostic-report.js`: local-only report builder for restricted production debugging. It emits counts, classifications, safe labels, and timings only; it must not render raw SQL, formatted SQL, token values, file paths, URLs, unsupported snippets, or adapter state.
 - `lib/adapters/safe-diagnostic-report.js`: VS Code command adapter for copying a fresh safe diagnostic report from the active document or selection. It owns clipboard integration and user messages.
 - Obsolete structured formatter facades such as `sql-select-formatter.js`, `sql-case-formatter.js`, `sql-comment-formatter.js`, and `sql-condition-formatter.js` are removed. Do not recreate them as compatibility wrappers; live structured behavior belongs in the focused modules below.
@@ -95,9 +96,9 @@ Unsupported syntax detection has two inputs:
 
 This is still not a full parser. The policy means "known low-confidence syntax", not "every possible unsupported SQL grammar form". Opaque constructs must be preserved through shielding before broad rewrites; detector-only findings are context-aware and are reported without implying that every detected fragment was isolated as an opaque preserved segment. Experimental DDL should remain clearly labeled and tested separately.
 
-Detector findings must not be based on word value alone. Keyword-shaped identifiers, aliases, and expression function names such as `qualify`, `merge`, or `pivot` are valid formatter inputs unless they appear at a recognized clause or table-construct boundary. Clause splitting follows the same rule so a `SELECT qualify AS c` list item is not rewritten into a `QUALIFY` clause.
+Detector findings must not be based on word value alone. Keyword-shaped identifiers, aliases, and expression function names such as `qualify`, `merge`, or `pivot` are valid formatter inputs unless they appear at a recognized clause or table-construct boundary. Clause boundary handling follows the same rule so a `SELECT qualify AS c` list item is not rewritten into a `QUALIFY` clause.
 
-`lib/core/sql-clause-context.js` is the shared boundary implementation for this policy. Clause splitting, syntax-risk detection, and structured clause mutations must route low-confidence clause decisions through it so `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` context rules do not drift across separate modules.
+`lib/core/sql-clause-context.js` is the shared boundary implementation for this policy. Clause boundary decisions, syntax-risk detection, and structured clause mutations must route low-confidence clause decisions through it so `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` context rules do not drift across separate modules.
 
 `unsupportedSyntaxPolicy` currently supports:
 
