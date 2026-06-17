@@ -25,7 +25,14 @@ function format_with_indent(sql, indentStyle) {
 }
 
 function format_space(sql) {
-	return format_with_indent(sql, 'space');
+	return sqlFormatter.format_sql(sql, {
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'space',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'generic'
+	});
 }
 
 var shieldInput = [
@@ -141,8 +148,8 @@ function assert_format_once_and_twice(name, input, expected) {
 
 	assert.strictEqual(
 		once,
-		expected.trim(),
-		name + ' first pass output\n--- actual ---\n' + once + '\n--- expected ---\n' + expected.trim()
+		expected,
+		name + ' first pass output\n--- actual ---\n' + once + '\n--- expected ---\n' + expected
 	);
 	assert.strictEqual(
 		twice,
@@ -161,7 +168,8 @@ assert_format_once_and_twice(
 		'    FROM t',
 		')',
 		'SELECT  *',
-		'FROM c'
+		'FROM c',
+		''
 	].join('\n')
 );
 
@@ -174,7 +182,8 @@ assert_format_once_and_twice(
 		'WHERE x IN (',
 		'    SELECT  id',
 		'    FROM u',
-		')'
+		')',
+		''
 	].join('\n')
 );
 
@@ -188,7 +197,22 @@ assert_format_once_and_twice(
 		'    SELECT  1',
 		'    FROM u',
 		'    WHERE u.id = t.id',
-		')'
+		')',
+		''
+	].join('\n')
+);
+
+assert_format_once_and_twice(
+	'FROM compact subquery expands without leading output spaces',
+	'select * from (select a from t) x',
+	[
+		'SELECT  *',
+		'FROM',
+		'(',
+		'    SELECT  a',
+		'    FROM t',
+		') x',
+		''
 	].join('\n')
 );
 
@@ -206,7 +230,8 @@ assert_format_once_and_twice(
 		'        FROM v',
 		'        WHERE v.x = u.x',
 		'    )',
-		')'
+		')',
+		''
 	].join('\n')
 );
 
@@ -224,7 +249,8 @@ assert_format_once_and_twice(
 		'        FROM v',
 		'        ORDER BY  y',
 		'    )',
-		')'
+		')',
+		''
 	].join('\n')
 );
 
@@ -237,7 +263,8 @@ assert_format_once_and_twice(
 		'WHERE EXISTS (',
 		'    SELECT  QUALIFY AS c',
 		'    FROM u',
-		')'
+		')',
+		''
 	].join('\n')
 );
 
@@ -251,7 +278,8 @@ assert_format_once_and_twice(
 		'    SELECT  x',
 		'    FROM u',
 		'    WHERE y = QUALIFY',
-		')'
+		')',
+		''
 	].join('\n')
 );
 
@@ -265,7 +293,8 @@ assert_format_once_and_twice(
 		'    SELECT  x',
 		'    FROM u',
 		'    QUALIFY ROW_NUMBER() OVER(PARTITION BY k ORDER BY  ts) = 1',
-		')'
+		')',
+		''
 	].join('\n')
 );
 
@@ -278,7 +307,8 @@ assert_format_once_and_twice(
 		'WHERE EXISTS (',
 		'    SELECT  ROW_NUMBER() OVER(PARTITION BY k ORDER BY  ts) AS rn',
 		'    FROM u',
-		')'
+		')',
+		''
 	].join('\n')
 );
 
