@@ -5,6 +5,28 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 1.0.12 (2026/06/17)
+* 修复 `SELECT DISTINCT` / `SELECT ALL` 独占 header 行后的首个真实字段未对齐到后续 leading-comma 字段表达式列的问题
+* 将 `DISTINCT` / `ALL` 在独占 SELECT header 行中识别为 SELECT modifier，不再作为独立 select item 参与字段对齐
+* 增加 `SELECT DISTINCT` header 后首字段表达式列、无前导逗号和二次格式化幂等性回归
+* 将扩展包版本同步至 `1.0.12`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.12.vsix`
+* Fixed the first real field after standalone `SELECT DISTINCT` / `SELECT ALL` headers not aligning with following leading-comma field expression columns
+* Treats `DISTINCT` / `ALL` on standalone SELECT header lines as SELECT modifiers instead of independent select items for field alignment
+* Added regression coverage for first-field expression column alignment, no leading comma, and idempotency after `SELECT DISTINCT` headers
+* Bumped the extension package version to `1.0.12`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.12.vsix`
+
+### 1.0.11 (2026/06/17)
+* 修复生产形态 SELECT 字段尾注释需要格式化两次才完全对齐的问题；第一次格式化现在会把移动到行首的 leading comma / 前缀纳入计划宽度计算
+* 修复 SELECT 第一字段尾注释未参与最终列对齐的问题，字段注释在一遍格式化后即可保持同列并保持二次格式化幂等
+* 保持多行 CASE / 聚合 CASE 的别名注释对齐不回退，避免把 leading comma 前缀错误套到多行表达式的别名行
+* 增加生产形态 SELECT 注释对齐回归，覆盖一次格式化幂等性和字段尾注释同列对齐
+* 将扩展包版本同步至 `1.0.11`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.11.vsix`
+* Fixed production-shaped SELECT trailing comments requiring two formatting passes before fully aligning; the first pass now includes moved leading-comma prefixes in planned width calculation
+* Fixed the first SELECT field trailing comment not participating in final column alignment, so field comments align after one pass and remain idempotent
+* Preserved multiline CASE / aggregate CASE alias comment alignment by avoiding applying leading-comma prefixes to multiline expression alias rows
+* Added production-shaped SELECT comment alignment regression coverage for first-pass idempotency and same-column trailing comments
+* Bumped the extension package version to `1.0.11`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.11.vsix`
+
 ### 1.0.10 (2026/06/17)
 * 加固 tokenizer 字面量边界，保留科学计数法、带符号指数、十六进制数字、类型化 quoted literal、前导点小数、PostgreSQL dollar string 和 Hive `${...}` 变量替换的原始语义
 * 修复紧凑 CTE、`FROM (select ...)`、`IN (select ...)` 和 `EXISTS (select ...)` 等 parenthesized query scope 的一遍格式化幂等性，避免第二次格式化继续改变布局

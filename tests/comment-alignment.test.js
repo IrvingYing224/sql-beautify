@@ -531,4 +531,44 @@ assert.ok(
 	'compact CASE should stay on one line in comment alignment path\n--- actual ---\n' + compactCaseCommentAlignment
 );
 
+var productionSelectCommentAlignmentInput = [
+	'SELECT DISTINCT',
+	'  t.idx_id AS idx_cd,  -- 指标资产代码',
+	'  t.idx_nm AS idx_nm,  -- 指标名称',
+	'  t.orgnumber AS orig_org_cd,  -- 原组织代码',
+	'  CONCAT(t.year, \'-\', t.period) AS date_cd,  -- 日期代码',
+	'  t.year,  -- 所属年份',
+	'  CASE ',
+	"    WHEN t.period IN ('01', '02', '03') THEN 'Q1'",
+	"    WHEN t.period IN ('04', '05', '06') THEN 'Q2'",
+	'    ELSE t.period',
+	'  END AS quat,  -- 所属季度',
+	'  t.ly_mtd_amount AS ly_mtd_amount,  -- 上年同月值',
+	'  t.mtd_yoy_amount AS mtd_yoy_amount,  --上年同月值变动额',
+	'  t.five_year_inc_rate as five_year_inc_rate,  --5年复合增长率',
+	'  t.jq_bdgt_cmplt_rate as jq_bdgt_cmplt_rate,   --久其预算完成比率',
+	'  t.src_id as idx_source_cd,  -- 指标源系统代码',
+	'  SUBSTR(FROM_UNIXTIME(UNIX_TIMESTAMP()),1,10) AS dw_etl_dt,  -- 数据写入日期',
+	'  SUBSTR(FROM_UNIXTIME(UNIX_TIMESTAMP()),11,9) AS dw_etl_tm,  -- 数据写入时间',
+	'  t.prt_dt,  --分区',
+	'  t.rpt_nm   --报表类型',
+	'FROM ads_cmhk_fms_fdas.hafdas_mrpt_index_ss_tmp6 t'
+].join('\n');
+var productionSelectCommentAlignmentOnce = format(productionSelectCommentAlignmentInput);
+var productionSelectCommentAlignmentTwice = format(productionSelectCommentAlignmentOnce);
+var productionSelectCommentAlignmentColumns = productionSelectCommentAlignmentOnce.split('\n').filter(function(line) {
+	return line.indexOf('--') >= 0;
+}).map(comment_column);
+
+assert.strictEqual(
+	productionSelectCommentAlignmentTwice,
+	productionSelectCommentAlignmentOnce,
+	'production-style select trailing comments should be idempotent after one pass\n--- once ---\n' + productionSelectCommentAlignmentOnce + '\n--- twice ---\n' + productionSelectCommentAlignmentTwice
+);
+assert.deepStrictEqual(
+	productionSelectCommentAlignmentColumns,
+	productionSelectCommentAlignmentColumns.map(function() { return productionSelectCommentAlignmentColumns[0]; }),
+	'production-style select trailing comments should align after one pass\n--- actual ---\n' + productionSelectCommentAlignmentOnce
+);
+
 console.log('comment alignment tests passed');

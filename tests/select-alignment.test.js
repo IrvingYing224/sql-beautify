@@ -231,6 +231,50 @@ assert.strictEqual(
 	'Hive hint select formatting should be idempotent\n--- actual ---\n' + hive_hint_select_actual
 );
 
+var distinct_header_select_actual = format([
+	'SELECT DISTINCT',
+	'  t.idx_id AS idx_cd,  -- 指标资产代码',
+	'  t.idx_nm AS idx_nm,  -- 指标名称',
+	'  t.orgnumber AS orig_org_cd  -- 原组织代码',
+	'FROM t'
+].join('\n'));
+var distinct_header_select_lines = distinct_header_select_actual.split('\n');
+assert.ok(
+	distinct_header_select_lines[1].indexOf('        t.idx_id') == 0,
+	'first field after SELECT DISTINCT header should align with comma-prefixed fields without a leading comma\n--- actual ---\n' + distinct_header_select_actual
+);
+assert.strictEqual(
+	distinct_header_select_lines[1].indexOf('t.idx_id'),
+	distinct_header_select_lines[2].indexOf('t.idx_nm'),
+	'first field expression after SELECT DISTINCT should start in the same column as following field expressions\n--- actual ---\n' + distinct_header_select_actual
+);
+assert.ok(
+	distinct_header_select_lines[1].indexOf(',t.idx_id') < 0,
+	'first field after SELECT DISTINCT must not receive a leading comma\n--- actual ---\n' + distinct_header_select_actual
+);
+assert.strictEqual(
+	format(distinct_header_select_actual),
+	distinct_header_select_actual,
+	'SELECT DISTINCT header field alignment should be idempotent\n--- actual ---\n' + distinct_header_select_actual
+);
+
+var all_header_select_actual = format([
+	'SELECT ALL',
+	'  t.idx_id AS idx_cd,  -- 指标资产代码',
+	'  t.idx_nm AS idx_nm  -- 指标名称',
+	'FROM t'
+].join('\n'));
+var all_header_select_lines = all_header_select_actual.split('\n');
+assert.strictEqual(
+	all_header_select_lines[1].indexOf('t.idx_id'),
+	all_header_select_lines[2].indexOf('t.idx_nm'),
+	'first field expression after SELECT ALL should start in the same column as following field expressions\n--- actual ---\n' + all_header_select_actual
+);
+assert.ok(
+	all_header_select_lines[1].indexOf(',t.idx_id') < 0,
+	'first field after SELECT ALL must not receive a leading comma\n--- actual ---\n' + all_header_select_actual
+);
+
 run_case(
 	'select comma migration never touches nested in-list or function arguments',
 	[
