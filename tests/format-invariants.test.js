@@ -39,6 +39,24 @@ function token_values(tokens) {
 	});
 }
 
+function token_values_for_owner(extractedNodes, ownerScopeId) {
+	return (extractedNodes.selectItems || []).filter(function(item) {
+		return item.ownerScopeId == ownerScopeId;
+	}).map(function(item) {
+		return token_values(item.tokens);
+	});
+}
+
+function select_span_starting_on(extractedNodes, lineIndex) {
+	for (var i = 0; i < (extractedNodes.selectSpans || []).length; i++) {
+		if (extractedNodes.selectSpans[i].kind == 'selectList'
+			&& extractedNodes.selectSpans[i].startLine == lineIndex) {
+			return extractedNodes.selectSpans[i];
+		}
+	}
+	return null;
+}
+
 var nodeShapeSql = [
 	'select',
 	'case when city_id in (',
@@ -222,6 +240,84 @@ assert.deepStrictEqual(
 		}
 	],
 	'node extractor must preserve select item shape and token attribution'
+);
+
+var distinctShape = extract_structured_nodes('select distinct a, b from t');
+var distinctSpan = select_span_starting_on(distinctShape, 0);
+
+assert.ok(distinctSpan, 'SELECT DISTINCT span must be extracted');
+assert.deepStrictEqual(
+	{
+		kind: distinctSpan.kind,
+		modifierKind: distinctSpan.header && distinctSpan.header.modifier
+			? distinctSpan.header.modifier.kind
+			: null,
+		itemsStartTokenIndex: distinctSpan.itemsStartTokenIndex
+	},
+	{
+		kind: 'selectList',
+		modifierKind: 'DISTINCT',
+		itemsStartTokenIndex: 2
+	},
+	'SELECT DISTINCT must model DISTINCT as a span header modifier'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(distinctShape, distinctSpan.id),
+	[
+		['a'],
+		['b']
+	],
+	'SELECT DISTINCT items must contain only real fields'
+);
+assert.deepStrictEqual(
+	distinctShape.selectItems.filter(function(item) {
+		return item.ownerScopeId == distinctSpan.id;
+	}).map(function(item) {
+		return item.ordinalInOwner;
+	}),
+	[0, 1],
+	'SELECT DISTINCT items must have owner-local ordinals'
+);
+assert.ok(
+	!distinctShape.selectItems.some(function(item) {
+		return token_values(item.tokens).indexOf('distinct') >= 0;
+	}),
+	'DISTINCT must not be extracted as a select item token'
+);
+
+var allShape = extract_structured_nodes('select all a, b from t');
+var allSpan = select_span_starting_on(allShape, 0);
+
+assert.ok(allSpan, 'SELECT ALL span must be extracted');
+assert.strictEqual(
+	allSpan.header && allSpan.header.modifier && allSpan.header.modifier.kind,
+	'ALL',
+	'SELECT ALL must model ALL as a span header modifier'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(allShape, allSpan.id),
+	[
+		['a'],
+		['b']
+	],
+	'SELECT ALL items must contain only real fields'
+);
+
+var countDistinctShape = extract_structured_nodes('select count(distinct a) as c from t');
+var countDistinctSpan = select_span_starting_on(countDistinctShape, 0);
+
+assert.ok(countDistinctSpan, 'COUNT(DISTINCT ...) select span must be extracted');
+assert.strictEqual(
+	countDistinctSpan.header && countDistinctSpan.header.modifier,
+	null,
+	'COUNT(DISTINCT ...) must not become a SELECT header modifier'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(countDistinctShape, countDistinctSpan.id),
+	[
+		['count', '(', 'distinct', 'a', ')', 'as', 'c']
+	],
+	'COUNT(DISTINCT ...) must remain inside the real select item'
 );
 
 assert.strictEqual(nodeShape.caseExpressions.length, 1, 'node shape fixture must extract one CASE expression');

@@ -452,6 +452,7 @@ var formatNodesSource = read_source('lib/core/sql-format-nodes.js');
 });
 
 var selectMutationsSource = read_source('lib/core/sql-select-mutations.js');
+var selectItemNodesSource = read_source('lib/core/sql-select-item-nodes.js');
 var listMutationsSource = read_source('lib/core/sql-list-mutations.js');
 var listLayoutPolicySource = read_source('lib/core/sql-list-layout-policy.js');
 var caseMutationsSource = read_source('lib/core/sql-case-mutations.js');
@@ -468,6 +469,16 @@ assert.ok(
 	/sqlListMutations\.apply_list_layout_mutations\s*\(/.test(selectMutationsSource),
 	'sql-select-mutations must call the generic list layout mutation pass'
 );
+[
+	'is_select_modifier_item',
+	'has_select_modifier_header_line'
+].forEach(function(functionName) {
+	assert.strictEqual(
+		new RegExp('function\\s+' + functionName + '\\s*\\(').test(selectItemNodesSource + selectMutationsSource),
+		false,
+		'SELECT modifier handling must be modeled on select spans, not workaround helper ' + functionName
+	);
+});
 assert.ok(
 	listMutationsSource.indexOf("require('./sql-format-mutations')") >= 0,
 	'sql-list-mutations must write list layout through MutationPlan helpers'
