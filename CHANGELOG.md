@@ -5,6 +5,20 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 1.0.10 (2026/06/17)
+* 加固 tokenizer 字面量边界，保留科学计数法、带符号指数、十六进制数字、类型化 quoted literal、前导点小数、PostgreSQL dollar string 和 Hive `${...}` 变量替换的原始语义
+* 修复紧凑 CTE、`FROM (select ...)`、`IN (select ...)` 和 `EXISTS (select ...)` 等 parenthesized query scope 的一遍格式化幂等性，避免第二次格式化继续改变布局
+* 将未建模 `MATCH_RECOGNIZE(...)` opaque 保护从误导性的 `sql-clause-splitter` 模块迁移到 `lib/core/sql-opaque-protector.js`，并删除旧 core/root splitter 路径和死 `split_clauses()` 实现
+* 移除 `sql-shield` 中无法命中的 `SQLSHIELDX{i}X` restore fallback，保持当前 nonce placeholder restore 契约更清晰
+* 更新架构文档和 module-boundary / token-boundary / pipeline-idempotency 回归，固定 tokenizer、opaque protector、紧凑子查询布局和 VSIX 内容边界
+* 将扩展包版本同步至 `1.0.10`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.10.vsix`
+* Hardened tokenizer literal boundaries for scientific notation, signed exponents, hexadecimal numbers, typed quoted literals, leading-dot decimals, PostgreSQL dollar strings, and Hive `${...}` substitutions
+* Fixed first-pass idempotency for compact CTE, `FROM (select ...)`, `IN (select ...)`, and `EXISTS (select ...)` parenthesized query scopes so a second format pass does not keep changing layout
+* Moved unmodeled `MATCH_RECOGNIZE(...)` opaque protection from the misleading `sql-clause-splitter` module to `lib/core/sql-opaque-protector.js`, deleting the old core/root splitter paths and dead `split_clauses()` implementation
+* Removed the unreachable `SQLSHIELDX{i}X` restore fallback from `sql-shield`, leaving the current nonce placeholder restore contract explicit
+* Updated architecture docs plus module-boundary, token-boundary, and pipeline-idempotency regressions to lock tokenizer, opaque protector, compact subquery layout, and VSIX content boundaries
+* Bumped the extension package version to `1.0.10`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.10.vsix`
+
 ### 1.0.9 (2026/06/12)
 * 新增 `lib/core/sql-list-layout-policy.js`，集中 SELECT、GROUP BY 和顶层 ORDER BY 的 list prefix、continuation indent、item indent 与 CASE-in-list 缩进事实
 * 收敛 `sql-list-mutations.js` 为纯 generic list mutation pass，`sql-select-mutations.js` 和 `sql-case-mutations.js` 通过 policy 读取布局事实，不再复制 list-kind spacing 宽度

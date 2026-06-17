@@ -8,6 +8,7 @@ This document is for maintainers. User-facing behavior belongs in `README.md`.
 - `lib/adapters/`: host integration. It owns VS Code configuration mapping, VS Code command/provider orchestration, range-safety enforcement, and user-facing diagnostics.
 - `lib/experimental/ddl/`: experimental Hive DDL formatting and Extract DDL. It is intentionally outside the main SQL formatter responsibility layer.
 - Root `lib/*.js` files are compatibility shims only. They must remain single-line re-exports and must not contain formatter logic.
+- `lib/core/sql-tokenizer.js`: owns protected token and literal boundaries for the structured formatter. It must preserve full bytes for comments, strings, block comments, quoted identifiers, PostgreSQL dollar strings, numeric literals including exponent/hex/leading-dot forms, typed quoted literals, and Hive `${...}` substitutions.
 - `lib/core/sql-token-primitives.js`: shared token-aware primitives for top-level item splitting and code/comment boundaries. New SQL boundary logic must reuse it instead of re-implementing character scans.
 - `lib/core/sql-clause-context.js`: shared token-aware context helper for opaque protection, syntax-risk detection, and structured clause mutation boundaries. `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` detection must use this helper rather than duplicating local word-value checks.
 - `lib/core/sql-opaque-protector.js`: tokenizer-backed protection for complete `MATCH_RECOGNIZE(...)` opaque unsupported clauses. It stores and restores complete opaque ranges, records unsupported metadata, and must not own general clause splitting or layout.
@@ -37,10 +38,12 @@ flowchart LR
 - Core must not import `lib/adapters/` or `lib/experimental/`.
 - VS Code configuration accepts `sqlBeautify.*` only. Positional `vkbeautify.sql(...)` arguments remain a wrapper responsibility for the JS API.
 - Comments, strings, block comments, quoted identifiers, and opaque unsupported syntax must never be treated as active SQL code by structure passes.
+- SQL literal and placeholder bytes are semantic input. Renderer spacing must not split exponent numeric literals, hexadecimal literals, typed quoted literals, leading-dot decimals, PostgreSQL dollar strings, or Hive `${...}` substitutions.
 - Structure passes consume `FormatDocument`, `ScopeModel`, and `FormatNodes`; they must not re-derive SELECT, CASE, condition, list, or comment ownership from restored raw strings.
 - No structural pass may run after line comments are restored to real user-authored comment text.
 - Comment/layout interaction must use code/comment records, scope ownership, or mutation records, not fake SQL marker strings.
 - Layout must render the requested indentation directly. It must not render tabs first and globally replace them later.
+- Parenthesized query layout must be stable after one formatting pass. CTE, `FROM (...)`, `IN (...)`, and `EXISTS (...)` query scopes should derive expansion from structured scope/layout facts, not from whether the source text happened to contain newlines.
 - Output whitespace contract: preserve at most one user blank line between logical blocks, normalize line endings to LF, and emit exactly one trailing newline.
 - Range formatting contract: only whole-line, clause-safe, structurally balanced fragments are formatted; unsafe fragments are rejected rather than speculatively rewritten.
 
@@ -81,6 +84,8 @@ Mutation modules expose only their `apply_*_mutations` entry points, except `sql
 - `tests/module-boundary.test.js` checks the live core source graph for forbidden legacy markers and dependency direction.
 - `tests/canonical-core-boundary.test.js` checks canonical options through the core path.
 - `tests/layout-marker-leakage.test.js` protects user-authored text that resembles removed historical markers.
+- `tests/token-boundary.test.js` guards tokenizer-owned literal and placeholder boundaries so renderer spacing cannot change SQL semantics.
+- `tests/pipeline-idempotency.test.js` guards first-pass stability for protected text and compact parenthesized query scopes.
 - `tests/generated-support-matrix.test.js` keeps `docs/technical/sql-support-matrix.md` synchronized with clause/operator registries.
 - `tests/tokenizer-profile.test.js` and the performance smoke test are regression guards for tokenizer churn and accidental path blowups. They are not proof that every maintainability refactor improves wall-clock time.
 - `tests/production-corpus-golden.test.js` locks committed anonymized production-shaped SQL against readable `.formatted.sql` snapshots. Snapshot updates require `SQL_BEAUTIFY_UPDATE_SNAPSHOTS=1`.
