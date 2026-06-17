@@ -257,7 +257,7 @@ assert.deepStrictEqual(
 	{
 		kind: 'selectList',
 		modifierKind: 'DISTINCT',
-		itemsStartTokenIndex: 2
+		itemsStartTokenIndex: 4
 	},
 	'SELECT DISTINCT must model DISTINCT as a span header modifier'
 );
@@ -283,6 +283,26 @@ assert.ok(
 		return token_values(item.tokens).indexOf('distinct') >= 0;
 	}),
 	'DISTINCT must not be extracted as a select item token'
+);
+
+var distinctHeaderShape = extract_structured_nodes('select distinct from t');
+var distinctHeaderSpan = select_span_starting_on(distinctHeaderShape, 0);
+
+assert.ok(distinctHeaderSpan, 'SELECT DISTINCT header span must be extracted');
+assert.strictEqual(
+	distinctHeaderSpan.header && distinctHeaderSpan.header.modifier && distinctHeaderSpan.header.modifier.kind,
+	'DISTINCT',
+	'SELECT DISTINCT header span must preserve DISTINCT as a header modifier'
+);
+assert.strictEqual(
+	distinctHeaderSpan.itemsStartTokenIndex,
+	null,
+	'SELECT DISTINCT header span must leave itemsStartTokenIndex unset when no item token exists'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(distinctHeaderShape, distinctHeaderSpan.id),
+	[],
+	'SELECT DISTINCT header span must not extract header tokens as select items'
 );
 
 var allShape = extract_structured_nodes('select all a, b from t');
