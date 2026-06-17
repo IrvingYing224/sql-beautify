@@ -24,6 +24,10 @@ function format_with_indent(sql, indentStyle) {
 	}).trim();
 }
 
+function format_space(sql) {
+	return format_with_indent(sql, 'space');
+}
+
 var shieldInput = [
 	"select `MiXeD From` as c, 'can\\'t from where' as s /* FROM WHERE */",
 	"from t -- CASE WHEN THEN FROM WHERE"
@@ -129,6 +133,63 @@ assert.strictEqual(
 	format(format(idempotentInput)),
 	format(idempotentInput),
 	'full SQL formatting pipeline must be idempotent for protected token boundaries'
+);
+
+function assert_format_once_and_twice(name, input, expected) {
+	var once = format_space(input);
+	var twice = format_space(once);
+
+	assert.strictEqual(
+		once,
+		expected.trim(),
+		name + ' first pass output\n--- actual ---\n' + once + '\n--- expected ---\n' + expected.trim()
+	);
+	assert.strictEqual(
+		twice,
+		once,
+		name + ' must be idempotent\n--- once ---\n' + once + '\n--- twice ---\n' + twice
+	);
+}
+
+assert_format_once_and_twice(
+	'compact CTE subquery expands to stable query block',
+	'with c as (select a from t) select * from c',
+	[
+		'WITH c AS',
+		'(',
+		'    SELECT  a',
+		'    FROM t',
+		')',
+		'SELECT  *',
+		'FROM c'
+	].join('\n')
+);
+
+assert_format_once_and_twice(
+	'compact IN subquery expands to stable query block',
+	'select * from t where x in (select id from u)',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE x IN (',
+		'    SELECT  id',
+		'    FROM u',
+		')'
+	].join('\n')
+);
+
+assert_format_once_and_twice(
+	'compact EXISTS subquery expands to stable query block',
+	'select * from t where exists (select 1 from u where u.id=t.id)',
+	[
+		'SELECT  *',
+		'FROM t',
+		'WHERE EXISTS (',
+		'    SELECT  1',
+		'    FROM u',
+		'    WHERE u.id = t.id',
+		')'
+	].join('\n')
 );
 
 var whitespaceContractInput = [
