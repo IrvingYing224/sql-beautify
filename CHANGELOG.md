@@ -5,6 +5,20 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 1.0.13 (2026/07/05)
+* 将 `SELECT DISTINCT` / `SELECT ALL` 重构为结构化 SELECT header modifier，挂载在 `selectSpan.header.modifier`，不再作为 select item 参与字段列表布局
+* 修复 `SELECT` header comment、standalone comment 或 block comment 夹在 `SELECT` 与 `DISTINCT` / `ALL` 之间时的布局与幂等性问题，避免跨注释 line join 报错
+* 将注释对齐 planned width 收敛到 renderer-owned line facts，并让最终 comment alignment 使用同一套 tab-expanded display width，避免 tab 缩进下需要二次格式化才收敛
+* 增加 SELECT header modifier、owner-local first item、comment alignment width facts、tab 缩进嵌套 SELECT header comment 和 VSIX 内容回归
+* 更新维护者架构文档，固定 SELECT modifier 结构属性和 planned width / renderer width 共享契约
+* 将扩展包版本同步至 `1.0.13`，本地 VSIX 打包产物对应 `vscode-sql-beautify-v1.0.13.vsix`
+* Refactored `SELECT DISTINCT` / `SELECT ALL` as structured SELECT header modifiers on `selectSpan.header.modifier` instead of select items
+* Fixed layout and idempotency when SELECT header comments, standalone comments, or block comments appear between `SELECT` and `DISTINCT` / `ALL`, avoiding unsafe line joins across comments
+* Routed comment-alignment planned width through renderer-owned line facts and made final comment alignment use the same tab-expanded display width, preventing second-pass convergence under tab indentation
+* Added regressions for SELECT header modifiers, owner-local first items, comment-alignment width facts, tab-indented nested SELECT header comments, and VSIX contents
+* Updated maintainer architecture docs to lock the SELECT modifier structure contract and planned-width / renderer-width sharing contract
+* Bumped the extension package version to `1.0.13`; the local VSIX package now resolves to `vscode-sql-beautify-v1.0.13.vsix`
+
 ### 1.0.12 (2026/06/17)
 * 修复 `SELECT DISTINCT` / `SELECT ALL` 独占 header 行后的首个真实字段未对齐到后续 leading-comma 字段表达式列的问题
 * 将 `DISTINCT` / `ALL` 在独占 SELECT header 行中识别为 SELECT modifier，不再作为独立 select item 参与字段对齐
