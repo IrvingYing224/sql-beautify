@@ -1,13 +1,38 @@
 var assert = require('assert');
 var vkbeautify = require('../vkbeautify');
+var sqlFormatter = require('../lib/sql-formatter');
 
 function format(sql) {
 	return vkbeautify.sql(sql, true, false, true, 150, 80).trim();
 }
 
+function format_with_options(sql, options) {
+	return sqlFormatter.format_sql(sql, Object.assign({
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'space',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'generic',
+		unsupportedSyntaxPolicy: 'preserve'
+	}, options || {})).trim();
+}
+
 function run_case(name, input, expected) {
 	var actual = format(input);
 	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
+}
+
+function run_idempotent_case(name, input, expected) {
+	run_case(name, input, expected);
+	var actual = format(input);
+	assert.strictEqual(format(actual), actual, name + ' must be idempotent\n--- actual ---\n' + actual);
+}
+
+function run_idempotent_options_case(name, input, expected, options) {
+	var actual = format_with_options(input, options);
+	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
+	assert.strictEqual(format_with_options(actual, options), actual, name + ' must be idempotent\n--- actual ---\n' + actual);
 }
 
 run_case(
@@ -231,48 +256,206 @@ assert.strictEqual(
 	'Hive hint select formatting should be idempotent\n--- actual ---\n' + hive_hint_select_actual
 );
 
-var distinct_header_select_actual = format([
-	'SELECT DISTINCT',
-	'  t.idx_id AS idx_cd,  -- 指标资产代码',
-	'  t.idx_nm AS idx_nm,  -- 指标名称',
-	'  t.orgnumber AS orig_org_cd  -- 原组织代码',
-	'FROM t'
-].join('\n'));
-var distinct_header_select_lines = distinct_header_select_actual.split('\n');
-assert.ok(
-	distinct_header_select_lines[1].indexOf('        t.idx_id') == 0,
-	'first field after SELECT DISTINCT header should align with comma-prefixed fields without a leading comma\n--- actual ---\n' + distinct_header_select_actual
-);
-assert.strictEqual(
-	distinct_header_select_lines[1].indexOf('t.idx_id'),
-	distinct_header_select_lines[2].indexOf('t.idx_nm'),
-	'first field expression after SELECT DISTINCT should start in the same column as following field expressions\n--- actual ---\n' + distinct_header_select_actual
-);
-assert.ok(
-	distinct_header_select_lines[1].indexOf(',t.idx_id') < 0,
-	'first field after SELECT DISTINCT must not receive a leading comma\n--- actual ---\n' + distinct_header_select_actual
-);
-assert.strictEqual(
-	format(distinct_header_select_actual),
-	distinct_header_select_actual,
-	'SELECT DISTINCT header field alignment should be idempotent\n--- actual ---\n' + distinct_header_select_actual
+run_case(
+	'compact SELECT DISTINCT renders modifier as header and aligns fields',
+	'SELECT DISTINCT a, b FROM t',
+	[
+		'SELECT DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
 );
 
-var all_header_select_actual = format([
-	'SELECT ALL',
-	'  t.idx_id AS idx_cd,  -- 指标资产代码',
-	'  t.idx_nm AS idx_nm  -- 指标名称',
-	'FROM t'
+run_case(
+	'compact SELECT DISTINCT with trailing item comment is one-pass stable',
+	'select distinct a as a, b as b -- cb\nfrom t',
+	[
+		'SELECT DISTINCT',
+		'        a AS a',
+		'       ,b AS b  -- cb',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
+	'split SELECT DISTINCT header canonicalizes before fields',
+	[
+		'select',
+		'distinct',
+		'a, b from t'
+	].join('\n'),
+	[
+		'SELECT DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_idempotent_case(
+	'SELECT DISTINCT after standalone comment stays a header modifier',
+	[
+		'select',
+		'-- comment',
+		'distinct a, b from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'-- comment',
+		'DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_idempotent_case(
+	'SELECT DISTINCT after block comment stays a header modifier',
+	[
+		'select',
+		'/* block */',
+		'distinct a, b from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'/* block */',
+		'DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_idempotent_case(
+	'SELECT DISTINCT after header trailing comment stays a header modifier',
+	[
+		'select -- header',
+		'distinct a, b from t'
+	].join('\n'),
+	[
+		'SELECT -- header',
+		'DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_idempotent_options_case(
+	'tab-indented nested SELECT header comment keeps first item indentation stable',
+	'select x from (select -- header\na, b from t) s',
+	[
+		'SELECT  x',
+		'FROM',
+		'(',
+		'\tSELECT -- header',
+		'\t        a',
+		'\t       ,b',
+		'\tFROM t',
+		') s'
+	].join('\n'),
+	{ indentStyle: 'tab' }
+);
+
+run_idempotent_options_case(
+	'tab-indented nested SELECT DISTINCT header comment keeps modifier layout stable',
+	'select x from (select -- header\ndistinct a, b from t) s',
+	[
+		'SELECT  x',
+		'FROM',
+		'(',
+		'\tSELECT -- header',
+		'\tDISTINCT',
+		'\t        a',
+		'\t       ,b',
+		'\tFROM t',
+		') s'
+	].join('\n'),
+	{ indentStyle: 'tab' }
+);
+
+run_case(
+	'multiline SELECT DISTINCT keeps modifier header and aligned fields',
+	[
+		'SELECT DISTINCT',
+		'  t.idx_id AS idx_cd,  -- 指标资产代码',
+		'  t.idx_nm AS idx_nm,  -- 指标名称',
+		'  t.orgnumber AS orig_org_cd  -- 原组织代码',
+		'FROM t'
+	].join('\n'),
+	[
+		'SELECT DISTINCT',
+		'        t.idx_id    AS idx_cd       -- 指标资产代码',
+		'       ,t.idx_nm    AS idx_nm       -- 指标名称',
+		'       ,t.orgnumber AS orig_org_cd  -- 原组织代码',
+		'FROM t'
+	].join('\n')
+);
+
+run_case(
+	'compact SELECT ALL renders modifier as header and aligns fields',
+	'SELECT ALL a, b FROM t',
+	[
+		'SELECT ALL',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_idempotent_case(
+	'SELECT ALL after standalone comment stays a header modifier',
+	[
+		'select',
+		'-- comment',
+		'all a, b from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'-- comment',
+		'ALL',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+var nestedModifierActual = format([
+	'select distinct a, b',
+	'from (select all c, d from src) s'
 ].join('\n'));
-var all_header_select_lines = all_header_select_actual.split('\n');
 assert.strictEqual(
-	all_header_select_lines[1].indexOf('t.idx_id'),
-	all_header_select_lines[2].indexOf('t.idx_nm'),
-	'first field expression after SELECT ALL should start in the same column as following field expressions\n--- actual ---\n' + all_header_select_actual
+	format(nestedModifierActual),
+	nestedModifierActual,
+	'nested SELECT DISTINCT/ALL modifier formatting must be idempotent\n--- actual ---\n' + nestedModifierActual
 );
 assert.ok(
-	all_header_select_lines[1].indexOf(',t.idx_id') < 0,
-	'first field after SELECT ALL must not receive a leading comma\n--- actual ---\n' + all_header_select_actual
+	nestedModifierActual.indexOf('SELECT DISTINCT\n        a\n       ,b') >= 0,
+	'outer SELECT DISTINCT fields must align below header\n--- actual ---\n' + nestedModifierActual
+);
+assert.ok(
+	nestedModifierActual.indexOf('SELECT ALL\n            c\n           ,d') >= 0,
+	'inner SELECT ALL fields must align below header\n--- actual ---\n' + nestedModifierActual
+);
+
+var nestedModifierCommentActual = format(
+	'select x from (select distinct a as a, b as b -- cb\nfrom t) s'
+);
+assert.strictEqual(
+	format(nestedModifierCommentActual),
+	nestedModifierCommentActual,
+	'nested SELECT DISTINCT with trailing field comment must be idempotent\n--- actual ---\n' + nestedModifierCommentActual
+);
+assert.ok(
+	nestedModifierCommentActual.indexOf('SELECT DISTINCT\n            a AS a\n           ,b AS b  -- cb') >= 0,
+	'nested SELECT DISTINCT trailing field comment must align after one pass\n--- actual ---\n' + nestedModifierCommentActual
+);
+
+var nestedModifierOuterCommentActual = format('select (select distinct a from t) as x -- cx\nfrom s');
+assert.ok(
+	nestedModifierOuterCommentActual.indexOf(') AS x  -- cx') < 0,
+	'inner SELECT DISTINCT must not add modifier padding to an outer select item comment\n--- actual ---\n' + nestedModifierOuterCommentActual
 );
 
 run_case(

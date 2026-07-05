@@ -55,13 +55,15 @@ flowchart LR
 
 `lib/core/sql-format-nodes.js` is the thin public orchestrator for pass-level nodes. Concrete extraction is split into focused modules:
 
-- `sql-list-nodes.js`: SELECT/GROUP BY/top-level ORDER BY list spans and separator ownership
+- `sql-list-nodes.js`: SELECT/GROUP BY/top-level ORDER BY list spans, SELECT header metadata, and separator ownership
 - `sql-select-item-nodes.js`: SELECT/GROUP BY item nodes
 - `sql-case-nodes.js`: CASE expression and branch nodes
 - `sql-condition-nodes.js`: condition block and segment nodes
 - `sql-node-utils.js`: shared token predicates and range helpers
 
 Separators must always carry an owner scope so comma mutations cannot accidentally affect function arguments or IN-list values.
+
+SELECT header modifiers such as `DISTINCT` and `ALL` belong to `selectSpan.header.modifier`. They must not be extracted as `selectItems`, and first-item layout must use owner-local item ordinals rather than global item IDs.
 
 `lib/core/sql-format-mutations.js` is the only write plan for structure passes. Passes add declarative token, separator, indentation, and comment-alignment mutations; they do not edit final strings directly.
 
@@ -77,7 +79,7 @@ Structured mutation implementations are split by responsibility:
 
 Mutation modules expose only their `apply_*_mutations` entry points, except `sql-comment-spacing.js`, which exposes only `normalize_line_comment_spacing`. `sql-list-layout-policy.js` exposes only pure list layout helpers.
 
-`lib/core/sql-structured-renderer.js` is the single rendering boundary for the structured pipeline. It applies mutations deterministically, renders comments from bound comment tokens, preserves protected token bytes, and enforces the final whitespace contract. Its implementation delegates focused helper work to `sql-render-move-state.js`, `sql-render-indent.js`, `sql-render-token-spacing.js`, `sql-render-line.js`, `sql-render-width.js`, and `sql-token-renderer.js`. Token-adjacency spacing policy lives in `sql-render-token-spacing.js`; final line rendering, planned-width calculation, and snippet rendering must share that policy. `sql-token-renderer.js` is the mutation-facing facade and must not carry private comma, parenthesis, operator, or window spacing rules.
+`lib/core/sql-structured-renderer.js` is the single rendering boundary for the structured pipeline. It applies mutations deterministically, renders comments from bound comment tokens, preserves protected token bytes, and enforces the final whitespace contract. Its implementation delegates focused helper work to `sql-render-move-state.js`, `sql-render-indent.js`, `sql-render-token-spacing.js`, `sql-render-line.js`, `sql-render-line-facts.js`, `sql-render-width.js`, and `sql-token-renderer.js`. Pre-alignment comment width planning must consume renderer-owned line facts rather than duplicating token rendering, indentation, separator-prefix, line-join, or display-width logic in `sql-render-width.js`; final comment alignment must use the same tab-expanded display width as planned facts. Token-adjacency spacing policy lives in `sql-render-token-spacing.js`; final line rendering, planned-width calculation, and snippet rendering must share that policy. `sql-token-renderer.js` is the mutation-facing facade and must not carry private comma, parenthesis, operator, or window spacing rules.
 
 ## Verification Contract
 

@@ -12,6 +12,7 @@ var sqlConditionMutations = require('../lib/core/sql-condition-mutations');
 var sqlCommentSpacing = require('../lib/core/sql-comment-spacing');
 var sqlTokenRenderer = require('../lib/core/sql-token-renderer');
 var sqlRenderWidth = require('../lib/core/sql-render-width');
+var sqlRenderLineFacts = require('../lib/core/sql-render-line-facts');
 var sqlRenderTokenSpacing = require('../lib/core/sql-render-token-spacing');
 var sqlClauseContext = require('../lib/core/sql-clause-context');
 var sqlNodeUtils = require('../lib/core/sql-node-utils');
@@ -179,6 +180,11 @@ assert.deepStrictEqual(
 	'render width helper must expose only create_width_context'
 );
 assert.deepStrictEqual(
+	Object.keys(sqlRenderLineFacts).sort(),
+	['create_line_facts_context'],
+	'render line facts helper must expose only create_line_facts_context'
+);
+assert.deepStrictEqual(
 	Object.keys(sqlRenderTokenSpacing).sort(),
 	['append_visible_token', 'render_visible_tokens', 'token_value'],
 	'token spacing policy module must expose only token_value, append_visible_token, and render_visible_tokens'
@@ -257,6 +263,7 @@ assert.ok(
 	'lib/core/sql-render-move-state.js',
 	'lib/core/sql-render-indent.js',
 	'lib/core/sql-render-token-spacing.js',
+	'lib/core/sql-render-line-facts.js',
 	'lib/core/sql-render-line.js'
 ].forEach(function(relativePath) {
 	assert.ok(
@@ -355,6 +362,7 @@ obsolete_formatter_files().forEach(function(relativePath) {
 	'lib/core/sql-structured-renderer.js',
 	'lib/core/sql-render-indent.js',
 	'lib/core/sql-render-token-spacing.js',
+	'lib/core/sql-render-line-facts.js',
 	'lib/core/sql-select-mutations.js',
 	'lib/core/sql-list-mutations.js',
 	'lib/core/sql-list-layout-policy.js',
@@ -386,6 +394,7 @@ obsolete_formatter_files().forEach(function(relativePath) {
 	'lib/core/sql-structured-renderer.js',
 	'lib/core/sql-render-indent.js',
 	'lib/core/sql-render-token-spacing.js',
+	'lib/core/sql-render-line-facts.js',
 	'lib/core/sql-select-mutations.js',
 	'lib/core/sql-list-mutations.js',
 	'lib/core/sql-list-layout-policy.js',
@@ -406,6 +415,39 @@ obsolete_formatter_files().forEach(function(relativePath) {
 });
 
 var structuredRendererSource = read_source('lib/core/sql-structured-renderer.js');
+var renderWidthSource = read_source('lib/core/sql-render-width.js');
+var renderLineFactsSource = read_source('lib/core/sql-render-line-facts.js');
+
+assert.ok(
+	renderWidthSource.indexOf("require('./sql-render-line-facts')") >= 0,
+	'sql-render-width must delegate rendered line facts to sql-render-line-facts'
+);
+[
+	'render_line_from_tokens',
+	'apply_scope_body_indent',
+	'apply_scope_close_indent',
+	'apply_indent',
+	'apply_line_prefix',
+	'append_joined_line'
+].forEach(function(functionName) {
+	assert.strictEqual(
+		new RegExp('function\\s+' + functionName + '\\s*\\(').test(renderWidthSource),
+		false,
+		'sql-render-width.js must not carry renderer helper implementation: ' + functionName
+	);
+});
+assert.ok(
+	renderLineFactsSource.indexOf("require('./sql-render-line')") >= 0,
+	'sql-render-line-facts must use sql-render-line helpers'
+);
+assert.ok(
+	renderLineFactsSource.indexOf("require('./sql-render-indent')") >= 0,
+	'sql-render-line-facts must use sql-render-indent helpers'
+);
+assert.ok(
+	renderLineFactsSource.indexOf("require('./sql-render-move-state')") >= 0,
+	'sql-render-line-facts must use sql-render-move-state helpers'
+);
 [
 	'build_move_state',
 	'build_close_indent_by_line',
@@ -452,6 +494,7 @@ var formatNodesSource = read_source('lib/core/sql-format-nodes.js');
 });
 
 var selectMutationsSource = read_source('lib/core/sql-select-mutations.js');
+var selectItemNodesSource = read_source('lib/core/sql-select-item-nodes.js');
 var listMutationsSource = read_source('lib/core/sql-list-mutations.js');
 var listLayoutPolicySource = read_source('lib/core/sql-list-layout-policy.js');
 var caseMutationsSource = read_source('lib/core/sql-case-mutations.js');
@@ -468,6 +511,16 @@ assert.ok(
 	/sqlListMutations\.apply_list_layout_mutations\s*\(/.test(selectMutationsSource),
 	'sql-select-mutations must call the generic list layout mutation pass'
 );
+[
+	'is_select_modifier_item',
+	'has_select_modifier_header_line'
+].forEach(function(functionName) {
+	assert.strictEqual(
+		new RegExp('function\\s+' + functionName + '\\s*\\(').test(selectItemNodesSource + selectMutationsSource),
+		false,
+		'SELECT modifier handling must be modeled on select spans, not workaround helper ' + functionName
+	);
+});
 assert.ok(
 	listMutationsSource.indexOf("require('./sql-format-mutations')") >= 0,
 	'sql-list-mutations must write list layout through MutationPlan helpers'
@@ -713,6 +766,10 @@ var forbiddenLiveFormatterPatterns = [
 	{
 		pattern: /UNIONALLALL/,
 		message: 'live formatter source graph must not contain UNIONALLALL marker cleanup'
+	},
+	{
+		pattern: /(?:\bitem\.id\s*(?:==|!=|===|!==)\s*['"]selectItem:0['"]|['"]selectItem:0['"]\s*(?:==|!=|===|!==)\s*\bitem\.id)/,
+		message: 'live formatter source graph must not use global selectItem:0 first-item checks'
 	}
 ];
 

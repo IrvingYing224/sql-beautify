@@ -39,6 +39,24 @@ function token_values(tokens) {
 	});
 }
 
+function token_values_for_owner(extractedNodes, ownerScopeId) {
+	return (extractedNodes.selectItems || []).filter(function(item) {
+		return item.ownerScopeId == ownerScopeId;
+	}).map(function(item) {
+		return token_values(item.tokens);
+	});
+}
+
+function select_span_starting_on(extractedNodes, lineIndex) {
+	for (var i = 0; i < (extractedNodes.selectSpans || []).length; i++) {
+		if (extractedNodes.selectSpans[i].kind == 'selectList'
+			&& extractedNodes.selectSpans[i].startLine == lineIndex) {
+			return extractedNodes.selectSpans[i];
+		}
+	}
+	return null;
+}
+
 var nodeShapeSql = [
 	'select',
 	'case when city_id in (',
@@ -222,6 +240,140 @@ assert.deepStrictEqual(
 		}
 	],
 	'node extractor must preserve select item shape and token attribution'
+);
+
+var distinctShape = extract_structured_nodes('select distinct a, b from t');
+var distinctSpan = select_span_starting_on(distinctShape, 0);
+
+assert.ok(distinctSpan, 'SELECT DISTINCT span must be extracted');
+assert.deepStrictEqual(
+	{
+		kind: distinctSpan.kind,
+		modifierKind: distinctSpan.header && distinctSpan.header.modifier
+			? distinctSpan.header.modifier.kind
+			: null,
+		itemsStartTokenIndex: distinctSpan.itemsStartTokenIndex
+	},
+	{
+		kind: 'selectList',
+		modifierKind: 'DISTINCT',
+		itemsStartTokenIndex: 4
+	},
+	'SELECT DISTINCT must model DISTINCT as a span header modifier'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(distinctShape, distinctSpan.id),
+	[
+		['a'],
+		['b']
+	],
+	'SELECT DISTINCT items must contain only real fields'
+);
+assert.deepStrictEqual(
+	distinctShape.selectItems.filter(function(item) {
+		return item.ownerScopeId == distinctSpan.id;
+	}).map(function(item) {
+		return item.ordinalInOwner;
+	}),
+	[0, 1],
+	'SELECT DISTINCT items must have owner-local ordinals'
+);
+assert.ok(
+	!distinctShape.selectItems.some(function(item) {
+		return token_values(item.tokens).indexOf('distinct') >= 0;
+	}),
+	'DISTINCT must not be extracted as a select item token'
+);
+
+var commentedDistinctShape = extract_structured_nodes([
+	'select',
+	'-- comment',
+	'distinct a, b from t'
+].join('\n'));
+var commentedDistinctSpan = select_span_starting_on(commentedDistinctShape, 0);
+
+assert.ok(commentedDistinctSpan, 'commented SELECT DISTINCT span must be extracted');
+assert.deepStrictEqual(
+	{
+		modifierKind: commentedDistinctSpan.header && commentedDistinctSpan.header.modifier
+			? commentedDistinctSpan.header.modifier.kind
+			: null,
+		itemsStartTokenIndex: commentedDistinctSpan.itemsStartTokenIndex
+	},
+	{
+		modifierKind: 'DISTINCT',
+		itemsStartTokenIndex: 6
+	},
+	'commented SELECT DISTINCT must keep DISTINCT as a header modifier before real fields'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(commentedDistinctShape, commentedDistinctSpan.id),
+	[
+		['a'],
+		['b']
+	],
+	'commented SELECT DISTINCT items must contain only real fields'
+);
+assert.ok(
+	!commentedDistinctShape.selectItems.some(function(item) {
+		return token_values(item.tokens).indexOf('distinct') >= 0;
+	}),
+	'commented DISTINCT must not be extracted as a select item token'
+);
+
+var distinctHeaderShape = extract_structured_nodes('select distinct from t');
+var distinctHeaderSpan = select_span_starting_on(distinctHeaderShape, 0);
+
+assert.ok(distinctHeaderSpan, 'SELECT DISTINCT header span must be extracted');
+assert.strictEqual(
+	distinctHeaderSpan.header && distinctHeaderSpan.header.modifier && distinctHeaderSpan.header.modifier.kind,
+	'DISTINCT',
+	'SELECT DISTINCT header span must preserve DISTINCT as a header modifier'
+);
+assert.strictEqual(
+	distinctHeaderSpan.itemsStartTokenIndex,
+	null,
+	'SELECT DISTINCT header span must leave itemsStartTokenIndex unset when no item token exists'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(distinctHeaderShape, distinctHeaderSpan.id),
+	[],
+	'SELECT DISTINCT header span must not extract header tokens as select items'
+);
+
+var allShape = extract_structured_nodes('select all a, b from t');
+var allSpan = select_span_starting_on(allShape, 0);
+
+assert.ok(allSpan, 'SELECT ALL span must be extracted');
+assert.strictEqual(
+	allSpan.header && allSpan.header.modifier && allSpan.header.modifier.kind,
+	'ALL',
+	'SELECT ALL must model ALL as a span header modifier'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(allShape, allSpan.id),
+	[
+		['a'],
+		['b']
+	],
+	'SELECT ALL items must contain only real fields'
+);
+
+var countDistinctShape = extract_structured_nodes('select count(distinct a) as c from t');
+var countDistinctSpan = select_span_starting_on(countDistinctShape, 0);
+
+assert.ok(countDistinctSpan, 'COUNT(DISTINCT ...) select span must be extracted');
+assert.strictEqual(
+	countDistinctSpan.header && countDistinctSpan.header.modifier,
+	null,
+	'COUNT(DISTINCT ...) must not become a SELECT header modifier'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(countDistinctShape, countDistinctSpan.id),
+	[
+		['count', '(', 'distinct', 'a', ')', 'as', 'c']
+	],
+	'COUNT(DISTINCT ...) must remain inside the real select item'
 );
 
 assert.strictEqual(nodeShape.caseExpressions.length, 1, 'node shape fixture must extract one CASE expression');
@@ -496,6 +648,61 @@ assert.throws(
 	},
 	/non-code token/,
 	'mutation invariants must reject line breaks before newline tokens'
+);
+
+var unsafeCommentAlignmentDoc = build_structured_document('select a as a -- a\n,b as b -- b\nfrom t');
+
+assert.doesNotThrow(
+	function() {
+		invariants.assert_mutation_plan_safe(
+			unsafeCommentAlignmentDoc,
+			unsafeCommentAlignmentDoc.nodes,
+			{}
+		);
+	},
+	'mutation invariants must tolerate sparse plans without planned comment alignment facts'
+);
+
+var legacyCommentAlignmentPlan = mutations.create();
+mutations.add_comment_alignment(legacyCommentAlignmentPlan, 0, 10);
+
+assert.doesNotThrow(
+	function() {
+		invariants.assert_mutation_plan_safe(
+			unsafeCommentAlignmentDoc,
+			unsafeCommentAlignmentDoc.nodes,
+			legacyCommentAlignmentPlan
+		);
+	},
+	'mutation invariants must tolerate legacy comment alignment mutations without planned facts'
+);
+
+var unsafeCommentAlignmentPlan = mutations.create();
+mutations.add_comment_alignment(unsafeCommentAlignmentPlan, 0, 999, {
+	codeWidth: 999,
+	alignmentWidth: 999,
+	joinPrefixWidth: 0
+});
+
+assert.throws(
+	function() {
+		invariants.assert_mutation_plan_safe(
+			unsafeCommentAlignmentDoc,
+			unsafeCommentAlignmentDoc.nodes,
+			unsafeCommentAlignmentPlan,
+			{
+				keywordCase: 'upper',
+				commaStyle: 'leading',
+				indentStyle: 'space',
+				maxAlignWidth: 150,
+				caseWhenThenWrapLength: 80,
+				dialect: 'generic',
+				unsupportedSyntaxPolicy: 'preserve'
+			}
+		);
+	},
+	/comment alignment planned code width/,
+	'mutation invariants must reject comment alignment planned widths that drift from renderer facts'
 );
 
 var unsafeTokenOmissionPlan = mutations.create();
