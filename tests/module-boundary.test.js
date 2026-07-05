@@ -766,6 +766,10 @@ var forbiddenLiveFormatterPatterns = [
 	{
 		pattern: /UNIONALLALL/,
 		message: 'live formatter source graph must not contain UNIONALLALL marker cleanup'
+	},
+	{
+		pattern: /(?:\bitem\.id\s*(?:==|!=|===|!==)\s*['"]selectItem:0['"]|['"]selectItem:0['"]\s*(?:==|!=|===|!==)\s*\bitem\.id)/,
+		message: 'live formatter source graph must not use global selectItem:0 first-item checks'
 	}
 ];
 
