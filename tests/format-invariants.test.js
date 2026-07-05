@@ -285,6 +285,42 @@ assert.ok(
 	'DISTINCT must not be extracted as a select item token'
 );
 
+var commentedDistinctShape = extract_structured_nodes([
+	'select',
+	'-- comment',
+	'distinct a, b from t'
+].join('\n'));
+var commentedDistinctSpan = select_span_starting_on(commentedDistinctShape, 0);
+
+assert.ok(commentedDistinctSpan, 'commented SELECT DISTINCT span must be extracted');
+assert.deepStrictEqual(
+	{
+		modifierKind: commentedDistinctSpan.header && commentedDistinctSpan.header.modifier
+			? commentedDistinctSpan.header.modifier.kind
+			: null,
+		itemsStartTokenIndex: commentedDistinctSpan.itemsStartTokenIndex
+	},
+	{
+		modifierKind: 'DISTINCT',
+		itemsStartTokenIndex: 6
+	},
+	'commented SELECT DISTINCT must keep DISTINCT as a header modifier before real fields'
+);
+assert.deepStrictEqual(
+	token_values_for_owner(commentedDistinctShape, commentedDistinctSpan.id),
+	[
+		['a'],
+		['b']
+	],
+	'commented SELECT DISTINCT items must contain only real fields'
+);
+assert.ok(
+	!commentedDistinctShape.selectItems.some(function(item) {
+		return token_values(item.tokens).indexOf('distinct') >= 0;
+	}),
+	'commented DISTINCT must not be extracted as a select item token'
+);
+
 var distinctHeaderShape = extract_structured_nodes('select distinct from t');
 var distinctHeaderSpan = select_span_starting_on(distinctHeaderShape, 0);
 

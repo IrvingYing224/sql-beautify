@@ -10,6 +10,12 @@ function run_case(name, input, expected) {
 	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
 }
 
+function run_idempotent_case(name, input, expected) {
+	run_case(name, input, expected);
+	var actual = format(input);
+	assert.strictEqual(format(actual), actual, name + ' must be idempotent\n--- actual ---\n' + actual);
+}
+
 run_case(
 	'select list split keeps as alignment and case ownership',
 	'select a as a_col,b_long as b_col,case when x=1 then y else z end as c from t',
@@ -268,6 +274,55 @@ run_case(
 	].join('\n')
 );
 
+run_idempotent_case(
+	'SELECT DISTINCT after standalone comment stays a header modifier',
+	[
+		'select',
+		'-- comment',
+		'distinct a, b from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'-- comment',
+		'DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_idempotent_case(
+	'SELECT DISTINCT after block comment stays a header modifier',
+	[
+		'select',
+		'/* block */',
+		'distinct a, b from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'/* block */',
+		'DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_idempotent_case(
+	'SELECT DISTINCT after header trailing comment stays a header modifier',
+	[
+		'select -- header',
+		'distinct a, b from t'
+	].join('\n'),
+	[
+		'SELECT -- header',
+		'DISTINCT',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
 run_case(
 	'multiline SELECT DISTINCT keeps modifier header and aligned fields',
 	[
@@ -291,6 +346,23 @@ run_case(
 	'SELECT ALL a, b FROM t',
 	[
 		'SELECT ALL',
+		'        a',
+		'       ,b',
+		'FROM t'
+	].join('\n')
+);
+
+run_idempotent_case(
+	'SELECT ALL after standalone comment stays a header modifier',
+	[
+		'select',
+		'-- comment',
+		'all a, b from t'
+	].join('\n'),
+	[
+		'SELECT',
+		'-- comment',
+		'ALL',
 		'        a',
 		'       ,b',
 		'FROM t'
