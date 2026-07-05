@@ -75,10 +75,20 @@ mutations.add_line_join(joined.mutations, 1, ' ');
 width = renderWidth.create_width_context(joined.document, joined.nodes, joined.mutations, joined.config);
 assert.strictEqual(width.planned_join_prefix_width(joined.document.lines[1]), 'select  a as col '.length, 'joined line reports non-zero join prefix width');
 
+var joinedIndentedItem = build_context('select\n    o.user_id as user_id -- c\nfrom t\n');
+mutations.add_line_join(joinedIndentedItem.mutations, 1, '  ');
+width = renderWidth.create_width_context(joinedIndentedItem.document, joinedIndentedItem.nodes, joinedIndentedItem.mutations, joinedIndentedItem.config);
+assert.strictEqual(
+	width.planned_join_prefix_width(joinedIndentedItem.document.lines[1]),
+	4,
+	'line join prefix subtracts current first segment leading whitespace removed by renderer append'
+);
+
 compare_width_and_facts('plain line', plain, 0);
 compare_width_and_facts('inline comma spacing', comma, 0);
 compare_width_and_facts('indented line', indented, 0);
 compare_width_and_facts('joined line', joined, 1);
+compare_width_and_facts('joined indented item', joinedIndentedItem, 1);
 
 var continuousJoined = build_context('select a\nwhere b = 1\nand c = 2\n');
 mutations.add_line_join(continuousJoined.mutations, 1, ' ');
