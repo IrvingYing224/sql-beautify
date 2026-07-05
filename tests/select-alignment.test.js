@@ -1,8 +1,21 @@
 var assert = require('assert');
 var vkbeautify = require('../vkbeautify');
+var sqlFormatter = require('../lib/sql-formatter');
 
 function format(sql) {
 	return vkbeautify.sql(sql, true, false, true, 150, 80).trim();
+}
+
+function format_with_options(sql, options) {
+	return sqlFormatter.format_sql(sql, Object.assign({
+		keywordCase: 'upper',
+		commaStyle: 'leading',
+		indentStyle: 'space',
+		maxAlignWidth: 150,
+		caseWhenThenWrapLength: 80,
+		dialect: 'generic',
+		unsupportedSyntaxPolicy: 'preserve'
+	}, options || {})).trim();
 }
 
 function run_case(name, input, expected) {
@@ -14,6 +27,12 @@ function run_idempotent_case(name, input, expected) {
 	run_case(name, input, expected);
 	var actual = format(input);
 	assert.strictEqual(format(actual), actual, name + ' must be idempotent\n--- actual ---\n' + actual);
+}
+
+function run_idempotent_options_case(name, input, expected, options) {
+	var actual = format_with_options(input, options);
+	assert.strictEqual(actual, expected.trim(), name + '\n--- actual ---\n' + actual + '\n--- expected ---\n' + expected.trim());
+	assert.strictEqual(format_with_options(actual, options), actual, name + ' must be idempotent\n--- actual ---\n' + actual);
 }
 
 run_case(
@@ -321,6 +340,39 @@ run_idempotent_case(
 		'       ,b',
 		'FROM t'
 	].join('\n')
+);
+
+run_idempotent_options_case(
+	'tab-indented nested SELECT header comment keeps first item indentation stable',
+	'select x from (select -- header\na, b from t) s',
+	[
+		'SELECT  x',
+		'FROM',
+		'(',
+		'\tSELECT -- header',
+		'\t        a',
+		'\t       ,b',
+		'\tFROM t',
+		') s'
+	].join('\n'),
+	{ indentStyle: 'tab' }
+);
+
+run_idempotent_options_case(
+	'tab-indented nested SELECT DISTINCT header comment keeps modifier layout stable',
+	'select x from (select -- header\ndistinct a, b from t) s',
+	[
+		'SELECT  x',
+		'FROM',
+		'(',
+		'\tSELECT -- header',
+		'\tDISTINCT',
+		'\t        a',
+		'\t       ,b',
+		'\tFROM t',
+		') s'
+	].join('\n'),
+	{ indentStyle: 'tab' }
 );
 
 run_case(
