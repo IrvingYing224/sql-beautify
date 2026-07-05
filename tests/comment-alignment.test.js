@@ -210,6 +210,27 @@ run_case(
 	].join('\n')
 );
 
+var joined_multisegment_select_comment_actual = format_with_options(
+	[
+		'select',
+		'distinct a as a, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb as b -- cb',
+		'from t -- ft'
+	].join('\n')
+);
+var joined_multisegment_select_comment_lines = joined_multisegment_select_comment_actual.split('\n');
+assert.strictEqual(
+	comment_column(joined_multisegment_select_comment_lines[2]),
+	comment_column(joined_multisegment_select_comment_lines[3]),
+	'joined SELECT DISTINCT multisegment item comment must align with following FROM comment\n--- actual ---\n'
+		+ joined_multisegment_select_comment_actual
+);
+assert.strictEqual(
+	format_with_options(joined_multisegment_select_comment_actual),
+	joined_multisegment_select_comment_actual,
+	'joined SELECT DISTINCT multisegment item comment must be idempotent\n--- actual ---\n'
+		+ joined_multisegment_select_comment_actual
+);
+
 var commented_subquery_actual = format([
 	'SELECT  u.user_id   AS user_id',
 	'       ,u.user_name AS user_name',
