@@ -614,6 +614,61 @@ assert.throws(
 	'mutation invariants must reject line breaks before newline tokens'
 );
 
+var unsafeCommentAlignmentDoc = build_structured_document('select a as a -- a\n,b as b -- b\nfrom t');
+
+assert.doesNotThrow(
+	function() {
+		invariants.assert_mutation_plan_safe(
+			unsafeCommentAlignmentDoc,
+			unsafeCommentAlignmentDoc.nodes,
+			{}
+		);
+	},
+	'mutation invariants must tolerate sparse plans without planned comment alignment facts'
+);
+
+var legacyCommentAlignmentPlan = mutations.create();
+mutations.add_comment_alignment(legacyCommentAlignmentPlan, 0, 10);
+
+assert.doesNotThrow(
+	function() {
+		invariants.assert_mutation_plan_safe(
+			unsafeCommentAlignmentDoc,
+			unsafeCommentAlignmentDoc.nodes,
+			legacyCommentAlignmentPlan
+		);
+	},
+	'mutation invariants must tolerate legacy comment alignment mutations without planned facts'
+);
+
+var unsafeCommentAlignmentPlan = mutations.create();
+mutations.add_comment_alignment(unsafeCommentAlignmentPlan, 0, 999, {
+	codeWidth: 999,
+	alignmentWidth: 999,
+	joinPrefixWidth: 0
+});
+
+assert.throws(
+	function() {
+		invariants.assert_mutation_plan_safe(
+			unsafeCommentAlignmentDoc,
+			unsafeCommentAlignmentDoc.nodes,
+			unsafeCommentAlignmentPlan,
+			{
+				keywordCase: 'upper',
+				commaStyle: 'leading',
+				indentStyle: 'space',
+				maxAlignWidth: 150,
+				caseWhenThenWrapLength: 80,
+				dialect: 'generic',
+				unsupportedSyntaxPolicy: 'preserve'
+			}
+		);
+	},
+	/comment alignment planned code width/,
+	'mutation invariants must reject comment alignment planned widths that drift from renderer facts'
+);
+
 var unsafeTokenOmissionPlan = mutations.create();
 mutations.add_token_omission(
 	unsafeTokenOmissionPlan,
