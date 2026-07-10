@@ -8,3 +8,6 @@ tests/**
 *.vsixmanifest
 node_modules/**
 .DS_Store
+.tmp/**
+src/**
+scripts/**
