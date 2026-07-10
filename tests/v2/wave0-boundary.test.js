@@ -1,0 +1,16 @@
+var fs = require('fs');
+var path = require('path');
+var assert = require('assert');
+var root = path.join(__dirname, '..', '..');
+var packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+var vscodeIgnore = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8');
+assert.strictEqual(packageJson.main, './extension.js', 'Wave 0 must not replace entrypoint');
+assert.strictEqual((packageJson.dependencies || {})['dt-sql-parser'], undefined, 'no runtime parser dependency');
+assert.strictEqual(packageJson.devDependencies['dt-sql-parser'], '4.5.0', 'candidate version');
+assert.strictEqual(packageJson.devDependencies.typescript, '6.0.3', 'TypeScript version');
+assert.strictEqual(packageJson.devDependencies.esbuild, '0.28.1', 'esbuild version');
+assert.ok(vscodeIgnore.indexOf('node_modules/**') >= 0, 'exclude dependencies');
+assert.ok(vscodeIgnore.indexOf('.tmp/**') >= 0, 'exclude evaluation output');
+assert.ok(vscodeIgnore.indexOf('src/**') >= 0, 'exclude TypeScript source');
+assert.ok(vscodeIgnore.indexOf('scripts/**') >= 0, 'exclude evaluation scripts');
+console.log('v2 Wave 0 boundary tests passed');
