@@ -6,6 +6,41 @@ function bool(value) {
     return value ? 'pass' : 'fail';
 }
 
+function environment(value) {
+    return value.node + ' / ' + value.platform + '-' + value.arch + ' / ' + value.cpu;
+}
+
+function evaluation_method_and_limitations(report) {
+    return [
+        '## Evaluation Method and Limitations',
+        '',
+        '- On the recorded Node environment, directly loading pinned `'
+            + report.candidate.name + '@' + report.candidate.version
+            + '` produced `ERR_UNSUPPORTED_DIR_IMPORT`.',
+        '- Evaluation uses a dev-only esbuild CommonJS (CJS) interoperability bundle; the minified and gzip bundle byte measurements remain recorded against their thresholds.',
+        '- Cold start measures loading that bundle, constructing `HiveSQL`, and validating `SELECT 1`.',
+        '- `maxRssKb` is the evaluation process upper watermark, not isolated parser heap.',
+        '',
+    ];
+}
+
+function markdown_cell(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/\\/g, '&#92;')
+        .replace(/\|/g, '&#124;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\r\n|\r|\n/g, '<br>');
+}
+
+function errors_cell(errors) {
+    if (!Array.isArray(errors) || errors.length == 0) {
+        return 'none';
+    }
+    return errors.map(markdown_cell).join('<br>');
+}
+
 function render_report(report) {
     return [
         '# SQL Formatter v2 Parser Evaluation Report',
@@ -37,8 +72,9 @@ function render_report(report) {
         '| 1200 statement median ms | ' + report.probe.parse1200MedianMs.toFixed(2) + ' | baseline |',
         '| 8x scale ratio | ' + report.probe.scaleRatio.toFixed(2) + ' | <= ' + report.gates.maxScaleRatio + ' |',
         '| Maximum RSS KiB | ' + report.probe.maxRssKb + ' | baseline |',
-        '| Node/platform | ' + report.probe.environment.node + ' / ' + report.probe.environment.platform + '-' + report.probe.environment.arch + ' | recorded |',
+        '| Environment | ' + markdown_cell(environment(report.probe.environment)) + ' | recorded |',
         '',
+    ].concat(evaluation_method_and_limitations(report), [
         '## Gate Results',
         '',
         '- Grammar: ' + bool(report.decision.grammarPass),
@@ -48,13 +84,13 @@ function render_report(report) {
         '',
         '## Case Outcomes',
         '',
-        '| Case | Expected | Accepted | Round trip | Node ranges | Nodes |',
-        '| --- | --- | --- | --- | --- | ---: |',
-    ].concat(report.outcomes.map(function(item) {
-        return '| ' + item.id + ' | ' + item.expectation + ' | '
-            + String(item.accepted) + ' | ' + String(item.roundTrip) + ' | '
-            + String(item.nodeSpansValid) + ' | '
-            + item.nodeCount + ' |';
+        '| Case | Expected | Accepted | Errors | Round trip | Node ranges | Nodes | Atomic passed/total |',
+        '| --- | --- | --- | --- | --- | --- | ---: | ---: |',
+    ]).concat(report.outcomes.map(function(item) {
+        return '| ' + markdown_cell(item.id) + ' | ' + markdown_cell(item.expectation) + ' | '
+            + String(item.accepted) + ' | ' + errors_cell(item.errors) + ' | '
+            + String(item.roundTrip) + ' | ' + String(item.nodeSpansValid) + ' | '
+            + item.nodeCount + ' | ' + item.atomicPassed + '/' + item.atomicTotal + ' |';
     })).concat([
         '',
         '## Bundled Packages',
@@ -101,8 +137,9 @@ function render_adr(report) {
         '- Cold start median ms: ' + report.probe.coldStartMedianMs.toFixed(2),
         '- 8x scale ratio: ' + report.probe.scaleRatio.toFixed(2),
         '- Maximum RSS KiB: ' + report.probe.maxRssKb,
-        '- Environment: ' + report.probe.environment.node + ' / ' + report.probe.environment.platform + '-' + report.probe.environment.arch + ' / ' + report.probe.environment.cpu,
+        '- Environment: ' + markdown_cell(environment(report.probe.environment)),
         '',
+    ].concat(evaluation_method_and_limitations(report), [
         'Full per-case evidence is recorded in `docs/technical/v2-parser-evaluation-report.md`.',
         '',
         '## Consequences',
@@ -111,7 +148,7 @@ function render_adr(report) {
         '- No candidate package is imported by the shipping 1.x entrypoint.',
         '- Wave 1 can implement the lossless lexer without reopening the backend role unless committed evidence changes.',
         '',
-    ].join('\n');
+    ]).join('\n');
 }
 
 exports.render_report = render_report;

@@ -21,10 +21,17 @@ A project-owned lossless lexer remains mandatory in every outcome. External pars
 - Required case node-range rate: 69.23%
 - Atomic lexeme rate: 82.76%
 - Minified/gzip bytes: 7415519 / 1263579
-- Cold start median ms: 371.47
-- 8x scale ratio: 6.26
-- Maximum RSS KiB: 564544
+- Cold start median ms: 369.27
+- 8x scale ratio: 6.38
+- Maximum RSS KiB: 564384
 - Environment: v24.18.0 / darwin-arm64 / Apple M1 Pro
+
+## Evaluation Method and Limitations
+
+- On the recorded Node environment, directly loading pinned `dt-sql-parser@4.5.0` produced `ERR_UNSUPPORTED_DIR_IMPORT`.
+- Evaluation uses a dev-only esbuild CommonJS (CJS) interoperability bundle; the minified and gzip bundle byte measurements remain recorded against their thresholds.
+- Cold start measures loading that bundle, constructing `HiveSQL`, and validating `SELECT 1`.
+- `maxRssKb` is the evaluation process upper watermark, not isolated parser heap.
 
 Full per-case evidence is recorded in `docs/technical/v2-parser-evaluation-report.md`.
 
