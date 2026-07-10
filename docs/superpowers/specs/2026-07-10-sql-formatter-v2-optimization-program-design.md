@@ -35,7 +35,7 @@
 
 ### 3.1 语义安全
 
-- 字符串、注释、quoted identifier、参数和 opaque 结构逐字节保真。
+- 字符串、注释、quoted identifier、参数和 opaque 结构按 JS source string 原文保真。
 - formatter 不得通过猜测改变未知语法。
 - 任意可恢复或不可恢复失败均不得产生空替换、部分编辑或 SQL 损坏。
 - 格式化前后的有效非 trivia token 序列必须等价；允许的差异仅限已配置的 keyword case 和布局 trivia。
@@ -77,7 +77,7 @@
 
 ### 5.2 直接采用普通 AST parser
 
-普通 AST 通常不完整保留注释、空白、原始 token 和错误片段，无法天然满足 formatter 的字节保真和 opaque fallback 要求。外部 parser 的 Hive 覆盖、包体、许可证与错误恢复也尚未验证，因此不能把“使用 AST”本身当作长期架构。
+普通 AST 通常不完整保留注释、空白、原始 token 和错误片段，无法天然满足 formatter 的 source string 保真和 opaque fallback 要求。外部 parser 的 Hive 覆盖、包体、许可证与错误恢复也尚未验证，因此不能把“使用 AST”本身当作长期架构。
 
 ### 5.3 并行重建 lossless formatter core
 
@@ -125,6 +125,12 @@ dist/
 
 ## 7. Lossless lexer
 
+Core 接收的是 JavaScript string，不是带原始文件编码信息的 byte buffer。因此：
+
+- `SourceSpan.start/end` 使用 end-exclusive UTF-16 code-unit offset，与 JavaScript `slice()` 和 VS Code 文档 offset 一致；
+- 本文中的“字节保真”均指 source string 的 code-unit sequence 不变，实际可执行不变量是拼接全部 leaf `raw` 后与输入 string 严格相等；
+- 文件编码、BOM 与落盘编码属于 adapter/host 边界，不由 formatter core 推断。
+
 每个 leaf token/trivia 至少包含：
 
 ```ts
@@ -144,7 +150,7 @@ type Token = {
 硬约束：
 
 - 按 source order 拼接全部 leaf token/trivia 的 `raw` 必须严格等于输入。
-- leaf span 必须对输入形成无重叠、无遗漏分区。
+- leaf span 必须按 UTF-16 code-unit offset 对输入形成无重叠、无遗漏分区。
 - 父级 CST span 可以包含子节点；无祖先关系的节点不得部分重叠。
 - lexer 采用 maximal-munch，优先识别最长合法 token。
 - 参数、literal prefix 和方言操作符必须在 lexer 层成为原子 token，例如 `$1`、`:id`、`@name`、`E'...'`、`U&'...'`、`_utf8mb4'...'`、`0b101`、`@>`、`<@`、`!~*`、`?|`、`?&`、`@?` 和 `@@`。
@@ -171,7 +177,7 @@ CST 以格式化所需的结构为边界，不承担数据库完整语义分析�
 
 不能可靠解析的结构按以下顺序处理：
 
-1. 能证明边界：创建 `OpaqueNode`，逐字节输出该范围。
+1. 能证明边界：创建 `OpaqueNode`，按原始 source slice 输出该范围。
 2. 只能证明 statement 边界：保留整个 statement，其他 statement 可继续格式化。
 3. statement 边界也不可靠：保留整个请求目标。
 
@@ -223,7 +229,7 @@ Layout IR 至少包含：
 约束：
 
 - formatting policy 只能生成 IR，不能直接做最终字符串全局替换。
-- `Verbatim` 只能引用原始 source span，renderer 必须逐字节写回。
+- `Verbatim` 只能引用原始 source span，renderer 必须按原始 code-unit sequence 写回。
 - spacing、keyword case、comma placement、CASE layout 和 AS alignment 均由同一 policy/IR 路径产生。
 - 宽度测量必须复用 renderer 的 token/IR 语义，不能维护第二套 operator width 公式。
 - renderer 是唯一能生成格式化空白的组件。
@@ -291,7 +297,7 @@ Diagnostic 至少包含稳定 code、severity、message、source span 和 recove
 
 默认策略 `warn`：
 
-- 能隔离的未知 node 逐字节保留；
+- 能隔离的未知 node 按原始 source slice 保留；
 - 已知周边结构可以继续格式化；
 - 返回 warning，adapter 负责可见提示；
 - 不得宣称 detector-only 语法已被 opaque preserved。
@@ -416,10 +422,10 @@ Extract DDL 使用 discriminated result；只有高置信且非空的 `extracted
 
 ### 19.1 属性与不变量
 
-- lexer byte conservation；
+- lexer source conservation；
 - leaf span partition；
 - CST containment；
-- protected/verbatim byte preservation；
+- protected/verbatim source preservation；
 - output non-trivia token equivalence；
 - format idempotency；
 - failed/preserved result returns original text；
@@ -471,7 +477,7 @@ Extract DDL 使用 discriminated result；只有高置信且非空的 `extracted
 
 - TypeScript strict 工程骨架；
 - lexer、source span、trivia、diagnostic；
-- byte conservation 和方言 token 回归；
+- source conservation 和方言 token 回归；
 - v2 独立入口，不接管现有命令。
 
 ### Wave 2：CST、dialect 与 analysis
@@ -557,7 +563,7 @@ Extract DDL 使用 discriminated result；只有高置信且非空的 `extracted
 
 ### 外部 parser 不满足 lossless 要求
 
-Wave 0 使用同一 acceptance corpus 比较；不满足逐字节 round-trip、error recovery 或扩展要求即拒绝。架构不依赖候选库的私有 AST。
+Wave 0 使用同一 acceptance corpus 比较；不满足 source string round-trip、error recovery 或扩展要求即拒绝。架构不依赖候选库的私有 AST。
 
 ### CST 内存开销
 
@@ -580,7 +586,7 @@ core 保持纯函数和平台无关；执行器属于 adapter。首发明确支�
 v2 只有在以下条件全部满足后才可以接管默认 formatter：
 
 1. 本次审计的全部 P0/P1 输入均有自动化回归并通过。
-2. lexer byte conservation、protected/verbatim preservation 和 output token equivalence 属性成立。
+2. lexer source conservation、protected/verbatim preservation 和 output token equivalence 属性成立。
 3. 完整 corpus 二次格式化结果不变。
 4. unknown/unsupported/failed 输入均不会产生破坏性编辑。
 5. clause、scope、list、spacing、width、config 和 capability 不存在第二权威来源。
