@@ -1,5 +1,6 @@
 .gitignore
 .codex
+.superpowers/**
 .github/**
 AGENTS.md
 docs/**
