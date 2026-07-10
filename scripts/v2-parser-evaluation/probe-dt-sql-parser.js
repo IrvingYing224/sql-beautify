@@ -65,6 +65,28 @@ function cold_start_samples(bundlePath) {
     return samples;
 }
 
+function require_analysis_evidence(candidate, testCase, sampleName) {
+    var result = candidate.analyze(testCase);
+    var failures = [];
+    if (!result || result.accepted !== true) {
+        failures.push('accepted must be true');
+    }
+    if (!result || !Array.isArray(result.errors) || result.errors.length > 0) {
+        failures.push('errors must be empty');
+    }
+    if (!result || !Number.isInteger(result.nodeCount) || result.nodeCount <= 0) {
+        failures.push('nodeCount must be greater than zero');
+    }
+    if (!result || result.nodeSpansValid !== true) {
+        failures.push('nodeSpansValid must be true');
+    }
+    if (failures.length > 0) {
+        throw new Error('invalid analysis evidence for ' + testCase.id + ' ' + sampleName
+            + ': ' + failures.join('; '));
+    }
+    return result;
+}
+
 function parse_samples(candidate, count) {
     var testCase = {
         id: 'scale-' + count,
@@ -74,11 +96,11 @@ function parse_samples(candidate, count) {
         atomicLexemes: [],
         tags: ['performance'],
     };
-    candidate.analyze(testCase);
+    require_analysis_evidence(candidate, testCase, 'warm-up');
     return [
-        measure(function() { candidate.analyze(testCase); }),
-        measure(function() { candidate.analyze(testCase); }),
-        measure(function() { candidate.analyze(testCase); }),
+        measure(function() { require_analysis_evidence(candidate, testCase, 'timed sample 1'); }),
+        measure(function() { require_analysis_evidence(candidate, testCase, 'timed sample 2'); }),
+        measure(function() { require_analysis_evidence(candidate, testCase, 'timed sample 3'); }),
     ];
 }
 

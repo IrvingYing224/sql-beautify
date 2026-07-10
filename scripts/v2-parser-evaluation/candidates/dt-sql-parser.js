@@ -52,34 +52,45 @@ function parser_for(dialect) {
     return instances[dialect];
 }
 
-function leaves_from_tokens(source, tokens) {
+function utf16_offsets_by_code_point(source) {
+    var offsets = [0];
+    var utf16Offset = 0;
+    Array.from(source).forEach(function(character) {
+        utf16Offset += character.length;
+        offsets.push(utf16Offset);
+    });
+    return offsets;
+}
+
+function leaves_from_tokens(source, tokens, utf16Offsets) {
     var usable = tokens.filter(function(token) {
         return Number.isInteger(token.start)
             && Number.isInteger(token.stop)
             && token.start >= 0
             && token.stop >= token.start
-            && token.start < source.length;
+            && token.stop + 1 < utf16Offsets.length;
     }).sort(function(left, right) {
         return left.start - right.start || left.stop - right.stop;
     });
     var leaves = [];
     var cursor = 0;
     usable.forEach(function(token) {
-        var end = Math.min(source.length, token.stop + 1);
-        if (token.start < cursor) {
+        var start = utf16Offsets[token.start];
+        var end = utf16Offsets[token.stop + 1];
+        if (start < cursor) {
             return;
         }
-        if (token.start > cursor) {
+        if (start > cursor) {
             leaves.push({
                 kind: 'gap',
-                raw: source.slice(cursor, token.start),
-                span: { start: cursor, end: token.start },
+                raw: source.slice(cursor, start),
+                span: { start: cursor, end: start },
             });
         }
         leaves.push({
             kind: token.channel == 0 ? 'token' : 'trivia',
-            raw: source.slice(token.start, end),
-            span: { start: token.start, end: end },
+            raw: source.slice(start, end),
+            span: { start: start, end: end },
         });
         cursor = end;
     });
@@ -100,9 +111,8 @@ function leaves_from_tokens(source, tokens) {
     return leaves;
 }
 
-function inspect_nodes(root, sourceLength) {
+function inspect_nodes(root, utf16Offsets) {
     var count = 0;
-    var rangedCount = 0;
     var invalidSpanCount = 0;
     var stack = root ? [root] : [];
     var seen = new Set();
@@ -112,20 +122,19 @@ function inspect_nodes(root, sourceLength) {
             continue;
         }
         seen.add(node);
-        count++;
-        var constructorName = node.constructor && node.constructor.name
-            ? node.constructor.name
-            : '';
-        if (/Context$/.test(constructorName)) {
-            rangedCount++;
+        if (Number.isInteger(node.ruleIndex) && node.ruleIndex >= 0) {
+            count++;
             if (!node.start || !node.stop
                 || !Number.isInteger(node.start.start)
                 || !Number.isInteger(node.stop.stop)) {
                 invalidSpanCount++;
             } else {
-                var start = node.start.start;
-                var end = node.stop.stop + 1;
-                if (start < 0 || end < start || end > sourceLength) {
+                var startIndex = node.start.start;
+                var endIndex = node.stop.stop + 1;
+                var start = utf16Offsets[startIndex];
+                var end = utf16Offsets[endIndex];
+                if (startIndex < 0 || endIndex < startIndex
+                    || start === undefined || end === undefined) {
                     invalidSpanCount++;
                 }
             }
@@ -138,12 +147,13 @@ function inspect_nodes(root, sourceLength) {
     }
     return {
         count: count,
-        valid: rangedCount > 0 && invalidSpanCount == 0,
+        valid: count > 0 && invalidSpanCount == 0,
     };
 }
 
 function analyze(testCase) {
     var parser = parser_for(testCase.dialect);
+    var utf16Offsets = utf16_offsets_by_code_point(testCase.source);
     var errors = [];
     var tokens = [];
     var root = null;
@@ -166,11 +176,11 @@ function analyze(testCase) {
             errors.push(error && error.message ? error.message : String(error));
         }
     }
-    var inspection = inspect_nodes(root, testCase.source.length);
+    var inspection = inspect_nodes(root, utf16Offsets);
     return {
         accepted: errors.length == 0,
         errors: errors,
-        leaves: leaves_from_tokens(testCase.source, tokens),
+        leaves: leaves_from_tokens(testCase.source, tokens, utf16Offsets),
         nodeCount: inspection.count,
         nodeSpansValid: inspection.valid,
     };
