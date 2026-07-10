@@ -16,10 +16,30 @@ function rate(passed, total) {
 }
 
 function license_allowed(value) {
-    var text = String(value || '');
-    return ALLOWED_LICENSES.some(function(license) {
-        return text.indexOf(license) >= 0;
-    });
+    return typeof value == 'string' && ALLOWED_LICENSES.indexOf(value) >= 0;
+}
+
+function rejected_result(message) {
+    return {
+        accepted: false,
+        errors: [message],
+        leaves: [],
+        nodeCount: 0,
+        nodeSpansValid: false,
+    };
+}
+
+function normalize_result(result) {
+    if (!result || typeof result != 'object' || Array.isArray(result)) {
+        return rejected_result('candidate returned malformed result');
+    }
+    return {
+        accepted: result.accepted === true,
+        errors: Array.isArray(result.errors) ? result.errors : [],
+        leaves: Array.isArray(result.leaves) ? result.leaves : [],
+        nodeCount: Number.isInteger(result.nodeCount) && result.nodeCount >= 0 ? result.nodeCount : 0,
+        nodeSpansValid: result.nodeSpansValid === true,
+    };
 }
 
 function assert_leaf_partition(source, leaves) {
@@ -39,15 +59,9 @@ function assert_leaf_partition(source, leaves) {
 function evaluate_case(candidate, testCase) {
     var result;
     try {
-        result = candidate.analyze(testCase);
+        result = normalize_result(candidate.analyze(testCase));
     } catch (error) {
-        result = {
-            accepted: false,
-            errors: [error && error.message ? error.message : String(error)],
-            leaves: [],
-            nodeCount: 0,
-            nodeSpansValid: false,
-        };
+        result = rejected_result(error && error.message ? error.message : String(error));
     }
     var roundTrip = true;
     try {
@@ -56,14 +70,16 @@ function evaluate_case(candidate, testCase) {
         roundTrip = false;
     }
     var atomicPassed = testCase.atomicLexemes.filter(function(lexeme) {
-        return result.leaves.some(function(leaf) { return leaf.raw == lexeme; });
+        return result.leaves.some(function(leaf) {
+            return leaf && typeof leaf.raw == 'string' && leaf.raw == lexeme;
+        });
     }).length;
     return {
         id: testCase.id,
         expectation: testCase.expectation,
         accepted: result.accepted === true,
         errors: Array.isArray(result.errors) ? result.errors : [],
-        nodeCount: Number(result.nodeCount || 0),
+        nodeCount: result.nodeCount,
         nodeSpansValid: result.nodeSpansValid === true,
         roundTrip: roundTrip,
         atomicPassed: atomicPassed,
@@ -83,7 +99,7 @@ function evaluate_candidate(candidate, cases, probe) {
         invalidRejectRate: rate(invalid.filter(function(item) { return !item.accepted; }).length, invalid.length),
         roundTripRate: rate(outcomes.filter(function(item) { return item.roundTrip; }).length, outcomes.length),
         requiredNodeSpanRate: rate(required.filter(function(item) {
-            return item.accepted && item.nodeSpansValid;
+            return item.accepted && item.nodeCount > 0 && item.nodeSpansValid;
         }).length, required.length),
         atomicLexemeRate: rate(atomicPassed, atomicTotal),
     };

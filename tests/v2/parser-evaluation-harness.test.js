@@ -45,6 +45,54 @@ var oracle = evaluator.evaluate_candidate(candidate(false), cases, probe({
 assert.strictEqual(oracle.decision.role, 'development-oracle');
 var rejected = evaluator.evaluate_candidate(candidate(true), cases, probe());
 assert.strictEqual(rejected.decision.role, 'rejected');
+function assertMalformedResultRejected(payload) {
+    var malformed = candidate(false);
+    malformed.analyze = function() { return payload; };
+    var result;
+    assert.doesNotThrow(function() {
+        result = evaluator.evaluate_candidate(malformed, cases, probe());
+    });
+    assert.strictEqual(result.decision.grammarPass, false);
+    assert.strictEqual(result.decision.role, 'rejected');
+}
+assertMalformedResultRejected({
+    accepted: true,
+    errors: [],
+    leaves: [null],
+    nodeCount: 1,
+    nodeSpansValid: true,
+});
+assertMalformedResultRejected(null);
+assertMalformedResultRejected({
+    accepted: true,
+    errors: [],
+    nodeCount: 1,
+    nodeSpansValid: true,
+});
+var emptyTree = candidate(false);
+var analyzeWithNodes = emptyTree.analyze;
+emptyTree.analyze = function(testCase) {
+    var result = analyzeWithNodes(testCase);
+    if (testCase.expectation == 'required') {
+        result.nodeCount = 0;
+        result.nodeSpansValid = true;
+    }
+    return result;
+};
+var emptyTreeResult = evaluator.evaluate_candidate(emptyTree, cases, probe());
+assert.strictEqual(emptyTreeResult.summary.requiredNodeSpanRate, 0);
+assert.strictEqual(emptyTreeResult.decision.grammarPass, false);
+assert.strictEqual(emptyTreeResult.decision.role, 'rejected');
+var compoundBundledLicenseResult = evaluator.evaluate_candidate(candidate(false), cases, probe({
+    bundledPackages: [{ name: 'bad', version: '1.0.0', license: 'GPL-3.0 WITH MIT exception' }],
+}));
+assert.strictEqual(compoundBundledLicenseResult.decision.licensePass, false);
+assert.strictEqual(compoundBundledLicenseResult.decision.role, 'rejected');
+var compoundCandidateLicense = candidate(false);
+compoundCandidateLicense.metadata.license = 'MIT OR GPL-3.0';
+var compoundCandidateLicenseResult = evaluator.evaluate_candidate(compoundCandidateLicense, cases, probe());
+assert.strictEqual(compoundCandidateLicenseResult.decision.licensePass, false);
+assert.strictEqual(compoundCandidateLicenseResult.decision.role, 'rejected');
 assert.throws(function() {
     evaluator.assert_leaf_partition('abc', [
         { raw: 'a', span: { start: 0, end: 1 } },
