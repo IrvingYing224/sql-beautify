@@ -29,6 +29,18 @@ function is_non_empty_string(value) {
     return typeof value == 'string' && value.trim().length > 0;
 }
 
+function is_dense_array(value) {
+    if (!Array.isArray(value)) {
+        return false;
+    }
+    for (var index = 0; index < value.length; index++) {
+        if (!Object.prototype.hasOwnProperty.call(value, index)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function assert_candidate_schema(candidate) {
     assert.ok(is_object(candidate), 'candidate must be an object');
     assert.ok(is_object(candidate.metadata), 'candidate metadata must be an object');
@@ -43,14 +55,16 @@ function assert_candidate_schema(candidate) {
 
 function assert_cases_schema(cases) {
     assert.ok(Array.isArray(cases) && cases.length > 0, 'evaluation cases must be a non-empty array');
+    assert.ok(is_dense_array(cases), 'evaluation cases must be a dense array');
     var ids = Object.create(null);
     var requiredCount = 0;
     var invalidCount = 0;
     var atomicTotal = 0;
-    cases.forEach(function(testCase, index) {
-        var label = is_non_empty_string(testCase && testCase.id) ? testCase.id : String(index);
-        assert.ok(is_object(testCase), 'case ' + index + ' must be an object');
-        assert.ok(is_non_empty_string(testCase.id), 'case ' + index + ' id must be a non-empty string');
+    for (var caseIndex = 0; caseIndex < cases.length; caseIndex++) {
+        var testCase = cases[caseIndex];
+        var label = is_non_empty_string(testCase && testCase.id) ? testCase.id : String(caseIndex);
+        assert.ok(is_object(testCase), 'case ' + caseIndex + ' must be an object');
+        assert.ok(is_non_empty_string(testCase.id), 'case ' + caseIndex + ' id must be a non-empty string');
         assert.ok(!ids[testCase.id], 'case ids must be unique: ' + testCase.id);
         ids[testCase.id] = true;
         assert.ok(
@@ -63,17 +77,27 @@ function assert_cases_schema(cases) {
         );
         assert.ok(is_non_empty_string(testCase.source), 'case ' + label + ' source must be a non-empty string');
         assert.ok(Array.isArray(testCase.atomicLexemes), 'case ' + label + ' atomicLexemes must be an array');
+        assert.ok(is_dense_array(testCase.atomicLexemes), 'case ' + label + ' atomicLexemes must be a dense array');
         var atomicValues = Object.create(null);
-        testCase.atomicLexemes.forEach(function(lexeme) {
+        for (var atomicIndex = 0; atomicIndex < testCase.atomicLexemes.length; atomicIndex++) {
+            var lexeme = testCase.atomicLexemes[atomicIndex];
             assert.ok(
                 is_non_empty_string(lexeme) && testCase.source.indexOf(lexeme) >= 0,
                 'case ' + label + ' atomic lexeme must be a non-empty source substring'
             );
             assert.ok(!atomicValues[lexeme], 'case ' + label + ' atomic lexemes must be unique');
             atomicValues[lexeme] = true;
-        });
+        }
         assert.ok(Array.isArray(testCase.tags), 'case ' + label + ' tags must be an array');
-        assert.ok(testCase.tags.every(is_non_empty_string), 'case ' + label + ' tags must contain non-empty strings');
+        assert.ok(is_dense_array(testCase.tags), 'case ' + label + ' tags must be a dense array');
+        var tagsValid = true;
+        for (var tagIndex = 0; tagIndex < testCase.tags.length; tagIndex++) {
+            if (!is_non_empty_string(testCase.tags[tagIndex])) {
+                tagsValid = false;
+                break;
+            }
+        }
+        assert.ok(tagsValid, 'case ' + label + ' tags must contain non-empty strings');
         if (testCase.expectation == 'required') {
             requiredCount++;
         }
@@ -81,7 +105,7 @@ function assert_cases_schema(cases) {
             invalidCount++;
         }
         atomicTotal += testCase.atomicLexemes.length;
-    });
+    }
     assert.ok(requiredCount > 0, 'evaluation corpus must include a required case');
     assert.ok(invalidCount > 0, 'evaluation corpus must include an invalid case');
     assert.ok(atomicTotal > 0, 'evaluation corpus must include atomic lexeme evidence');
@@ -131,15 +155,17 @@ function assert_probe_schema(probe) {
         Array.isArray(probe.bundledPackages) && probe.bundledPackages.length > 0,
         'probe bundledPackages must be a non-empty array'
     );
-    probe.bundledPackages.forEach(function(item, index) {
-        assert.ok(is_object(item), 'probe bundled package ' + index + ' must be an object');
+    assert.ok(is_dense_array(probe.bundledPackages), 'probe bundledPackages must be a dense array');
+    for (var packageIndex = 0; packageIndex < probe.bundledPackages.length; packageIndex++) {
+        var item = probe.bundledPackages[packageIndex];
+        assert.ok(is_object(item), 'probe bundled package ' + packageIndex + ' must be an object');
         ['name', 'version', 'license'].forEach(function(field) {
             assert.ok(
                 is_non_empty_string(item[field]),
-                'probe bundled package ' + index + ' ' + field + ' must be a non-empty string'
+                'probe bundled package ' + packageIndex + ' ' + field + ' must be a non-empty string'
             );
         });
-    });
+    }
 }
 
 function rejected_result(message) {
@@ -157,58 +183,81 @@ function normalize_result(result) {
     if (!result || typeof result != 'object' || Array.isArray(result)) {
         return rejected_result('candidate returned malformed result');
     }
+    var accepted = result.accepted;
+    var errors = result.errors;
+    var leaves = result.leaves;
+    var nodeCount = result.nodeCount;
+    var nodeSpansValid = result.nodeSpansValid;
     var failures = [];
-    if (typeof result.accepted != 'boolean') {
+    if (typeof accepted != 'boolean') {
         failures.push('accepted must be a boolean');
     }
-    if (!Array.isArray(result.errors)
-        || !result.errors.every(is_non_empty_string)) {
+    var errorsValid = is_dense_array(errors);
+    if (errorsValid) {
+        for (var errorIndex = 0; errorIndex < errors.length; errorIndex++) {
+            if (!is_non_empty_string(errors[errorIndex])) {
+                errorsValid = false;
+                break;
+            }
+        }
+    }
+    if (!errorsValid) {
         failures.push('errors must be an array of non-empty strings');
     }
-    if (!Array.isArray(result.leaves) || !result.leaves.every(function(leaf) {
-        return is_object(leaf)
-            && is_non_empty_string(leaf.kind)
-            && typeof leaf.raw == 'string'
-            && is_object(leaf.span)
-            && Number.isInteger(leaf.span.start)
-            && Number.isInteger(leaf.span.end)
-            && leaf.span.start >= 0
-            && leaf.span.end >= leaf.span.start;
-    })) {
+    var leavesValid = is_dense_array(leaves);
+    if (leavesValid) {
+        for (var leafIndex = 0; leafIndex < leaves.length; leafIndex++) {
+            var leaf = leaves[leafIndex];
+            if (!is_object(leaf)
+                || !is_non_empty_string(leaf.kind)
+                || typeof leaf.raw != 'string'
+                || !is_object(leaf.span)
+                || !Number.isInteger(leaf.span.start)
+                || !Number.isInteger(leaf.span.end)
+                || leaf.span.start < 0
+                || leaf.span.end < leaf.span.start) {
+                leavesValid = false;
+                break;
+            }
+        }
+    }
+    if (!leavesValid) {
         failures.push('leaves must contain structurally valid source leaves');
     }
-    if (!Number.isInteger(result.nodeCount) || result.nodeCount < 0) {
+    if (!Number.isInteger(nodeCount) || nodeCount < 0) {
         failures.push('nodeCount must be a non-negative integer');
     }
-    if (typeof result.nodeSpansValid != 'boolean') {
+    if (typeof nodeSpansValid != 'boolean') {
         failures.push('nodeSpansValid must be a boolean');
     }
-    if (result.accepted === true && Array.isArray(result.errors) && result.errors.length > 0) {
+    if (accepted === true && Array.isArray(errors) && errors.length > 0) {
         failures.push('accepted result must not include errors');
     }
     if (failures.length > 0) {
         return rejected_result('candidate returned malformed result: ' + failures.join('; '));
     }
     return {
-        accepted: result.accepted,
-        errors: result.errors,
-        leaves: result.leaves,
-        nodeCount: result.nodeCount,
-        nodeSpansValid: result.nodeSpansValid,
-        rejectionEvidence: result.accepted === false && result.errors.length > 0,
+        accepted: accepted,
+        errors: errors,
+        leaves: leaves,
+        nodeCount: nodeCount,
+        nodeSpansValid: nodeSpansValid,
+        rejectionEvidence: accepted === false && errors.length > 0,
     };
 }
 
 function assert_leaf_partition(source, leaves) {
     assert.ok(Array.isArray(leaves), 'candidate leaves must be an array');
+    assert.ok(is_dense_array(leaves), 'candidate leaves must be a dense array');
     var cursor = 0;
     var rebuilt = '';
-    leaves.forEach(function(leaf, index) {
-        assert.strictEqual(leaf.span.start, cursor, 'leaf partition must be gap-free at ' + index);
-        assert.strictEqual(leaf.span.end, leaf.span.start + leaf.raw.length, 'leaf end at ' + index);
+    for (var leafIndex = 0; leafIndex < leaves.length; leafIndex++) {
+        var leaf = leaves[leafIndex];
+        assert.strictEqual(leaf.span.start, cursor, 'leaf partition must be gap-free at ' + leafIndex);
+        assert.strictEqual(leaf.span.end, leaf.span.start + leaf.raw.length, 'leaf end at ' + leafIndex);
         rebuilt += leaf.raw;
         cursor = leaf.span.end;
-    });
+    }
     assert.strictEqual(cursor, source.length, 'leaf partition must cover source');
     assert.strictEqual(rebuilt, source, 'leaf raw values must rebuild source');
 }
@@ -237,11 +286,17 @@ function evaluate_case(candidate, testCase) {
     } catch (error) {
         roundTrip = false;
     }
-    var atomicPassed = testCase.atomicLexemes.filter(function(lexeme) {
-        return result.leaves.some(function(leaf) {
-            return leaf && typeof leaf.raw == 'string' && leaf.raw == lexeme;
-        });
-    }).length;
+    var atomicPassed = 0;
+    for (var atomicIndex = 0; atomicIndex < testCase.atomicLexemes.length; atomicIndex++) {
+        var lexeme = testCase.atomicLexemes[atomicIndex];
+        for (var leafIndex = 0; leafIndex < result.leaves.length; leafIndex++) {
+            var leaf = result.leaves[leafIndex];
+            if (leaf && typeof leaf.raw == 'string' && leaf.raw == lexeme) {
+                atomicPassed++;
+                break;
+            }
+        }
+    }
     return {
         id: testCase.id,
         expectation: testCase.expectation,
@@ -260,7 +315,10 @@ function evaluate_candidate(candidate, cases, probe) {
     assert_candidate_schema(candidate);
     assert_cases_schema(cases);
     assert_probe_schema(probe);
-    var outcomes = cases.map(function(testCase) { return evaluate_case(candidate, testCase); });
+    var outcomes = [];
+    for (var caseIndex = 0; caseIndex < cases.length; caseIndex++) {
+        outcomes.push(evaluate_case(candidate, cases[caseIndex]));
+    }
     var required = outcomes.filter(function(item) { return item.expectation == 'required'; });
     var invalid = outcomes.filter(function(item) { return item.expectation == 'invalid'; });
     var atomicPassed = outcomes.reduce(function(total, item) { return total + item.atomicPassed; }, 0);
@@ -275,9 +333,10 @@ function evaluate_candidate(candidate, cases, probe) {
         }).length, required.length),
         atomicLexemeRate: rate(atomicPassed, atomicTotal),
     };
-    var licensePass = license_allowed(candidate.metadata.license)
-        && probe.bundledPackages.length > 0
-        && probe.bundledPackages.every(function(item) { return license_allowed(item.license); });
+    var licensePass = license_allowed(candidate.metadata.license) && probe.bundledPackages.length > 0;
+    for (var packageIndex = 0; licensePass && packageIndex < probe.bundledPackages.length; packageIndex++) {
+        licensePass = license_allowed(probe.bundledPackages[packageIndex].license);
+    }
     var grammarPass = summary.requiredParseRate >= GATES.requiredParseRate
         && summary.invalidRejectRate >= GATES.invalidRejectRate
         && summary.roundTripRate >= GATES.roundTripRate

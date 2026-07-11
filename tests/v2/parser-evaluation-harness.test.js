@@ -94,6 +94,11 @@ expectSchemaError('corpus array', function() {
 expectSchemaError('non-empty corpus', function() {
     evaluator.evaluate_candidate(candidate(false), [], probe());
 }, /evaluation cases must be a non-empty array/);
+expectSchemaError('dense corpus', function() {
+    var sparseCases = cases.slice();
+    delete sparseCases[0];
+    evaluator.evaluate_candidate(candidate(false), sparseCases, probe());
+}, /evaluation cases must be a dense array/);
 expectSchemaError('required denominator', function() {
     evaluator.evaluate_candidate(candidate(false), [
         { id: 'invalid-only', dialect: 'hive', expectation: 'invalid', source: "'", atomicLexemes: ["'"], tags: [] },
@@ -134,11 +139,21 @@ expectSchemaError('atomic lexeme value', function() {
     malformedCases[1].atomicLexemes = ['missing'];
     evaluator.evaluate_candidate(candidate(false), malformedCases, probe());
 }, /case atomic atomic lexeme must be a non-empty source substring/);
+expectSchemaError('dense atomic lexemes', function() {
+    var malformedCases = cases.map(function(testCase) { return Object.assign({}, testCase); });
+    malformedCases[1].atomicLexemes = new Array(1);
+    evaluator.evaluate_candidate(candidate(false), malformedCases, probe());
+}, /case atomic atomicLexemes must be a dense array/);
 expectSchemaError('tag value', function() {
     var malformedCases = cases.map(function(testCase) { return Object.assign({}, testCase); });
     malformedCases[0].tags = [null];
     evaluator.evaluate_candidate(candidate(false), malformedCases, probe());
 }, /case required tags must contain non-empty strings/);
+expectSchemaError('dense tags', function() {
+    var malformedCases = cases.map(function(testCase) { return Object.assign({}, testCase); });
+    malformedCases[0].tags = new Array(1);
+    evaluator.evaluate_candidate(candidate(false), malformedCases, probe());
+}, /case required tags must be a dense array/);
 
 expectSchemaError('probe object', function() {
     evaluator.evaluate_candidate(candidate(false), cases, null);
@@ -218,6 +233,9 @@ expectSchemaError('probe directLoad success contradiction', function() {
 expectSchemaError('probe package list', function() {
     evaluator.evaluate_candidate(candidate(false), cases, probe({ bundledPackages: [] }));
 }, /probe bundledPackages must be a non-empty array/);
+expectSchemaError('dense probe package list', function() {
+    evaluator.evaluate_candidate(candidate(false), cases, probe({ bundledPackages: new Array(1) }));
+}, /probe bundledPackages must be a dense array/);
 expectSchemaError('probe malformed package', function() {
     evaluator.evaluate_candidate(candidate(false), cases, probe({ bundledPackages: [null] }));
 }, /probe bundled package 0 must be an object/);
@@ -250,6 +268,28 @@ checkResultContract('malformed errors are contained without rejection evidence',
         return result;
     };
     var result = evaluator.evaluate_candidate(malformedErrors, cases, probe());
+    var invalidOutcome = result.outcomes.filter(function(item) { return item.expectation == 'invalid'; })[0];
+    assert.strictEqual(invalidOutcome.accepted, false);
+    assert.strictEqual(invalidOutcome.rejectionEvidence, false);
+    assert.ok(/malformed result/.test(invalidOutcome.errors[0]));
+    assert.strictEqual(result.summary.invalidRejectRate, 0);
+    assert.strictEqual(result.decision.role, 'rejected');
+});
+
+checkResultContract('sparse errors are contained without rejection evidence', function() {
+    var sparseErrors = candidate(false);
+    var validAnalyze = sparseErrors.analyze;
+    sparseErrors.analyze = function(testCase) {
+        var result = validAnalyze(testCase);
+        if (testCase.expectation == 'invalid') {
+            result.errors = new Array(1);
+        }
+        return result;
+    };
+    var result;
+    assert.doesNotThrow(function() {
+        result = evaluator.evaluate_candidate(sparseErrors, cases, probe());
+    });
     var invalidOutcome = result.outcomes.filter(function(item) { return item.expectation == 'invalid'; })[0];
     assert.strictEqual(invalidOutcome.accepted, false);
     assert.strictEqual(invalidOutcome.rejectionEvidence, false);
@@ -338,6 +378,28 @@ checkResultContract('malformed leaf result is explicit and contained', function(
     assert.strictEqual(result.decision.role, 'rejected');
 });
 
+checkResultContract('sparse leaves are explicit and contained', function() {
+    var sparseLeaves = candidate(false);
+    var validAnalyze = sparseLeaves.analyze;
+    sparseLeaves.analyze = function(testCase) {
+        var result = validAnalyze(testCase);
+        if (testCase.expectation == 'invalid') {
+            result.leaves = new Array(1);
+        }
+        return result;
+    };
+    var result;
+    assert.doesNotThrow(function() {
+        result = evaluator.evaluate_candidate(sparseLeaves, cases, probe());
+    });
+    var invalidOutcome = result.outcomes.filter(function(item) { return item.expectation == 'invalid'; })[0];
+    assert.strictEqual(invalidOutcome.accepted, false);
+    assert.strictEqual(invalidOutcome.rejectionEvidence, false);
+    assert.ok(/malformed result/.test(invalidOutcome.errors[0]));
+    assert.strictEqual(result.summary.invalidRejectRate, 0);
+    assert.strictEqual(result.decision.role, 'rejected');
+});
+
 checkResultContract('throwing result field is contained', function() {
     var throwingResultField = candidate(false);
     var validAnalyze = throwingResultField.analyze;
@@ -362,6 +424,45 @@ checkResultContract('throwing result field is contained', function() {
     assert.strictEqual(requiredOutcome.rejectionEvidence, false);
     assert.ok(/candidate result inspection threw/.test(requiredOutcome.errors[0]));
     assert.strictEqual(result.decision.role, 'rejected');
+});
+
+function shadowArrayMethods(array) {
+    var methods = ['map', 'filter', 'some', 'every', 'forEach'];
+    for (var index = 0; index < methods.length; index++) {
+        Object.defineProperty(array, methods[index], {
+            value: function() {
+                throw new Error('evidence array method was invoked');
+            },
+        });
+    }
+    return array;
+}
+
+checkResultContract('shadowed evidence array methods are not invoked', function() {
+    var shadowedCases = cases.map(function(testCase) {
+        var clonedCase = Object.assign({}, testCase);
+        clonedCase.atomicLexemes = shadowArrayMethods(testCase.atomicLexemes.slice());
+        clonedCase.tags = shadowArrayMethods(testCase.tags.slice());
+        return clonedCase;
+    });
+    shadowArrayMethods(shadowedCases);
+    var shadowedProbe = probe({
+        bundledPackages: shadowArrayMethods(probe().bundledPackages.slice()),
+    });
+    var shadowedCandidate = candidate(false);
+    var validAnalyze = shadowedCandidate.analyze;
+    shadowedCandidate.analyze = function(testCase) {
+        var result = validAnalyze(testCase);
+        result.errors = shadowArrayMethods(result.errors);
+        result.leaves = shadowArrayMethods(result.leaves);
+        return result;
+    };
+    var result;
+    assert.doesNotThrow(function() {
+        result = evaluator.evaluate_candidate(shadowedCandidate, shadowedCases, shadowedProbe);
+    });
+    assert.strictEqual(result.decision.role, 'runtime-grammar-backend');
+    assert.strictEqual(result.decision.canOwnLeafStream, true);
 });
 
 assert.deepStrictEqual(resultContractFailures, [], 'candidate result failures must be contained and fail closed');
