@@ -2,11 +2,19 @@ var assert = require('assert');
 var cases = require('../fixtures/v2-parser-evaluation-cases');
 var evaluator = require('../../scripts/v2-parser-evaluation/evaluator');
 var candidate = require('../../scripts/v2-parser-evaluation/candidates/dt-sql-parser');
-var probeDtSqlParser = require('../../scripts/v2-parser-evaluation/probe-dt-sql-parser').probe_dt_sql_parser;
+var probeModule = require('../../scripts/v2-parser-evaluation/probe-dt-sql-parser');
+var probeDtSqlParser = probeModule.probe_dt_sql_parser;
 
 assert.strictEqual(candidate.metadata.name, 'dt-sql-parser');
 assert.strictEqual(candidate.metadata.version, '4.5.0');
 assert.ok(candidate.metadata.license.indexOf('MIT') >= 0);
+var directLoad = probeModule.observe_direct_load();
+assert.strictEqual(typeof directLoad.success, 'boolean', 'direct load success observation');
+if (directLoad.success) {
+    assert.strictEqual(directLoad.errorCode, null, 'successful direct load has no error code');
+} else {
+    assert.ok(/^[A-Z][A-Z0-9_]*$/.test(directLoad.errorCode), 'failed direct load stable error code');
+}
 cases.forEach(function(testCase) {
     var result = candidate.analyze(testCase);
     assert.strictEqual(typeof result.accepted, 'boolean', testCase.id + ' accepted');

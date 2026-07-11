@@ -748,6 +748,8 @@ Expected: targeted and 1.x regression tests pass, then one corpus-only commit is
 - Consumes: Task 2 case schema and a candidate with `metadata` and `analyze(testCase)`.
 - Produces: `evaluate_candidate`, `assert_leaf_partition`, `GATES`, and a closed decision role.
 
+> **Post-implementation erratum (2026-07-11):** The original Task 3 example below is fail-open for empty denominators and malformed evidence. The governing design requires complete candidate/corpus/probe schema validation to abort evaluation before classification, while per-case candidate failures remain contained and fail closed; the hardened implementation and regression tests supersede the example behavior.
+
 - [ ] **Step 1: Add the failing evaluator test**
 
 Create `tests/v2/parser-evaluation-harness.test.js`:

@@ -49,6 +49,25 @@ function bundled_packages(metafile) {
     });
 }
 
+function observe_direct_load() {
+    try {
+        require('dt-sql-parser');
+        return {
+            success: true,
+            errorCode: null,
+        };
+    } catch (error) {
+        var errorCode = error && typeof error.code == 'string'
+            && /^[A-Z][A-Z0-9_]*$/.test(error.code)
+            ? error.code
+            : 'ERR_DIRECT_LOAD_FAILED';
+        return {
+            success: false,
+            errorCode: errorCode,
+        };
+    }
+}
+
 function cold_start_samples(bundlePath) {
     var script = path.join(__dirname, 'cold-start.js');
     var samples = [];
@@ -105,6 +124,7 @@ function parse_samples(candidate, count) {
 }
 
 function probe_dt_sql_parser(candidate) {
+    var directLoad = observe_direct_load();
     var outputDir = path.join(process.cwd(), '.tmp', 'v2-parser-evaluation');
     var outputFile = path.join(outputDir, 'dt-sql-parser.cjs');
     fs.mkdirSync(outputDir, { recursive: true });
@@ -139,8 +159,10 @@ function probe_dt_sql_parser(candidate) {
             arch: process.arch,
             cpu: os.cpus()[0] ? os.cpus()[0].model : 'unknown',
         },
+        directLoad: directLoad,
         bundledPackages: bundled_packages(build.metafile),
     };
 }
 
+exports.observe_direct_load = observe_direct_load;
 exports.probe_dt_sql_parser = probe_dt_sql_parser;

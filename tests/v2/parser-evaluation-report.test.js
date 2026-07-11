@@ -7,12 +7,15 @@ var reportPath = path.join(__dirname, '..', '..', 'docs', 'technical', 'v2-parse
 var adrPath = path.join(__dirname, '..', '..', 'docs', 'technical', 'adr', '0001-v2-parser-backend.md');
 var report = fs.readFileSync(reportPath, 'utf8');
 var adr = fs.readFileSync(adrPath, 'utf8');
-var methodEvidence = [
-    'On the recorded Node environment, directly loading pinned `dt-sql-parser@4.5.0` produced `ERR_UNSUPPORTED_DIR_IMPORT`.',
+var sharedMethodEvidence = [
     'Evaluation uses a dev-only esbuild CommonJS (CJS) interoperability bundle; the minified and gzip bundle byte measurements remain recorded against their thresholds.',
     'Cold start measures loading that bundle, constructing `HiveSQL`, and validating `SELECT 1`.',
     '`maxRssKb` is the evaluation process upper watermark, not isolated parser heap.',
 ];
+var fixtureDirectLoadEvidence = 'On the recorded Node environment, directly loading pinned '
+    + '`dt-sql-parser@4.5.0` failed with stable error code `ERR_FIXTURE_DIRECT_LOAD`.';
+var committedDirectLoadEvidence = 'On the recorded Node environment, directly loading pinned '
+    + '`dt-sql-parser@4.5.0` failed with stable error code `ERR_UNSUPPORTED_DIR_IMPORT`.';
 var fixture = {
     candidate: {
         name: 'dt-sql-parser',
@@ -64,6 +67,10 @@ var fixture = {
             arch: 'x64',
             cpu: 'Fixture CPU',
         },
+        directLoad: {
+            success: false,
+            errorCode: 'ERR_FIXTURE_DIRECT_LOAD',
+        },
         bundledPackages: [
             { name: 'fixture-package', version: '1.0.0', license: 'MIT' },
         ],
@@ -99,10 +106,26 @@ assert.ok(
     renderedReport.indexOf('| Case | Expected | Accepted | Errors | Round trip | Node ranges | Nodes | Atomic passed/total |') >= 0,
     'fixture report per-case evidence columns'
 );
-methodEvidence.forEach(function(fragment) {
+sharedMethodEvidence.concat([fixtureDirectLoadEvidence]).forEach(function(fragment) {
     assert.ok(renderedReport.indexOf(fragment) >= 0, 'fixture report method evidence: ' + fragment);
     assert.ok(renderedAdr.indexOf(fragment) >= 0, 'fixture ADR method evidence: ' + fragment);
 });
+assert.strictEqual(
+    renderedReport.indexOf('ERR_UNSUPPORTED_DIR_IMPORT'),
+    -1,
+    'fixture report must not hardcode the committed direct-load error'
+);
+var successfulDirectLoadFixture = Object.assign({}, fixture, {
+    probe: Object.assign({}, fixture.probe, {
+        directLoad: { success: true, errorCode: null },
+    }),
+});
+var successfulDirectLoadReport = renderer.render_report(successfulDirectLoadFixture);
+var successfulDirectLoadAdr = renderer.render_adr(successfulDirectLoadFixture);
+var successfulDirectLoadEvidence = 'On the recorded Node environment, directly loading pinned '
+    + '`dt-sql-parser@4.5.0` succeeded.';
+assert.ok(successfulDirectLoadReport.indexOf(successfulDirectLoadEvidence) >= 0, 'fixture report direct-load success');
+assert.ok(successfulDirectLoadAdr.indexOf(successfulDirectLoadEvidence) >= 0, 'fixture ADR direct-load success');
 assert.ok(
     renderedReport.indexOf('| fixture-invalid | invalid | false | unexpected &#124; token<br>second &lt;line&gt;<br>path&#92;tail &amp; detail | true | false | 0 | 1/2 |') >= 0,
     'fixture report renders safe errors and atomic counts'
@@ -123,7 +146,7 @@ assert.ok(report.indexOf('8x scale ratio') >= 0, 'committed scaling evidence');
 assert.ok(report.indexOf('Maximum RSS KiB') >= 0, 'committed memory evidence');
 assert.ok(report.indexOf('## Evaluation Method and Limitations') >= 0, 'committed report method section');
 assert.ok(adr.indexOf('## Evaluation Method and Limitations') >= 0, 'committed ADR method section');
-methodEvidence.forEach(function(fragment) {
+sharedMethodEvidence.concat([committedDirectLoadEvidence]).forEach(function(fragment) {
     assert.ok(report.indexOf(fragment) >= 0, 'committed report method evidence: ' + fragment);
     assert.ok(adr.indexOf(fragment) >= 0, 'committed ADR method evidence: ' + fragment);
 });
@@ -159,6 +182,15 @@ var adrRole = adr.match(/^- Decision role: (runtime-grammar-backend|development-
 assert.ok(reportRole, 'committed report closed decision role');
 assert.ok(adrRole, 'committed ADR closed decision role');
 assert.strictEqual(adrRole[1], reportRole[1], 'committed documents agree on decision role');
+var grammarGate = report.match(/^- Grammar: (pass|fail)$/m);
+var packagingGate = report.match(/^- Packaging: (pass|fail)$/m);
+assert.ok(grammarGate, 'committed report grammar gate');
+assert.ok(packagingGate, 'committed report packaging gate');
+assert.deepStrictEqual(
+    [reportRole[1], grammarGate[1], packagingGate[1]],
+    ['rejected', 'fail', 'fail'],
+    'committed measured role and failed grammar/package gates'
+);
 assert.ok(adr.indexOf('Status: Accepted') >= 0, 'accepted ADR');
 assert.ok(adr.indexOf('project-owned lossless lexer') >= 0, 'owned lexer decision');
 

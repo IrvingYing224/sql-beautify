@@ -10,13 +10,19 @@ function environment(value) {
     return value.node + ' / ' + value.platform + '-' + value.arch + ' / ' + value.cpu;
 }
 
+function direct_load_evidence(report) {
+    var prefix = '- On the recorded Node environment, directly loading pinned `'
+        + report.candidate.name + '@' + report.candidate.version + '` ';
+    return report.probe.directLoad.success
+        ? prefix + 'succeeded.'
+        : prefix + 'failed with stable error code `' + report.probe.directLoad.errorCode + '`.';
+}
+
 function evaluation_method_and_limitations(report) {
     return [
         '## Evaluation Method and Limitations',
         '',
-        '- On the recorded Node environment, directly loading pinned `'
-            + report.candidate.name + '@' + report.candidate.version
-            + '` produced `ERR_UNSUPPORTED_DIR_IMPORT`.',
+        direct_load_evidence(report),
         '- Evaluation uses a dev-only esbuild CommonJS (CJS) interoperability bundle; the minified and gzip bundle byte measurements remain recorded against their thresholds.',
         '- Cold start measures loading that bundle, constructing `HiveSQL`, and validating `SELECT 1`.',
         '- `maxRssKb` is the evaluation process upper watermark, not isolated parser heap.',

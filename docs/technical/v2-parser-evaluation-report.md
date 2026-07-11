@@ -21,17 +21,17 @@
 | --- | ---: | ---: |
 | Minified bundle bytes | 7415519 | <= 5242880 |
 | Gzip bundle bytes | 1263579 | <= 1572864 |
-| Cold start median ms | 369.27 | <= 400 |
-| 100 statement median ms | 10.00 | baseline |
-| 800 statement median ms | 63.80 | baseline |
-| 1200 statement median ms | 96.09 | baseline |
-| 8x scale ratio | 6.38 | <= 12 |
-| Maximum RSS KiB | 564384 | baseline |
+| Cold start median ms | 348.91 | <= 400 |
+| 100 statement median ms | 8.37 | baseline |
+| 800 statement median ms | 62.49 | baseline |
+| 1200 statement median ms | 91.51 | baseline |
+| 8x scale ratio | 7.47 | <= 12 |
+| Maximum RSS KiB | 535648 | baseline |
 | Environment | v24.18.0 / darwin-arm64 / Apple M1 Pro | recorded |
 
 ## Evaluation Method and Limitations
 
-- On the recorded Node environment, directly loading pinned `dt-sql-parser@4.5.0` produced `ERR_UNSUPPORTED_DIR_IMPORT`.
+- On the recorded Node environment, directly loading pinned `dt-sql-parser@4.5.0` failed with stable error code `ERR_UNSUPPORTED_DIR_IMPORT`.
 - Evaluation uses a dev-only esbuild CommonJS (CJS) interoperability bundle; the minified and gzip bundle byte measurements remain recorded against their thresholds.
 - Cold start measures loading that bundle, constructing `HiveSQL`, and validating `SELECT 1`.
 - `maxRssKb` is the evaluation process upper watermark, not isolated parser heap.
