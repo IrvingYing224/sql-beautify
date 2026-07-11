@@ -7,15 +7,31 @@ var reportPath = path.join(__dirname, '..', '..', 'docs', 'technical', 'v2-parse
 var adrPath = path.join(__dirname, '..', '..', 'docs', 'technical', 'adr', '0001-v2-parser-backend.md');
 var report = fs.readFileSync(reportPath, 'utf8');
 var adr = fs.readFileSync(adrPath, 'utf8');
+var packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
+assert.strictEqual(
+    packageJson.scripts['verify:v2:parser-evidence'],
+    'node scripts/v2-parser-evaluation/run.js --verify',
+    'verify-only evidence command must be explicit and non-writing'
+);
+assert.strictEqual(
+    packageJson.scripts['evaluate:v2:parser'],
+    'node scripts/v2-parser-evaluation/run.js --write',
+    'report generation must be separate from verification'
+);
 var sharedMethodEvidence = [
-    'Evaluation uses a dev-only esbuild CommonJS (CJS) interoperability bundle; the minified and gzip bundle byte measurements remain recorded against their thresholds.',
-    'Cold start measures loading that bundle, constructing `HiveSQL`, and validating `SELECT 1`.',
+    'Packaging measures a tree-shaken ESM named `HiveSQL` entry emitted as CommonJS for Node/VS Code cold start.',
+    'Candidate evaluation loads a separate ESM named-import entry containing only Hive, generic, PostgreSQL, and MySQL constructors.',
+    'Source reconstruction includes explicit synthetic fallback leaves; it proves containment and preservation, not native candidate token ownership.',
+    'Native partition, non-trivia coverage, and atomic metrics count candidate-origin evidence only.',
+    'Candidate leaf ownership requires the source reconstruction gate plus native partition, non-trivia coverage, and atomic-lexeme gates; it does not inherit unrelated grammar gates.',
+    'Cold start requires the built CommonJS artifact, constructs `HiveSQL`, and verifies that `SELECT 1` has no syntax diagnostics.',
     '`maxRssKb` is the evaluation process upper watermark, not isolated parser heap.',
 ];
 var fixtureDirectLoadEvidence = 'On the recorded Node environment, directly loading pinned '
     + '`dt-sql-parser@4.5.0` failed with stable error code `ERR_FIXTURE_DIRECT_LOAD`.';
-var committedDirectLoadEvidence = 'On the recorded Node environment, directly loading pinned '
-    + '`dt-sql-parser@4.5.0` failed with stable error code `ERR_UNSUPPORTED_DIR_IMPORT`.';
+var committedDirectLoadMatch = report.match(/^- (On the recorded Node environment, directly loading pinned `dt-sql-parser@4\.5\.0` (?:succeeded|failed with stable error code `[A-Z][A-Z0-9_]*`)\.)$/m);
+assert.ok(committedDirectLoadMatch, 'committed direct-load evidence is environment-aware and structured');
+var committedDirectLoadEvidence = committedDirectLoadMatch[1];
 var fixture = {
     candidate: {
         name: 'dt-sql-parser',
@@ -32,14 +48,22 @@ var fixture = {
         {
             id: 'fixture-invalid',
             expectation: 'invalid',
+            status: 'syntax-rejected',
             accepted: false,
             errors: [
                 'unexpected | token\nsecond <line>',
                 'path\\tail & detail',
             ],
+            analysisFailure: null,
+            rejectionEvidence: true,
             nodeCount: 0,
             nodeSpansValid: false,
             roundTrip: true,
+            nativePartitionValid: true,
+            nativeCoverageComplete: false,
+            invalidTokenCount: 0,
+            overlapTokenCount: 0,
+            nonTriviaGapCount: 1,
             atomicPassed: 1,
             atomicTotal: 2,
         },
@@ -48,11 +72,14 @@ var fixture = {
         totalCases: 1,
         requiredParseRate: 0.5,
         invalidRejectRate: 1,
-        roundTripRate: 1,
+        sourceRoundTripRate: 1,
         requiredNodeSpanRate: 0.25,
-        atomicLexemeRate: 0.5,
+        nativeTokenPartitionRate: 1,
+        nativeTokenCoverageRate: 0,
+        nativeAtomicLexemeRate: 0.5,
     },
     probe: {
+        bundleEntry: 'esm-named-hive',
         bundleBytes: 123,
         gzipBytes: 45,
         coldStartMedianMs: 12.345,
@@ -78,6 +105,7 @@ var fixture = {
     decision: {
         role: 'development-oracle',
         canOwnLeafStream: false,
+        tokenOwnershipPass: false,
         grammarPass: true,
         licensePass: true,
         packagingPass: false,
@@ -103,7 +131,7 @@ assert.ok(renderedReport.indexOf('- License: pass') >= 0, 'fixture license gate 
 assert.ok(renderedReport.indexOf('- Packaging: fail') >= 0, 'fixture packaging gate result');
 assert.ok(renderedReport.indexOf('- Performance: pass') >= 0, 'fixture performance gate result');
 assert.ok(
-    renderedReport.indexOf('| Case | Expected | Accepted | Errors | Round trip | Node ranges | Nodes | Atomic passed/total |') >= 0,
+    renderedReport.indexOf('| Case | Expected | Status | Syntax diagnostics | Analysis failure | Source reconstruction | Native partition | Native coverage | Node ranges | Nodes | Native atomic passed/total |') >= 0,
     'fixture report per-case evidence columns'
 );
 sharedMethodEvidence.concat([fixtureDirectLoadEvidence]).forEach(function(fragment) {
@@ -127,7 +155,7 @@ var successfulDirectLoadEvidence = 'On the recorded Node environment, directly l
 assert.ok(successfulDirectLoadReport.indexOf(successfulDirectLoadEvidence) >= 0, 'fixture report direct-load success');
 assert.ok(successfulDirectLoadAdr.indexOf(successfulDirectLoadEvidence) >= 0, 'fixture ADR direct-load success');
 assert.ok(
-    renderedReport.indexOf('| fixture-invalid | invalid | false | unexpected &#124; token<br>second &lt;line&gt;<br>path&#92;tail &amp; detail | true | false | 0 | 1/2 |') >= 0,
+    renderedReport.indexOf('| fixture-invalid | invalid | syntax-rejected | unexpected &#124; token<br>second &lt;line&gt;<br>path&#92;tail &amp; detail | none | true | true | false | false | 0 | 1/2 |') >= 0,
     'fixture report renders safe errors and atomic counts'
 );
 assert.ok(
@@ -141,6 +169,9 @@ assert.ok(
 
 assert.ok(report.indexOf('dt-sql-parser@4.5.0') >= 0, 'committed exact candidate version');
 assert.ok(report.indexOf('Required parse rate') >= 0, 'committed correctness evidence');
+assert.ok(report.indexOf('Native token partition rate') >= 0, 'committed native partition evidence');
+assert.ok(report.indexOf('Native non-trivia coverage rate') >= 0, 'committed native coverage evidence');
+assert.ok(report.indexOf('Native atomic lexeme rate') >= 0, 'committed native atomic evidence');
 assert.ok(report.indexOf('Required case node-range rate') >= 0, 'committed source-range evidence');
 assert.ok(report.indexOf('8x scale ratio') >= 0, 'committed scaling evidence');
 assert.ok(report.indexOf('Maximum RSS KiB') >= 0, 'committed memory evidence');
@@ -157,8 +188,8 @@ cases.forEach(function(testCase) {
     })[0];
     assert.ok(line, 'committed per-case evidence for ' + testCase.id);
     var cells = line.slice(2, -2).split(' | ');
-    assert.strictEqual(cells.length, 8, 'committed per-case evidence fields for ' + testCase.id);
-    assert.ok(/^\d+\/\d+$/.test(cells[7]), 'committed atomic passed/total for ' + testCase.id);
+    assert.strictEqual(cells.length, 11, 'committed per-case evidence fields for ' + testCase.id);
+    assert.ok(/^\d+\/\d+$/.test(cells[10]), 'committed atomic passed/total for ' + testCase.id);
 });
 [
     '- antlr4-c3@3.3.7 — MIT',
@@ -184,13 +215,18 @@ assert.ok(adrRole, 'committed ADR closed decision role');
 assert.strictEqual(adrRole[1], reportRole[1], 'committed documents agree on decision role');
 var grammarGate = report.match(/^- Grammar: (pass|fail)$/m);
 var packagingGate = report.match(/^- Packaging: (pass|fail)$/m);
+var licenseGate = report.match(/^- License: (pass|fail)$/m);
 assert.ok(grammarGate, 'committed report grammar gate');
 assert.ok(packagingGate, 'committed report packaging gate');
-assert.deepStrictEqual(
-    [reportRole[1], grammarGate[1], packagingGate[1]],
-    ['rejected', 'fail', 'fail'],
-    'committed measured role and failed grammar/package gates'
-);
+assert.ok(licenseGate, 'committed report license gate');
+if (reportRole[1] == 'rejected') {
+    assert.ok(grammarGate[1] == 'fail' || licenseGate[1] == 'fail', 'rejected role has a failed MUST gate');
+}
+var embeddedReport = renderer.extract_evidence(report);
+var embeddedAdr = renderer.extract_evidence(adr);
+assert.deepStrictEqual(embeddedAdr, embeddedReport, 'committed report and ADR embed identical evidence');
+assert.strictEqual(renderer.render_report(embeddedReport), report, 'committed report renders from embedded evidence');
+assert.strictEqual(renderer.render_adr(embeddedReport), adr, 'committed ADR renders from embedded evidence');
 assert.ok(adr.indexOf('Status: Accepted') >= 0, 'accepted ADR');
 assert.ok(adr.indexOf('project-owned lossless lexer') >= 0, 'owned lexer decision');
 

@@ -1,3 +1,5 @@
+var EVIDENCE_PREFIX = '<!-- v2-parser-evidence-base64: ';
+
 function percent(value) {
     return (value * 100).toFixed(2) + '%';
 }
@@ -8,6 +10,21 @@ function bool(value) {
 
 function environment(value) {
     return value.node + ' / ' + value.platform + '-' + value.arch + ' / ' + value.cpu;
+}
+
+function evidence_marker(report) {
+    return EVIDENCE_PREFIX + Buffer.from(JSON.stringify(report), 'utf8').toString('base64') + ' -->';
+}
+
+function extract_evidence(document) {
+    var line = document.split('\n').filter(function(value) {
+        return value.indexOf(EVIDENCE_PREFIX) == 0;
+    })[0];
+    if (!line || line.slice(-4) != ' -->') {
+        throw new Error('document is missing embedded v2 parser evidence');
+    }
+    var encoded = line.slice(EVIDENCE_PREFIX.length, -4);
+    return JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
 }
 
 function direct_load_evidence(report) {
@@ -23,8 +40,12 @@ function evaluation_method_and_limitations(report) {
         '## Evaluation Method and Limitations',
         '',
         direct_load_evidence(report),
-        '- Evaluation uses a dev-only esbuild CommonJS (CJS) interoperability bundle; the minified and gzip bundle byte measurements remain recorded against their thresholds.',
-        '- Cold start measures loading that bundle, constructing `HiveSQL`, and validating `SELECT 1`.',
+        '- Packaging measures a tree-shaken ESM named `HiveSQL` entry emitted as CommonJS for Node/VS Code cold start.',
+        '- Candidate evaluation loads a separate ESM named-import entry containing only Hive, generic, PostgreSQL, and MySQL constructors.',
+        '- Source reconstruction includes explicit synthetic fallback leaves; it proves containment and preservation, not native candidate token ownership.',
+        '- Native partition, non-trivia coverage, and atomic metrics count candidate-origin evidence only.',
+        '- Candidate leaf ownership requires the source reconstruction gate plus native partition, non-trivia coverage, and atomic-lexeme gates; it does not inherit unrelated grammar gates.',
+        '- Cold start requires the built CommonJS artifact, constructs `HiveSQL`, and verifies that `SELECT 1` has no syntax diagnostics.',
         '- `maxRssKb` is the evaluation process upper watermark, not isolated parser heap.',
         '',
     ];
@@ -47,29 +68,60 @@ function errors_cell(errors) {
     return errors.map(markdown_cell).join('<br>');
 }
 
+function analysis_failure_cell(failure) {
+    return failure ? markdown_cell(failure.stage + ': ' + failure.message) : 'none';
+}
+
+function failed_must_gates(report) {
+    var failures = [];
+    if (report.summary.requiredParseRate < report.gates.requiredParseRate) {
+        failures.push('required parse rate');
+    }
+    if (report.summary.invalidRejectRate < report.gates.invalidRejectRate) {
+        failures.push('invalid reject rate');
+    }
+    if (report.summary.sourceRoundTripRate < report.gates.sourceRoundTripRate) {
+        failures.push('source reconstruction rate');
+    }
+    if (report.summary.requiredNodeSpanRate < report.gates.requiredNodeSpanRate) {
+        failures.push('required node-range rate');
+    }
+    if (!report.decision.licensePass) {
+        failures.push('license allowlist');
+    }
+    return failures;
+}
+
 function render_report(report) {
+    var rejectedBy = failed_must_gates(report);
     return [
         '# SQL Formatter v2 Parser Evaluation Report',
+        '',
+        evidence_marker(report),
         '',
         '- Candidate: ' + report.candidate.name + '@' + report.candidate.version,
         '- Candidate license: ' + report.candidate.license,
         '- Decision: ' + report.decision.role,
         '- Can own lossless leaf stream: ' + String(report.decision.canOwnLeafStream),
+        '- Rejected MUST gates: ' + (rejectedBy.length > 0 ? rejectedBy.join(', ') : 'none'),
         '',
-        '## Correctness',
+        '## Correctness and Native Token Evidence',
         '',
         '| Metric | Actual | Gate |',
         '| --- | ---: | ---: |',
         '| Required parse rate | ' + percent(report.summary.requiredParseRate) + ' | 100.00% |',
         '| Invalid reject rate | ' + percent(report.summary.invalidRejectRate) + ' | 100.00% |',
-        '| Source round-trip rate | ' + percent(report.summary.roundTripRate) + ' | 100.00% |',
+        '| Source reconstruction rate | ' + percent(report.summary.sourceRoundTripRate) + ' | 100.00% |',
         '| Required case node-range rate | ' + percent(report.summary.requiredNodeSpanRate) + ' | 100.00% |',
-        '| Atomic lexeme rate | ' + percent(report.summary.atomicLexemeRate) + ' | informational |',
+        '| Native token partition rate | ' + percent(report.summary.nativeTokenPartitionRate) + ' | 100.00% for leaf ownership |',
+        '| Native non-trivia coverage rate | ' + percent(report.summary.nativeTokenCoverageRate) + ' | 100.00% for leaf ownership |',
+        '| Native atomic lexeme rate | ' + percent(report.summary.nativeAtomicLexemeRate) + ' | 100.00% for leaf ownership |',
         '',
         '## Packaging and Performance',
         '',
         '| Metric | Actual | Gate |',
         '| --- | ---: | ---: |',
+        '| Bundle entry | ' + report.probe.bundleEntry + ' | ESM named Hive |',
         '| Minified bundle bytes | ' + report.probe.bundleBytes + ' | <= ' + report.gates.maxBundleBytes + ' |',
         '| Gzip bundle bytes | ' + report.probe.gzipBytes + ' | <= ' + report.gates.maxGzipBytes + ' |',
         '| Cold start median ms | ' + report.probe.coldStartMedianMs.toFixed(2) + ' | <= ' + report.gates.maxColdStartMedianMs + ' |',
@@ -87,15 +139,18 @@ function render_report(report) {
         '- License: ' + bool(report.decision.licensePass),
         '- Packaging: ' + bool(report.decision.packagingPass),
         '- Performance: ' + bool(report.decision.performancePass),
+        '- Candidate token ownership: ' + bool(report.decision.tokenOwnershipPass),
         '',
         '## Case Outcomes',
         '',
-        '| Case | Expected | Accepted | Errors | Round trip | Node ranges | Nodes | Atomic passed/total |',
-        '| --- | --- | --- | --- | --- | --- | ---: | ---: |',
+        '| Case | Expected | Status | Syntax diagnostics | Analysis failure | Source reconstruction | Native partition | Native coverage | Node ranges | Nodes | Native atomic passed/total |',
+        '| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: |',
     ]).concat(report.outcomes.map(function(item) {
         return '| ' + markdown_cell(item.id) + ' | ' + markdown_cell(item.expectation) + ' | '
-            + String(item.accepted) + ' | ' + errors_cell(item.errors) + ' | '
-            + String(item.roundTrip) + ' | ' + String(item.nodeSpansValid) + ' | '
+            + item.status + ' | ' + errors_cell(item.errors) + ' | '
+            + analysis_failure_cell(item.analysisFailure) + ' | '
+            + String(item.roundTrip) + ' | ' + String(item.nativePartitionValid) + ' | '
+            + String(item.nativeCoverageComplete) + ' | ' + String(item.nodeSpansValid) + ' | '
             + item.nodeCount + ' | ' + item.atomicPassed + '/' + item.atomicTotal + ' |';
     })).concat([
         '',
@@ -116,8 +171,11 @@ function render_adr(report) {
         'development-oracle': 'Keep dt-sql-parser as a development-only differential oracle; implement the production grammar backend in-project.',
         'rejected': 'Do not use dt-sql-parser as a v2 backend or oracle; implement and validate the production grammar backend in-project.',
     }[report.decision.role];
+    var rejectedBy = failed_must_gates(report);
     return [
         '# ADR 0001: SQL Formatter v2 Parser Backend',
+        '',
+        evidence_marker(report),
         '',
         '- Status: Accepted',
         '- Candidate: ' + report.candidate.name + '@' + report.candidate.version,
@@ -131,14 +189,21 @@ function render_adr(report) {
         '',
         roleText,
         '',
-        'A project-owned lossless lexer remains mandatory in every outcome. External parser tokens cannot own protected source units unless atomic-lexeme and source-partition gates both pass.',
+        report.decision.role == 'rejected'
+            ? 'The rejecting MUST gate evidence is: ' + rejectedBy.join(', ') + '.'
+            : 'No rejecting MUST gate failed.',
+        '',
+        'A project-owned lossless lexer remains mandatory in every outcome. External parser tokens cannot own protected source units unless source reconstruction, native partition, non-trivia coverage, and atomic-lexeme gates all pass.',
         '',
         '## Evidence',
         '',
         '- Required parse rate: ' + percent(report.summary.requiredParseRate),
-        '- Source round-trip rate: ' + percent(report.summary.roundTripRate),
+        '- Invalid reject rate: ' + percent(report.summary.invalidRejectRate),
+        '- Source reconstruction rate: ' + percent(report.summary.sourceRoundTripRate),
         '- Required case node-range rate: ' + percent(report.summary.requiredNodeSpanRate),
-        '- Atomic lexeme rate: ' + percent(report.summary.atomicLexemeRate),
+        '- Native token partition rate: ' + percent(report.summary.nativeTokenPartitionRate),
+        '- Native non-trivia coverage rate: ' + percent(report.summary.nativeTokenCoverageRate),
+        '- Native atomic lexeme rate: ' + percent(report.summary.nativeAtomicLexemeRate),
         '- Minified/gzip bytes: ' + report.probe.bundleBytes + ' / ' + report.probe.gzipBytes,
         '- Cold start median ms: ' + report.probe.coldStartMedianMs.toFixed(2),
         '- 8x scale ratio: ' + report.probe.scaleRatio.toFixed(2),
@@ -151,11 +216,13 @@ function render_adr(report) {
         '## Consequences',
         '',
         '- Canonical CST, diagnostic, layout, and result types remain independent of candidate parse-tree classes.',
+        '- Synthetic source-preservation leaves never count as candidate-native ownership evidence.',
         '- No candidate package is imported by the shipping 1.x entrypoint.',
         '- Wave 1 can implement the lossless lexer without reopening the backend role unless committed evidence changes.',
         '',
     ]).join('\n');
 }
 
+exports.extract_evidence = extract_evidence;
 exports.render_report = render_report;
 exports.render_adr = render_adr;

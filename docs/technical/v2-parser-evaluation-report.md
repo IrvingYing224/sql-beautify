@@ -1,68 +1,79 @@
 # SQL Formatter v2 Parser Evaluation Report
 
+<!-- v2-parser-evidence-base64: eyJjYW5kaWRhdGUiOnsibmFtZSI6ImR0LXNxbC1wYXJzZXIiLCJ2ZXJzaW9uIjoiNC41LjAiLCJsaWNlbnNlIjoiTUlUIn0sImdhdGVzIjp7InJlcXVpcmVkUGFyc2VSYXRlIjoxLCJpbnZhbGlkUmVqZWN0UmF0ZSI6MSwic291cmNlUm91bmRUcmlwUmF0ZSI6MSwicmVxdWlyZWROb2RlU3BhblJhdGUiOjEsIm5hdGl2ZVRva2VuUGFydGl0aW9uUmF0ZSI6MSwibmF0aXZlVG9rZW5Db3ZlcmFnZVJhdGUiOjEsIm5hdGl2ZUF0b21pY0xleGVtZVJhdGUiOjEsIm1heEJ1bmRsZUJ5dGVzIjo1MjQyODgwLCJtYXhHemlwQnl0ZXMiOjE1NzI4NjQsIm1heENvbGRTdGFydE1lZGlhbk1zIjo0MDAsIm1heFNjYWxlUmF0aW8iOjEyfSwib3V0Y29tZXMiOlt7ImlkIjoiaGl2ZS1jdGUtd2luZG93LWNvbW1lbnRzIiwiZXhwZWN0YXRpb24iOiJyZXF1aXJlZCIsInN0YXR1cyI6ImFjY2VwdGVkIiwiYWNjZXB0ZWQiOnRydWUsImVycm9ycyI6W10sImFuYWx5c2lzRmFpbHVyZSI6bnVsbCwicmVqZWN0aW9uRXZpZGVuY2UiOmZhbHNlLCJub2RlQ291bnQiOjE1Mywibm9kZVNwYW5zVmFsaWQiOnRydWUsInJvdW5kVHJpcCI6dHJ1ZSwibmF0aXZlUGFydGl0aW9uVmFsaWQiOnRydWUsIm5hdGl2ZUNvdmVyYWdlQ29tcGxldGUiOnRydWUsImludmFsaWRUb2tlbkNvdW50IjowLCJvdmVybGFwVG9rZW5Db3VudCI6MCwibm9uVHJpdmlhR2FwQ291bnQiOjAsImF0b21pY1Bhc3NlZCI6MiwiYXRvbWljVG90YWwiOjJ9LHsiaWQiOiJoaXZlLWxhdGVyYWwtdmlldy1leHBsb2RlIiwiZXhwZWN0YXRpb24iOiJyZXF1aXJlZCIsInN0YXR1cyI6ImFjY2VwdGVkIiwiYWNjZXB0ZWQiOnRydWUsImVycm9ycyI6W10sImFuYWx5c2lzRmFpbHVyZSI6bnVsbCwicmVqZWN0aW9uRXZpZGVuY2UiOmZhbHNlLCJub2RlQ291bnQiOjU1LCJub2RlU3BhbnNWYWxpZCI6dHJ1ZSwicm91bmRUcmlwIjp0cnVlLCJuYXRpdmVQYXJ0aXRpb25WYWxpZCI6dHJ1ZSwibmF0aXZlQ292ZXJhZ2VDb21wbGV0ZSI6dHJ1ZSwiaW52YWxpZFRva2VuQ291bnQiOjAsIm92ZXJsYXBUb2tlbkNvdW50IjowLCJub25Ucml2aWFHYXBDb3VudCI6MCwiYXRvbWljUGFzc2VkIjowLCJhdG9taWNUb3RhbCI6MH0seyJpZCI6ImhpdmUtaW5zZXJ0LW92ZXJ3cml0ZS1wYXJ0aXRpb24iLCJleHBlY3RhdGlvbiI6InJlcXVpcmVkIiwic3RhdHVzIjoiYWNjZXB0ZWQiLCJhY2NlcHRlZCI6dHJ1ZSwiZXJyb3JzIjpbXSwiYW5hbHlzaXNGYWlsdXJlIjpudWxsLCJyZWplY3Rpb25FdmlkZW5jZSI6ZmFsc2UsIm5vZGVDb3VudCI6MzIsIm5vZGVTcGFuc1ZhbGlkIjp0cnVlLCJyb3VuZFRyaXAiOnRydWUsIm5hdGl2ZVBhcnRpdGlvblZhbGlkIjp0cnVlLCJuYXRpdmVDb3ZlcmFnZUNvbXBsZXRlIjp0cnVlLCJpbnZhbGlkVG9rZW5Db3VudCI6MCwib3ZlcmxhcFRva2VuQ291bnQiOjAsIm5vblRyaXZpYUdhcENvdW50IjowLCJhdG9taWNQYXNzZWQiOjEsImF0b21pY1RvdGFsIjoxfSx7ImlkIjoiaGl2ZS1jb21wbGV4LXR5cGUtZGRsIiwiZXhwZWN0YXRpb24iOiJyZXF1aXJlZCIsInN0YXR1cyI6ImFjY2VwdGVkIiwiYWNjZXB0ZWQiOnRydWUsImVycm9ycyI6W10sImFuYWx5c2lzRmFpbHVyZSI6bnVsbCwicmVqZWN0aW9uRXZpZGVuY2UiOmZhbHNlLCJub2RlQ291bnQiOjQxLCJub2RlU3BhbnNWYWxpZCI6dHJ1ZSwicm91bmRUcmlwIjp0cnVlLCJuYXRpdmVQYXJ0aXRpb25WYWxpZCI6dHJ1ZSwibmF0aXZlQ292ZXJhZ2VDb21wbGV0ZSI6dHJ1ZSwiaW52YWxpZFRva2VuQ291bnQiOjAsIm92ZXJsYXBUb2tlbkNvdW50IjowLCJub25Ucml2aWFHYXBDb3VudCI6MCwiYXRvbWljUGFzc2VkIjozLCJhdG9taWNUb3RhbCI6M30seyJpZCI6ImhpdmUtbm8tZnJvbS1mdW5jdGlvbnMiLCJleHBlY3RhdGlvbiI6InJlcXVpcmVkIiwic3RhdHVzIjoiYWNjZXB0ZWQiLCJhY2NlcHRlZCI6dHJ1ZSwiZXJyb3JzIjpbXSwiYW5hbHlzaXNGYWlsdXJlIjpudWxsLCJyZWplY3Rpb25FdmlkZW5jZSI6ZmFsc2UsIm5vZGVDb3VudCI6MTU1LCJub2RlU3BhbnNWYWxpZCI6dHJ1ZSwicm91bmRUcmlwIjp0cnVlLCJuYXRpdmVQYXJ0aXRpb25WYWxpZCI6dHJ1ZSwibmF0aXZlQ292ZXJhZ2VDb21wbGV0ZSI6dHJ1ZSwiaW52YWxpZFRva2VuQ291bnQiOjAsIm92ZXJsYXBUb2tlbkNvdW50IjowLCJub25Ucml2aWFHYXBDb3VudCI6MCwiYXRvbWljUGFzc2VkIjo0LCJhdG9taWNUb3RhbCI6NH0seyJpZCI6ImhpdmUtbGl0ZXJhbC1maXJzdC1uZXN0ZWQtcXVlcnkiLCJleHBlY3RhdGlvbiI6InJlcXVpcmVkIiwic3RhdHVzIjoiYWNjZXB0ZWQiLCJhY2NlcHRlZCI6dHJ1ZSwiZXJyb3JzIjpbXSwiYW5hbHlzaXNGYWlsdXJlIjpudWxsLCJyZWplY3Rpb25FdmlkZW5jZSI6ZmFsc2UsIm5vZGVDb3VudCI6NTAsIm5vZGVTcGFuc1ZhbGlkIjp0cnVlLCJyb3VuZFRyaXAiOnRydWUsIm5hdGl2ZVBhcnRpdGlvblZhbGlkIjp0cnVlLCJuYXRpdmVDb3ZlcmFnZUNvbXBsZXRlIjp0cnVlLCJpbnZhbGlkVG9rZW5Db3VudCI6MCwib3ZlcmxhcFRva2VuQ291bnQiOjAsIm5vblRyaXZpYUdhcENvdW50IjowLCJhdG9taWNQYXNzZWQiOjEsImF0b21pY1RvdGFsIjoxfSx7ImlkIjoiaGl2ZS1jYXNlLWFuZC1zdWJxdWVyeSIsImV4cGVjdGF0aW9uIjoicmVxdWlyZWQiLCJzdGF0dXMiOiJhY2NlcHRlZCIsImFjY2VwdGVkIjp0cnVlLCJlcnJvcnMiOltdLCJhbmFseXNpc0ZhaWx1cmUiOm51bGwsInJlamVjdGlvbkV2aWRlbmNlIjpmYWxzZSwibm9kZUNvdW50IjoxMDEsIm5vZGVTcGFuc1ZhbGlkIjp0cnVlLCJyb3VuZFRyaXAiOnRydWUsIm5hdGl2ZVBhcnRpdGlvblZhbGlkIjp0cnVlLCJuYXRpdmVDb3ZlcmFnZUNvbXBsZXRlIjp0cnVlLCJpbnZhbGlkVG9rZW5Db3VudCI6MCwib3ZlcmxhcFRva2VuQ291bnQiOjAsIm5vblRyaXZpYUdhcENvdW50IjowLCJhdG9taWNQYXNzZWQiOjIsImF0b21pY1RvdGFsIjoyfSx7ImlkIjoiaGl2ZS1jbHVzdGVyLWRpc3RyaWJ1dGUtc29ydCIsImV4cGVjdGF0aW9uIjoicmVxdWlyZWQiLCJzdGF0dXMiOiJhY2NlcHRlZCIsImFjY2VwdGVkIjp0cnVlLCJlcnJvcnMiOltdLCJhbmFseXNpc0ZhaWx1cmUiOm51bGwsInJlamVjdGlvbkV2aWRlbmNlIjpmYWxzZSwibm9kZUNvdW50Ijo1MCwibm9kZVNwYW5zVmFsaWQiOnRydWUsInJvdW5kVHJpcCI6dHJ1ZSwibmF0aXZlUGFydGl0aW9uVmFsaWQiOnRydWUsIm5hdGl2ZUNvdmVyYWdlQ29tcGxldGUiOnRydWUsImludmFsaWRUb2tlbkNvdW50IjowLCJvdmVybGFwVG9rZW5Db3VudCI6MCwibm9uVHJpdmlhR2FwQ291bnQiOjAsImF0b21pY1Bhc3NlZCI6MCwiYXRvbWljVG90YWwiOjB9LHsiaWQiOiJoaXZlLXRlbXBsYXRlLXN1YnN0aXR1dGlvbiIsImV4cGVjdGF0aW9uIjoib3BhcXVlIiwic3RhdHVzIjoic3ludGF4LXJlamVjdGVkIiwiYWNjZXB0ZWQiOmZhbHNlLCJlcnJvcnMiOlsiJyQnIGlzIG5vdCB2YWxpZCBhdCB0aGlzIHBvc2l0aW9uLCBleHBlY3RpbmcgYW4gZXhpc3RpbmcgdGFibGUgb3IgYW4gZXhpc3RpbmcgdmlldyBvciBhIGtleXdvcmQiXSwiYW5hbHlzaXNGYWlsdXJlIjpudWxsLCJyZWplY3Rpb25FdmlkZW5jZSI6dHJ1ZSwibm9kZUNvdW50IjowLCJub2RlU3BhbnNWYWxpZCI6ZmFsc2UsInJvdW5kVHJpcCI6dHJ1ZSwibmF0aXZlUGFydGl0aW9uVmFsaWQiOnRydWUsIm5hdGl2ZUNvdmVyYWdlQ29tcGxldGUiOnRydWUsImludmFsaWRUb2tlbkNvdW50IjowLCJvdmVybGFwVG9rZW5Db3VudCI6MCwibm9uVHJpdmlhR2FwQ291bnQiOjAsImF0b21pY1Bhc3NlZCI6MCwiYXRvbWljVG90YWwiOjJ9LHsiaWQiOiJwb3N0Z3Jlcy1kb2xsYXItcGFyYW1ldGVyLW9wZXJhdG9ycyIsImV4cGVjdGF0aW9uIjoicmVxdWlyZWQiLCJzdGF0dXMiOiJhY2NlcHRlZCIsImFjY2VwdGVkIjp0cnVlLCJlcnJvcnMiOltdLCJhbmFseXNpc0ZhaWx1cmUiOm51bGwsInJlamVjdGlvbkV2aWRlbmNlIjpmYWxzZSwibm9kZUNvdW50Ijo3NCwibm9kZVNwYW5zVmFsaWQiOnRydWUsInJvdW5kVHJpcCI6dHJ1ZSwibmF0aXZlUGFydGl0aW9uVmFsaWQiOnRydWUsIm5hdGl2ZUNvdmVyYWdlQ29tcGxldGUiOnRydWUsImludmFsaWRUb2tlbkNvdW50IjowLCJvdmVybGFwVG9rZW5Db3VudCI6MCwibm9uVHJpdmlhR2FwQ291bnQiOjAsImF0b21pY1Bhc3NlZCI6NCwiYXRvbWljVG90YWwiOjV9LHsiaWQiOiJwb3N0Z3Jlcy1wcmVmaXhlZC1zdHJpbmdzIiwiZXhwZWN0YXRpb24iOiJyZXF1aXJlZCIsInN0YXR1cyI6InN5bnRheC1yZWplY3RlZCIsImFjY2VwdGVkIjpmYWxzZSwiZXJyb3JzIjpbIlwiLFwiIGlzIG5vIHZhbGlkIGlucHV0IGF0IGFsbCIsIlwiVVwiIGlzIG5vIHZhbGlkIGlucHV0IGF0IGFsbCIsIlwiJlwiIGlzIG5vIHZhbGlkIGlucHV0IGF0IGFsbCIsIlVuZmluaXNoZWQgc2luZ2xlIHF1b3RlZCBzdHJpbmcgbGl0ZXJhbCIsIlwiZFwiIGlzIG5vIHZhbGlkIGlucHV0IGF0IGFsbCIsIlwiXFxcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIjBcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIjBcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIjZcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIjFcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcInRcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJVbmZpbmlzaGVkIHNpbmdsZSBxdW90ZWQgc3RyaW5nIGxpdGVyYWwiLCJcIkZcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIlJcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIk9cIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIk1cIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcInRcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIldcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIkhcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIkVcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIlJcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIkVcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIm5cIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcImFcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIm1cIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcImVcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIiFcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIn5cIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJcIipcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJVbmZpbmlzaGVkIHNpbmdsZSBxdW90ZWQgc3RyaW5nIGxpdGVyYWwiLCJcInhcIiBpcyBubyB2YWxpZCBpbnB1dCBhdCBhbGwiLCJVbmZpbmlzaGVkIHNpbmdsZSBxdW90ZWQgc3RyaW5nIGxpdGVyYWwiXSwiYW5hbHlzaXNGYWlsdXJlIjpudWxsLCJyZWplY3Rpb25FdmlkZW5jZSI6dHJ1ZSwibm9kZUNvdW50IjowLCJub2RlU3BhbnNWYWxpZCI6ZmFsc2UsInJvdW5kVHJpcCI6dHJ1ZSwibmF0aXZlUGFydGl0aW9uVmFsaWQiOnRydWUsIm5hdGl2ZUNvdmVyYWdlQ29tcGxldGUiOmZhbHNlLCJpbnZhbGlkVG9rZW5Db3VudCI6MCwib3ZlcmxhcFRva2VuQ291bnQiOjAsIm5vblRyaXZpYUdhcENvdW50Ijo4LCJhdG9taWNQYXNzZWQiOjEsImF0b21pY1RvdGFsIjozfSx7ImlkIjoibXlzcWwtcHJlZml4ZWQtbGl0ZXJhbC12YXJpYWJsZSIsImV4cGVjdGF0aW9uIjoicmVxdWlyZWQiLCJzdGF0dXMiOiJzeW50YXgtcmVqZWN0ZWQiLCJhY2NlcHRlZCI6ZmFsc2UsImVycm9ycyI6WyInaWQnIGlzIG5vdCB2YWxpZCBhdCB0aGlzIHBvc2l0aW9uIl0sImFuYWx5c2lzRmFpbHVyZSI6bnVsbCwicmVqZWN0aW9uRXZpZGVuY2UiOnRydWUsIm5vZGVDb3VudCI6MCwibm9kZVNwYW5zVmFsaWQiOmZhbHNlLCJyb3VuZFRyaXAiOnRydWUsIm5hdGl2ZVBhcnRpdGlvblZhbGlkIjp0cnVlLCJuYXRpdmVDb3ZlcmFnZUNvbXBsZXRlIjp0cnVlLCJpbnZhbGlkVG9rZW5Db3VudCI6MCwib3ZlcmxhcFRva2VuQ291bnQiOjAsIm5vblRyaXZpYUdhcENvdW50IjowLCJhdG9taWNQYXNzZWQiOjIsImF0b21pY1RvdGFsIjo0fSx7ImlkIjoiZ2VuZXJpYy1hcnJheS13aXRob3V0LWZyb20iLCJleHBlY3RhdGlvbiI6InJlcXVpcmVkIiwic3RhdHVzIjoic3ludGF4LXJlamVjdGVkIiwiYWNjZXB0ZWQiOmZhbHNlLCJlcnJvcnMiOlsiJ1snIGlzIG5vdCB2YWxpZCBhdCB0aGlzIHBvc2l0aW9uIl0sImFuYWx5c2lzRmFpbHVyZSI6bnVsbCwicmVqZWN0aW9uRXZpZGVuY2UiOnRydWUsIm5vZGVDb3VudCI6MCwibm9kZVNwYW5zVmFsaWQiOmZhbHNlLCJyb3VuZFRyaXAiOnRydWUsIm5hdGl2ZVBhcnRpdGlvblZhbGlkIjp0cnVlLCJuYXRpdmVDb3ZlcmFnZUNvbXBsZXRlIjp0cnVlLCJpbnZhbGlkVG9rZW5Db3VudCI6MCwib3ZlcmxhcFRva2VuQ291bnQiOjAsIm5vblRyaXZpYUdhcENvdW50IjowLCJhdG9taWNQYXNzZWQiOjIsImF0b21pY1RvdGFsIjoyfSx7ImlkIjoibWF0Y2gtcmVjb2duaXplLWZ1bmN0aW9uLW5hbWUiLCJleHBlY3RhdGlvbiI6InJlcXVpcmVkIiwic3RhdHVzIjoiYWNjZXB0ZWQiLCJhY2NlcHRlZCI6dHJ1ZSwiZXJyb3JzIjpbXSwiYW5hbHlzaXNGYWlsdXJlIjpudWxsLCJyZWplY3Rpb25FdmlkZW5jZSI6ZmFsc2UsIm5vZGVDb3VudCI6MzIsIm5vZGVTcGFuc1ZhbGlkIjp0cnVlLCJyb3VuZFRyaXAiOnRydWUsIm5hdGl2ZVBhcnRpdGlvblZhbGlkIjp0cnVlLCJuYXRpdmVDb3ZlcmFnZUNvbXBsZXRlIjp0cnVlLCJpbnZhbGlkVG9rZW5Db3VudCI6MCwib3ZlcmxhcFRva2VuQ291bnQiOjAsIm5vblRyaXZpYUdhcENvdW50IjowLCJhdG9taWNQYXNzZWQiOjAsImF0b21pY1RvdGFsIjowfSx7ImlkIjoibWF0Y2gtcmVjb2duaXplLWNvbnN0cnVjdCIsImV4cGVjdGF0aW9uIjoib3BhcXVlIiwic3RhdHVzIjoic3ludGF4LXJlamVjdGVkIiwiYWNjZXB0ZWQiOmZhbHNlLCJlcnJvcnMiOlsiJ1BBUlRJVElPTicgaXMgbm90IHZhbGlkIGF0IHRoaXMgcG9zaXRpb24iLCInQScgaXMgbm90IHZhbGlkIGF0IHRoaXMgcG9zaXRpb24iLCInREVGSU5FJyBpcyBub3QgdmFsaWQgYXQgdGhpcyBwb3NpdGlvbiJdLCJhbmFseXNpc0ZhaWx1cmUiOm51bGwsInJlamVjdGlvbkV2aWRlbmNlIjp0cnVlLCJub2RlQ291bnQiOjAsIm5vZGVTcGFuc1ZhbGlkIjpmYWxzZSwicm91bmRUcmlwIjp0cnVlLCJuYXRpdmVQYXJ0aXRpb25WYWxpZCI6dHJ1ZSwibmF0aXZlQ292ZXJhZ2VDb21wbGV0ZSI6dHJ1ZSwiaW52YWxpZFRva2VuQ291bnQiOjAsIm92ZXJsYXBUb2tlbkNvdW50IjowLCJub25Ucml2aWFHYXBDb3VudCI6MCwiYXRvbWljUGFzc2VkIjowLCJhdG9taWNUb3RhbCI6MH0seyJpZCI6InVudGVybWluYXRlZC1zdHJpbmciLCJleHBlY3RhdGlvbiI6ImludmFsaWQiLCJzdGF0dXMiOiJzeW50YXgtcmVqZWN0ZWQiLCJhY2NlcHRlZCI6ZmFsc2UsImVycm9ycyI6WyJVbmZpbmlzaGVkIHNpbmdsZSBxdW90ZWQgc3RyaW5nIGxpdGVyYWwiLCJTdGF0ZW1lbnQgaXMgaW5jb21wbGV0ZSwgZXhwZWN0aW5nIGFuIGV4aXN0aW5nIGNvbHVtbiBvciBhbiBleGlzdGluZyBmdW5jdGlvbiBvciBhIGtleXdvcmQiXSwiYW5hbHlzaXNGYWlsdXJlIjpudWxsLCJyZWplY3Rpb25FdmlkZW5jZSI6dHJ1ZSwibm9kZUNvdW50IjowLCJub2RlU3BhbnNWYWxpZCI6ZmFsc2UsInJvdW5kVHJpcCI6dHJ1ZSwibmF0aXZlUGFydGl0aW9uVmFsaWQiOnRydWUsIm5hdGl2ZUNvdmVyYWdlQ29tcGxldGUiOmZhbHNlLCJpbnZhbGlkVG9rZW5Db3VudCI6MCwib3ZlcmxhcFRva2VuQ291bnQiOjAsIm5vblRyaXZpYUdhcENvdW50IjoxLCJhdG9taWNQYXNzZWQiOjAsImF0b21pY1RvdGFsIjowfV0sInN1bW1hcnkiOnsidG90YWxDYXNlcyI6MTYsInJlcXVpcmVkUGFyc2VSYXRlIjowLjc2OTIzMDc2OTIzMDc2OTMsImludmFsaWRSZWplY3RSYXRlIjoxLCJzb3VyY2VSb3VuZFRyaXBSYXRlIjoxLCJyZXF1aXJlZE5vZGVTcGFuUmF0ZSI6MC43NjkyMzA3NjkyMzA3NjkzLCJuYXRpdmVUb2tlblBhcnRpdGlvblJhdGUiOjEsIm5hdGl2ZVRva2VuQ292ZXJhZ2VSYXRlIjowLjg3NSwibmF0aXZlQXRvbWljTGV4ZW1lUmF0ZSI6MC43NTg2MjA2ODk2NTUxNzI0fSwicHJvYmUiOnsiYnVuZGxlRW50cnkiOiJlc20tbmFtZWQtaGl2ZSIsImJ1bmRsZUJ5dGVzIjoxMTE2Nzg1LCJnemlwQnl0ZXMiOjIxMTI1OCwiY29sZFN0YXJ0TWVkaWFuTXMiOjgyLjQwMDg3NSwicGFyc2UxMDBNZWRpYW5NcyI6MTEuNzc4ODc1LCJwYXJzZTgwME1lZGlhbk1zIjo3NC44MzY5NTgsInBhcnNlMTIwME1lZGlhbk1zIjoxMDQuNzQwODMzLCJzY2FsZVJhdGlvIjo2LjM1MzQ4OTQ0NjE0ODI5NSwibWF4UnNzS2IiOjYzMzcyOCwiZW52aXJvbm1lbnQiOnsibm9kZSI6InYyNC4xOC4wIiwicGxhdGZvcm0iOiJkYXJ3aW4iLCJhcmNoIjoiYXJtNjQiLCJjcHUiOiJBcHBsZSBNMSBQcm8ifSwiZGlyZWN0TG9hZCI6eyJzdWNjZXNzIjpmYWxzZSwiZXJyb3JDb2RlIjoiRVJSX1VOU1VQUE9SVEVEX0RJUl9JTVBPUlQifSwiYnVuZGxlZFBhY2thZ2VzIjpbeyJuYW1lIjoiYW50bHI0LWMzIiwidmVyc2lvbiI6IjMuMy43IiwibGljZW5zZSI6Ik1JVCJ9LHsibmFtZSI6ImFudGxyNG5nIiwidmVyc2lvbiI6IjIuMC4xMSIsImxpY2Vuc2UiOiJCU0QtMy1DbGF1c2UifSx7Im5hbWUiOiJkdC1zcWwtcGFyc2VyIiwidmVyc2lvbiI6IjQuNS4wIiwibGljZW5zZSI6Ik1JVCJ9XX0sImRlY2lzaW9uIjp7InJvbGUiOiJyZWplY3RlZCIsImNhbk93bkxlYWZTdHJlYW0iOmZhbHNlLCJ0b2tlbk93bmVyc2hpcFBhc3MiOmZhbHNlLCJncmFtbWFyUGFzcyI6ZmFsc2UsImxpY2Vuc2VQYXNzIjp0cnVlLCJwYWNrYWdpbmdQYXNzIjp0cnVlLCJwZXJmb3JtYW5jZVBhc3MiOnRydWV9fQ== -->
+
 - Candidate: dt-sql-parser@4.5.0
 - Candidate license: MIT
 - Decision: rejected
 - Can own lossless leaf stream: false
+- Rejected MUST gates: required parse rate, required node-range rate
 
-## Correctness
+## Correctness and Native Token Evidence
 
 | Metric | Actual | Gate |
 | --- | ---: | ---: |
 | Required parse rate | 76.92% | 100.00% |
 | Invalid reject rate | 100.00% | 100.00% |
-| Source round-trip rate | 100.00% | 100.00% |
-| Required case node-range rate | 69.23% | 100.00% |
-| Atomic lexeme rate | 82.76% | informational |
+| Source reconstruction rate | 100.00% | 100.00% |
+| Required case node-range rate | 76.92% | 100.00% |
+| Native token partition rate | 100.00% | 100.00% for leaf ownership |
+| Native non-trivia coverage rate | 87.50% | 100.00% for leaf ownership |
+| Native atomic lexeme rate | 75.86% | 100.00% for leaf ownership |
 
 ## Packaging and Performance
 
 | Metric | Actual | Gate |
 | --- | ---: | ---: |
-| Minified bundle bytes | 7415519 | <= 5242880 |
-| Gzip bundle bytes | 1263579 | <= 1572864 |
-| Cold start median ms | 348.91 | <= 400 |
-| 100 statement median ms | 8.37 | baseline |
-| 800 statement median ms | 62.49 | baseline |
-| 1200 statement median ms | 91.51 | baseline |
-| 8x scale ratio | 7.47 | <= 12 |
-| Maximum RSS KiB | 535648 | baseline |
+| Bundle entry | esm-named-hive | ESM named Hive |
+| Minified bundle bytes | 1116785 | <= 5242880 |
+| Gzip bundle bytes | 211258 | <= 1572864 |
+| Cold start median ms | 82.40 | <= 400 |
+| 100 statement median ms | 11.78 | baseline |
+| 800 statement median ms | 74.84 | baseline |
+| 1200 statement median ms | 104.74 | baseline |
+| 8x scale ratio | 6.35 | <= 12 |
+| Maximum RSS KiB | 633728 | baseline |
 | Environment | v24.18.0 / darwin-arm64 / Apple M1 Pro | recorded |
 
 ## Evaluation Method and Limitations
 
 - On the recorded Node environment, directly loading pinned `dt-sql-parser@4.5.0` failed with stable error code `ERR_UNSUPPORTED_DIR_IMPORT`.
-- Evaluation uses a dev-only esbuild CommonJS (CJS) interoperability bundle; the minified and gzip bundle byte measurements remain recorded against their thresholds.
-- Cold start measures loading that bundle, constructing `HiveSQL`, and validating `SELECT 1`.
+- Packaging measures a tree-shaken ESM named `HiveSQL` entry emitted as CommonJS for Node/VS Code cold start.
+- Candidate evaluation loads a separate ESM named-import entry containing only Hive, generic, PostgreSQL, and MySQL constructors.
+- Source reconstruction includes explicit synthetic fallback leaves; it proves containment and preservation, not native candidate token ownership.
+- Native partition, non-trivia coverage, and atomic metrics count candidate-origin evidence only.
+- Candidate leaf ownership requires the source reconstruction gate plus native partition, non-trivia coverage, and atomic-lexeme gates; it does not inherit unrelated grammar gates.
+- Cold start requires the built CommonJS artifact, constructs `HiveSQL`, and verifies that `SELECT 1` has no syntax diagnostics.
 - `maxRssKb` is the evaluation process upper watermark, not isolated parser heap.
 
 ## Gate Results
 
 - Grammar: fail
 - License: pass
-- Packaging: fail
+- Packaging: pass
 - Performance: pass
+- Candidate token ownership: fail
 
 ## Case Outcomes
 
-| Case | Expected | Accepted | Errors | Round trip | Node ranges | Nodes | Atomic passed/total |
-| --- | --- | --- | --- | --- | --- | ---: | ---: |
-| hive-cte-window-comments | required | true | none | true | true | 153 | 2/2 |
-| hive-lateral-view-explode | required | true | none | true | true | 55 | 0/0 |
-| hive-insert-overwrite-partition | required | true | none | true | true | 32 | 1/1 |
-| hive-complex-type-ddl | required | true | none | true | true | 41 | 3/3 |
-| hive-no-from-functions | required | true | none | true | true | 155 | 4/4 |
-| hive-literal-first-nested-query | required | true | none | true | true | 50 | 1/1 |
-| hive-case-and-subquery | required | true | none | true | true | 101 | 2/2 |
-| hive-cluster-distribute-sort | required | true | none | true | true | 50 | 0/0 |
-| hive-template-substitution | opaque | false | '$' is not valid at this position, expecting an existing table or an existing view or a keyword | true | false | 0 | 0/2 |
-| postgres-dollar-parameter-operators | required | true | none | true | false | 74 | 4/5 |
-| postgres-prefixed-strings | required | false | "," is no valid input at all<br>"U" is no valid input at all<br>"&amp;" is no valid input at all<br>Unfinished single quoted string literal<br>"d" is no valid input at all<br>"&#92;" is no valid input at all<br>"0" is no valid input at all<br>"0" is no valid input at all<br>"6" is no valid input at all<br>"1" is no valid input at all<br>"t" is no valid input at all<br>Unfinished single quoted string literal<br>"F" is no valid input at all<br>"R" is no valid input at all<br>"O" is no valid input at all<br>"M" is no valid input at all<br>"t" is no valid input at all<br>"W" is no valid input at all<br>"H" is no valid input at all<br>"E" is no valid input at all<br>"R" is no valid input at all<br>"E" is no valid input at all<br>"n" is no valid input at all<br>"a" is no valid input at all<br>"m" is no valid input at all<br>"e" is no valid input at all<br>"!" is no valid input at all<br>"~" is no valid input at all<br>"*" is no valid input at all<br>Unfinished single quoted string literal<br>"x" is no valid input at all<br>Unfinished single quoted string literal | true | false | 0 | 3/3 |
-| mysql-prefixed-literal-variable | required | false | 'id' is not valid at this position, expecting an existing column | true | false | 0 | 2/4 |
-| generic-array-without-from | required | false | '[' is not valid at this position, expecting a keyword | true | false | 0 | 2/2 |
-| match-recognize-function-name | required | true | none | true | true | 32 | 0/0 |
-| match-recognize-construct | opaque | false | 'PARTITION' is not valid at this position, expecting a keyword<br>'A' is not valid at this position<br>'DEFINE' is not valid at this position | true | false | 0 | 0/0 |
-| unterminated-string | invalid | false | Unfinished single quoted string literal<br>Statement is incomplete, expecting an existing column or an existing function or a keyword | true | false | 0 | 0/0 |
+| Case | Expected | Status | Syntax diagnostics | Analysis failure | Source reconstruction | Native partition | Native coverage | Node ranges | Nodes | Native atomic passed/total |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: |
+| hive-cte-window-comments | required | accepted | none | none | true | true | true | true | 153 | 2/2 |
+| hive-lateral-view-explode | required | accepted | none | none | true | true | true | true | 55 | 0/0 |
+| hive-insert-overwrite-partition | required | accepted | none | none | true | true | true | true | 32 | 1/1 |
+| hive-complex-type-ddl | required | accepted | none | none | true | true | true | true | 41 | 3/3 |
+| hive-no-from-functions | required | accepted | none | none | true | true | true | true | 155 | 4/4 |
+| hive-literal-first-nested-query | required | accepted | none | none | true | true | true | true | 50 | 1/1 |
+| hive-case-and-subquery | required | accepted | none | none | true | true | true | true | 101 | 2/2 |
+| hive-cluster-distribute-sort | required | accepted | none | none | true | true | true | true | 50 | 0/0 |
+| hive-template-substitution | opaque | syntax-rejected | '$' is not valid at this position, expecting an existing table or an existing view or a keyword | none | true | true | true | false | 0 | 0/2 |
+| postgres-dollar-parameter-operators | required | accepted | none | none | true | true | true | true | 74 | 4/5 |
+| postgres-prefixed-strings | required | syntax-rejected | "," is no valid input at all<br>"U" is no valid input at all<br>"&amp;" is no valid input at all<br>Unfinished single quoted string literal<br>"d" is no valid input at all<br>"&#92;" is no valid input at all<br>"0" is no valid input at all<br>"0" is no valid input at all<br>"6" is no valid input at all<br>"1" is no valid input at all<br>"t" is no valid input at all<br>Unfinished single quoted string literal<br>"F" is no valid input at all<br>"R" is no valid input at all<br>"O" is no valid input at all<br>"M" is no valid input at all<br>"t" is no valid input at all<br>"W" is no valid input at all<br>"H" is no valid input at all<br>"E" is no valid input at all<br>"R" is no valid input at all<br>"E" is no valid input at all<br>"n" is no valid input at all<br>"a" is no valid input at all<br>"m" is no valid input at all<br>"e" is no valid input at all<br>"!" is no valid input at all<br>"~" is no valid input at all<br>"*" is no valid input at all<br>Unfinished single quoted string literal<br>"x" is no valid input at all<br>Unfinished single quoted string literal | none | true | true | false | false | 0 | 1/3 |
+| mysql-prefixed-literal-variable | required | syntax-rejected | 'id' is not valid at this position | none | true | true | true | false | 0 | 2/4 |
+| generic-array-without-from | required | syntax-rejected | '[' is not valid at this position | none | true | true | true | false | 0 | 2/2 |
+| match-recognize-function-name | required | accepted | none | none | true | true | true | true | 32 | 0/0 |
+| match-recognize-construct | opaque | syntax-rejected | 'PARTITION' is not valid at this position<br>'A' is not valid at this position<br>'DEFINE' is not valid at this position | none | true | true | true | false | 0 | 0/0 |
+| unterminated-string | invalid | syntax-rejected | Unfinished single quoted string literal<br>Statement is incomplete, expecting an existing column or an existing function or a keyword | none | true | true | false | false | 0 | 0/0 |
 
 ## Bundled Packages
 

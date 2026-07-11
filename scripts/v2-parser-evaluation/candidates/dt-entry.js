@@ -1,4 +1,5 @@
-var HiveSQL = require('dt-sql-parser').HiveSQL;
-module.exports = function create_hive_parser() {
+import { HiveSQL } from 'dt-sql-parser';
+
+export default function create_hive_parser() {
     return new HiveSQL();
-};
+}

@@ -1,9 +1,13 @@
 var assert = require('assert');
+var utilTypes = require('util').types;
 var GATES = Object.freeze({
     requiredParseRate: 1,
     invalidRejectRate: 1,
-    roundTripRate: 1,
+    sourceRoundTripRate: 1,
     requiredNodeSpanRate: 1,
+    nativeTokenPartitionRate: 1,
+    nativeTokenCoverageRate: 1,
+    nativeAtomicLexemeRate: 1,
     maxBundleBytes: 5 * 1024 * 1024,
     maxGzipBytes: 1536 * 1024,
     maxColdStartMedianMs: 400,
@@ -12,6 +16,8 @@ var GATES = Object.freeze({
 var ALLOWED_LICENSES = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC'];
 var ALLOWED_DIALECTS = ['hive', 'generic', 'postgresql', 'mysql'];
 var ALLOWED_EXPECTATIONS = ['required', 'opaque', 'invalid'];
+var ALLOWED_STATUSES = ['accepted', 'syntax-rejected', 'analysis-failed'];
+var ALLOWED_FAILURE_STAGES = ['validate', 'tokenize', 'parse', 'analyze', 'normalize'];
 
 function rate(passed, total) {
     return passed / total;
@@ -90,14 +96,12 @@ function assert_cases_schema(cases) {
         }
         assert.ok(Array.isArray(testCase.tags), 'case ' + label + ' tags must be an array');
         assert.ok(is_dense_array(testCase.tags), 'case ' + label + ' tags must be a dense array');
-        var tagsValid = true;
         for (var tagIndex = 0; tagIndex < testCase.tags.length; tagIndex++) {
-            if (!is_non_empty_string(testCase.tags[tagIndex])) {
-                tagsValid = false;
-                break;
-            }
+            assert.ok(
+                is_non_empty_string(testCase.tags[tagIndex]),
+                'case ' + label + ' tags must contain non-empty strings'
+            );
         }
-        assert.ok(tagsValid, 'case ' + label + ' tags must contain non-empty strings');
         if (testCase.expectation == 'required') {
             requiredCount++;
         }
@@ -113,6 +117,7 @@ function assert_cases_schema(cases) {
 
 function assert_probe_schema(probe) {
     assert.ok(is_object(probe), 'probe must be an object');
+    assert.strictEqual(probe.bundleEntry, 'esm-named-hive', 'probe bundleEntry must identify the ESM named Hive entry');
     ['bundleBytes', 'gzipBytes'].forEach(function(field) {
         assert.ok(Number.isInteger(probe[field]) && probe[field] > 0, 'probe ' + field + ' must be a positive integer');
     });
@@ -139,11 +144,7 @@ function assert_probe_schema(probe) {
     assert.ok(is_object(probe.directLoad), 'probe directLoad must be an object');
     assert.strictEqual(typeof probe.directLoad.success, 'boolean', 'probe directLoad success must be a boolean');
     if (probe.directLoad.success) {
-        assert.strictEqual(
-            probe.directLoad.errorCode,
-            null,
-            'successful direct load must not include an error code'
-        );
+        assert.strictEqual(probe.directLoad.errorCode, null, 'successful direct load must not include an error code');
     } else {
         assert.ok(
             is_non_empty_string(probe.directLoad.errorCode)
@@ -168,61 +169,209 @@ function assert_probe_schema(probe) {
     }
 }
 
-function rejected_result(message) {
+function analysis_failed_result(stage, message) {
     return {
+        status: 'analysis-failed',
         accepted: false,
-        errors: [message],
+        errors: [],
+        analysisFailure: {
+            stage: stage,
+            message: message,
+        },
         leaves: [],
+        nativePartition: {
+            valid: false,
+            invalidTokenCount: 1,
+            overlapTokenCount: 0,
+            nonTriviaGapCount: 1,
+        },
         nodeCount: 0,
         nodeSpansValid: false,
         rejectionEvidence: false,
     };
 }
 
+function is_own_data_descriptor(descriptor) {
+    return !!descriptor
+        && Object.prototype.hasOwnProperty.call(descriptor, 'value')
+        && typeof descriptor.get != 'function'
+        && typeof descriptor.set != 'function';
+}
+
+// Strict dense data-array snapshot for candidate evidence arrays.
+// Baseline is descriptor-first so index accessors cannot rewrite unread slots.
+function snapshot_dense_array(value, failureMessage, mapItem) {
+    try {
+        if (utilTypes.isProxy(value)) {
+            return { ok: false, message: failureMessage, items: [] };
+        }
+        if (!Array.isArray(value)) {
+            return { ok: false, message: failureMessage, items: [] };
+        }
+        var initialLength = value.length;
+        if (!Number.isInteger(initialLength) || initialLength < 0) {
+            return { ok: false, message: failureMessage, items: [] };
+        }
+        var baseline = [];
+        for (var index = 0; index < initialLength; index++) {
+            var descriptor = Object.getOwnPropertyDescriptor(value, index);
+            if (!is_own_data_descriptor(descriptor)) {
+                return { ok: false, message: failureMessage, items: [] };
+            }
+            baseline.push({
+                value: descriptor.value,
+                writable: descriptor.writable,
+                enumerable: descriptor.enumerable,
+                configurable: descriptor.configurable,
+            });
+        }
+        var snapshot = [];
+        for (var mapIndex = 0; mapIndex < baseline.length; mapIndex++) {
+            var mapped = mapItem(baseline[mapIndex].value);
+            if (!mapped.ok) {
+                return { ok: false, message: mapped.message || failureMessage, items: [] };
+            }
+            snapshot.push(mapped.value);
+        }
+        // Re-check structural stability after all field copies.
+        if (value.length !== initialLength) {
+            return { ok: false, message: failureMessage, items: [] };
+        }
+        for (var checkIndex = 0; checkIndex < initialLength; checkIndex++) {
+            var checkDescriptor = Object.getOwnPropertyDescriptor(value, checkIndex);
+            if (!is_own_data_descriptor(checkDescriptor)
+                || checkDescriptor.value !== baseline[checkIndex].value
+                || checkDescriptor.writable !== baseline[checkIndex].writable
+                || checkDescriptor.enumerable !== baseline[checkIndex].enumerable
+                || checkDescriptor.configurable !== baseline[checkIndex].configurable) {
+                return { ok: false, message: failureMessage, items: [] };
+            }
+        }
+        // No new trailing own indexes beyond the original dense length.
+        if (Object.prototype.hasOwnProperty.call(value, initialLength)) {
+            return { ok: false, message: failureMessage, items: [] };
+        }
+        return { ok: true, message: null, items: snapshot };
+    } catch (error) {
+        return { ok: false, message: failureMessage, items: [] };
+    }
+}
+
+function copy_errors(value, failures) {
+    var result = snapshot_dense_array(value, 'errors must be an array of non-empty strings', function(item) {
+        if (!is_non_empty_string(item)) {
+            return { ok: false, message: 'errors must be an array of non-empty strings' };
+        }
+        return { ok: true, value: item };
+    });
+    if (!result.ok) {
+        failures.push(result.message);
+        return [];
+    }
+    return result.items;
+}
+
+function copy_leaves(value, failures) {
+    var result = snapshot_dense_array(value, 'leaves must contain structurally valid source leaves', function(leaf) {
+        if (!is_object(leaf)) {
+            return { ok: false, message: 'leaves must contain structurally valid source leaves' };
+        }
+        var kind = leaf.kind;
+        var origin = leaf.origin;
+        var raw = leaf.raw;
+        var span = leaf.span;
+        var start = span && span.start;
+        var end = span && span.end;
+        if (!is_non_empty_string(kind)
+            || ['candidate', 'synthetic'].indexOf(origin) < 0
+            || (origin == 'candidate' && ['token', 'trivia'].indexOf(kind) < 0)
+            || (origin == 'synthetic' && ['gap', 'opaque'].indexOf(kind) < 0)
+            || typeof raw != 'string'
+            || !is_object(span)
+            || !Number.isInteger(start)
+            || !Number.isInteger(end)
+            || start < 0
+            || end < start) {
+            return { ok: false, message: 'leaves must contain structurally valid source leaves' };
+        }
+        return {
+            ok: true,
+            value: Object.freeze({
+                kind: kind,
+                origin: origin,
+                raw: raw,
+                span: Object.freeze({ start: start, end: end }),
+            }),
+        };
+    });
+    if (!result.ok) {
+        failures.push(result.message);
+        return [];
+    }
+    return Object.freeze(result.items);
+}
+
+function copy_analysis_failure(value, failures) {
+    if (value === null) {
+        return null;
+    }
+    if (!is_object(value)) {
+        failures.push('analysisFailure must be null or a structured failure');
+        return null;
+    }
+    var stage = value.stage;
+    var message = value.message;
+    if (ALLOWED_FAILURE_STAGES.indexOf(stage) < 0 || !is_non_empty_string(message)) {
+        failures.push('analysisFailure must contain a stable stage and message');
+        return null;
+    }
+    return Object.freeze({ stage: stage, message: message });
+}
+
+function copy_native_partition(value, failures) {
+    if (!is_object(value)) {
+        failures.push('nativePartition must be a structured object');
+        return null;
+    }
+    var valid = value.valid;
+    var invalidTokenCount = value.invalidTokenCount;
+    var overlapTokenCount = value.overlapTokenCount;
+    var nonTriviaGapCount = value.nonTriviaGapCount;
+    if (typeof valid != 'boolean'
+        || !Number.isInteger(invalidTokenCount) || invalidTokenCount < 0
+        || !Number.isInteger(overlapTokenCount) || overlapTokenCount < 0
+        || !Number.isInteger(nonTriviaGapCount) || nonTriviaGapCount < 0
+        || (valid && (invalidTokenCount > 0 || overlapTokenCount > 0))
+        || (!valid && invalidTokenCount == 0 && overlapTokenCount == 0)) {
+        failures.push('nativePartition must contain consistent non-negative evidence');
+        return null;
+    }
+    return Object.freeze({
+        valid: valid,
+        invalidTokenCount: invalidTokenCount,
+        overlapTokenCount: overlapTokenCount,
+        nonTriviaGapCount: nonTriviaGapCount,
+    });
+}
+
 function normalize_result(result) {
     if (!result || typeof result != 'object' || Array.isArray(result)) {
-        return rejected_result('candidate returned malformed result');
+        return analysis_failed_result('normalize', 'candidate returned malformed result');
     }
+    var failures = [];
+    var status = result.status;
     var accepted = result.accepted;
-    var errors = result.errors;
-    var leaves = result.leaves;
+    var errors = copy_errors(result.errors, failures);
+    var analysisFailure = copy_analysis_failure(result.analysisFailure, failures);
+    var leaves = copy_leaves(result.leaves, failures);
+    var nativePartition = copy_native_partition(result.nativePartition, failures);
     var nodeCount = result.nodeCount;
     var nodeSpansValid = result.nodeSpansValid;
-    var failures = [];
+    if (ALLOWED_STATUSES.indexOf(status) < 0) {
+        failures.push('status must describe accepted, syntax-rejected, or analysis-failed');
+    }
     if (typeof accepted != 'boolean') {
         failures.push('accepted must be a boolean');
-    }
-    var errorsValid = is_dense_array(errors);
-    if (errorsValid) {
-        for (var errorIndex = 0; errorIndex < errors.length; errorIndex++) {
-            if (!is_non_empty_string(errors[errorIndex])) {
-                errorsValid = false;
-                break;
-            }
-        }
-    }
-    if (!errorsValid) {
-        failures.push('errors must be an array of non-empty strings');
-    }
-    var leavesValid = is_dense_array(leaves);
-    if (leavesValid) {
-        for (var leafIndex = 0; leafIndex < leaves.length; leafIndex++) {
-            var leaf = leaves[leafIndex];
-            if (!is_object(leaf)
-                || !is_non_empty_string(leaf.kind)
-                || typeof leaf.raw != 'string'
-                || !is_object(leaf.span)
-                || !Number.isInteger(leaf.span.start)
-                || !Number.isInteger(leaf.span.end)
-                || leaf.span.start < 0
-                || leaf.span.end < leaf.span.start) {
-                leavesValid = false;
-                break;
-            }
-        }
-    }
-    if (!leavesValid) {
-        failures.push('leaves must contain structurally valid source leaves');
     }
     if (!Number.isInteger(nodeCount) || nodeCount < 0) {
         failures.push('nodeCount must be a non-negative integer');
@@ -230,20 +379,38 @@ function normalize_result(result) {
     if (typeof nodeSpansValid != 'boolean') {
         failures.push('nodeSpansValid must be a boolean');
     }
-    if (accepted === true && Array.isArray(errors) && errors.length > 0) {
-        failures.push('accepted result must not include errors');
+    if (status == 'accepted' && (accepted !== true || errors.length > 0 || analysisFailure !== null)) {
+        failures.push('accepted status must contain only successful evidence');
+    }
+    if (status == 'syntax-rejected' && (accepted !== false || errors.length == 0 || analysisFailure !== null)) {
+        failures.push('syntax-rejected status must contain parser syntax diagnostics only');
+    }
+    if (status == 'analysis-failed' && (accepted !== false || errors.length > 0 || analysisFailure === null)) {
+        failures.push('analysis-failed status must contain an internal analysis failure only');
     }
     if (failures.length > 0) {
-        return rejected_result('candidate returned malformed result: ' + failures.join('; '));
+        return analysis_failed_result('normalize', 'candidate returned malformed result: ' + failures.join('; '));
     }
-    return {
+    var derivedNonTriviaGapCount = leaves.filter(function(leaf) {
+        return leaf.origin == 'synthetic' && !/^\s*$/.test(leaf.raw);
+    }).length;
+    if (nativePartition.nonTriviaGapCount != derivedNonTriviaGapCount) {
+        return analysis_failed_result(
+            'normalize',
+            'candidate nativePartition.nonTriviaGapCount contradicts derived leaf evidence'
+        );
+    }
+    return Object.freeze({
+        status: status,
         accepted: accepted,
-        errors: errors,
+        errors: Object.freeze(errors),
+        analysisFailure: analysisFailure,
         leaves: leaves,
+        nativePartition: nativePartition,
         nodeCount: nodeCount,
         nodeSpansValid: nodeSpansValid,
-        rejectionEvidence: accepted === false && errors.length > 0,
-    };
+        rejectionEvidence: status == 'syntax-rejected',
+    });
 }
 
 function assert_leaf_partition(source, leaves) {
@@ -269,15 +436,20 @@ function evaluate_case(candidate, testCase) {
         result = candidate.analyze(testCase);
     } catch (error) {
         analyzeThrew = true;
-        result = rejected_result('candidate analyze threw: '
-            + (error && error.message ? error.message : String(error)));
+        result = analysis_failed_result(
+            'analyze',
+            'candidate analyze threw: ' + (error && error.message ? error.message : String(error))
+        );
     }
     if (!analyzeThrew) {
         try {
             result = normalize_result(result);
         } catch (error) {
-            result = rejected_result('candidate result inspection threw: '
-                + (error && error.message ? error.message : String(error)));
+            result = analysis_failed_result(
+                'normalize',
+                'candidate result inspection threw: '
+                    + (error && error.message ? error.message : String(error))
+            );
         }
     }
     var roundTrip = true;
@@ -291,24 +463,33 @@ function evaluate_case(candidate, testCase) {
         var lexeme = testCase.atomicLexemes[atomicIndex];
         for (var leafIndex = 0; leafIndex < result.leaves.length; leafIndex++) {
             var leaf = result.leaves[leafIndex];
-            if (leaf && typeof leaf.raw == 'string' && leaf.raw == lexeme) {
+            if (leaf.origin == 'candidate' && leaf.raw == lexeme) {
                 atomicPassed++;
                 break;
             }
         }
     }
-    return {
+    var nativeCoverageComplete = result.nativePartition.valid
+        && result.nativePartition.nonTriviaGapCount == 0;
+    return Object.freeze({
         id: testCase.id,
         expectation: testCase.expectation,
+        status: result.status,
         accepted: result.accepted,
         errors: result.errors,
+        analysisFailure: result.analysisFailure,
         rejectionEvidence: result.rejectionEvidence,
         nodeCount: result.nodeCount,
         nodeSpansValid: result.nodeSpansValid,
         roundTrip: roundTrip,
+        nativePartitionValid: result.nativePartition.valid,
+        nativeCoverageComplete: nativeCoverageComplete,
+        invalidTokenCount: result.nativePartition.invalidTokenCount,
+        overlapTokenCount: result.nativePartition.overlapTokenCount,
+        nonTriviaGapCount: result.nativePartition.nonTriviaGapCount,
         atomicPassed: atomicPassed,
         atomicTotal: testCase.atomicLexemes.length,
-    };
+    });
 }
 
 function evaluate_candidate(candidate, cases, probe) {
@@ -325,13 +506,19 @@ function evaluate_candidate(candidate, cases, probe) {
     var atomicTotal = outcomes.reduce(function(total, item) { return total + item.atomicTotal; }, 0);
     var summary = {
         totalCases: outcomes.length,
-        requiredParseRate: rate(required.filter(function(item) { return item.accepted; }).length, required.length),
+        requiredParseRate: rate(required.filter(function(item) { return item.status == 'accepted'; }).length, required.length),
         invalidRejectRate: rate(invalid.filter(function(item) { return item.rejectionEvidence; }).length, invalid.length),
-        roundTripRate: rate(outcomes.filter(function(item) { return item.roundTrip; }).length, outcomes.length),
+        sourceRoundTripRate: rate(outcomes.filter(function(item) { return item.roundTrip; }).length, outcomes.length),
         requiredNodeSpanRate: rate(required.filter(function(item) {
-            return item.accepted && item.nodeCount > 0 && item.nodeSpansValid;
+            return item.status == 'accepted' && item.nodeCount > 0 && item.nodeSpansValid;
         }).length, required.length),
-        atomicLexemeRate: rate(atomicPassed, atomicTotal),
+        nativeTokenPartitionRate: rate(outcomes.filter(function(item) {
+            return item.nativePartitionValid;
+        }).length, outcomes.length),
+        nativeTokenCoverageRate: rate(outcomes.filter(function(item) {
+            return item.nativeCoverageComplete;
+        }).length, outcomes.length),
+        nativeAtomicLexemeRate: rate(atomicPassed, atomicTotal),
     };
     var licensePass = license_allowed(candidate.metadata.license) && probe.bundledPackages.length > 0;
     for (var packageIndex = 0; licensePass && packageIndex < probe.bundledPackages.length; packageIndex++) {
@@ -339,12 +526,16 @@ function evaluate_candidate(candidate, cases, probe) {
     }
     var grammarPass = summary.requiredParseRate >= GATES.requiredParseRate
         && summary.invalidRejectRate >= GATES.invalidRejectRate
-        && summary.roundTripRate >= GATES.roundTripRate
+        && summary.sourceRoundTripRate >= GATES.sourceRoundTripRate
         && summary.requiredNodeSpanRate >= GATES.requiredNodeSpanRate;
     var packagingPass = probe.bundleBytes <= GATES.maxBundleBytes
         && probe.gzipBytes <= GATES.maxGzipBytes;
     var performancePass = probe.coldStartMedianMs <= GATES.maxColdStartMedianMs
         && probe.scaleRatio <= GATES.maxScaleRatio;
+    var tokenOwnershipPass = summary.sourceRoundTripRate >= GATES.sourceRoundTripRate
+        && summary.nativeTokenPartitionRate >= GATES.nativeTokenPartitionRate
+        && summary.nativeTokenCoverageRate >= GATES.nativeTokenCoverageRate
+        && summary.nativeAtomicLexemeRate >= GATES.nativeAtomicLexemeRate;
     var role = 'rejected';
     if (grammarPass && licensePass) {
         role = packagingPass && performancePass ? 'runtime-grammar-backend' : 'development-oracle';
@@ -357,7 +548,8 @@ function evaluate_candidate(candidate, cases, probe) {
         probe: probe,
         decision: {
             role: role,
-            canOwnLeafStream: summary.roundTripRate == 1 && summary.atomicLexemeRate == 1,
+            canOwnLeafStream: tokenOwnershipPass,
+            tokenOwnershipPass: tokenOwnershipPass,
             grammarPass: grammarPass,
             licensePass: licensePass,
             packagingPass: packagingPass,

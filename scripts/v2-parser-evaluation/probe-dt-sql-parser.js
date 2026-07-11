@@ -87,8 +87,8 @@ function cold_start_samples(bundlePath) {
 function require_analysis_evidence(candidate, testCase, sampleName) {
     var result = candidate.analyze(testCase);
     var failures = [];
-    if (!result || result.accepted !== true) {
-        failures.push('accepted must be true');
+    if (!result || result.status !== 'accepted' || result.accepted !== true) {
+        failures.push('status and accepted must describe success');
     }
     if (!result || !Array.isArray(result.errors) || result.errors.length > 0) {
         failures.push('errors must be empty');
@@ -145,6 +145,7 @@ function probe_dt_sql_parser(candidate) {
     var median100 = median(samples100);
     var median800 = median(samples800);
     return {
+        bundleEntry: 'esm-named-hive',
         bundleBytes: bundle.length,
         gzipBytes: zlib.gzipSync(bundle).length,
         coldStartMedianMs: median(cold_start_samples(outputFile)),
