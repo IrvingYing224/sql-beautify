@@ -3,7 +3,7 @@
 .superpowers/**
 .github/**
 AGENTS.md
-tsconfig.v2.json
+tsconfig.v2*.json
 docs/**
 tests/**
 *.vsix

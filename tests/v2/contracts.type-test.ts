@@ -3,11 +3,14 @@ import type {
     Diagnostic,
     FormatResult,
     LayoutDoc,
+    LexOptions,
+    LexOutput,
     ParserBackend,
     SourceLeaf,
     SourceSpan,
     SyntaxNode,
 } from "../../src/core/index";
+import { lexSql } from "../../src/core/index";
 
 const span: SourceSpan = { start: 0, end: 6 };
 const leaf: SourceLeaf = {
@@ -96,7 +99,40 @@ function statusLabel(value: FormatResult): string {
     }
 }
 
+const defaultLexOptions: LexOptions = {};
+const hiveLexOptions: LexOptions = { dialect: "hive" };
+const postgresLexOptions: LexOptions = { dialect: "postgresql" };
+const mysqlLexOptions: LexOptions = { dialect: "mysql" };
+const genericLexOptions: LexOptions = { dialect: "generic" };
+
+const lexOutput: LexOutput = lexSql("SELECT 1");
+const explicitLexOutput: LexOutput = lexSql("SELECT 1", hiveLexOptions);
+const readonlyLeaves: readonly SourceLeaf[] = lexOutput.leaves;
+const readonlyDiagnostics: readonly Diagnostic[] = lexOutput.diagnostics;
+const canonicalLeaf: SourceLeaf = {
+    id: 0,
+    kind: "keyword",
+    channel: "code",
+    raw: "SELECT",
+    span: { start: 0, end: 6 },
+};
+
+// @ts-expect-error legacy postgres alias is not a Wave 0 canonical dialect
+const invalidDialect: LexOptions = { dialect: "postgres" };
+// @ts-expect-error unknown dialect values are rejected
+const unknownDialect: LexOptions = { dialect: "oracle" };
+
 void backend;
 void doc;
 void options;
 void statusLabel(result);
+void defaultLexOptions;
+void postgresLexOptions;
+void mysqlLexOptions;
+void genericLexOptions;
+void explicitLexOutput;
+void readonlyLeaves;
+void readonlyDiagnostics;
+void canonicalLeaf;
+void invalidDialect;
+void unknownDialect;

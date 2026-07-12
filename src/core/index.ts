@@ -1,5 +1,7 @@
 export type { SourceSpan } from "./source/source-span";
 export type { SourceLeaf, TokenChannel, TokenKind } from "./lexer/token";
+export type { LexOptions, LexOutput } from "./lexer/lossless-lexer";
+export { lexSql } from "./lexer/lossless-lexer";
 export type { Diagnostic, DiagnosticSeverity, RecoveryAction } from "./diagnostics/diagnostic";
 export type { OpaqueNode, StructuredNode, StructuredSyntaxKind, SyntaxNode } from "./syntax/node";
 export type { ParseInput, ParseMode, ParseOutput, ParserBackend } from "./syntax/parser-backend";

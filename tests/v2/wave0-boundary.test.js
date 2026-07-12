@@ -110,7 +110,7 @@ libRuntimeFiles.forEach(function(relativePath) {
 });
 
 [
-    ['Wave 0 TypeScript configuration', /^tsconfig\.v2\.json$/],
+    ['Wave 0/1 TypeScript configuration', /^tsconfig\.v2(?:\..+)?\.json$/],
     ['TypeScript source', /^src(?:\/|$)/],
     ['evaluation scripts', /^scripts(?:\/|$)/],
     ['tests', /^tests(?:\/|$)/],
