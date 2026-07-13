@@ -3,7 +3,36 @@ export type { SourceLeaf, TokenChannel, TokenKind } from "./lexer/token";
 export type { LexOptions, LexOutput } from "./lexer/lossless-lexer";
 export { lexSql } from "./lexer/lossless-lexer";
 export type { Diagnostic, DiagnosticSeverity, RecoveryAction } from "./diagnostics/diagnostic";
-export type { OpaqueNode, StructuredNode, StructuredSyntaxKind, SyntaxNode } from "./syntax/node";
+export type {
+    AliasInfo,
+    CaseBranchKind,
+    CaseBranchNode,
+    ClauseKind,
+    ClauseNode,
+    CteNode,
+    ExpressionKind,
+    ExpressionNode,
+    LeafRange,
+    ListItemNode,
+    ListItemRole,
+    ListNode,
+    ListRole,
+    OpaqueBoundary,
+    OpaqueNode,
+    ProgramNode,
+    QueryKind,
+    QueryNode,
+    RelationKind,
+    RelationNode,
+    StatementKind,
+    StatementNode,
+    StructuredNode,
+    StructuredSyntaxKind,
+    SyntaxNode,
+    SyntaxNodeBase,
+    TypeExpressionNode,
+    WindowSpecNode,
+} from "./syntax/node";
 export type { ParseInput, ParseMode, ParseOutput, ParserBackend } from "./syntax/parser-backend";
 export type { LayoutDoc } from "./layout/doc";
 export type {

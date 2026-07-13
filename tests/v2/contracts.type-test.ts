@@ -1,18 +1,24 @@
 import type {
+    AliasInfo,
     CanonicalFormatOptions,
     Diagnostic,
     FormatResult,
     LayoutDoc,
+    LeafRange,
     LexOptions,
     LexOutput,
+    OpaqueNode,
     ParserBackend,
+    ProgramNode,
     SourceLeaf,
     SourceSpan,
+    StructuredSyntaxKind,
     SyntaxNode,
 } from "../../src/core/index";
 import { lexSql } from "../../src/core/index";
 
 const span: SourceSpan = { start: 0, end: 6 };
+const leafRange: LeafRange = { start: 0, end: 1 };
 const leaf: SourceLeaf = {
     id: 0,
     kind: "keyword",
@@ -20,17 +26,30 @@ const leaf: SourceLeaf = {
     raw: "SELECT",
     span,
 };
-const opaqueNode: SyntaxNode = {
-    id: 1,
+const opaqueNode: OpaqueNode = {
+    id: 2,
     kind: "opaque",
     span,
+    leafRange,
     reasonCode: "UNMODELED_CONSTRUCT",
+    boundary: "statement",
 };
-const root: SyntaxNode = {
+const root: ProgramNode = {
     id: 0,
     kind: "program",
     span,
-    children: [opaqueNode],
+    leafRange,
+    children: [
+        {
+            id: 1,
+            kind: "statement",
+            span,
+            leafRange,
+            statementKind: "opaque",
+            bodyChildId: 2,
+            children: [opaqueNode],
+        },
+    ],
 };
 const diagnostic: Diagnostic = {
     code: "UNMODELED_CONSTRUCT",
@@ -70,7 +89,11 @@ const backend: ParserBackend = {
             span: { start: 0, end: input.source.length },
         };
         return {
-            root: { ...root, span: sourceLeaf.span },
+            root: {
+                ...root,
+                span: sourceLeaf.span,
+                leafRange: { start: 0, end: 1 },
+            },
             leaves: [sourceLeaf],
             diagnostics: [],
         };
@@ -99,6 +122,29 @@ function statusLabel(value: FormatResult): string {
     }
 }
 
+function syntaxKindLabel(node: SyntaxNode): string {
+    switch (node.kind) {
+        case "program":
+        case "statement":
+        case "query":
+        case "cte":
+        case "clause":
+        case "relation":
+        case "list":
+        case "list-item":
+        case "expression":
+        case "case-branch":
+        case "window-spec":
+        case "type-expression":
+        case "opaque":
+            return node.kind;
+        default: {
+            const exhaustive: never = node;
+            return exhaustive;
+        }
+    }
+}
+
 const defaultLexOptions: LexOptions = {};
 const hiveLexOptions: LexOptions = { dialect: "hive" };
 const postgresLexOptions: LexOptions = { dialect: "postgresql" };
@@ -117,15 +163,24 @@ const canonicalLeaf: SourceLeaf = {
     span: { start: 0, end: 6 },
 };
 
+const alias: AliasInfo = {
+    keywordLeafId: null,
+    nameLeafRange: { start: 0, end: 1 },
+};
+const structuredKind: StructuredSyntaxKind = "program";
+
 // @ts-expect-error legacy postgres alias is not a Wave 0 canonical dialect
 const invalidDialect: LexOptions = { dialect: "postgres" };
 // @ts-expect-error unknown dialect values are rejected
 const unknownDialect: LexOptions = { dialect: "oracle" };
+// @ts-expect-error opaque is not a structured kind
+const opaqueAsStructured: StructuredSyntaxKind = "opaque";
 
 void backend;
 void doc;
 void options;
 void statusLabel(result);
+void syntaxKindLabel(root);
 void defaultLexOptions;
 void postgresLexOptions;
 void mysqlLexOptions;
@@ -136,3 +191,7 @@ void readonlyDiagnostics;
 void canonicalLeaf;
 void invalidDialect;
 void unknownDialect;
+void alias;
+void structuredKind;
+void opaqueAsStructured;
+void opaqueNode;
