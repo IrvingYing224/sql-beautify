@@ -26,7 +26,7 @@ import type { StructuralTokenTable } from "./token-table";
 import { validateSyntaxInvariants } from "./invariants";
 
 const BACKEND_ID = "sql-beautify-v2";
-const BACKEND_VERSION = "2b";
+const BACKEND_VERSION = "2c";
 
 function createContext(
     dialect: Dialect,
@@ -160,18 +160,6 @@ export function parseSql(source: string, options: ParseOptions = {}): ParseOutpu
             "preserve-target"
         );
     }
-    if (dialect !== "hive") {
-        return fallbackOutput(
-            dialect,
-            mode,
-            lexed,
-            table,
-            "SYN_UNSUPPORTED_STATEMENT",
-            `Wave 2B structures Hive queries only; ${dialect} remains recognized`,
-            "preserve-target"
-        );
-    }
-
     try {
         const context = createContext(dialect, mode, lexed, table);
         const root = buildProgram(context, true);

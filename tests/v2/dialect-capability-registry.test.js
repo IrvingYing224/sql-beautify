@@ -47,7 +47,7 @@ var HIVE_STRUCTURED_QUERY_CONSTRUCTS = [
     'insert-overwrite-partition-select'
 ];
 
-var HIVE_RECOGNIZED_EXPRESSION_CONSTRUCTS = [
+var HIVE_STRUCTURED_EXPRESSION_CONSTRUCTS = [
     'case-expression',
     'function-call',
     'collection-expression',
@@ -273,7 +273,7 @@ assert.ok(dialects.getDialect('hive').listJoinSyntax().some(function(join) {
     return join.id === 'left-anti-join' && join.words.join(' ') === 'left anti join';
 }), 'Hive registry must own LEFT ANTI JOIN syntax');
 
-// Wave 2B structures Hive statement/query/clause boundaries only.
+// Wave 2C structures Hive statement/query/clause and expression boundaries.
 var hive = dialects.getDialect('hive');
 HIVE_STRUCTURED_QUERY_CONSTRUCTS.forEach(function(id) {
     var entry = hive.getCapability(id);
@@ -285,13 +285,13 @@ HIVE_STRUCTURED_QUERY_CONSTRUCTS.forEach(function(id) {
     );
 });
 
-HIVE_RECOGNIZED_EXPRESSION_CONSTRUCTS.forEach(function(id) {
+HIVE_STRUCTURED_EXPRESSION_CONSTRUCTS.forEach(function(id) {
     var entry = hive.getCapability(id);
     assert.ok(entry, 'Hive must declare expression capability ' + id);
     assert.strictEqual(
         entry.state,
-        'recognized',
-        'Hive expression ' + id + ' must remain recognized until Wave 2C'
+        'structured',
+        'Hive expression ' + id + ' must be structured in Wave 2C'
     );
 });
 

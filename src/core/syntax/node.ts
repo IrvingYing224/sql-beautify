@@ -105,6 +105,7 @@ export type ExpressionKind =
     | "in"
     | "exists"
     | "is"
+    | "frame-bound"
     | "typed-literal";
 
 export type CaseBranchKind = "when" | "else";
@@ -201,6 +202,8 @@ export interface CaseBranchNode extends SyntaxNodeBase<"case-branch"> {
 }
 
 export interface WindowSpecNode extends SyntaxNodeBase<"window-spec"> {
+    /** Named WINDOW reference/declaration name, or null for an inline spec. */
+    readonly nameLeafRange: LeafRange | null;
     readonly partitionChildId: number | null;
     readonly orderChildId: number | null;
     readonly frameChildId: number | null;

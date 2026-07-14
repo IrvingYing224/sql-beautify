@@ -33,63 +33,165 @@ const CAPABILITY_STATES: ReadonlySet<CapabilityState> = new Set([
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** Shared symbol operators present across Hive-first lexical profiles. */
-const SHARED_SYMBOL_OPERATORS: readonly {
+type OperatorDefinition = Readonly<{
     key: string;
-    fixities: readonly OperatorFixity[];
-}[] = freezeImmutableArray([
-    { key: "+", fixities: freezeImmutableArray(["prefix", "infix"] as OperatorFixity[]) },
-    { key: "-", fixities: freezeImmutableArray(["prefix", "infix"] as OperatorFixity[]) },
-    { key: "*", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "/", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "%", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "=", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "<", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: ">", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "<=", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: ">=", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "<>", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "!=", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "||", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "&&", fixities: freezeImmutableArray(["infix"] as OperatorFixity[]) },
-    { key: "!", fixities: freezeImmutableArray(["prefix"] as OperatorFixity[]) },
-    { key: "~", fixities: freezeImmutableArray(["prefix"] as OperatorFixity[]) },
+    fixity: OperatorFixity;
+    form: OperatorForm;
+    words: readonly string[];
+    precedence: number;
+    associativity: "left" | "right" | "none";
+}>;
+
+const PRECEDENCE = Object.freeze({
+    assignment: 5,
+    or: 10,
+    and: 20,
+    predicate: 30,
+    bitOr: 40,
+    bitXor: 45,
+    bitAnd: 50,
+    shift: 55,
+    additive: 60,
+    access: 65,
+    multiplicative: 70,
+    prefix: 80,
+    postfix: 90,
+});
+
+function symbol(
+    key: string,
+    fixity: OperatorFixity,
+    precedence: number,
+    associativity: "left" | "right" | "none"
+): OperatorDefinition {
+    return Object.freeze({
+        key,
+        fixity,
+        form: "symbol" as const,
+        words: freezeImmutableArray([] as string[]),
+        precedence,
+        associativity,
+    });
+}
+
+function wordOperator(
+    key: string,
+    fixity: OperatorFixity,
+    form: OperatorForm,
+    words: readonly string[],
+    precedence: number,
+    associativity: "left" | "right" | "none"
+): OperatorDefinition {
+    return Object.freeze({
+        key,
+        fixity,
+        form,
+        words: freezeImmutableArray(words),
+        precedence,
+        associativity,
+    });
+}
+
+/** The complete shared Pratt authority. Parser code never duplicates these numbers. */
+const SHARED_SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
+    symbol("+", "prefix", PRECEDENCE.prefix, "right"),
+    symbol("+", "infix", PRECEDENCE.additive, "left"),
+    symbol("-", "prefix", PRECEDENCE.prefix, "right"),
+    symbol("-", "infix", PRECEDENCE.additive, "left"),
+    symbol("*", "infix", PRECEDENCE.multiplicative, "left"),
+    symbol("/", "infix", PRECEDENCE.multiplicative, "left"),
+    symbol("%", "infix", PRECEDENCE.multiplicative, "left"),
+    symbol("=", "infix", PRECEDENCE.predicate, "none"),
+    symbol("==", "infix", PRECEDENCE.predicate, "none"),
+    symbol("<=>", "infix", PRECEDENCE.predicate, "none"),
+    symbol("<", "infix", PRECEDENCE.predicate, "none"),
+    symbol(">", "infix", PRECEDENCE.predicate, "none"),
+    symbol("<=", "infix", PRECEDENCE.predicate, "none"),
+    symbol(">=", "infix", PRECEDENCE.predicate, "none"),
+    symbol("<>", "infix", PRECEDENCE.predicate, "none"),
+    symbol("!=", "infix", PRECEDENCE.predicate, "none"),
+    symbol("&&", "infix", PRECEDENCE.and, "left"),
+    symbol("|", "infix", PRECEDENCE.bitOr, "left"),
+    symbol("^", "infix", PRECEDENCE.bitXor, "left"),
+    symbol("&", "infix", PRECEDENCE.bitAnd, "left"),
+    symbol("<<", "infix", PRECEDENCE.shift, "left"),
+    symbol(">>", "infix", PRECEDENCE.shift, "left"),
+    symbol("!", "prefix", PRECEDENCE.prefix, "right"),
+    symbol("~", "prefix", PRECEDENCE.prefix, "right"),
 ]);
 
 /**
  * Keyword / compound / special operators (schema frozen for 2C).
  * Validated via lexical keyword membership, not operator token view.
  */
-const SHARED_WORD_OPERATORS: readonly {
-    key: string;
-    fixity: OperatorFixity;
-    form: OperatorForm;
-    words: readonly string[];
-}[] = freezeImmutableArray([
-    {
-        key: "not",
-        fixity: "prefix",
-        form: "keyword",
-        words: freezeImmutableArray(["not"]),
-    },
-    {
-        key: "is-not",
-        fixity: "infix",
-        form: "compound",
-        words: freezeImmutableArray(["is", "not"]),
-    },
-    {
-        key: "not-in",
-        fixity: "infix",
-        form: "compound",
-        words: freezeImmutableArray(["not", "in"]),
-    },
-    {
-        key: "between",
-        fixity: "infix",
-        form: "special",
-        words: freezeImmutableArray(["between", "and"]),
-    },
+const SHARED_WORD_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
+    wordOperator("not", "prefix", "keyword", ["not"], PRECEDENCE.prefix, "right"),
+    wordOperator("or", "infix", "keyword", ["or"], PRECEDENCE.or, "left"),
+    wordOperator("and", "infix", "keyword", ["and"], PRECEDENCE.and, "left"),
+    wordOperator("like", "infix", "keyword", ["like"], PRECEDENCE.predicate, "none"),
+    wordOperator("not-like", "infix", "compound", ["not", "like"], PRECEDENCE.predicate, "none"),
+    wordOperator("in", "infix", "special", ["in"], PRECEDENCE.predicate, "none"),
+    wordOperator("not-in", "infix", "compound", ["not", "in"], PRECEDENCE.predicate, "none"),
+    wordOperator("between", "infix", "special", ["between", "and"], PRECEDENCE.predicate, "none"),
+    wordOperator("not-between", "infix", "special", ["not", "between", "and"], PRECEDENCE.predicate, "none"),
+    wordOperator("is-null", "postfix", "compound", ["is", "null"], PRECEDENCE.predicate, "none"),
+    wordOperator("is-not-null", "postfix", "compound", ["is", "not", "null"], PRECEDENCE.predicate, "none"),
+    wordOperator("is-true", "postfix", "compound", ["is", "true"], PRECEDENCE.predicate, "none"),
+    wordOperator("is-not-true", "postfix", "compound", ["is", "not", "true"], PRECEDENCE.predicate, "none"),
+    wordOperator("is-false", "postfix", "compound", ["is", "false"], PRECEDENCE.predicate, "none"),
+    wordOperator("is-not-false", "postfix", "compound", ["is", "not", "false"], PRECEDENCE.predicate, "none"),
+]);
+
+const HIVE_WORD_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
+    wordOperator("rlike", "infix", "keyword", ["rlike"], PRECEDENCE.predicate, "none"),
+    wordOperator("not-rlike", "infix", "compound", ["not", "rlike"], PRECEDENCE.predicate, "none"),
+    wordOperator("regexp", "infix", "keyword", ["regexp"], PRECEDENCE.predicate, "none"),
+    wordOperator("not-regexp", "infix", "compound", ["not", "regexp"], PRECEDENCE.predicate, "none"),
+]);
+
+const MYSQL_WORD_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
+    wordOperator("regexp", "infix", "keyword", ["regexp"], PRECEDENCE.predicate, "none"),
+    wordOperator("not-regexp", "infix", "compound", ["not", "regexp"], PRECEDENCE.predicate, "none"),
+]);
+
+const POSTGRES_WORD_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
+    wordOperator("ilike", "infix", "keyword", ["ilike"], PRECEDENCE.predicate, "none"),
+    wordOperator("not-ilike", "infix", "compound", ["not", "ilike"], PRECEDENCE.predicate, "none"),
+]);
+
+const CONCAT_SYMBOL_OPERATOR: readonly OperatorDefinition[] = freezeImmutableArray([
+    symbol("||", "infix", PRECEDENCE.access, "left"),
+]);
+
+const POSTGRES_SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
+    symbol("->", "infix", PRECEDENCE.access, "left"),
+    symbol("->>", "infix", PRECEDENCE.access, "left"),
+    symbol("#", "infix", PRECEDENCE.access, "left"),
+    symbol("#>", "infix", PRECEDENCE.access, "left"),
+    symbol("#>>", "infix", PRECEDENCE.access, "left"),
+    symbol("@>", "infix", PRECEDENCE.predicate, "none"),
+    symbol("<@", "infix", PRECEDENCE.predicate, "none"),
+    symbol("?", "infix", PRECEDENCE.predicate, "none"),
+    symbol("?|", "infix", PRECEDENCE.predicate, "none"),
+    symbol("?&", "infix", PRECEDENCE.predicate, "none"),
+    symbol("@?", "infix", PRECEDENCE.predicate, "none"),
+    symbol("@@", "infix", PRECEDENCE.predicate, "none"),
+    symbol("~~", "infix", PRECEDENCE.predicate, "none"),
+    symbol("!~~", "infix", PRECEDENCE.predicate, "none"),
+    symbol("~~*", "infix", PRECEDENCE.predicate, "none"),
+    symbol("!~~*", "infix", PRECEDENCE.predicate, "none"),
+    symbol("~", "infix", PRECEDENCE.predicate, "none"),
+    symbol("~*", "infix", PRECEDENCE.predicate, "none"),
+    symbol("!~", "infix", PRECEDENCE.predicate, "none"),
+    symbol("!~*", "infix", PRECEDENCE.predicate, "none"),
+    symbol("::", "postfix", PRECEDENCE.postfix, "left"),
+]);
+
+const MYSQL_SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
+    symbol("->", "infix", PRECEDENCE.access, "left"),
+    symbol("->>", "infix", PRECEDENCE.access, "left"),
+    symbol(":=", "infix", PRECEDENCE.assignment, "right"),
+    symbol("||", "infix", PRECEDENCE.or, "left"),
 ]);
 
 const HIVE_QUERY_STRUCTURED: readonly string[] = freezeImmutableArray([
@@ -114,7 +216,7 @@ const HIVE_QUERY_STRUCTURED: readonly string[] = freezeImmutableArray([
     "insert-overwrite-partition-select",
 ]);
 
-const HIVE_EXPRESSION_RECOGNIZED: readonly string[] = freezeImmutableArray([
+const HIVE_EXPRESSION_STRUCTURED: readonly string[] = freezeImmutableArray([
     "case-expression",
     "function-call",
     "collection-expression",
@@ -178,13 +280,14 @@ const HIVE_PRESERVATION_CAPABILITIES: readonly Readonly<{
     Object.freeze({ id: "unpivot", state: "diagnostic" as const }),
 ]);
 
-const SHARED_QUERY_RECOGNIZED: readonly string[] = freezeImmutableArray([
+const SHARED_STRUCTURED_CAPABILITIES: readonly string[] = freezeImmutableArray([
     "multi-statement",
     "with-cte",
     "select-without-from",
     "from",
     "join",
     "subquery",
+    "table-function",
     "where",
     "group-by",
     "having",
@@ -239,28 +342,26 @@ function buildOperatorList(dialect: Dialect): readonly OperatorSemantics[] {
     const lexicalOps = new Set(profile.operators);
     const entries: OperatorSemantics[] = [];
 
-    for (const item of SHARED_SYMBOL_OPERATORS) {
-        if (!lexicalOps.has(item.key)) {
-            // Skip symbols not present in this dialect's lexical profile.
+    const definitions = [
+        ...SHARED_SYMBOL_OPERATORS,
+        ...SHARED_WORD_OPERATORS,
+        ...(dialect === "mysql" ? [] : CONCAT_SYMBOL_OPERATOR),
+        ...(dialect === "hive" ? HIVE_WORD_OPERATORS : []),
+        ...(dialect === "mysql" ? MYSQL_WORD_OPERATORS : []),
+        ...(dialect === "postgresql" ? POSTGRES_WORD_OPERATORS : []),
+        ...(dialect === "postgresql" ? POSTGRES_SYMBOL_OPERATORS : []),
+        ...(dialect === "mysql" ? MYSQL_SYMBOL_OPERATORS : []),
+    ];
+    const identities = new Set<string>();
+    for (const item of definitions) {
+        if (item.form === "symbol" && !lexicalOps.has(item.key)) {
             continue;
         }
-        for (const fixity of item.fixities) {
-            entries.push(
-                Object.freeze({
-                    key: item.key,
-                    fixity,
-                    form: "symbol" as const,
-                    words: freezeImmutableArray([] as string[]),
-                    precedence: null,
-                    associativity: null,
-                })
-            );
-        }
-    }
-
-    for (const item of SHARED_WORD_OPERATORS) {
         for (const word of item.words) {
-            if (!profile.keywords.has(word.toUpperCase())) {
+            if (
+                !profile.keywords.has(word.toUpperCase()) &&
+                !profile.syntaxOperatorWords.has(word)
+            ) {
                 // Keyword not in profile — skip this word operator for dialect.
                 // BETWEEN/AND/NOT/IN/IS are in COMMON_KEYWORDS for all dialects.
                 throw new Error(
@@ -268,16 +369,12 @@ function buildOperatorList(dialect: Dialect): readonly OperatorSemantics[] {
                 );
             }
         }
-        entries.push(
-            Object.freeze({
-                key: item.key,
-                fixity: item.fixity,
-                form: item.form,
-                words: freezeImmutableArray(item.words),
-                precedence: null,
-                associativity: null,
-            })
-        );
+        const identity = `${item.key}\0${item.fixity}`;
+        if (identities.has(identity)) {
+            continue;
+        }
+        identities.add(identity);
+        entries.push(Object.freeze({ ...item, words: freezeImmutableArray(item.words) }));
     }
 
     return freezeImmutableArray(entries);
@@ -369,14 +466,29 @@ function createDialectView(
     validateSyntaxLists(dialect, capabilityById, queryClauses, setOperators, joins);
     const operatorsByKeyFixity = new Map<string, OperatorSemantics>();
     const operatorsByKey = new Map<string, OperatorSemantics[]>();
+    const recognitionSignatures = new Set<string>();
 
     for (const op of operators) {
         const mapKey = `${op.key}\0${op.fixity}`;
-        if (operatorsByKeyFixity.has(mapKey)) {
+        const recognitionSignature =
+            op.form === "symbol"
+                ? `${op.fixity}\0symbol\0${op.key}`
+                : `${op.fixity}\0words\0${op.words.join("\0")}`;
+        if (
+            operatorsByKeyFixity.has(mapKey) ||
+            recognitionSignatures.has(recognitionSignature) ||
+            !Number.isInteger(op.precedence) ||
+            op.precedence <= 0 ||
+            (op.associativity !== "left" &&
+                op.associativity !== "right" &&
+                op.associativity !== "none") ||
+            (op.form === "symbol" ? op.words.length !== 0 : op.words.length === 0)
+        ) {
             throw new Error(
-                `Duplicate operator semantics for ${dialect}: ${op.key} / ${op.fixity}`
+                `Invalid or conflicting operator semantics for ${dialect}: ${op.key} / ${op.fixity}`
             );
         }
+        recognitionSignatures.add(recognitionSignature);
         operatorsByKeyFixity.set(mapKey, op);
         const list = operatorsByKey.get(op.key) ?? [];
         list.push(op);
@@ -427,9 +539,13 @@ function buildRegistry(): DialectCapabilityRegistry {
         createDialectView(
             "hive",
             buildCapabilityList(
-                HIVE_EXPRESSION_RECOGNIZED,
+                [],
                 freezeImmutableArray([
                     ...HIVE_QUERY_STRUCTURED.map((id) => Object.freeze({
+                        id,
+                        state: "structured" as const,
+                    })),
+                    ...HIVE_EXPRESSION_STRUCTURED.map((id) => Object.freeze({
                         id,
                         state: "structured" as const,
                     })),
@@ -447,21 +563,32 @@ function buildRegistry(): DialectCapabilityRegistry {
         const extra: Readonly<{ id: string; state: CapabilityState }>[] =
             dialect === "postgresql"
                 ? [
-                      { id: "postgres-json-operators", state: "recognized" },
-                      { id: "postgres-type-cast", state: "recognized" },
+                      { id: "postgres-json-operators", state: "structured" },
+                      { id: "postgres-type-cast", state: "structured" },
+                      { id: "postgres-array-subset", state: "structured" },
                   ]
                 : dialect === "mysql"
                   ? [
-                        { id: "mysql-variables", state: "recognized" },
-                        { id: "mysql-prefixed-literals", state: "recognized" },
+                        { id: "mysql-variables", state: "structured" },
+                        { id: "mysql-prefixed-literals", state: "structured" },
+                        { id: "mysql-json-operators", state: "structured" },
                     ]
-                  : [{ id: "generic-array-subset", state: "recognized" }];
+                  : [{ id: "generic-array-subset", state: "structured" }];
 
         views.set(
             dialect,
             createDialectView(
                 dialect,
-                buildCapabilityList(SHARED_QUERY_RECOGNIZED, extra),
+                buildCapabilityList(
+                    [],
+                    freezeImmutableArray([
+                        ...SHARED_STRUCTURED_CAPABILITIES.map((id) => Object.freeze({
+                            id,
+                            state: "structured" as const,
+                        })),
+                        ...extra,
+                    ])
+                ),
                 buildOperatorList(dialect),
                 SHARED_QUERY_CLAUSES,
                 SHARED_SET_OPERATORS,

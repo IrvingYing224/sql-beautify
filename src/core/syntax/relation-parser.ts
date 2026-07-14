@@ -1,7 +1,8 @@
 import type { SourceLeaf } from "../lexer/token";
 import { getDialect } from "../dialects/registry";
 import type { LeafRange } from "./leaf-range";
-import { parseOpaqueList } from "./list-parser";
+import { parseList } from "./list-parser";
+import { parseExpressionRange } from "./expression-parser";
 import type { AliasInfo, QueryNode, RelationNode, SyntaxNode } from "./node";
 import {
     ParserSyntaxError,
@@ -167,7 +168,7 @@ function rejectUnsupportedRelationConstructs(
             throw new ParserSyntaxError(
                 "SYN_UNMODELED_CONSTRUCT",
                 range,
-                `Hive relation construct ${raw.toUpperCase()} is not modeled in Wave 2B`
+                `${context.dialect} relation construct ${raw.toUpperCase()} is not modeled in Wave 2C`
             );
         }
     }
@@ -292,19 +293,18 @@ function parseSingleRelation(
         if (close !== null && close < range.end) {
             const alias = parseKnownTrailingAlias(context, range, close + 1);
             const callRange = Object.freeze({ start: first, end: close + 1 });
-            const opaque = createOpaqueWithDiagnostic(
+            const call = parseExpressionRange(
                 context,
                 callRange,
-                "SYN_UNMODELED_CONSTRUCT",
-                "relation",
-                "Table-function arguments remain opaque until Wave 2C"
+                parseQueryRange,
+                nestingDepth + 1
             );
             return context.factory.createRelation(
                 range,
                 "table-function",
                 alias,
-                opaque,
-                [opaque]
+                call,
+                [call]
             );
         }
     }
@@ -329,7 +329,7 @@ function parseSingleRelation(
     return createOpaqueRelation(
         context,
         range,
-        "Relation syntax remains opaque because Wave 2B cannot prove a table boundary"
+        "Relation syntax remains opaque because Wave 2C cannot prove a table boundary"
     );
 }
 
@@ -483,6 +483,8 @@ function markerActsAsOnExpressionName(
 
 function findMarkers(context: ParserContext, range: LeafRange): readonly RelationMarker[] {
     const indexes = topLevelSyntaxIndexes(context, range);
+    const supportsLateralView =
+        getDialect(context.dialect).getCapability("lateral-view")?.state === "structured";
     const markers: RelationMarker[] = [];
     const starts = new Set<number>();
     let joinMayOwnOn = false;
@@ -525,6 +527,7 @@ function findMarkers(context: ParserContext, range: LeafRange): readonly Relatio
             });
         } else if (
             raw === "lateral" &&
+            supportsLateralView &&
             !keywordActsAsName &&
             i + 1 < indexes.length &&
             isCodeWord(context, indexes[i + 1]!, "view")
@@ -577,7 +580,7 @@ function parseJoin(
             throw new ParserSyntaxError(
                 "SYN_UNMODELED_CONSTRUCT",
                 { start: index, end: range.end },
-                "JOIN USING is not modeled in Wave 2B"
+                "JOIN USING is not modeled in Wave 2C"
             );
         }
         if (!keywordActsAsName && isCodeWord(context, index, "on")) {
@@ -607,12 +610,11 @@ function parseJoin(
                 "JOIN ON requires a condition"
             );
         }
-        const condition = createOpaqueWithDiagnostic(
+        const condition = parseExpressionRange(
             context,
             onBody,
-            "SYN_UNMODELED_CONSTRUCT",
-            "expression",
-            "JOIN ON condition remains opaque until Wave 2C"
+            parseQueryRange,
+            nestingDepth + 1
         );
         const onClause = context.factory.createClause(
             { start: onIndex, end: range.end },
@@ -629,7 +631,9 @@ function parseJoin(
 function parseLateralView(
     context: ParserContext,
     marker: RelationMarker,
-    range: LeafRange
+    range: LeafRange,
+    nestingDepth: number,
+    parseQueryRange: QueryRangeParser
 ): SyntaxNode {
     const viewMatch = matchesSyntaxWords(context, marker.token, range.end, ["lateral", "view"]);
     if (viewMatch === null) {
@@ -727,19 +731,18 @@ function parseLateralView(
         );
     }
 
-    const functionOpaque = createOpaqueWithDiagnostic(
+    const functionExpression = parseExpressionRange(
         context,
         callRange,
-        "SYN_UNMODELED_CONSTRUCT",
-        "relation",
-        "LATERAL VIEW table-function body remains opaque until Wave 2C"
+        parseQueryRange,
+        nestingDepth + 1
     );
     const tableFunction = context.factory.createRelation(
         { start: functionStart, end: functionRelationEnd },
         "table-function",
         relationAlias,
-        functionOpaque,
-        [functionOpaque]
+        functionExpression,
+        [functionExpression]
     );
     const relationChildren: SyntaxNode[] = [tableFunction];
     const outputRange = trimToSyntax(context.leaves, { start: outputStart, end: range.end });
@@ -751,11 +754,23 @@ function parseLateralView(
         );
     }
     relationChildren.push(
-        parseOpaqueList(context, outputRange, "other", {
-            allowAlias: false,
-            requireSingleName: true,
-            reasonMessage: "LATERAL VIEW output name remains opaque until Wave 2C",
-        })
+        parseList(
+            context,
+            outputRange,
+            "other",
+            {
+                allowAlias: false,
+                requireSingleName: true,
+                reasonMessage: "LATERAL VIEW output name is not modeled",
+            },
+            (parserContext, valueRange) =>
+                parseExpressionRange(
+                    parserContext,
+                    valueRange,
+                    parseQueryRange,
+                    nestingDepth + 1
+                )
+        )
     );
     const lateralRelation = context.factory.createRelation(
         { start: functionStart, end: range.end },
@@ -844,7 +859,13 @@ export function parseFromClauseChildren(
         children.push(
             marker.kind === "join"
                 ? parseJoin(context, marker, constructRange, nestingDepth, parseQueryRange)
-                : parseLateralView(context, marker, constructRange)
+                : parseLateralView(
+                      context,
+                      marker,
+                      constructRange,
+                      nestingDepth,
+                      parseQueryRange
+                  )
         );
         cursor = end;
         markerPosition = nextPosition;

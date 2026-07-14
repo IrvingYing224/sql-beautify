@@ -198,6 +198,51 @@ function validateIntArray(
     }
 }
 
+function validateOperatorLeafIds(
+    value: unknown,
+    nodeId: number,
+    failures: InvariantFailure[],
+    leafRange: LeafRange | null,
+    leaves: readonly SourceLeaf[]
+): void {
+    validateIntArray(
+        value,
+        "operatorLeafIds",
+        nodeId,
+        failures,
+        leafRange,
+        leaves.length
+    );
+    if (!isDenseArray(value)) {
+        return;
+    }
+
+    let previous = -1;
+    for (let i = 0; i < value.length; i++) {
+        const leafId = value[i];
+        if (!isFiniteNonNegInt(leafId) || leafId >= leaves.length) {
+            continue;
+        }
+        if (leafId <= previous) {
+            fail(
+                failures,
+                "INV_OWNER_REFERENCE",
+                `operatorLeafIds must be unique and strictly source-ordered on node ${nodeId}`,
+                nodeId
+            );
+        }
+        previous = leafId;
+        if (leaves[leafId]!.channel !== "code") {
+            fail(
+                failures,
+                "INV_OWNER_REFERENCE",
+                `operatorLeafIds[${i}]=${leafId} must reference a code leaf on node ${nodeId}`,
+                nodeId
+            );
+        }
+    }
+}
+
 function validateSubRange(
     value: unknown,
     field: string,
@@ -223,6 +268,44 @@ function validateSubRange(
             failures,
             "INV_OWNER_REFERENCE",
             `${field} outside owner leafRange on node ${nodeId}`,
+            nodeId
+        );
+    }
+}
+
+function validateAtomicNameRange(
+    value: unknown,
+    field: string,
+    nodeId: number,
+    owner: LeafRange | null,
+    leaves: readonly SourceLeaf[],
+    allowParameter: boolean,
+    failures: InvariantFailure[]
+): void {
+    validateSubRange(value, field, nodeId, owner, leaves.length, failures);
+    if (!isLeafRange(value) || value.end > leaves.length) {
+        return;
+    }
+    if (value.end !== value.start + 1) {
+        fail(
+            failures,
+            "INV_RELATIONSHIP",
+            `${field} must reference exactly one atomic name leaf on node ${nodeId}`,
+            nodeId
+        );
+        return;
+    }
+    const leaf = leaves[value.start]!;
+    if (
+        leaf.kind !== "identifier" &&
+        leaf.kind !== "keyword" &&
+        leaf.kind !== "quoted-identifier" &&
+        !(allowParameter && leaf.kind === "parameter")
+    ) {
+        fail(
+            failures,
+            "INV_RELATIONSHIP",
+            `${field} must reference a name leaf on node ${nodeId}`,
             nodeId
         );
     }
@@ -550,13 +633,12 @@ function validateNodeShape(
             ) {
                 fail(failures, "INV_ENUM", `illegal expressionKind on node ${nodeId}`, nodeId);
             }
-            validateIntArray(
+            validateOperatorLeafIds(
                 raw.operatorLeafIds,
-                "operatorLeafIds",
                 nodeId,
                 failures,
                 leafRange,
-                leavesLen
+                leaves
             );
             if (!isDenseArray(raw.children)) {
                 fail(failures, "INV_SHAPE", `expression children must be array on node ${nodeId}`, nodeId);
@@ -588,6 +670,17 @@ function validateNodeShape(
             break;
         }
         case "window-spec": {
+            if (raw.nameLeafRange !== null) {
+                validateAtomicNameRange(
+                    raw.nameLeafRange,
+                    "nameLeafRange",
+                    nodeId,
+                    leafRange,
+                    leaves,
+                    false,
+                    failures
+                );
+            }
             for (const field of ["partitionChildId", "orderChildId", "frameChildId"] as const) {
                 if (raw[field] !== null && !isFiniteNonNegInt(raw[field])) {
                     fail(failures, "INV_SHAPE", `${field} invalid on node ${nodeId}`, nodeId);
@@ -599,12 +692,13 @@ function validateNodeShape(
             break;
         }
         case "type-expression": {
-            validateSubRange(
+            validateAtomicNameRange(
                 raw.typeNameLeafRange,
                 "typeNameLeafRange",
                 nodeId,
                 leafRange,
-                leavesLen,
+                leaves,
+                true,
                 failures
             );
             for (const field of ["argumentListChildId", "memberListChildId"] as const) {

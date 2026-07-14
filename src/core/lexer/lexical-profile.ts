@@ -37,6 +37,8 @@ export interface LexicalProfile {
     readonly parameters: ReadonlyLookup<ParameterForm>;
     readonly prefixedLiterals: ReadonlyLookup<PrefixedLiteralForm>;
     readonly keywords: ReadonlyLookup<string>;
+    /** Syntax-only word operators that must not change Wave 1 token kinds. */
+    readonly syntaxOperatorWords: ReadonlyLookup<string>;
     /** Multi-character operators sorted longest-first for maximal-munch. */
     readonly operators: readonly string[];
 }
@@ -326,6 +328,10 @@ function freezePrefixed(forms: readonly PrefixedLiteralForm[]): ReadonlyLookup<P
     return createReadonlyLookup(forms);
 }
 
+function freezeSyntaxOperatorWords(words: readonly string[] = []): ReadonlyLookup<string> {
+    return createReadonlyLookup(words.map((word) => word.toLowerCase()));
+}
+
 const HIVE_PROFILE: LexicalProfile = Object.freeze({
     dialect: "hive",
     doubleQuote: "string",
@@ -371,6 +377,7 @@ const HIVE_PROFILE: LexicalProfile = Object.freeze({
         "AVRO",
         "JSONFILE",
     ]),
+    syntaxOperatorWords: freezeSyntaxOperatorWords(["rlike", "regexp"]),
     operators: sortOperatorsLongestFirst(HIVE_OPERATORS),
 });
 
@@ -387,6 +394,7 @@ const GENERIC_PROFILE: LexicalProfile = Object.freeze({
     parameters: freezeParameters(["$n", ":id", "?", "@name"]),
     prefixedLiterals: freezePrefixed(["N", "X", "B"]),
     keywords: freezeKeywords(),
+    syntaxOperatorWords: freezeSyntaxOperatorWords(),
     operators: sortOperatorsLongestFirst(COMMON_OPERATORS),
 });
 
@@ -414,6 +422,7 @@ const POSTGRES_PROFILE: LexicalProfile = Object.freeze({
         "JSON",
         "ARRAY",
     ]),
+    syntaxOperatorWords: freezeSyntaxOperatorWords(),
     operators: sortOperatorsLongestFirst(POSTGRES_OPERATORS),
 });
 
@@ -443,6 +452,7 @@ const MYSQL_PROFILE: LexicalProfile = Object.freeze({
         "DELAYED",
         "QUICK",
     ]),
+    syntaxOperatorWords: freezeSyntaxOperatorWords(["regexp"]),
     operators: sortOperatorsLongestFirst(MYSQL_OPERATORS),
 });
 

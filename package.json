@@ -237,7 +237,8 @@
 		"test:v2:hive-cst": "npm run build:v2-core && node tests/v2/hive-cst-parser.test.js",
 		"test:v2:wave2-corpus": "npm run build:v2-core && node tests/v2/wave2-corpus.test.js",
 		"test:v2:wave2-performance": "npm run build:v2-core && node tests/v2/wave2-performance.test.js",
-		"test:v2:wave2": "npm run test:v2:wave2-foundation && node tests/v2/hive-cst-parser.test.js && node tests/v2/wave2b-final-hardening.test.js && node tests/v2/wave2-corpus.test.js && node tests/v2/wave2-performance.test.js"
+		"test:v2:expression": "npm run build:v2-core && node tests/v2/expression-parser.test.js",
+		"test:v2:wave2": "npm run test:v2:wave2-foundation && node tests/v2/hive-cst-parser.test.js && node tests/v2/wave2b-final-hardening.test.js && node tests/v2/expression-parser.test.js && node tests/v2/wave2-corpus.test.js && node tests/v2/wave2-performance.test.js"
 	},
 	"vsce": {
 		"dependencies": false

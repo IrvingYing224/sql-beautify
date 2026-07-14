@@ -11,8 +11,8 @@ var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token
 var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
 var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
 
-assert.ok(fs.existsSync(parserPath), 'Wave 2B parser build is required');
-assert.ok(fs.existsSync(factoryPath), 'Wave 2B node factory build is required');
+assert.ok(fs.existsSync(parserPath), 'Wave 2C parser build is required');
+assert.ok(fs.existsSync(factoryPath), 'Wave 2C node factory build is required');
 
 var parser = require(parserPath);
 var factoryModule = require(factoryPath);
@@ -172,7 +172,7 @@ cases.forEach(assertParserResult);
 (function testInternalParserBackendDelegatesToCanonicalParser() {
     var input = { source: 'SELECT 1', dialect: 'hive', mode: 'document' };
     assert.strictEqual(parser.parserBackend.id, 'sql-beautify-v2');
-    assert.strictEqual(parser.parserBackend.version, '2b');
+    assert.strictEqual(parser.parserBackend.version, '2c');
     assert.ok(Object.isFrozen(parser.parserBackend));
     assert.deepStrictEqual(
         parser.parserBackend.parse(input),

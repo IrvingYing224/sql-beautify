@@ -435,6 +435,252 @@ function validateListRelationships(
     }
 }
 
+function validateExpressionRelationships(
+    raw: Record<string, unknown>,
+    directChildren: Record<string, unknown>[],
+    leaves: readonly SourceLeaf[],
+    failures: InvariantFailure[]
+): void {
+    if (raw.kind !== "expression" || typeof raw.expressionKind !== "string") {
+        return;
+    }
+    const operatorCount = isDenseArray(raw.operatorLeafIds)
+        ? raw.operatorLeafIds.length
+        : 0;
+    const operatorIds = isDenseArray(raw.operatorLeafIds)
+        ? raw.operatorLeafIds
+        : [];
+    for (const operatorId of operatorIds) {
+        if (!isFiniteNonNegInt(operatorId) || operatorId >= leaves.length) {
+            continue;
+        }
+        for (const child of directChildren) {
+            if (
+                child.kind !== "expression" ||
+                !isLeafRange(child.leafRange) ||
+                (raw.expressionKind === "in" &&
+                    child.expressionKind === "subquery" &&
+                    isDenseArray(child.operatorLeafIds) &&
+                    child.operatorLeafIds.includes(operatorId))
+            ) {
+                continue;
+            }
+            if (
+                operatorId >= child.leafRange.start &&
+                operatorId < child.leafRange.end
+            ) {
+                failRelationship(
+                    failures,
+                    raw,
+                    `expression ${String(raw.id)} operator leaf ${operatorId} overlaps operand child ${String(child.id)}`
+                );
+                break;
+            }
+        }
+    }
+    const allExpressionValues = directChildren.every(
+        (child) => child.kind === "expression" || child.kind === "opaque"
+    );
+    let valid = false;
+
+    switch (raw.expressionKind) {
+        case "identifier":
+        case "wildcard":
+        case "literal":
+        case "parameter":
+            valid = directChildren.length === 0 && operatorCount === 0;
+            break;
+        case "qualified-identifier":
+            valid =
+                directChildren.length === 2 &&
+                directChildren.every((child) => child.kind === "expression") &&
+                operatorCount >= 1;
+            break;
+        case "unary":
+            valid = directChildren.length === 1 && allExpressionValues && operatorCount >= 1;
+            break;
+        case "binary":
+            valid = directChildren.length === 2 && allExpressionValues && operatorCount >= 1;
+            break;
+        case "function-call":
+            valid =
+                (directChildren.length === 1 || directChildren.length === 2) &&
+                directChildren[0]?.kind === "expression" &&
+                (directChildren.length === 1 ||
+                    (directChildren[1]?.kind === "list" &&
+                        directChildren[1]?.listRole === "function-args")) &&
+                operatorCount >= 2;
+            break;
+        case "cast":
+            valid =
+                directChildren.length === 2 &&
+                (directChildren[0]?.kind === "expression" ||
+                    directChildren[0]?.kind === "opaque") &&
+                (directChildren[1]?.kind === "type-expression" ||
+                    (directChildren[1]?.kind === "opaque" &&
+                        directChildren[1]?.boundary === "type")) &&
+                operatorCount >= 1;
+            break;
+        case "case": {
+            const branchStart = directChildren[0]?.kind === "case-branch" ? 0 : 1;
+            valid =
+                directChildren.length > branchStart &&
+                (branchStart === 0 ||
+                    directChildren[0]?.kind === "expression" ||
+                    directChildren[0]?.kind === "opaque") &&
+                directChildren
+                    .slice(branchStart)
+                    .every((child) => child.kind === "case-branch") &&
+                operatorCount >= 3;
+            break;
+        }
+        case "subquery":
+            valid =
+                directChildren.length === 1 &&
+                directChildren[0]?.kind === "query" &&
+                operatorCount >= 2;
+            break;
+        case "parenthesized":
+            valid = directChildren.length === 1 && allExpressionValues && operatorCount >= 2;
+            break;
+        case "collection":
+            valid =
+                directChildren.length <= 2 &&
+                (directChildren.length === 0 ||
+                    directChildren[0]?.kind === "expression" ||
+                    directChildren[0]?.kind === "list") &&
+                (directChildren.length < 2 ||
+                    (directChildren[0]?.kind === "expression" &&
+                        directChildren[1]?.kind === "list")) &&
+                operatorCount >= 2;
+            break;
+        case "window":
+            valid =
+                directChildren.length === 2 &&
+                directChildren[0]?.kind === "expression" &&
+                directChildren[1]?.kind === "window-spec" &&
+                operatorCount >= 1;
+            break;
+        case "between":
+            valid =
+                (directChildren.length === 2 || directChildren.length === 3) &&
+                allExpressionValues &&
+                operatorCount >= 2;
+            break;
+        case "in":
+            valid =
+                directChildren.length === 2 &&
+                (directChildren[0]?.kind === "expression" ||
+                    directChildren[0]?.kind === "opaque") &&
+                (directChildren[1]?.kind === "list" ||
+                    (directChildren[1]?.kind === "expression" &&
+                        directChildren[1]?.expressionKind === "subquery")) &&
+                operatorCount >= 3;
+            break;
+        case "exists":
+            valid =
+                directChildren.length === 1 &&
+                directChildren[0]?.kind === "expression" &&
+                directChildren[0]?.expressionKind === "subquery" &&
+                operatorCount >= 1;
+            break;
+        case "is":
+            valid = directChildren.length === 1 && allExpressionValues && operatorCount >= 2;
+            break;
+        case "frame-bound":
+            valid =
+                directChildren.length <= 1 &&
+                allExpressionValues &&
+                operatorCount >= 1;
+            break;
+        case "typed-literal":
+            valid =
+                directChildren.length === 1 &&
+                directChildren[0]?.kind === "expression" &&
+                directChildren[0]?.expressionKind === "literal" &&
+                operatorCount >= 1;
+            break;
+        default:
+            return;
+    }
+
+    if (!valid) {
+        failRelationship(
+            failures,
+            raw,
+            `expression ${String(raw.id)} has children/operators inconsistent with ${raw.expressionKind}`
+        );
+    }
+}
+
+function referencedChild(
+    raw: Record<string, unknown>,
+    field: string,
+    directChildren: Record<string, unknown>[]
+): Record<string, unknown> | null {
+    const childId = raw[field];
+    return isFiniteNonNegInt(childId)
+        ? directChildren.find((child) => child.id === childId) ?? null
+        : null;
+}
+
+function validateWindowRelationships(
+    raw: Record<string, unknown>,
+    directChildren: Record<string, unknown>[],
+    failures: InvariantFailure[]
+): void {
+    if (raw.kind !== "window-spec") {
+        return;
+    }
+    const partition = referencedChild(raw, "partitionChildId", directChildren);
+    const order = referencedChild(raw, "orderChildId", directChildren);
+    const frame = referencedChild(raw, "frameChildId", directChildren);
+    if (partition !== null && (partition.kind !== "list" || partition.listRole !== "window-partition")) {
+        failRelationship(failures, raw, `window-spec ${String(raw.id)} partition child has an invalid role`);
+    }
+    if (order !== null && (order.kind !== "list" || order.listRole !== "window-order")) {
+        failRelationship(failures, raw, `window-spec ${String(raw.id)} order child has an invalid role`);
+    }
+    if (
+        frame !== null &&
+        (frame.kind !== "expression" ||
+            (frame.expressionKind !== "between" && frame.expressionKind !== "unary"))
+    ) {
+        failRelationship(failures, raw, `window-spec ${String(raw.id)} frame child has an invalid shape`);
+    }
+}
+
+function validateTypeRelationships(
+    raw: Record<string, unknown>,
+    directChildren: Record<string, unknown>[],
+    failures: InvariantFailure[]
+): void {
+    if (raw.kind !== "type-expression") {
+        return;
+    }
+    if (raw.argumentListChildId !== null && raw.memberListChildId !== null) {
+        failRelationship(
+            failures,
+            raw,
+            `type-expression ${String(raw.id)} cannot own argument and member lists together`
+        );
+    }
+    const argumentsList = referencedChild(raw, "argumentListChildId", directChildren);
+    const membersList = referencedChild(raw, "memberListChildId", directChildren);
+    if (
+        argumentsList !== null &&
+        (argumentsList.kind !== "list" || argumentsList.listRole !== "type-args")
+    ) {
+        failRelationship(failures, raw, `type-expression ${String(raw.id)} argument child has an invalid role`);
+    }
+    if (
+        membersList !== null &&
+        (membersList.kind !== "list" || membersList.listRole !== "type-members")
+    ) {
+        failRelationship(failures, raw, `type-expression ${String(raw.id)} member child has an invalid role`);
+    }
+}
+
 export function validateContainerRelationships(
     raw: Record<string, unknown>,
     directChildren: Record<string, unknown>[],
@@ -445,4 +691,7 @@ export function validateContainerRelationships(
     validateRelationRelationships(raw, directChildren, failures);
     validateClauseRelationships(raw, directChildren, failures);
     validateListRelationships(raw, directChildren, leaves, failures);
+    validateExpressionRelationships(raw, directChildren, leaves, failures);
+    validateWindowRelationships(raw, directChildren, failures);
+    validateTypeRelationships(raw, directChildren, failures);
 }

@@ -194,6 +194,7 @@ const windowSpec: WindowSpecNode = {
     kind: "window-spec",
     span: { start: 0, end: 6 },
     leafRange: { start: 0, end: 1 },
+    nameLeafRange: null,
     partitionChildId: null,
     orderChildId: null,
     frameChildId: null,

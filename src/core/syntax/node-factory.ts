@@ -2,9 +2,13 @@ import { freezeImmutableArray } from "../util/immutable-array";
 import type { LeafRange } from "./leaf-range";
 import type {
     AliasInfo,
+    CaseBranchKind,
+    CaseBranchNode,
     ClauseKind,
     ClauseNode,
     CteNode,
+    ExpressionKind,
+    ExpressionNode,
     ListItemNode,
     ListItemRole,
     ListNode,
@@ -19,6 +23,8 @@ import type {
     StatementKind,
     StatementNode,
     SyntaxNode,
+    TypeExpressionNode,
+    WindowSpecNode,
 } from "./node";
 import type { StructuralTokenTable } from "./token-table";
 
@@ -70,6 +76,31 @@ export interface NodeFactory {
         modifierLeafIds: readonly number[],
         value: SyntaxNode
     ): ListItemNode;
+    createExpression(
+        range: LeafRange,
+        expressionKind: ExpressionKind,
+        operatorLeafIds: readonly number[],
+        children: readonly SyntaxNode[]
+    ): ExpressionNode;
+    createCaseBranch(
+        range: LeafRange,
+        branchKind: CaseBranchKind,
+        condition: ExpressionNode | OpaqueNode | null,
+        value: ExpressionNode | OpaqueNode
+    ): CaseBranchNode;
+    createWindowSpec(
+        range: LeafRange,
+        nameLeafRange: LeafRange | null,
+        partition: ListNode | OpaqueNode | null,
+        order: ListNode | OpaqueNode | null,
+        frame: ExpressionNode | ListNode | OpaqueNode | null
+    ): WindowSpecNode;
+    createTypeExpression(
+        range: LeafRange,
+        typeNameLeafRange: LeafRange,
+        argumentList: ListNode | null,
+        memberList: ListNode | null
+    ): TypeExpressionNode;
     createOpaque(
         range: LeafRange,
         reasonCode: string,
@@ -302,6 +333,111 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
                 modifierLeafIds: freezeIds(modifierLeafIds, leafCount, "modifier"),
                 valueChildId: value.id,
                 children: freezeImmutableArray([value]),
+            });
+        },
+
+        createExpression(range, expressionKind, operatorLeafIds, children): ExpressionNode {
+            const base = spanFor(range, false);
+            return Object.freeze({
+                id: allocateId(),
+                kind: "expression" as const,
+                span: base.span,
+                leafRange: base.range,
+                expressionKind,
+                operatorLeafIds: freezeIds(
+                    operatorLeafIds,
+                    leafCount,
+                    "expression operator"
+                ),
+                children: freezeImmutableArray(children),
+            });
+        },
+
+        createCaseBranch(range, branchKind, condition, value): CaseBranchNode {
+            if (branchKind === "when" && condition === null) {
+                throw new Error("WHEN branch requires a condition");
+            }
+            if (branchKind === "else" && condition !== null) {
+                throw new Error("ELSE branch must not have a condition");
+            }
+            const base = spanFor(range, false);
+            const children: SyntaxNode[] = [];
+            if (condition !== null) {
+                children.push(condition);
+            }
+            children.push(value);
+            return Object.freeze({
+                id: allocateId(),
+                kind: "case-branch" as const,
+                span: base.span,
+                leafRange: base.range,
+                branchKind,
+                conditionChildId: condition === null ? null : condition.id,
+                valueChildId: value.id,
+                children: freezeImmutableArray(children),
+            });
+        },
+
+        createWindowSpec(
+            range,
+            nameLeafRange,
+            partition,
+            order,
+            frame
+        ): WindowSpecNode {
+            const base = spanFor(range, false);
+            const children: SyntaxNode[] = [];
+            if (partition !== null) {
+                children.push(partition);
+            }
+            if (order !== null) {
+                children.push(order);
+            }
+            if (frame !== null) {
+                children.push(frame);
+            }
+            return Object.freeze({
+                id: allocateId(),
+                kind: "window-spec" as const,
+                span: base.span,
+                leafRange: base.range,
+                nameLeafRange:
+                    nameLeafRange === null
+                        ? null
+                        : freezeRange(nameLeafRange, leafCount, false),
+                partitionChildId: partition === null ? null : partition.id,
+                orderChildId: order === null ? null : order.id,
+                frameChildId: frame === null ? null : frame.id,
+                children: freezeImmutableArray(children),
+            });
+        },
+
+        createTypeExpression(
+            range,
+            typeNameLeafRange,
+            argumentList,
+            memberList
+        ): TypeExpressionNode {
+            if (argumentList !== null && memberList !== null) {
+                throw new Error("Type expression cannot own argument and member lists together");
+            }
+            const base = spanFor(range, false);
+            const children: SyntaxNode[] = [];
+            if (argumentList !== null) {
+                children.push(argumentList);
+            }
+            if (memberList !== null) {
+                children.push(memberList);
+            }
+            return Object.freeze({
+                id: allocateId(),
+                kind: "type-expression" as const,
+                span: base.span,
+                leafRange: base.range,
+                typeNameLeafRange: freezeRange(typeNameLeafRange, leafCount, false),
+                argumentListChildId: argumentList === null ? null : argumentList.id,
+                memberListChildId: memberList === null ? null : memberList.id,
+                children: freezeImmutableArray(children),
             });
         },
 

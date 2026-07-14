@@ -30,9 +30,8 @@ export interface CapabilityEntry {
 }
 
 /**
- * Operator semantics for Wave 2C Pratt.
+ * Final operator semantics consumed by the Wave 2C Pratt parser.
  * Lookup is (key, fixity) — the same lexical token may have multiple entries.
- * Wave 2A freezes schema + known shared keys; precedence may be null until 2C.
  */
 export interface OperatorSemantics {
     readonly key: string;
@@ -43,8 +42,8 @@ export interface OperatorSemantics {
      * (e.g. ["is","not"], ["between","and"]). Empty for symbol form.
      */
     readonly words: readonly string[];
-    readonly precedence: number | null;
-    readonly associativity: OperatorAssociativity | null;
+    readonly precedence: number;
+    readonly associativity: OperatorAssociativity;
 }
 
 export type QueryClauseSyntaxId =

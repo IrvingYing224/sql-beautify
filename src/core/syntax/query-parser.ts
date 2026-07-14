@@ -1,7 +1,9 @@
 import { getDialect } from "../dialects/registry";
 import type { QueryClauseSyntax, SetOperatorSyntax } from "../dialects/types";
 import type { LeafRange } from "./leaf-range";
-import { parseOpaqueList } from "./list-parser";
+import { parseList } from "./list-parser";
+import { parseExpressionRange } from "./expression-parser";
+import { parseWindowDeclaration } from "./window-parser";
 import type {
     ClauseKind,
     ClauseNode,
@@ -13,7 +15,6 @@ import type {
 import {
     ParserSyntaxError,
     baseDepth,
-    createOpaqueWithDiagnostic,
     isAliasNameLeaf,
     isCodeWord,
     isDottedNamePart,
@@ -374,11 +375,18 @@ function parseCteColumnList(
             "CTE column list requires at least one name"
         );
     }
-    return parseOpaqueList(context, body, "cte-columns", {
-        allowAlias: false,
-        requireSingleName: true,
-        reasonMessage: "CTE column name remains opaque until Wave 2C",
-    });
+    return parseList(
+        context,
+        body,
+        "cte-columns",
+        {
+            allowAlias: false,
+            requireSingleName: true,
+            reasonMessage: "CTE column name is not modeled",
+        },
+        (parserContext, valueRange) =>
+            parseExpressionRange(parserContext, valueRange, parseQueryRange)
+    );
 }
 
 function parseWithQuery(
@@ -756,22 +764,47 @@ function buildSelectClause(
     const listFacts = listFactsForClause(clauseKind);
     if (listFacts !== null) {
         children = [
-            parseOpaqueList(context, body, listFacts.listRole, {
-                allowAlias: listFacts.allowAlias,
-                modifierWords: listFacts.modifierWords,
-                reasonMessage: `${clauseKind} expression remains opaque until Wave 2C`,
-            }),
+            parseList(
+                context,
+                body,
+                listFacts.listRole,
+                {
+                    allowAlias: listFacts.allowAlias,
+                    modifierWords: listFacts.modifierWords,
+                    reasonMessage: `${clauseKind} expression is not modeled`,
+                },
+                clauseKind === "window"
+                    ? (parserContext, valueRange) =>
+                          parseWindowDeclaration(
+                              parserContext,
+                              valueRange,
+                              nestingDepth + 1,
+                              (windowContext, windowRange, windowDepth) =>
+                                  parseExpressionRange(
+                                      windowContext,
+                                      windowRange,
+                                      parseQueryRange,
+                                      windowDepth
+                                  )
+                          )
+                    : (parserContext, valueRange) =>
+                          parseExpressionRange(
+                              parserContext,
+                              valueRange,
+                              parseQueryRange,
+                              nestingDepth + 1
+                          )
+            ),
         ];
     } else if (clauseKind === "from") {
         children = parseFromClauseChildren(context, body, nestingDepth, parseQueryRange);
     } else {
         children = [
-            createOpaqueWithDiagnostic(
+            parseExpressionRange(
                 context,
                 body,
-                "SYN_UNMODELED_CONSTRUCT",
-                "expression",
-                `${clauseKind} expression remains opaque until Wave 2C`
+                parseQueryRange,
+                nestingDepth + 1
             ),
         ];
     }
@@ -890,12 +923,23 @@ export function parseInsertQueryRange(
             "INSERT range is empty"
         );
     }
+    if (
+        getDialect(context.dialect).getCapability(
+            "insert-overwrite-partition-select"
+        )?.state !== "structured"
+    ) {
+        throw new ParserSyntaxError(
+            "SYN_UNSUPPORTED_STATEMENT",
+            range,
+            `${context.dialect} does not declare INSERT OVERWRITE query syntax`
+        );
+    }
     const insertHead = matchesSyntaxWords(context, range.start, range.end, ["insert", "overwrite"]);
     if (insertHead === null) {
         throw new ParserSyntaxError(
             "SYN_UNSUPPORTED_STATEMENT",
             range,
-            "Wave 2B supports INSERT OVERWRITE query statements only"
+            "Wave 2C supports INSERT OVERWRITE query statements only"
         );
     }
     let headLast = insertHead[insertHead.length - 1]!;
@@ -904,7 +948,7 @@ export function parseInsertQueryRange(
         throw new ParserSyntaxError(
             "SYN_UNSUPPORTED_STATEMENT",
             range,
-            "Wave 2B supports INSERT OVERWRITE TABLE query statements only"
+            "Wave 2C supports INSERT OVERWRITE TABLE query statements only"
         );
     }
     headLast = tableKeyword;
@@ -1007,14 +1051,21 @@ export function parseInsertQueryRange(
                 "Unexpected syntax between PARTITION and SELECT"
             );
         }
-        const list = parseOpaqueList(
+        const list = parseList(
             context,
             partitionBody,
             "partition-columns",
             {
                 allowAlias: false,
-                reasonMessage: "PARTITION expression remains opaque until Wave 2C",
-            }
+                reasonMessage: "PARTITION expression is not modeled",
+            },
+            (parserContext, valueRange) =>
+                parseExpressionRange(
+                    parserContext,
+                    valueRange,
+                    parseQueryRange,
+                    nestingDepth + 1
+                )
         );
         children.push(
             context.factory.createClause(

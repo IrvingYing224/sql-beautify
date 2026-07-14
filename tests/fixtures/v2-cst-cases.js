@@ -23,7 +23,7 @@ module.exports = Object.freeze([
             ') SELECT user_id FROM src WHERE rn = 1'
         ].join('\n'),
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['with', 'select', 'from', 'where'],
@@ -31,8 +31,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: ['-- keep FROM'],
             requiredSlices: ['src', "SELECT user_id FROM src WHERE rn = 1"],
-            opaqueSlices: ['user_id', 'ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts DESC)', "ds = '2026-07-11'", 'user_id', 'rn = 1'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -41,7 +41,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'SELECT id, item FROM src LATERAL VIEW EXPLODE(items) e AS item',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['select', 'from', 'lateral-view'],
@@ -49,8 +49,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ['src', 'LATERAL VIEW EXPLODE(items) e AS item'],
-            opaqueSlices: ['id', 'item', 'EXPLODE(items)', 'item'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -59,7 +59,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: "INSERT OVERWRITE TABLE dst PARTITION (ds='2026-07-11') SELECT id FROM src",
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['insert-query'],
             queryKinds: ['select'],
             clauseKinds: ['insert', 'partition', 'select', 'from'],
@@ -67,8 +67,8 @@ module.exports = Object.freeze([
             listRoles: ['partition-columns', 'select-items'],
             commentLeaves: [],
             requiredSlices: ['dst', "PARTITION (ds='2026-07-11')", 'SELECT id FROM src'],
-            opaqueSlices: ["ds='2026-07-11'", 'id'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -95,7 +95,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: "SELECT ARRAY('a','b'), MAP('x', 1), NAMED_STRUCT('k', 2)",
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['select'],
@@ -103,8 +103,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ["ARRAY('a','b')", "MAP('x', 1)", "NAMED_STRUCT('k', 2)"],
-            opaqueSlices: ["ARRAY('a','b')", "MAP('x', 1)", "NAMED_STRUCT('k', 2)"],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -113,7 +113,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: "WITH x AS (SELECT 'literal' AS c) SELECT c FROM x",
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['with', 'select', 'from'],
@@ -121,8 +121,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ['x', "SELECT 'literal' AS c", 'SELECT c FROM x'],
-            opaqueSlices: ["'literal'", 'c'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -131,7 +131,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: "SELECT CASE WHEN id IN (SELECT id FROM dim) THEN 'y' ELSE 'n' END AS flag FROM src",
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['select', 'from'],
@@ -139,8 +139,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ["CASE WHEN id IN (SELECT id FROM dim) THEN 'y' ELSE 'n' END", 'src'],
-            opaqueSlices: ["CASE WHEN id IN (SELECT id FROM dim) THEN 'y' ELSE 'n' END"],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -149,7 +149,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'SELECT id FROM src CLUSTER BY id DISTRIBUTE BY id SORT BY ts DESC LIMIT 20',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['select', 'from', 'cluster-by', 'distribute-by', 'sort-by', 'limit'],
@@ -157,8 +157,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items', 'cluster-by-items', 'distribute-by-items', 'sort-by-items'],
             commentLeaves: [],
             requiredSlices: ['CLUSTER BY id', 'DISTRIBUTE BY id', 'SORT BY ts DESC', 'LIMIT 20'],
-            opaqueSlices: ['id', 'id', 'id', 'ts', '20'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -167,7 +167,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'SELECT id FROM ${db}.src WHERE ds = ${hivevar:day}',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['select', 'from', 'where'],
@@ -175,8 +175,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ['${db}.src', 'ds = ${hivevar:day}'],
-            opaqueSlices: ['id', 'ds = ${hivevar:day}'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -185,7 +185,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'SELECT 1;; SELECT 2;',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query', 'empty', 'query'],
             queryKinds: ['select'],
             clauseKinds: ['select'],
@@ -193,8 +193,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ['SELECT 1', ';', 'SELECT 2'],
-            opaqueSlices: ['1', '2'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -203,7 +203,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'SELECT id FROM a UNION ALL SELECT id FROM b INTERSECT SELECT id FROM c',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['set', 'select'],
             clauseKinds: ['select', 'from', 'set-operation'],
@@ -211,8 +211,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ['UNION ALL', 'INTERSECT', 'SELECT id FROM b'],
-            opaqueSlices: ['id', 'id', 'id'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -221,7 +221,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'WITH a AS (WITH b AS (SELECT 1) SELECT * FROM b) SELECT * FROM a',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['with', 'select', 'from'],
@@ -229,8 +229,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ['a', 'b', 'WITH b AS (SELECT 1) SELECT * FROM b'],
-            opaqueSlices: ['1', '*', '*'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -239,7 +239,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'SELECT a.id FROM a LEFT OUTER JOIN (SELECT id FROM b) q ON a.id = q.id WHERE q.id > 0',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select', 'parenthesized'],
             clauseKinds: ['select', 'from', 'join-on', 'where'],
@@ -247,8 +247,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items'],
             commentLeaves: [],
             requiredSlices: ['LEFT OUTER JOIN (SELECT id FROM b) q ON a.id = q.id', '(SELECT id FROM b) q'],
-            opaqueSlices: ['a.id', 'id', 'a.id = q.id', 'q.id > 0'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -257,7 +257,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'SELECT id, pos, item FROM src LATERAL VIEW OUTER POSEXPLODE(items) p AS pos, item',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['select', 'from', 'lateral-view'],
@@ -265,8 +265,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items', 'other'],
             commentLeaves: [],
             requiredSlices: ['POSEXPLODE(items)', 'pos, item'],
-            opaqueSlices: ['id', 'pos', 'item', 'POSEXPLODE(items)', 'pos', 'item'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({
@@ -275,7 +275,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: 'SELECT k, count(*) c FROM t WHERE x > 0 GROUP BY k HAVING count(*) > 1 WINDOW w AS (PARTITION BY k) ORDER BY c DESC',
         expected: {
-            outcome: 'partially-opaque',
+            outcome: 'fully-structured',
             statementKinds: ['query'],
             queryKinds: ['select'],
             clauseKinds: ['select', 'from', 'where', 'group-by', 'having', 'window', 'order-by'],
@@ -283,8 +283,8 @@ module.exports = Object.freeze([
             listRoles: ['select-items', 'group-by-items', 'order-by-items', 'other'],
             commentLeaves: [],
             requiredSlices: ['GROUP BY k', 'WINDOW w AS (PARTITION BY k)', 'ORDER BY c DESC'],
-            opaqueSlices: ['k', 'count(*)', 'x > 0', 'k', 'count(*) > 1', 'w AS (PARTITION BY k)', 'c'],
-            diagnosticCodes: ['SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT', 'SYN_UNMODELED_CONSTRUCT']
+            opaqueSlices: [],
+            diagnosticCodes: []
         }
     }),
     freezeCase({

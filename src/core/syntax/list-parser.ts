@@ -1,6 +1,6 @@
 import type { LeafRange } from "./leaf-range";
 import { listItemRoleFor } from "./list-role-contract";
-import type { AliasInfo, ListNode, ListRole } from "./node";
+import type { AliasInfo, ListNode, ListRole, SyntaxNode } from "./node";
 import {
     ParserSyntaxError,
     createOpaqueWithDiagnostic,
@@ -21,6 +21,11 @@ export interface OpaqueListOptions {
     readonly requireSingleName?: boolean;
     readonly reasonMessage: string;
 }
+
+export type ListValueParser = (
+    context: ParserContext,
+    range: LeafRange
+) => SyntaxNode;
 
 const IMPLICIT_ALIAS_NAME_BLOCKERS = Object.freeze([
     "all",
@@ -204,11 +209,12 @@ function parseItemFacts(
     return Object.freeze({ valueRange, alias, modifierLeafIds: Object.freeze(modifiers) });
 }
 
-export function parseOpaqueList(
+export function parseList(
     context: ParserContext,
     range: LeafRange,
     listRole: ListRole,
-    options: OpaqueListOptions
+    options: OpaqueListOptions,
+    parseValue: ListValueParser
 ): ListNode {
     const trimmed = trimToSyntax(context.leaves, range);
     if (trimmed === null) {
@@ -234,13 +240,7 @@ export function parseOpaqueList(
                 );
             }
         }
-        const value = createOpaqueWithDiagnostic(
-            context,
-            facts.valueRange,
-            "SYN_UNMODELED_CONSTRUCT",
-            "expression",
-            options.reasonMessage
-        );
+        const value = parseValue(context, facts.valueRange);
         return context.factory.createListItem(
             itemRange,
             listItemRoleFor(listRole),
@@ -250,4 +250,21 @@ export function parseOpaqueList(
         );
     });
     return context.factory.createList(trimmed, listRole, split.separators, items);
+}
+
+export function parseOpaqueList(
+    context: ParserContext,
+    range: LeafRange,
+    listRole: ListRole,
+    options: OpaqueListOptions
+): ListNode {
+    return parseList(context, range, listRole, options, (parserContext, valueRange) =>
+        createOpaqueWithDiagnostic(
+            parserContext,
+            valueRange,
+            "SYN_UNMODELED_CONSTRUCT",
+            "expression",
+            options.reasonMessage
+        )
+    );
 }

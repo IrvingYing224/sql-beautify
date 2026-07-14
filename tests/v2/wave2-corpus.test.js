@@ -60,7 +60,7 @@ function validateResult(label, source, dialect, result) {
     assert.deepStrictEqual(second, result, label + ' deterministic parse');
 }
 
-assert.strictEqual(evaluationCases.length, 16, 'Wave 0 corpus size is a fixed Wave 2B input');
+assert.strictEqual(evaluationCases.length, 16, 'Wave 0 corpus size is a fixed Wave 2 input');
 
 evaluationCases.forEach(function(testCase) {
     var result = parser.parseSql(testCase.source, {
@@ -81,19 +81,22 @@ evaluationCases.forEach(function(testCase) {
         return diagnostic.recovery;
     });
 
-    if (testCase.dialect !== 'hive' || testCase.id === 'unterminated-string') {
+    if (testCase.id === 'unterminated-string') {
         assert.ok(statementKinds.every(function(kind) { return kind === 'opaque'; }),
             testCase.id + ' must not expose a partial trusted query tree');
         assert.ok(recoveries.indexOf('preserve-target') >= 0,
             testCase.id + ' must preserve the complete target');
-    } else if (testCase.id === 'hive-complex-type-ddl') {
+    } else if (
+        testCase.id === 'hive-complex-type-ddl' ||
+        testCase.id === 'match-recognize-construct'
+    ) {
         assert.deepStrictEqual(statementKinds, ['opaque']);
         assert.ok(recoveries.indexOf('preserve-statement') >= 0,
-            'Hive DDL remains statement-level opaque in Wave 2B');
+            testCase.id + ' remains statement-level opaque in Wave 2C');
     } else {
         assert.ok(statementKinds.every(function(kind) {
             return kind === 'query' || kind === 'insert-query';
-        }), testCase.id + ' Hive query must have a structured statement boundary');
+        }), testCase.id + ' declared query subset must have a structured statement boundary');
         assert.strictEqual(recoveries.indexOf('preserve-statement'), -1,
             testCase.id + ' must not preserve the whole statement');
         assert.strictEqual(recoveries.indexOf('preserve-target'), -1,

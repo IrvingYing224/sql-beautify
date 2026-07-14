@@ -120,7 +120,7 @@ export function parseStatementRange(
             context,
             range,
             "SYN_UNSUPPORTED_STATEMENT",
-            `Hive statement ${context.leaves[bodyRange.start]!.raw} is not modeled in Wave 2B`,
+            `${context.dialect} statement ${context.leaves[bodyRange.start]!.raw} is not modeled in Wave 2C`,
             statementRecovery(context)
         );
     }

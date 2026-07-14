@@ -134,6 +134,7 @@ export const EXPRESSION_KINDS = new Set([
     "in",
     "exists",
     "is",
+    "frame-bound",
     "typed-literal",
 ]);
 export const CASE_BRANCH_KINDS = new Set(["when", "else"]);
@@ -333,6 +334,8 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
                 allowedOpaqueBoundaries: Object.freeze([
                     "expression",
                     "list-item",
+                    "type",
+                    "window",
                 ] as OpaqueBoundary[]),
             }),
         ]),
@@ -421,10 +424,10 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
  */
 export const FREE_FORM_OPAQUE_BOUNDARIES: Readonly<Record<string, readonly OpaqueBoundary[]>> =
     Object.freeze({
-        expression: Object.freeze(["expression"] as OpaqueBoundary[]),
+        expression: Object.freeze(["expression", "type"] as OpaqueBoundary[]),
         "case-branch": Object.freeze(["expression"] as OpaqueBoundary[]),
-        list: Object.freeze(["expression", "list-item"] as OpaqueBoundary[]),
-        "list-item": Object.freeze(["expression", "list-item"] as OpaqueBoundary[]),
+        list: Object.freeze(["expression", "list-item", "type", "window"] as OpaqueBoundary[]),
+        "list-item": Object.freeze(["expression", "list-item", "type", "window"] as OpaqueBoundary[]),
         "window-spec": Object.freeze(["window", "expression"] as OpaqueBoundary[]),
         "type-expression": Object.freeze(["type"] as OpaqueBoundary[]),
         // Concrete 2B query/clause child shapes are enforced by

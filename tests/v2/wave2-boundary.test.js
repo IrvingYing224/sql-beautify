@@ -78,6 +78,16 @@ assert.ok(packageJson.scripts['test:v2:wave2-foundation']);
 assert.ok(packageJson.scripts['test:v2:hive-cst']);
 assert.ok(packageJson.scripts['test:v2:wave2-corpus']);
 assert.ok(packageJson.scripts['test:v2:wave2-performance']);
+assert.ok(packageJson.scripts['test:v2:expression']);
+assert.ok(
+    packageJson.scripts['test:v2:expression'].indexOf('build:v2-core') >= 0 &&
+        packageJson.scripts['test:v2:expression'].indexOf('expression-parser.test.js') >= 0,
+    'standalone expression gate must build and run Wave 2C parser tests'
+);
+assert.ok(
+    packageJson.scripts['test:v2:wave2'].indexOf('expression-parser.test.js') >= 0,
+    'Wave 2 aggregate gate must include Wave 2C expression tests'
+);
 assert.ok(
     packageJson.scripts['test:v2:wave2-foundation'].indexOf('build:v2-core') >= 0 &&
         packageJson.scripts['test:v2:wave2-foundation'].indexOf('dialect-capability-registry.test.js') >= 0 &&
@@ -106,6 +116,7 @@ assert.ok(
     'test:v2:wave2-foundation',
     'hive-cst-parser.test.js',
     'wave2b-final-hardening.test.js',
+    'expression-parser.test.js',
     'wave2-corpus.test.js',
     'wave2-performance.test.js'
 ].forEach(function(required) {
@@ -186,7 +197,7 @@ wave2SourceDirs.forEach(function(dir) {
     });
 });
 
-// Wave 2B parser files exist, while later Pratt/recovery/analysis files remain absent.
+// Wave 2C parser files exist, while later recovery/analysis files remain absent.
 [
     'src/core/syntax/parser.ts',
     'src/core/syntax/statement-parser.ts',
@@ -196,17 +207,18 @@ wave2SourceDirs.forEach(function(dir) {
     'src/core/syntax/list-role-contract.ts',
     'src/core/syntax/cst-container-invariants.ts',
     'src/core/syntax/parser-context.ts',
-    'src/core/syntax/node-factory.ts'
+    'src/core/syntax/node-factory.ts',
+    'src/core/syntax/expression-parser.ts',
+    'src/core/syntax/type-parser.ts',
+    'src/core/syntax/window-parser.ts'
 ].forEach(function(relativePath) {
     assert.ok(
         fs.existsSync(path.join(root, relativePath)),
-        'Wave 2B requires ' + relativePath
+        'Wave 2C requires ' + relativePath
     );
 });
 
 [
-    'src/core/syntax/expression-parser.ts',
-    'src/core/syntax/type-parser.ts',
     'src/core/syntax/recovery.ts',
     'src/core/analysis/analyze.ts',
     'src/core/analysis/structural-index.ts',
@@ -214,18 +226,21 @@ wave2SourceDirs.forEach(function(dir) {
 ].forEach(function(relativePath) {
     assert.ok(
         !fs.existsSync(path.join(root, relativePath)),
-        'Wave 2B must not create later-wave file ' + relativePath
+        'Wave 2C must not create later-wave file ' + relativePath
     );
 });
 
 var parserSource = fs.readFileSync(path.join(root, 'src/core/syntax/parser.ts'), 'utf8');
 assert.ok(/from\s+["']\.\.\/lexer\/lossless-lexer["']/.test(parserSource),
-    'Wave 2B parser must consume the canonical lossless lexer');
+    'Wave 2C parser must consume the canonical lossless lexer');
 [
     'src/core/syntax/list-parser.ts',
     'src/core/syntax/query-parser.ts',
     'src/core/syntax/relation-parser.ts',
-    'src/core/syntax/statement-parser.ts'
+    'src/core/syntax/statement-parser.ts',
+    'src/core/syntax/expression-parser.ts',
+    'src/core/syntax/type-parser.ts',
+    'src/core/syntax/window-parser.ts'
 ].forEach(function(relativePath) {
     var source = fs.readFileSync(path.join(root, relativePath), 'utf8');
     assert.strictEqual(source.indexOf('context.source.slice'), -1,
@@ -257,7 +272,7 @@ var layoutFiles = collectFiles('src/core/layout', function(name) {
 assert.deepStrictEqual(
     layoutFiles,
     ['src/core/layout/doc.ts'],
-    'Wave 2B must not expand layout beyond doc contract'
+    'Wave 2C must not expand layout beyond doc contract'
 );
 
 // VSIX content

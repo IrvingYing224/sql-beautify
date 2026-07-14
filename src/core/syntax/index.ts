@@ -47,6 +47,21 @@ export type { TokenCursor } from "./cursor";
 export { createTokenCursor } from "./cursor";
 export type { NodeFactory } from "./node-factory";
 export { createNodeFactory } from "./node-factory";
+export type {
+    ExpressionQueryParser,
+    ExpressionValueNode,
+} from "./expression-parser";
+export { parseExpressionRange } from "./expression-parser";
+export type { WindowValueParser } from "./window-parser";
+export {
+    parseWindowDeclaration,
+    parseWindowSpecRange,
+} from "./window-parser";
+export type { ParsedTypePrefix } from "./type-parser";
+export {
+    parseTypeExpression,
+    parseTypeExpressionPrefix,
+} from "./type-parser";
 // Note: token table uses bounded multi-pass O(n) scans (not a single combined scan).
 export type {
     InvariantFailure,

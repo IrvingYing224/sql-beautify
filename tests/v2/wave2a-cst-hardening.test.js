@@ -229,10 +229,11 @@ test('TREE opaque-under-expression-wrong-boundary fails', function() {
 });
 
 test('TREE Expression + opaque(expression) ok', function() {
-    var source = 'SELECT 1';
+    var source = 'SELECT (1)';
     var leaves = lex(source).leaves;
     var range = { start: 0, end: leaves.length };
-    var itemRange = { start: 2, end: 3 };
+    var itemRange = { start: 2, end: 5 };
+    var opaqueRange = { start: 3, end: 4 };
     var query = {
         id: 2,
         kind: 'query',
@@ -245,7 +246,7 @@ test('TREE Expression + opaque(expression) ok', function() {
             kind: 'clause',
             clauseKind: 'select',
             headLeafRange: { start: 0, end: 1 },
-            bodyLeafRange: { start: 1, end: 3 },
+            bodyLeafRange: { start: 1, end: 5 },
             leafRange: range,
             span: spanOfLeaves(leaves, range),
             children: [{
@@ -267,8 +268,8 @@ test('TREE Expression + opaque(expression) ok', function() {
                     children: [{
                         id: 6,
                         kind: 'expression',
-                        expressionKind: 'literal',
-                        operatorLeafIds: [],
+                        expressionKind: 'parenthesized',
+                        operatorLeafIds: [2, 4],
                         leafRange: itemRange,
                         span: spanOfLeaves(leaves, itemRange),
                         children: [{
@@ -276,8 +277,8 @@ test('TREE Expression + opaque(expression) ok', function() {
                             kind: 'opaque',
                             reasonCode: 'X',
                             boundary: 'expression',
-                            leafRange: itemRange,
-                            span: spanOfLeaves(leaves, itemRange)
+                            leafRange: opaqueRange,
+                            span: spanOfLeaves(leaves, opaqueRange)
                         }]
                     }]
                 }]
