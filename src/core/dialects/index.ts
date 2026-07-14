@@ -3,11 +3,17 @@ export type {
     CapabilityState,
     DialectCapabilityRegistry,
     DialectCapabilityView,
+    JoinSyntax,
+    JoinSyntaxId,
     OperatorArity,
     OperatorAssociativity,
     OperatorFixity,
     OperatorForm,
     OperatorSemantics,
+    QueryClauseSyntax,
+    QueryClauseSyntaxId,
+    SetOperatorSyntax,
+    SetOperatorSyntaxId,
 } from "./types";
 export {
     getDialect,

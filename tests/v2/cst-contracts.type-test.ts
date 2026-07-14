@@ -12,6 +12,8 @@ import type {
     ListNode,
     OpaqueNode,
     ParserBackend,
+    ParseOptions,
+    ParseOutput,
     ProgramNode,
     QueryNode,
     RelationNode,
@@ -22,6 +24,8 @@ import type {
     WindowSpecNode,
 } from "../../src/core/index";
 import { lexSql } from "../../src/core/index";
+import * as rootCore from "../../src/core/index";
+import { parseSql, parserBackend } from "../../src/core/syntax";
 
 const emptyRange: LeafRange = { start: 0, end: 0 };
 const nonEmptyRange: LeafRange = { start: 0, end: 3 };
@@ -325,9 +329,30 @@ const backend: ParserBackend = {
     },
 };
 
+const defaultParseOptions: ParseOptions = {};
+const documentParseOptions: ParseOptions = { dialect: "hive", mode: "document" };
+const statementParseOptions: ParseOptions = { dialect: "hive", mode: "statement" };
+const fragmentParseOptions: ParseOptions = { dialect: "hive", mode: "fragment" };
+const parsed: ParseOutput = parseSql("SELECT 1", documentParseOptions);
+const internalBackend: ParserBackend = parserBackend;
+
+// @ts-expect-error parser implementation is internal and not a root runtime value export
+rootCore.parseSql;
+// @ts-expect-error unknown parse mode is rejected
+const invalidParseMode: ParseOptions = { mode: "query" };
+// @ts-expect-error legacy dialect alias is rejected
+const invalidParseDialect: ParseOptions = { dialect: "postgres" };
+
 const lexed = lexSql("SELECT 1");
 void lexed;
 void backend;
+void defaultParseOptions;
+void statementParseOptions;
+void fragmentParseOptions;
+void parsed;
+void internalBackend;
+void invalidParseMode;
+void invalidParseDialect;
 void kindLabel;
 void nodes;
 void alias;

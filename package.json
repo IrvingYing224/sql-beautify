@@ -234,7 +234,10 @@
 		"test:v2:lexer-performance": "npm run build:v2-core && node tests/v2/lossless-lexer-performance.test.js",
 		"test:v2:wave1": "npm run build:v2-core && node tests/v2/lossless-lexer.test.js && node tests/v2/lossless-lexer-performance.test.js && node tests/v2/wave1-boundary.test.js",
 		"test:v2:wave2-foundation": "npm run build:v2-core && node tests/v2/dialect-capability-registry.test.js && node tests/v2/syntax-token-table.test.js && node tests/v2/syntax-invariants.test.js && node tests/v2/wave2a-hardening.test.js && node tests/v2/wave2a-cst-hardening.test.js && node tests/v2/wave2a-token-table-hardening.test.js && node tests/v2/syntax-invariants-performance.test.js && node tests/v2/wave2-boundary.test.js",
-		"test:v2:wave2": "npm run test:v2:wave2-foundation"
+		"test:v2:hive-cst": "npm run build:v2-core && node tests/v2/hive-cst-parser.test.js",
+		"test:v2:wave2-corpus": "npm run build:v2-core && node tests/v2/wave2-corpus.test.js",
+		"test:v2:wave2-performance": "npm run build:v2-core && node tests/v2/wave2-performance.test.js",
+		"test:v2:wave2": "npm run test:v2:wave2-foundation && node tests/v2/hive-cst-parser.test.js && node tests/v2/wave2b-final-hardening.test.js && node tests/v2/wave2-corpus.test.js && node tests/v2/wave2-performance.test.js"
 	},
 	"vsce": {
 		"dependencies": false

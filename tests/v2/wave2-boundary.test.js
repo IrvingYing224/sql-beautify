@@ -75,6 +75,9 @@ assert.ok(packageJson.scripts['test:v2:wave0']);
 assert.ok(packageJson.scripts['test:v2:wave1']);
 assert.ok(packageJson.scripts['test:v2:wave2']);
 assert.ok(packageJson.scripts['test:v2:wave2-foundation']);
+assert.ok(packageJson.scripts['test:v2:hive-cst']);
+assert.ok(packageJson.scripts['test:v2:wave2-corpus']);
+assert.ok(packageJson.scripts['test:v2:wave2-performance']);
 assert.ok(
     packageJson.scripts['test:v2:wave2-foundation'].indexOf('build:v2-core') >= 0 &&
         packageJson.scripts['test:v2:wave2-foundation'].indexOf('dialect-capability-registry.test.js') >= 0 &&
@@ -84,11 +87,31 @@ assert.ok(
         packageJson.scripts['test:v2:wave2-foundation'].indexOf('wave2-boundary.test.js') >= 0,
     'wave2-foundation must build once then run registry/token-table/invariants/hardening/boundary'
 );
-assert.strictEqual(
-    packageJson.scripts['test:v2:wave2'],
-    'npm run test:v2:wave2-foundation',
-    'test:v2:wave2 must currently alias foundation only'
+assert.ok(
+    packageJson.scripts['test:v2:hive-cst'].indexOf('build:v2-core') >= 0 &&
+        packageJson.scripts['test:v2:hive-cst'].indexOf('hive-cst-parser.test.js') >= 0,
+    'standalone Hive CST gate must build and run parser tests'
 );
+assert.ok(
+    packageJson.scripts['test:v2:wave2-corpus'].indexOf('build:v2-core') >= 0 &&
+        packageJson.scripts['test:v2:wave2-corpus'].indexOf('wave2-corpus.test.js') >= 0,
+    'standalone Wave 2 corpus gate must build and run corpus tests'
+);
+assert.ok(
+    packageJson.scripts['test:v2:wave2-performance'].indexOf('build:v2-core') >= 0 &&
+        packageJson.scripts['test:v2:wave2-performance'].indexOf('wave2-performance.test.js') >= 0,
+    'standalone Wave 2 performance gate must build and run performance tests'
+);
+[
+    'test:v2:wave2-foundation',
+    'hive-cst-parser.test.js',
+    'wave2b-final-hardening.test.js',
+    'wave2-corpus.test.js',
+    'wave2-performance.test.js'
+].forEach(function(required) {
+    assert.ok(packageJson.scripts['test:v2:wave2'].indexOf(required) >= 0,
+        'test:v2:wave2 must include ' + required);
+});
 
 // test:verify includes each wave aggregate once
 var verify = packageJson.scripts['test:verify'];
@@ -153,31 +176,62 @@ wave2SourceDirs.forEach(function(dir) {
             );
         });
         assert.ok(source.indexOf('dt-sql-parser') === -1, relativePath + ' must not mention dt-sql-parser');
-        // Wave 2A must not implement query/Pratt/analysis/layout
-        assert.ok(
-            !/\bparseSql\b/.test(source) || relativePath.indexOf('parser-backend') >= 0,
-            relativePath + ' must not implement parseSql in Wave 2A'
-        );
+        if (/\bparseSql\b/.test(source)) {
+            assert.ok(
+                relativePath === 'src/core/syntax/parser.ts' ||
+                    relativePath === 'src/core/syntax/index.ts',
+                relativePath + ' must not define or re-export parseSql'
+            );
+        }
     });
 });
 
-// Forbidden Wave 2A implementation files must not exist yet
+// Wave 2B parser files exist, while later Pratt/recovery/analysis files remain absent.
 [
     'src/core/syntax/parser.ts',
     'src/core/syntax/statement-parser.ts',
     'src/core/syntax/query-parser.ts',
+    'src/core/syntax/relation-parser.ts',
+    'src/core/syntax/list-parser.ts',
+    'src/core/syntax/list-role-contract.ts',
+    'src/core/syntax/cst-container-invariants.ts',
+    'src/core/syntax/parser-context.ts',
+    'src/core/syntax/node-factory.ts'
+].forEach(function(relativePath) {
+    assert.ok(
+        fs.existsSync(path.join(root, relativePath)),
+        'Wave 2B requires ' + relativePath
+    );
+});
+
+[
     'src/core/syntax/expression-parser.ts',
     'src/core/syntax/type-parser.ts',
     'src/core/syntax/recovery.ts',
-    'src/core/syntax/node-factory.ts',
     'src/core/analysis/analyze.ts',
     'src/core/analysis/structural-index.ts',
     'src/core/analysis/trivia-binding.ts'
 ].forEach(function(relativePath) {
     assert.ok(
         !fs.existsSync(path.join(root, relativePath)),
-        'Wave 2A must not create ' + relativePath
+        'Wave 2B must not create later-wave file ' + relativePath
     );
+});
+
+var parserSource = fs.readFileSync(path.join(root, 'src/core/syntax/parser.ts'), 'utf8');
+assert.ok(/from\s+["']\.\.\/lexer\/lossless-lexer["']/.test(parserSource),
+    'Wave 2B parser must consume the canonical lossless lexer');
+[
+    'src/core/syntax/list-parser.ts',
+    'src/core/syntax/query-parser.ts',
+    'src/core/syntax/relation-parser.ts',
+    'src/core/syntax/statement-parser.ts'
+].forEach(function(relativePath) {
+    var source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    assert.strictEqual(source.indexOf('context.source.slice'), -1,
+        relativePath + ' must use leaf spans instead of scanning protected/trivia source content');
+    assert.strictEqual(source.indexOf('.raw.toLowerCase()'), -1,
+        relativePath + ' must normalize code words through StructuralTokenTable');
 });
 
 // current runtime must not import src or .tmp/v2-core
@@ -203,7 +257,7 @@ var layoutFiles = collectFiles('src/core/layout', function(name) {
 assert.deepStrictEqual(
     layoutFiles,
     ['src/core/layout/doc.ts'],
-    'Wave 2A must not expand layout beyond doc contract'
+    'Wave 2B must not expand layout beyond doc contract'
 );
 
 // VSIX content

@@ -232,6 +232,7 @@ test('TREE Expression + opaque(expression) ok', function() {
     var source = 'SELECT 1';
     var leaves = lex(source).leaves;
     var range = { start: 0, end: leaves.length };
+    var itemRange = { start: 2, end: 3 };
     var query = {
         id: 2,
         kind: 'query',
@@ -241,18 +242,45 @@ test('TREE Expression + opaque(expression) ok', function() {
         span: spanOfLeaves(leaves, range),
         children: [{
             id: 3,
-            kind: 'expression',
-            expressionKind: 'literal',
-            operatorLeafIds: [],
+            kind: 'clause',
+            clauseKind: 'select',
+            headLeafRange: { start: 0, end: 1 },
+            bodyLeafRange: { start: 1, end: 3 },
             leafRange: range,
             span: spanOfLeaves(leaves, range),
             children: [{
                 id: 4,
-                kind: 'opaque',
-                reasonCode: 'X',
-                boundary: 'expression',
-                leafRange: range,
-                span: spanOfLeaves(leaves, range)
+                kind: 'list',
+                listRole: 'select-items',
+                separatorLeafIds: [],
+                leafRange: itemRange,
+                span: spanOfLeaves(leaves, itemRange),
+                children: [{
+                    id: 5,
+                    kind: 'list-item',
+                    itemRole: 'select-item',
+                    alias: null,
+                    modifierLeafIds: [],
+                    valueChildId: 6,
+                    leafRange: itemRange,
+                    span: spanOfLeaves(leaves, itemRange),
+                    children: [{
+                        id: 6,
+                        kind: 'expression',
+                        expressionKind: 'literal',
+                        operatorLeafIds: [],
+                        leafRange: itemRange,
+                        span: spanOfLeaves(leaves, itemRange),
+                        children: [{
+                            id: 7,
+                            kind: 'opaque',
+                            reasonCode: 'X',
+                            boundary: 'expression',
+                            leafRange: itemRange,
+                            span: spanOfLeaves(leaves, itemRange)
+                        }]
+                    }]
+                }]
             }]
         }]
     };
@@ -279,7 +307,7 @@ test('TREE list + opaque(target) fails', function() {
     var range = { start: 0, end: leaves.length };
     var itemRange = { start: 2, end: 3 };
     var opaque = {
-        id: 5,
+        id: 6,
         kind: 'opaque',
         reasonCode: 'X',
         boundary: 'target',
@@ -287,24 +315,34 @@ test('TREE list + opaque(target) fails', function() {
         span: spanOfLeaves(leaves, itemRange)
     };
     var item = {
-        id: 4,
+        id: 5,
         kind: 'list-item',
         itemRole: 'select-item',
         alias: null,
         modifierLeafIds: [],
-        valueChildId: 5,
+        valueChildId: 6,
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [opaque]
     };
     var list = {
-        id: 3,
+        id: 4,
         kind: 'list',
         listRole: 'select-items',
         separatorLeafIds: [],
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
     };
     var query = {
         id: 2,
@@ -313,7 +351,7 @@ test('TREE list + opaque(target) fails', function() {
         setOperatorLeafIds: [],
         leafRange: range,
         span: spanOfLeaves(leaves, range),
-        children: [list]
+        children: [clause]
     };
     var stmt = {
         id: 1,
@@ -349,7 +387,7 @@ test('TREE alias-name-overlaps-AS fails', function() {
     var itemRange = { start: numIdx, end: leaves.length };
     var nameRange = { start: asIdx, end: nameIdx + 1 };
     var val = {
-        id: 5,
+        id: 6,
         kind: 'expression',
         expressionKind: 'literal',
         operatorLeafIds: [],
@@ -358,24 +396,34 @@ test('TREE alias-name-overlaps-AS fails', function() {
         children: []
     };
     var item = {
-        id: 4,
+        id: 5,
         kind: 'list-item',
         itemRole: 'select-item',
         alias: { keywordLeafId: asIdx, nameLeafRange: nameRange },
         modifierLeafIds: [],
-        valueChildId: 5,
+        valueChildId: 6,
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [val]
     };
     var list = {
-        id: 3,
+        id: 4,
         kind: 'list',
         listRole: 'select-items',
         separatorLeafIds: [],
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
     };
     var query = {
         id: 2,
@@ -384,7 +432,7 @@ test('TREE alias-name-overlaps-AS fails', function() {
         setOperatorLeafIds: [],
         leafRange: range,
         span: spanOfLeaves(leaves, range),
-        children: [list]
+        children: [clause]
     };
     var stmt = {
         id: 1,
@@ -417,7 +465,7 @@ test('TREE alias-empty-name fails', function() {
     var itemRange = { start: numIdx, end: leaves.length };
     var emptyName = { start: asIdx, end: asIdx };
     var val = {
-        id: 5,
+        id: 6,
         kind: 'expression',
         expressionKind: 'literal',
         operatorLeafIds: [],
@@ -426,24 +474,34 @@ test('TREE alias-empty-name fails', function() {
         children: []
     };
     var item = {
-        id: 4,
+        id: 5,
         kind: 'list-item',
         itemRole: 'select-item',
         alias: { keywordLeafId: asIdx, nameLeafRange: emptyName },
         modifierLeafIds: [],
-        valueChildId: 5,
+        valueChildId: 6,
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [val]
     };
     var list = {
-        id: 3,
+        id: 4,
         kind: 'list',
         listRole: 'select-items',
         separatorLeafIds: [],
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
     };
     var query = {
         id: 2,
@@ -452,7 +510,7 @@ test('TREE alias-empty-name fails', function() {
         setOperatorLeafIds: [],
         leafRange: range,
         span: spanOfLeaves(leaves, range),
-        children: [list]
+        children: [clause]
     };
     var stmt = {
         id: 1,
@@ -488,7 +546,7 @@ test('TREE alias trivia-only name fails', function() {
     var itemRange = { start: numIdx, end: leaves.length };
     var triviaName = { start: wsAfterAs, end: wsAfterAs + 1 };
     var val = {
-        id: 5,
+        id: 6,
         kind: 'expression',
         expressionKind: 'literal',
         operatorLeafIds: [],
@@ -497,24 +555,34 @@ test('TREE alias trivia-only name fails', function() {
         children: []
     };
     var item = {
-        id: 4,
+        id: 5,
         kind: 'list-item',
         itemRole: 'select-item',
         alias: { keywordLeafId: asIdx, nameLeafRange: triviaName },
         modifierLeafIds: [],
-        valueChildId: 5,
+        valueChildId: 6,
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [val]
     };
     var list = {
-        id: 3,
+        id: 4,
         kind: 'list',
         listRole: 'select-items',
         separatorLeafIds: [],
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
     };
     var query = {
         id: 2,
@@ -523,7 +591,7 @@ test('TREE alias trivia-only name fails', function() {
         setOperatorLeafIds: [],
         leafRange: range,
         span: spanOfLeaves(leaves, range),
-        children: [list]
+        children: [clause]
     };
     var stmt = {
         id: 1,
@@ -557,7 +625,7 @@ test('TREE alias name before AS fails', function() {
     // name is the number before AS
     var nameBefore = { start: numIdx, end: numIdx + 1 };
     var val = {
-        id: 5,
+        id: 6,
         kind: 'expression',
         expressionKind: 'literal',
         operatorLeafIds: [],
@@ -566,24 +634,34 @@ test('TREE alias name before AS fails', function() {
         children: []
     };
     var item = {
-        id: 4,
+        id: 5,
         kind: 'list-item',
         itemRole: 'select-item',
         alias: { keywordLeafId: asIdx, nameLeafRange: nameBefore },
         modifierLeafIds: [],
-        valueChildId: 5,
+        valueChildId: 6,
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [val]
     };
     var list = {
-        id: 3,
+        id: 4,
         kind: 'list',
         listRole: 'select-items',
         separatorLeafIds: [],
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
     };
     var query = {
         id: 2,
@@ -592,7 +670,7 @@ test('TREE alias name before AS fails', function() {
         setOperatorLeafIds: [],
         leafRange: range,
         span: spanOfLeaves(leaves, range),
-        children: [list]
+        children: [clause]
     };
     var stmt = {
         id: 1,
@@ -627,7 +705,7 @@ test('final positive alias with explicit AS ok', function() {
     var range = { start: 0, end: leaves.length };
     var itemRange = { start: numIdx, end: leaves.length };
     var val = {
-        id: 5,
+        id: 6,
         kind: 'expression',
         expressionKind: 'literal',
         operatorLeafIds: [],
@@ -636,7 +714,7 @@ test('final positive alias with explicit AS ok', function() {
         children: []
     };
     var item = {
-        id: 4,
+        id: 5,
         kind: 'list-item',
         itemRole: 'select-item',
         alias: {
@@ -644,19 +722,29 @@ test('final positive alias with explicit AS ok', function() {
             nameLeafRange: { start: nameIdx, end: nameIdx + 1 }
         },
         modifierLeafIds: [],
-        valueChildId: 5,
+        valueChildId: 6,
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [val]
     };
     var list = {
-        id: 3,
+        id: 4,
         kind: 'list',
         listRole: 'select-items',
         separatorLeafIds: [],
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
     };
     var query = {
         id: 2,
@@ -665,7 +753,7 @@ test('final positive alias with explicit AS ok', function() {
         setOperatorLeafIds: [],
         leafRange: range,
         span: spanOfLeaves(leaves, range),
-        children: [list]
+        children: [clause]
     };
     var stmt = {
         id: 1,
@@ -694,7 +782,7 @@ test('final positive alias without AS ok', function() {
     var range = { start: 0, end: leaves.length };
     var itemRange = { start: numIdx, end: leaves.length };
     var val = {
-        id: 5,
+        id: 6,
         kind: 'expression',
         expressionKind: 'literal',
         operatorLeafIds: [],
@@ -703,7 +791,7 @@ test('final positive alias without AS ok', function() {
         children: []
     };
     var item = {
-        id: 4,
+        id: 5,
         kind: 'list-item',
         itemRole: 'select-item',
         alias: {
@@ -711,19 +799,29 @@ test('final positive alias without AS ok', function() {
             nameLeafRange: { start: nameIdx, end: nameIdx + 1 }
         },
         modifierLeafIds: [],
-        valueChildId: 5,
+        valueChildId: 6,
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [val]
     };
     var list = {
-        id: 3,
+        id: 4,
         kind: 'list',
         listRole: 'select-items',
         separatorLeafIds: [],
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange),
         children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
     };
     var query = {
         id: 2,
@@ -732,7 +830,7 @@ test('final positive alias without AS ok', function() {
         setOperatorLeafIds: [],
         leafRange: range,
         span: spanOfLeaves(leaves, range),
-        children: [list]
+        children: [clause]
     };
     var stmt = {
         id: 1,

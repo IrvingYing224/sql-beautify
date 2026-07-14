@@ -4,6 +4,10 @@ import type { SourceLeaf } from "../lexer/token";
 import type { ProgramNode } from "./node";
 
 export type ParseMode = "document" | "statement" | "fragment";
+export interface ParseOptions {
+    readonly dialect?: Dialect;
+    readonly mode?: ParseMode;
+}
 export interface ParseInput {
     readonly source: string;
     readonly dialect: Dialect;

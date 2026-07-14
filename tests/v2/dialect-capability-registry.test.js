@@ -25,7 +25,7 @@ var CAPABILITY_STATES = {
     diagnostic: true
 };
 
-var HIVE_QUERY_CONSTRUCTS = [
+var HIVE_STRUCTURED_QUERY_CONSTRUCTS = [
     'multi-statement',
     'with-cte',
     'select-without-from',
@@ -44,7 +44,10 @@ var HIVE_QUERY_CONSTRUCTS = [
     'sort-by',
     'limit',
     'set-operations',
-    'insert-overwrite-partition-select',
+    'insert-overwrite-partition-select'
+];
+
+var HIVE_RECOGNIZED_EXPRESSION_CONSTRUCTS = [
     'case-expression',
     'function-call',
     'collection-expression',
@@ -54,13 +57,13 @@ var HIVE_QUERY_CONSTRUCTS = [
     'template-parameter'
 ];
 
-var HIVE_VERBATIM_OR_DIAGNOSTIC = [
-    'hive-ddl',
-    'merge',
-    'match-recognize',
-    'pivot',
-    'unpivot'
-];
+var HIVE_PRESERVATION_CAPABILITIES = {
+    'hive-ddl': 'verbatim',
+    'merge': 'diagnostic',
+    'match-recognize': 'diagnostic',
+    'pivot': 'diagnostic',
+    'unpivot': 'diagnostic'
+};
 
 /**
  * Real frozen arrays may still expose push/splice as functions that throw.
@@ -222,26 +225,83 @@ CANONICAL.forEach(function(dialectId) {
         assert.ok(looked, 'getOperatorSemantics(' + op.key + ',' + op.fixity + ')');
         assert.strictEqual(looked.fixity, op.fixity);
     });
+
+    var clauses = view.listQueryClauseSyntax();
+    var clauseIds = Object.create(null);
+    var lastOrder = -1;
+    assertImmutableArray(clauses, 'query clause syntax for ' + dialectId);
+    assert.strictEqual(view.listQueryClauseSyntax(), clauses);
+    clauses.forEach(function(clause) {
+        assert.ok(Object.isFrozen(clause), 'clause entry frozen: ' + dialectId + '/' + clause.id);
+        assertImmutableArray(clause.words, 'clause words for ' + dialectId + '/' + clause.id);
+        assert.ok(!clauseIds[clause.id], 'duplicate clause id: ' + dialectId + '/' + clause.id);
+        clauseIds[clause.id] = true;
+        assert.ok(clause.order > lastOrder, 'clause order must be strictly increasing: ' + dialectId);
+        lastOrder = clause.order;
+        assert.ok(view.getCapability(clause.capabilityId),
+            'clause capability must exist: ' + dialectId + '/' + clause.capabilityId);
+    });
+
+    var setOperators = view.listSetOperatorSyntax();
+    var setIds = Object.create(null);
+    assertImmutableArray(setOperators, 'set operator syntax for ' + dialectId);
+    assert.strictEqual(view.listSetOperatorSyntax(), setOperators);
+    setOperators.forEach(function(operator) {
+        assert.ok(Object.isFrozen(operator),
+            'set operator entry frozen: ' + dialectId + '/' + operator.id);
+        assert.ok(!setIds[operator.id], 'duplicate set operator id: ' + dialectId + '/' + operator.id);
+        setIds[operator.id] = true;
+        assert.ok(view.getCapability(operator.capabilityId),
+            'set operator capability must exist: ' + dialectId + '/' + operator.capabilityId);
+    });
+
+    var joins = view.listJoinSyntax();
+    var joinIds = Object.create(null);
+    assertImmutableArray(joins, 'join syntax for ' + dialectId);
+    assert.strictEqual(view.listJoinSyntax(), joins);
+    joins.forEach(function(join) {
+        assert.ok(Object.isFrozen(join), 'join entry frozen: ' + dialectId + '/' + join.id);
+        assertImmutableArray(join.words, 'join words for ' + dialectId + '/' + join.id);
+        assert.ok(!joinIds[join.id], 'duplicate join id: ' + dialectId + '/' + join.id);
+        joinIds[join.id] = true;
+        assert.strictEqual(join.words[join.words.length - 1], 'join');
+        assert.ok(view.getCapability(join.capabilityId));
+    });
 });
 
-// Hive query constructs are recognized only in 2A
+assert.ok(dialects.getDialect('hive').listJoinSyntax().some(function(join) {
+    return join.id === 'left-anti-join' && join.words.join(' ') === 'left anti join';
+}), 'Hive registry must own LEFT ANTI JOIN syntax');
+
+// Wave 2B structures Hive statement/query/clause boundaries only.
 var hive = dialects.getDialect('hive');
-HIVE_QUERY_CONSTRUCTS.forEach(function(id) {
+HIVE_STRUCTURED_QUERY_CONSTRUCTS.forEach(function(id) {
     var entry = hive.getCapability(id);
     assert.ok(entry, 'Hive must declare capability ' + id);
     assert.strictEqual(
         entry.state,
-        'recognized',
-        'Hive ' + id + ' must be recognized in Wave 2A (not structured yet)'
+        'structured',
+        'Hive ' + id + ' must be structured in Wave 2B'
     );
 });
 
-HIVE_VERBATIM_OR_DIAGNOSTIC.forEach(function(id) {
+HIVE_RECOGNIZED_EXPRESSION_CONSTRUCTS.forEach(function(id) {
+    var entry = hive.getCapability(id);
+    assert.ok(entry, 'Hive must declare expression capability ' + id);
+    assert.strictEqual(
+        entry.state,
+        'recognized',
+        'Hive expression ' + id + ' must remain recognized until Wave 2C'
+    );
+});
+
+Object.keys(HIVE_PRESERVATION_CAPABILITIES).forEach(function(id) {
     var entry = hive.getCapability(id);
     assert.ok(entry, 'Hive must declare capability ' + id);
-    assert.ok(
-        entry.state === 'verbatim' || entry.state === 'diagnostic',
-        'Hive ' + id + ' must be verbatim or diagnostic, got ' + entry.state
+    assert.strictEqual(
+        entry.state,
+        HIVE_PRESERVATION_CAPABILITIES[id],
+        'Hive ' + id + ' capability must match its current recovery boundary'
     );
 });
 

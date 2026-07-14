@@ -6,9 +6,12 @@ import type {
     CapabilityState,
     DialectCapabilityRegistry,
     DialectCapabilityView,
+    JoinSyntax,
     OperatorFixity,
     OperatorForm,
     OperatorSemantics,
+    QueryClauseSyntax,
+    SetOperatorSyntax,
 } from "./types";
 
 const CANONICAL_DIALECTS: readonly Dialect[] = freezeImmutableArray([
@@ -89,7 +92,7 @@ const SHARED_WORD_OPERATORS: readonly {
     },
 ]);
 
-const HIVE_QUERY_RECOGNIZED: readonly string[] = freezeImmutableArray([
+const HIVE_QUERY_STRUCTURED: readonly string[] = freezeImmutableArray([
     "multi-statement",
     "with-cte",
     "select-without-from",
@@ -109,6 +112,9 @@ const HIVE_QUERY_RECOGNIZED: readonly string[] = freezeImmutableArray([
     "limit",
     "set-operations",
     "insert-overwrite-partition-select",
+]);
+
+const HIVE_EXPRESSION_RECOGNIZED: readonly string[] = freezeImmutableArray([
     "case-expression",
     "function-call",
     "collection-expression",
@@ -118,15 +124,58 @@ const HIVE_QUERY_RECOGNIZED: readonly string[] = freezeImmutableArray([
     "template-parameter",
 ]);
 
-const HIVE_VERBATIM_OR_DIAGNOSTIC: readonly Readonly<{
+const SHARED_QUERY_CLAUSES: readonly QueryClauseSyntax[] = freezeImmutableArray([
+    Object.freeze({ id: "select", words: freezeImmutableArray(["select"]), order: 0, capabilityId: "select-without-from" }),
+    Object.freeze({ id: "from", words: freezeImmutableArray(["from"]), order: 10, capabilityId: "from" }),
+    Object.freeze({ id: "where", words: freezeImmutableArray(["where"]), order: 20, capabilityId: "where" }),
+    Object.freeze({ id: "group-by", words: freezeImmutableArray(["group", "by"]), order: 30, capabilityId: "group-by" }),
+    Object.freeze({ id: "having", words: freezeImmutableArray(["having"]), order: 40, capabilityId: "having" }),
+    Object.freeze({ id: "window", words: freezeImmutableArray(["window"]), order: 50, capabilityId: "window" }),
+    Object.freeze({ id: "order-by", words: freezeImmutableArray(["order", "by"]), order: 60, capabilityId: "order-by" }),
+    Object.freeze({ id: "limit", words: freezeImmutableArray(["limit"]), order: 100, capabilityId: "limit" }),
+]);
+
+const HIVE_QUERY_CLAUSES: readonly QueryClauseSyntax[] = freezeImmutableArray([
+    ...SHARED_QUERY_CLAUSES.slice(0, SHARED_QUERY_CLAUSES.length - 1),
+    Object.freeze({ id: "cluster-by", words: freezeImmutableArray(["cluster", "by"]), order: 70, capabilityId: "cluster-by" }),
+    Object.freeze({ id: "distribute-by", words: freezeImmutableArray(["distribute", "by"]), order: 80, capabilityId: "distribute-by" }),
+    Object.freeze({ id: "sort-by", words: freezeImmutableArray(["sort", "by"]), order: 90, capabilityId: "sort-by" }),
+    SHARED_QUERY_CLAUSES[SHARED_QUERY_CLAUSES.length - 1]!,
+]);
+
+const SHARED_SET_OPERATORS: readonly SetOperatorSyntax[] = freezeImmutableArray([
+    Object.freeze({ id: "union", word: "union", capabilityId: "set-operations" }),
+    Object.freeze({ id: "intersect", word: "intersect", capabilityId: "set-operations" }),
+    Object.freeze({ id: "except", word: "except", capabilityId: "set-operations" }),
+]);
+
+const SHARED_JOIN_SYNTAX: readonly JoinSyntax[] = freezeImmutableArray([
+    Object.freeze({ id: "join", words: freezeImmutableArray(["join"]), capabilityId: "join" }),
+    Object.freeze({ id: "cross-join", words: freezeImmutableArray(["cross", "join"]), capabilityId: "join" }),
+    Object.freeze({ id: "full-join", words: freezeImmutableArray(["full", "join"]), capabilityId: "join" }),
+    Object.freeze({ id: "full-outer-join", words: freezeImmutableArray(["full", "outer", "join"]), capabilityId: "join" }),
+    Object.freeze({ id: "inner-join", words: freezeImmutableArray(["inner", "join"]), capabilityId: "join" }),
+    Object.freeze({ id: "left-join", words: freezeImmutableArray(["left", "join"]), capabilityId: "join" }),
+    Object.freeze({ id: "left-outer-join", words: freezeImmutableArray(["left", "outer", "join"]), capabilityId: "join" }),
+    Object.freeze({ id: "right-join", words: freezeImmutableArray(["right", "join"]), capabilityId: "join" }),
+    Object.freeze({ id: "right-outer-join", words: freezeImmutableArray(["right", "outer", "join"]), capabilityId: "join" }),
+]);
+
+const HIVE_JOIN_SYNTAX: readonly JoinSyntax[] = freezeImmutableArray([
+    ...SHARED_JOIN_SYNTAX,
+    Object.freeze({ id: "left-semi-join", words: freezeImmutableArray(["left", "semi", "join"]), capabilityId: "join" }),
+    Object.freeze({ id: "left-anti-join", words: freezeImmutableArray(["left", "anti", "join"]), capabilityId: "join" }),
+]);
+
+const HIVE_PRESERVATION_CAPABILITIES: readonly Readonly<{
     id: string;
     state: "verbatim" | "diagnostic";
 }>[] = freezeImmutableArray([
     Object.freeze({ id: "hive-ddl", state: "verbatim" as const }),
     Object.freeze({ id: "merge", state: "diagnostic" as const }),
-    Object.freeze({ id: "match-recognize", state: "verbatim" as const }),
-    Object.freeze({ id: "pivot", state: "verbatim" as const }),
-    Object.freeze({ id: "unpivot", state: "verbatim" as const }),
+    Object.freeze({ id: "match-recognize", state: "diagnostic" as const }),
+    Object.freeze({ id: "pivot", state: "diagnostic" as const }),
+    Object.freeze({ id: "unpivot", state: "diagnostic" as const }),
 ]);
 
 const SHARED_QUERY_RECOGNIZED: readonly string[] = freezeImmutableArray([
@@ -139,6 +188,7 @@ const SHARED_QUERY_RECOGNIZED: readonly string[] = freezeImmutableArray([
     "where",
     "group-by",
     "having",
+    "window",
     "order-by",
     "limit",
     "set-operations",
@@ -233,12 +283,90 @@ function buildOperatorList(dialect: Dialect): readonly OperatorSemantics[] {
     return freezeImmutableArray(entries);
 }
 
+function validateSyntaxLists(
+    dialect: Dialect,
+    capabilityById: ReadonlyMap<string, CapabilityEntry>,
+    queryClauses: readonly QueryClauseSyntax[],
+    setOperators: readonly SetOperatorSyntax[],
+    joins: readonly JoinSyntax[]
+): void {
+    const clauseIds = new Set<string>();
+    let previousOrder = Number.NEGATIVE_INFINITY;
+    for (const clause of queryClauses) {
+        const capability = capabilityById.get(clause.capabilityId);
+        if (
+            clauseIds.has(clause.id) ||
+            !Number.isInteger(clause.order) ||
+            clause.order <= previousOrder ||
+            clause.words.length === 0 ||
+            !clause.words.every(
+                (word) =>
+                    word === word.toLowerCase() &&
+                    /^[a-z_]+$/.test(word)
+            ) ||
+            !capability ||
+            (capability.state !== "recognized" && capability.state !== "structured")
+        ) {
+            throw new Error(`Invalid query clause syntax for ${dialect}: ${clause.id}`);
+        }
+        clauseIds.add(clause.id);
+        previousOrder = clause.order;
+    }
+    if (!clauseIds.has("select")) {
+        throw new Error(`Dialect ${dialect} query clause syntax must include SELECT`);
+    }
+
+    const setIds = new Set<string>();
+    const setWords = new Set<string>();
+    for (const operator of setOperators) {
+        const capability = capabilityById.get(operator.capabilityId);
+        if (
+            setIds.has(operator.id) ||
+            setWords.has(operator.word) ||
+            operator.word !== operator.word.toLowerCase() ||
+            !/^[a-z_]+$/.test(operator.word) ||
+            !capability ||
+            (capability.state !== "recognized" && capability.state !== "structured")
+        ) {
+            throw new Error(`Invalid set operator syntax for ${dialect}: ${operator.id}`);
+        }
+        setIds.add(operator.id);
+        setWords.add(operator.word);
+    }
+
+    const joinIds = new Set<string>();
+    const joinHeads = new Set<string>();
+    for (const join of joins) {
+        const head = join.words.join(" ");
+        const capability = capabilityById.get(join.capabilityId);
+        if (
+            joinIds.has(join.id) ||
+            joinHeads.has(head) ||
+            join.words.length === 0 ||
+            join.words[join.words.length - 1] !== "join" ||
+            !join.words.every(
+                (word) => word === word.toLowerCase() && /^[a-z_]+$/.test(word)
+            ) ||
+            !capability ||
+            (capability.state !== "recognized" && capability.state !== "structured")
+        ) {
+            throw new Error(`Invalid JOIN syntax for ${dialect}: ${join.id}`);
+        }
+        joinIds.add(join.id);
+        joinHeads.add(head);
+    }
+}
+
 function createDialectView(
     dialect: Dialect,
     capabilities: readonly CapabilityEntry[],
-    operators: readonly OperatorSemantics[]
+    operators: readonly OperatorSemantics[],
+    queryClauses: readonly QueryClauseSyntax[],
+    setOperators: readonly SetOperatorSyntax[],
+    joins: readonly JoinSyntax[]
 ): DialectCapabilityView {
     const capabilityById = new Map(capabilities.map((c) => [c.id, c]));
+    validateSyntaxLists(dialect, capabilityById, queryClauses, setOperators, joins);
     const operatorsByKeyFixity = new Map<string, OperatorSemantics>();
     const operatorsByKey = new Map<string, OperatorSemantics[]>();
 
@@ -278,6 +406,15 @@ function createDialectView(
         listOperatorSemanticsForKey(key: string): readonly OperatorSemantics[] {
             return frozenByKey.get(key) ?? (EMPTY_FROZEN_ARRAY as readonly OperatorSemantics[]);
         },
+        listQueryClauseSyntax(): readonly QueryClauseSyntax[] {
+            return queryClauses;
+        },
+        listSetOperatorSyntax(): readonly SetOperatorSyntax[] {
+            return setOperators;
+        },
+        listJoinSyntax(): readonly JoinSyntax[] {
+            return joins;
+        },
     });
     return view;
 }
@@ -289,8 +426,20 @@ function buildRegistry(): DialectCapabilityRegistry {
         "hive",
         createDialectView(
             "hive",
-            buildCapabilityList(HIVE_QUERY_RECOGNIZED, HIVE_VERBATIM_OR_DIAGNOSTIC),
-            buildOperatorList("hive")
+            buildCapabilityList(
+                HIVE_EXPRESSION_RECOGNIZED,
+                freezeImmutableArray([
+                    ...HIVE_QUERY_STRUCTURED.map((id) => Object.freeze({
+                        id,
+                        state: "structured" as const,
+                    })),
+                    ...HIVE_PRESERVATION_CAPABILITIES,
+                ])
+            ),
+            buildOperatorList("hive"),
+            HIVE_QUERY_CLAUSES,
+            SHARED_SET_OPERATORS,
+            HIVE_JOIN_SYNTAX
         )
     );
 
@@ -313,7 +462,10 @@ function buildRegistry(): DialectCapabilityRegistry {
             createDialectView(
                 dialect,
                 buildCapabilityList(SHARED_QUERY_RECOGNIZED, extra),
-                buildOperatorList(dialect)
+                buildOperatorList(dialect),
+                SHARED_QUERY_CLAUSES,
+                SHARED_SET_OPERATORS,
+                SHARED_JOIN_SYNTAX
             )
         );
     }

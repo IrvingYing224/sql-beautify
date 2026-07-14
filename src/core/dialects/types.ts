@@ -47,6 +47,53 @@ export interface OperatorSemantics {
     readonly associativity: OperatorAssociativity | null;
 }
 
+export type QueryClauseSyntaxId =
+    | "select"
+    | "from"
+    | "where"
+    | "group-by"
+    | "having"
+    | "window"
+    | "order-by"
+    | "cluster-by"
+    | "distribute-by"
+    | "sort-by"
+    | "limit";
+
+export interface QueryClauseSyntax {
+    readonly id: QueryClauseSyntaxId;
+    readonly words: readonly string[];
+    readonly order: number;
+    readonly capabilityId: string;
+}
+
+export type SetOperatorSyntaxId = "union" | "intersect" | "except";
+
+export interface SetOperatorSyntax {
+    readonly id: SetOperatorSyntaxId;
+    readonly word: string;
+    readonly capabilityId: string;
+}
+
+export type JoinSyntaxId =
+    | "join"
+    | "cross-join"
+    | "full-join"
+    | "full-outer-join"
+    | "inner-join"
+    | "left-join"
+    | "left-outer-join"
+    | "left-semi-join"
+    | "left-anti-join"
+    | "right-join"
+    | "right-outer-join";
+
+export interface JoinSyntax {
+    readonly id: JoinSyntaxId;
+    readonly words: readonly string[];
+    readonly capabilityId: "join";
+}
+
 /** @deprecated Use OperatorFixity; retained alias for arity naming. */
 export type OperatorArity = OperatorFixity;
 
@@ -60,6 +107,9 @@ export interface DialectCapabilityView {
     getOperatorSemantics(key: string, fixity: OperatorFixity): OperatorSemantics | null;
     listOperatorSemantics(): readonly OperatorSemantics[];
     listOperatorSemanticsForKey(key: string): readonly OperatorSemantics[];
+    listQueryClauseSyntax(): readonly QueryClauseSyntax[];
+    listSetOperatorSyntax(): readonly SetOperatorSyntax[];
+    listJoinSyntax(): readonly JoinSyntax[];
 }
 
 export interface DialectCapabilityRegistry {

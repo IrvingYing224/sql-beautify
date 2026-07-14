@@ -173,13 +173,24 @@ export type ChildRefSpec = {
 
 export type NodeContract = {
     readonly kind: SyntaxNode["kind"];
-    readonly childKinds?: readonly string[];
-    readonly noUnreferencedChildren?: boolean;
+    readonly childKinds?:
+        | readonly string[]
+        | ((node: Record<string, unknown>) => readonly string[]);
+    readonly noUnreferencedChildren?:
+        | boolean
+        | ((node: Record<string, unknown>) => boolean);
     readonly refs?: readonly ChildRefSpec[];
     readonly distinctRefs?: readonly [string, string][];
 };
 
 type NodeContractsMap = { readonly [K in SyntaxNode["kind"]]: NodeContract };
+
+const NO_CHILD_KINDS = Object.freeze([] as string[]);
+const SUBQUERY_CHILD_KINDS = Object.freeze(["query", "opaque"]);
+const JOIN_CHILD_KINDS = Object.freeze(["relation", "clause"]);
+const LATERAL_CHILD_KINDS = Object.freeze(["relation", "list"]);
+const TABLE_FUNCTION_CHILD_KINDS = Object.freeze(["opaque", "list", "expression"]);
+const OPAQUE_RELATION_CHILD_KINDS = Object.freeze(["opaque"]);
 
 /**
  * Exhaustive relationship contracts keyed by SyntaxNode kind.
@@ -247,11 +258,29 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
     }),
     relation: Object.freeze({
         kind: "relation" as const,
+        childKinds: (n: Record<string, unknown>) => {
+            switch (n.relationKind) {
+                case "table":
+                    return NO_CHILD_KINDS;
+                case "subquery":
+                    return SUBQUERY_CHILD_KINDS;
+                case "join":
+                    return JOIN_CHILD_KINDS;
+                case "lateral-view":
+                    return LATERAL_CHILD_KINDS;
+                case "table-function":
+                    return TABLE_FUNCTION_CHILD_KINDS;
+                case "opaque":
+                    return OPAQUE_RELATION_CHILD_KINDS;
+                default:
+                    return NO_CHILD_KINDS;
+            }
+        },
         refs: Object.freeze([
             Object.freeze({
                 field: "bodyChildId",
                 required: (n: Record<string, unknown>) =>
-                    n.relationKind === "opaque" || n.relationKind === "subquery",
+                    n.relationKind !== "table",
                 allowedKinds: (n: Record<string, unknown>) => {
                     if (n.relationKind === "opaque") {
                         return ["opaque"];
@@ -259,7 +288,13 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
                     if (n.relationKind === "subquery") {
                         return ["query", "opaque"];
                     }
-                    return ["query", "opaque", "list", "expression", "relation"];
+                    if (n.relationKind === "join" || n.relationKind === "lateral-view") {
+                        return ["relation"];
+                    }
+                    if (n.relationKind === "table-function") {
+                        return ["opaque", "list", "expression"];
+                    }
+                    return [];
                 },
                 allowedOpaqueBoundaries: (n: Record<string, unknown>) => {
                     if (n.relationKind === "opaque") {
@@ -269,7 +304,10 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
                 },
             }),
         ]),
-        noUnreferencedChildren: true,
+        // Join/lateral wrappers may own one typed extension child in addition
+        // to bodyChildId; every other relation kind has only its body child.
+        noUnreferencedChildren: (n: Record<string, unknown>) =>
+            n.relationKind !== "join" && n.relationKind !== "lateral-view",
     }),
     list: Object.freeze({
         kind: "list" as const,
@@ -389,8 +427,8 @@ export const FREE_FORM_OPAQUE_BOUNDARIES: Readonly<Record<string, readonly Opaqu
         "list-item": Object.freeze(["expression", "list-item"] as OpaqueBoundary[]),
         "window-spec": Object.freeze(["window", "expression"] as OpaqueBoundary[]),
         "type-expression": Object.freeze(["type"] as OpaqueBoundary[]),
-        // Query/clause free-form shapes stay light for 2B, but never accept
-        // document-level statement/target opaque under them.
+        // Concrete 2B query/clause child shapes are enforced by
+        // cst-invariants; this table owns the cross-wave opaque boundary rule.
         query: Object.freeze([
             "expression",
             "list-item",

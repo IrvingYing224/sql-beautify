@@ -1,6 +1,7 @@
 import type { SourceLeaf, TokenKind } from "../lexer/token";
 import type { LeafRange } from "./leaf-range";
 import type { OpaqueBoundary, StatementKind } from "./node";
+import { validateContainerRelationships } from "./cst-container-invariants";
 import type {
     InvariantFailure,
     InvariantResult,
@@ -684,6 +685,27 @@ function resolveAllowedOpaqueBoundaries(
         : spec.allowedOpaqueBoundaries;
 }
 
+function resolveChildKinds(
+    contract: NodeContract,
+    node: Record<string, unknown>
+): readonly string[] | null {
+    if (contract.childKinds === undefined) {
+        return null;
+    }
+    return typeof contract.childKinds === "function"
+        ? contract.childKinds(node)
+        : contract.childKinds;
+}
+
+function rejectsUnreferencedChildren(
+    contract: NodeContract,
+    node: Record<string, unknown>
+): boolean {
+    return typeof contract.noUnreferencedChildren === "function"
+        ? contract.noUnreferencedChildren(node)
+        : contract.noUnreferencedChildren === true;
+}
+
 /**
  * Empty statements may only own semicolon code leaves and trivia.
  * They must not claim real SQL syntax (keywords, identifiers, literals, …).
@@ -736,16 +758,17 @@ function enforceRelationships(
     const nodeId = raw.id;
     validateEmptyStatementContent(raw, leaves, failures);
     const byId = new Map<number, Record<string, unknown>>();
+    const allowedChildKinds = resolveChildKinds(contract, raw);
     for (const child of directChildren) {
         if (isFiniteNonNegInt(child.id)) {
             byId.set(child.id, child);
         }
-        if (contract.childKinds && typeof child.kind === "string") {
-            if (contract.childKinds.indexOf(child.kind) < 0) {
+        if (allowedChildKinds !== null && typeof child.kind === "string") {
+            if (allowedChildKinds.indexOf(child.kind) < 0) {
                 fail(
                     failures,
                     "INV_RELATIONSHIP",
-                    `${raw.kind} children must be ${contract.childKinds.join("|")}, got ${child.kind}`,
+                    `${raw.kind} children must be ${allowedChildKinds.join("|") || "none"}, got ${child.kind}`,
                     nodeId
                 );
             }
@@ -882,7 +905,7 @@ function enforceRelationships(
     }
 
     // Unreferenced children policy
-    if (contract.noUnreferencedChildren) {
+    if (rejectsUnreferencedChildren(contract, raw)) {
         for (const child of directChildren) {
             if (isFiniteNonNegInt(child.id) && !referenced.has(child.id)) {
                 fail(
@@ -894,6 +917,8 @@ function enforceRelationships(
             }
         }
     }
+
+    validateContainerRelationships(raw, directChildren, leaves, failures);
 }
 
 // ---------------------------------------------------------------------------

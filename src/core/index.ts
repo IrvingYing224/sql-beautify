@@ -33,7 +33,13 @@ export type {
     TypeExpressionNode,
     WindowSpecNode,
 } from "./syntax/node";
-export type { ParseInput, ParseMode, ParseOutput, ParserBackend } from "./syntax/parser-backend";
+export type {
+    ParseInput,
+    ParseMode,
+    ParseOptions,
+    ParseOutput,
+    ParserBackend,
+} from "./syntax/parser-backend";
 export type { LayoutDoc } from "./layout/doc";
 export type {
     CanonicalFormatOptions,

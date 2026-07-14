@@ -31,9 +31,12 @@ export type {
 export type {
     ParseInput,
     ParseMode,
+    ParseOptions,
     ParseOutput,
     ParserBackend,
 } from "./parser-backend";
+export type { SyntaxDiagnosticCode } from "./parser-context";
+export { parseSql, parserBackend } from "./parser";
 export type {
     StructuralIssue,
     StructuralIssueCode,
@@ -42,6 +45,8 @@ export type {
 export { buildStructuralTokenTable } from "./token-table";
 export type { TokenCursor } from "./cursor";
 export { createTokenCursor } from "./cursor";
+export type { NodeFactory } from "./node-factory";
+export { createNodeFactory } from "./node-factory";
 // Note: token table uses bounded multi-pass O(n) scans (not a single combined scan).
 export type {
     InvariantFailure,
