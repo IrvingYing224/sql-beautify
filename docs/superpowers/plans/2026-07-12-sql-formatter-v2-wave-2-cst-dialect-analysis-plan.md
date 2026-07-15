@@ -22,7 +22,7 @@ Wave 2 必须按 2A、2B、2C、2D、2E 顺序执行，每个子波次完成后�
 5. 运行此前全部 Wave 0/1/2 gates；
 6. 检查 runtime/VSIX/Git boundary；
 7. 停止并交付报告；
-8. 执行者不创建 commit；Codex 验证且用户确认当前子波次后，才可创建聚焦 checkpoint；不合并、不推送。
+8. 实现者和 reviewer 不创建 commit；主 Codex 验证通过且 reviewer 的 Critical/Important 清零后，自主创建聚焦 checkpoint；不合并、不推送。
 
 ## 2. 全局硬约束
 
@@ -39,7 +39,7 @@ Wave 2 必须按 2A、2B、2C、2D、2E 顺序执行，每个子波次完成后�
 - 禁止从 `src/core/index.ts` value-export parser/registry/analysis helper；Wave 2 root runtime keys 仍只能是 `lexSql`；
 - 禁止运行 `npm run evaluate:v2:parser`、任何 `--write` evidence 命令或重写 Wave 0 evidence；
 - 本地测试和 VSIX 打包不设置代理；
-- 不创建 git commit，不改写历史。
+- 实现者和 reviewer 不创建 git commit；只有主 Codex 可在当前子波次通过完整验证和独立审查后创建聚焦 checkpoint；不改写历史。
 
 ## 3. 预期文件边界
 

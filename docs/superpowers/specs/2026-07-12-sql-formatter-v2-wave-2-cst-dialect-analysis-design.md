@@ -62,7 +62,7 @@ Wave 2 在 Wave 1 的 canonical `SourceLeaf[]` 上建立项目自有、Hive-firs
 
 任何子波次出现 Critical/Important 都必须停在当前检查点修复，禁止用后续子波次掩盖基础问题。
 
-每个子波次的执行者都不得自行提交。Codex 独立验证且用户确认该检查点后，可以在 Wave 2 分支创建一个聚焦 checkpoint commit；这些 commit 始终留在 Wave 2 分支，完整长期程序结束前不合并 `main`。
+每个子波次的实现者和审查者都不得自行提交。主 Codex 完成独立验证且 reviewer 的 Critical/Important 清零后，应在 Wave 2 分支自主创建聚焦 checkpoint commit；这些 commit 始终留在 Wave 2 分支，完整长期程序结束前不合并 `main`。
 
 ## 3. 非目标
 
@@ -491,7 +491,7 @@ Wave 2 只有同时满足以下条件才可关闭：
 15. `extension.js`、`vkbeautify.js`、`lib/**`、`package-lock.json` 无 diff；
 16. 不实现 Wave 3 layout/renderer；
 17. independent reviewer Critical=0、Important=0；
-18. 任何 Wave 2 checkpoint 都只能在 Codex 验证且用户确认对应检查点后创建。
+18. 任何 Wave 2 checkpoint 都只能在主 Codex 完成验证且 reviewer 的 Critical/Important 清零后创建。
 
 ### Validator production vs test-only audit (Wave 2A)
 
