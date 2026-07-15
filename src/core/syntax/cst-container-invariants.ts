@@ -232,13 +232,16 @@ function validateRelationRelationships(
             body?.kind !== "relation" ||
             extensions.length > 1 ||
             extensions.some(
-                (child) => child.kind !== "clause" || child.clauseKind !== "join-on"
+                (child) =>
+                    child.kind !== "clause" ||
+                    (child.clauseKind !== "join-on" &&
+                        child.clauseKind !== "join-using")
             )
         ) {
             failRelationship(
                 failures,
                 raw,
-                `join relation ${String(raw.id)} must contain its right relation and at most one JOIN ON clause`
+                `join relation ${String(raw.id)} must contain its right relation and at most one JOIN ON/USING clause`
             );
         }
         return;
@@ -297,7 +300,14 @@ function validateClauseRelationships(
     }
 
     const only = directChildren[0];
-    let valid = false;
+    // Every clause kind may use one clause-boundary opaque child for local recovery.
+    let valid =
+        directChildren.length === 1 &&
+        only?.kind === "opaque" &&
+        only.boundary === "clause";
+    if (valid) {
+        return;
+    }
     switch (raw.clauseKind) {
         case "with":
             valid =
@@ -326,6 +336,11 @@ function validateClauseRelationships(
             valid =
                 directChildren.length === 1 &&
                 (only?.kind === "opaque" || only?.kind === "expression");
+            break;
+        case "join-using":
+            valid =
+                directChildren.length === 1 &&
+                isChild(only, "list", "listRole", "other");
             break;
         case "group-by":
             valid =

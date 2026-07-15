@@ -31,6 +31,7 @@ export type ClauseKind =
     | "sort-by"
     | "limit"
     | "join-on"
+    | "join-using"
     | "lateral-view"
     | "insert"
     | "partition"

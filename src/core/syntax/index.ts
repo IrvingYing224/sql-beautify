@@ -62,6 +62,13 @@ export {
     parseTypeExpression,
     parseTypeExpressionPrefix,
 } from "./type-parser";
+export type { ParserCheckpoint } from "./recovery";
+export {
+    createOpaqueWithDiagnostic,
+    createParserCheckpoint,
+    recoverOpaqueFromError,
+    rollbackParserCheckpoint,
+} from "./recovery";
 // Note: token table uses bounded multi-pass O(n) scans (not a single combined scan).
 export type {
     InvariantFailure,

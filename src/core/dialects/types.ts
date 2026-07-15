@@ -93,6 +93,22 @@ export interface JoinSyntax {
     readonly capabilityId: "join";
 }
 
+export type UnsupportedSyntaxContext =
+    | "statement-start"
+    | "query-clause"
+    | "relation-suffix";
+
+/** Registry-owned signature for a recognized construct not yet structured. */
+export interface UnsupportedSyntaxSignature {
+    readonly capabilityId: string;
+    readonly context: UnsupportedSyntaxContext;
+    readonly words: readonly string[];
+    /** Query-clause ordering slot; null outside query-clause context. */
+    readonly order: number | null;
+    /** Ordered top-level syntax-token evidence alternatives for relation constructs. */
+    readonly bodyEvidence: readonly (readonly string[])[] | null;
+}
+
 /** @deprecated Use OperatorFixity; retained alias for arity naming. */
 export type OperatorArity = OperatorFixity;
 
@@ -109,6 +125,7 @@ export interface DialectCapabilityView {
     listQueryClauseSyntax(): readonly QueryClauseSyntax[];
     listSetOperatorSyntax(): readonly SetOperatorSyntax[];
     listJoinSyntax(): readonly JoinSyntax[];
+    listUnsupportedSyntax(): readonly UnsupportedSyntaxSignature[];
 }
 
 export interface DialectCapabilityRegistry {

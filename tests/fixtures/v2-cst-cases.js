@@ -77,7 +77,7 @@ module.exports = Object.freeze([
         mode: 'document',
         source: "CREATE TABLE `t(` (`a,b` DECIMAL(18,2) COMMENT 'a  b')",
         expected: {
-            outcome: 'statement-preserved',
+            outcome: 'verbatim',
             statementKinds: ['opaque'],
             queryKinds: [],
             clauseKinds: [],

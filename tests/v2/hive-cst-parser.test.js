@@ -11,8 +11,8 @@ var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token
 var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
 var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
 
-assert.ok(fs.existsSync(parserPath), 'Wave 2C parser build is required');
-assert.ok(fs.existsSync(factoryPath), 'Wave 2C node factory build is required');
+assert.ok(fs.existsSync(parserPath), 'Wave 2D parser build is required');
+assert.ok(fs.existsSync(factoryPath), 'Wave 2D node factory build is required');
 
 var parser = require(parserPath);
 var factoryModule = require(factoryPath);
@@ -105,6 +105,12 @@ function assertOpaqueDiagnostics(testCase, result, nodes) {
         assert.ok(recoveries.indexOf('preserve-target') >= 0,
             testCase.id + ' expected preserve-target diagnostic');
     }
+    if (testCase.expected.outcome === 'verbatim') {
+        assert.ok(recoveries.indexOf('verbatim-node') >= 0,
+            testCase.id + ' expected verbatim-node diagnostic');
+        assert.strictEqual(recoveries.indexOf('preserve-statement'), -1,
+            testCase.id + ' must not claim diagnostic statement recovery');
+    }
     if (testCase.expected.outcome === 'partially-opaque') {
         assert.strictEqual(recoveries.indexOf('preserve-statement'), -1,
             testCase.id + ' must not preserve whole statement');
@@ -172,7 +178,7 @@ cases.forEach(assertParserResult);
 (function testInternalParserBackendDelegatesToCanonicalParser() {
     var input = { source: 'SELECT 1', dialect: 'hive', mode: 'document' };
     assert.strictEqual(parser.parserBackend.id, 'sql-beautify-v2');
-    assert.strictEqual(parser.parserBackend.version, '2c');
+    assert.strictEqual(parser.parserBackend.version, '2d');
     assert.ok(Object.isFrozen(parser.parserBackend));
     assert.deepStrictEqual(
         parser.parserBackend.parse(input),
@@ -521,26 +527,13 @@ cases.forEach(assertParserResult);
     );
 
     [
-        'SELECT 1 FROM ,src',
-        'SELECT 1 FROM src,',
-        'SELECT 1 FROM src,,other',
-        'SELECT x AS',
-        'SELECT x AS FROM src',
         'SELECT DISTINCT ALL x FROM src',
         'SELECT ALL DISTINCT x FROM src',
-        'SELECT 1 FROM src OUTER JOIN other ON src.id = other.id',
-        'SELECT 1 FROM src JOIN other USING (id)',
-        'SELECT id, FROM src',
         'SELECT id FROM src UNION',
         'SELECT id ORDER BY id FROM src',
-        'SELECT id FROM src ORDER BY id DESC ASC',
-        'SELECT id FROM src SORT BY id ASC DESC',
         'WITH c() AS (SELECT 1) SELECT 1',
-        'WITH c(a b) AS (SELECT 1) SELECT 1',
         'INSERT OVERWRITE TABLE dst PARTITION (ds=1) junk SELECT id FROM src',
         'INSERT OVERWRITE DIRECTORY \'/tmp/out\' SELECT id FROM src',
-        'SELECT id FROM src LATERAL VIEW EXPLODE(items)',
-        'SELECT id FROM src LATERAL VIEW EXPLODE(items) e AS item extra',
         'WITH 1 AS (SELECT 1) SELECT 1'
     ].forEach(function(source) {
         var result = parse(source);
@@ -553,6 +546,42 @@ cases.forEach(assertParserResult);
             return diagnostic.recovery === 'preserve-statement';
         }), 'statement-preserving diagnostic required: ' + source);
     });
+
+    [
+        'SELECT 1 FROM ,src',
+        'SELECT 1 FROM src,',
+        'SELECT 1 FROM src,,other',
+        'SELECT x AS',
+        'SELECT x AS FROM src',
+        'SELECT 1 FROM src OUTER JOIN other ON src.id = other.id',
+        'SELECT id, FROM src',
+        'SELECT id FROM src ORDER BY id DESC ASC',
+        'SELECT id FROM src SORT BY id ASC DESC',
+        'WITH c(a b) AS (SELECT 1) SELECT 1',
+        'SELECT id FROM src LATERAL VIEW EXPLODE(items)',
+        'SELECT id FROM src LATERAL VIEW EXPLODE(items) e AS item extra'
+    ].forEach(function(source) {
+        var result = parse(source);
+        assert.strictEqual(result.root.children[0].statementKind, 'query',
+            'proven clause/list boundary should recover locally: ' + source);
+        assert.ok(flatten(result.root).some(function(node) {
+            return node.kind === 'opaque' &&
+                (node.boundary === 'clause' || node.boundary === 'list-item');
+        }), 'local opaque boundary required: ' + source);
+        assert.strictEqual(result.diagnostics.some(function(diagnostic) {
+            return diagnostic.recovery === 'preserve-statement' ||
+                diagnostic.recovery === 'preserve-target';
+        }), false, 'local recovery must not widen to statement/target: ' + source);
+    });
+
+    var joinUsing = parse('SELECT 1 FROM src JOIN other USING (id, tenant_id)');
+    assert.strictEqual(joinUsing.root.children[0].statementKind, 'query');
+    assert.strictEqual(flatten(joinUsing.root).some(function(node) {
+        return node.kind === 'opaque';
+    }), false, 'JOIN USING must remain structured');
+    assert.ok(flatten(joinUsing.root).some(function(node) {
+        return node.kind === 'clause' && node.clauseKind === 'join-using';
+    }), 'JOIN USING must own a typed clause boundary');
 
     var qualifiedFunction = parse('SELECT 1 FROM catalog.fn(1) f');
     assert.ok(

@@ -14,6 +14,7 @@ import {
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext } from "./parser-context";
+import { assertParserDepth, descendParserDepth } from "./parser-depth";
 
 type VirtualTypeToken = Readonly<{
     leafIndex: number;
@@ -24,8 +25,6 @@ type ParsedType = Readonly<{
     node: TypeExpressionNode;
     next: number;
 }>;
-
-const MAX_TYPE_NESTING = 256;
 
 export type ParsedTypePrefix = Readonly<{
     node: TypeExpressionNode;
@@ -134,10 +133,17 @@ function createList(
 class TypeParser {
     private readonly context: ParserContext;
     private readonly tokens: readonly VirtualTypeToken[];
+    private readonly nestingDepth: number;
 
-    constructor(context: ParserContext, range: LeafRange) {
+    constructor(
+        context: ParserContext,
+        range: LeafRange,
+        nestingDepth: number
+    ) {
+        assertParserDepth(range, nestingDepth);
         this.context = context;
         this.tokens = virtualTokens(context, range);
+        this.nestingDepth = nestingDepth;
     }
 
     parse(): TypeExpressionNode {
@@ -148,7 +154,7 @@ class TypeParser {
                 "Type expression is empty"
             );
         }
-        const parsed = this.parseTypeAt(0);
+        const parsed = this.parseTypeAt(0, this.nestingDepth);
         if (parsed.next !== this.tokens.length) {
             throw new ParserSyntaxError(
                 "SYN_UNEXPECTED_TOKEN",
@@ -167,7 +173,7 @@ class TypeParser {
                 "Type expression is empty"
             );
         }
-        const parsed = this.parseTypeAt(0);
+        const parsed = this.parseTypeAt(0, this.nestingDepth);
         return Object.freeze({
             node: parsed.node,
             endLeafIndex: this.tokens[parsed.next - 1]!.leafIndex + 1,
@@ -176,17 +182,11 @@ class TypeParser {
 
     private parseTypeAt(
         start: number,
-        nestingDepth: number = 0,
+        nestingDepth: number,
         allowCompactStructParameter: boolean = false
     ): ParsedType {
-        if (nestingDepth >= MAX_TYPE_NESTING) {
-            const anchor = this.tokens[start]?.leafIndex ?? this.tokens[this.tokens.length - 1]!.leafIndex;
-            throw new ParserSyntaxError(
-                "SYN_MAX_DEPTH_EXCEEDED",
-                { start: anchor, end: anchor + 1 },
-                `Type nesting budget ${MAX_TYPE_NESTING} exceeded`
-            );
-        }
+        const anchor = this.tokens[start]?.leafIndex ?? this.tokens[this.tokens.length - 1]!.leafIndex;
+        assertParserDepth({ start: anchor, end: anchor + 1 }, nestingDepth);
         const name = this.tokens[start];
         const nameLeaf = name === undefined
             ? undefined
@@ -357,9 +357,16 @@ class TypeParser {
                 }
             }
 
+            const nestedAnchor = this.tokens[position]?.leafIndex ?? nameRange.start;
             const parsed = this.parseTypeAt(
                 position,
-                nestingDepth + 1,
+                descendParserDepth(
+                    {
+                        start: nestedAnchor,
+                        end: nestedAnchor + 1,
+                    },
+                    nestingDepth
+                ),
                 allowCompactStructParameter
             );
             position = parsed.next;
@@ -433,7 +440,8 @@ class TypeParser {
 
 export function parseTypeExpression(
     context: ParserContext,
-    inputRange: LeafRange
+    inputRange: LeafRange,
+    nestingDepth: number = 0
 ): TypeExpressionNode {
     const range = trimToSyntax(context.leaves, inputRange);
     if (range === null) {
@@ -443,12 +451,13 @@ export function parseTypeExpression(
             "Type expression is empty"
         );
     }
-    return new TypeParser(context, range).parse();
+    return new TypeParser(context, range, nestingDepth).parse();
 }
 
 export function parseTypeExpressionPrefix(
     context: ParserContext,
-    inputRange: LeafRange
+    inputRange: LeafRange,
+    nestingDepth: number = 0
 ): ParsedTypePrefix {
     const range = trimToSyntax(context.leaves, inputRange);
     if (range === null) {
@@ -458,5 +467,5 @@ export function parseTypeExpressionPrefix(
             "Type expression is empty"
         );
     }
-    return new TypeParser(context, range).parsePrefix();
+    return new TypeParser(context, range, nestingDepth).parsePrefix();
 }

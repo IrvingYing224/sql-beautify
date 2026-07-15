@@ -14,13 +14,17 @@ import type {
 import {
     ParserSyntaxError,
     baseDepth,
-    createOpaqueWithDiagnostic,
     isAliasNameLeaf,
     isQueryLeadingRange,
     syntaxIndexesInRange,
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext } from "./parser-context";
+import { assertParserDepth, descendParserDepth } from "./parser-depth";
+import {
+    createParserCheckpoint,
+    recoverOpaqueFromError,
+} from "./recovery";
 import {
     parseTypeExpression,
     parseTypeExpressionPrefix,
@@ -35,7 +39,6 @@ export type ExpressionQueryParser = (
     nestingDepth: number
 ) => QueryNode;
 
-const MAX_EXPRESSION_NESTING = 256;
 const COLLECTION_NAMES = Object.freeze(["array", "map", "struct", "named_struct"]);
 
 type OperatorMatch = Readonly<{
@@ -93,13 +96,7 @@ class PrattParser {
         queryParser: ExpressionQueryParser,
         nestingDepth: number
     ) {
-        if (nestingDepth >= MAX_EXPRESSION_NESTING) {
-            throw new ParserSyntaxError(
-                "SYN_MAX_DEPTH_EXCEEDED",
-                range,
-                `Expression nesting budget ${MAX_EXPRESSION_NESTING} exceeded`
-            );
-        }
+        assertParserDepth(range, nestingDepth);
         this.context = context;
         this.queryParser = queryParser;
         this.nestingDepth = nestingDepth;
@@ -178,41 +175,32 @@ class PrattParser {
         return this.context.factory.createExpression(range, kind, operators, children);
     }
 
-    private parseTypeOrOpaque(range: LeafRange): TypeExpressionNode | OpaqueNode {
-        const factoryCheckpoint = this.context.factory.checkpoint();
-        const diagnosticCheckpoint = this.context.diagnostics.length;
+    private parseTypeOrOpaque(
+        range: LeafRange,
+        nestingDepth: number
+    ): TypeExpressionNode | OpaqueNode {
+        const checkpoint = createParserCheckpoint(this.context);
         try {
-            return parseTypeExpression(this.context, range);
+            return parseTypeExpression(this.context, range, nestingDepth);
         } catch (error) {
-            if (!(error instanceof ParserSyntaxError)) {
-                throw error;
-            }
-            this.context.factory.rollback(factoryCheckpoint);
-            this.context.diagnostics.splice(diagnosticCheckpoint);
-            return createOpaqueWithDiagnostic(
+            return recoverOpaqueFromError(
                 this.context,
+                checkpoint,
                 range,
-                error.code,
+                error,
                 "type",
-                error.message
             );
         }
     }
 
     private parseExpression(
         minPrecedence: number,
-        recursionDepth: number = 0
+        nestingDepth: number = this.nestingDepth
     ): ExpressionNode {
-        if (this.nestingDepth + recursionDepth >= MAX_EXPRESSION_NESTING) {
-            const anchor = this.leafIndex() ?? this.indexes[this.indexes.length - 1]!;
-            throw new ParserSyntaxError(
-                "SYN_MAX_DEPTH_EXCEEDED",
-                { start: anchor, end: anchor + 1 },
-                `Expression nesting budget ${MAX_EXPRESSION_NESTING} exceeded`
-            );
-        }
-        let left = this.parsePrefix(recursionDepth);
-        left = this.parsePostfix(left);
+        const anchor = this.leafIndex() ?? this.indexes[this.indexes.length - 1]!;
+        assertParserDepth({ start: anchor, end: anchor + 1 }, nestingDepth);
+        let left = this.parsePrefix(nestingDepth);
+        left = this.parsePostfix(left, nestingDepth);
         let nonAssociativePrecedence: number | null = null;
 
         while (this.position < this.indexes.length) {
@@ -267,12 +255,12 @@ class PrattParser {
                 );
             }
             if (infix.semantics.key === "between" || infix.semantics.key === "not-between") {
-                left = this.parseBetween(left, infix, recursionDepth);
+                left = this.parseBetween(left, infix, nestingDepth);
                 nonAssociativePrecedence = precedence;
                 continue;
             }
             if (infix.semantics.key === "in" || infix.semantics.key === "not-in") {
-                left = this.parseIn(left, infix);
+                left = this.parseIn(left, infix, nestingDepth);
                 nonAssociativePrecedence = precedence;
                 continue;
             }
@@ -282,7 +270,14 @@ class PrattParser {
             const rightPrecedence = infix.semantics.associativity === "right"
                 ? precedence
                 : precedence + 1;
-            const right = this.parseExpression(rightPrecedence, recursionDepth + 1);
+            const rightStart = this.leafIndex() ?? operatorIds[operatorIds.length - 1]!;
+            const right = this.parseExpression(
+                rightPrecedence,
+                descendParserDepth(
+                    { start: rightStart, end: rightStart + 1 },
+                    nestingDepth
+                )
+            );
             left = this.create(
                 { start: left.leafRange.start, end: right.leafRange.end },
                 "binary",
@@ -296,7 +291,7 @@ class PrattParser {
         return left;
     }
 
-    private parsePrefix(recursionDepth: number): ExpressionNode {
+    private parsePrefix(nestingDepth: number): ExpressionNode {
         const start = this.position;
         const leafIndex = this.leafIndex();
         if (leafIndex === null) {
@@ -312,7 +307,10 @@ class PrattParser {
             this.position = prefix.positions[prefix.positions.length - 1]! + 1;
             const operand = this.parseExpression(
                 prefix.semantics.precedence,
-                recursionDepth + 1
+                descendParserDepth(
+                    { start: leafIndex, end: leafIndex + 1 },
+                    nestingDepth
+                )
             );
             return this.create(
                 { start: leafIndex, end: operand.leafRange.end },
@@ -323,19 +321,19 @@ class PrattParser {
         }
 
         if (this.wordIs(start, "case")) {
-            return this.parseCase();
+            return this.parseCase(nestingDepth);
         }
         if (this.wordIs(start, "cast") && this.raw(start + 1) === "(") {
-            return this.parseCast();
+            return this.parseCast(nestingDepth);
         }
         if (this.wordIs(start, "exists") && this.raw(start + 1) === "(") {
-            return this.parseExists();
+            return this.parseExists(nestingDepth);
         }
         if (leaf.raw === "(") {
-            return this.parseParenthesized();
+            return this.parseParenthesized(nestingDepth);
         }
         if (leaf.raw === "[" && supportsCollectionSyntax(this.context.dialect)) {
-            return this.parseBareCollection();
+            return this.parseBareCollection(nestingDepth);
         }
         if (leaf.raw === "*") {
             this.position += 1;
@@ -391,7 +389,10 @@ class PrattParser {
         );
     }
 
-    private parsePostfix(input: ExpressionNode): ExpressionNode {
+    private parsePostfix(
+        input: ExpressionNode,
+        nestingDepth: number
+    ): ExpressionNode {
         let left = input;
         while (this.position < this.indexes.length) {
             if (this.raw() === ".") {
@@ -428,15 +429,15 @@ class PrattParser {
                 continue;
             }
             if (this.raw() === "(") {
-                left = this.parseCall(left);
+                left = this.parseCall(left, nestingDepth);
                 continue;
             }
             if (this.raw() === "[" && supportsCollectionSyntax(this.context.dialect)) {
-                left = this.parseIndexCollection(left);
+                left = this.parseIndexCollection(left, nestingDepth);
                 continue;
             }
             if (this.wordIs(this.position, "over")) {
-                left = this.parseWindow(left);
+                left = this.parseWindow(left, nestingDepth);
                 continue;
             }
             const cast = getDialect(this.context.dialect).getOperatorSemantics(
@@ -455,7 +456,8 @@ class PrattParser {
                 }
                 const parsedType = parseTypeExpressionPrefix(
                     this.context,
-                    expressionRange(this.indexes, typeStart, this.indexes.length)
+                    expressionRange(this.indexes, typeStart, this.indexes.length),
+                    nestingDepth
                 );
                 const type = parsedType.node;
                 const nextPosition = this.indexes.findIndex(
@@ -476,7 +478,10 @@ class PrattParser {
         return left;
     }
 
-    private parseCall(callee: ExpressionNode): ExpressionNode {
+    private parseCall(
+        callee: ExpressionNode,
+        nestingDepth: number
+    ): ExpressionNode {
         const openPosition = this.position;
         const closePosition = this.matchingPosition(openPosition);
         const open = this.indexes[openPosition]!;
@@ -497,6 +502,10 @@ class PrattParser {
         }
         if (bodyStart < closePosition) {
             const listRange = expressionRange(this.indexes, bodyStart, closePosition);
+            const argumentDepth = descendParserDepth(
+                { start: open, end: close + 1 },
+                nestingDepth
+            );
             children.push(
                 parseList(
                     this.context,
@@ -511,7 +520,7 @@ class PrattParser {
                             context,
                             range,
                             this.queryParser,
-                            this.nestingDepth + 1
+                            argumentDepth
                         )
                 )
             );
@@ -532,7 +541,10 @@ class PrattParser {
         );
     }
 
-    private parseIndexCollection(left: ExpressionNode): ExpressionNode {
+    private parseIndexCollection(
+        left: ExpressionNode,
+        nestingDepth: number
+    ): ExpressionNode {
         const openPosition = this.position;
         const closePosition = this.matchingPosition(openPosition);
         const open = this.indexes[openPosition]!;
@@ -547,13 +559,17 @@ class PrattParser {
             );
         }
         const body = expressionRange(this.indexes, openPosition + 1, closePosition);
+        const valueDepth = descendParserDepth(
+            { start: open, end: close + 1 },
+            nestingDepth
+        );
         const list = parseList(
             this.context,
             body,
             "values",
             { allowAlias: false, reasonMessage: "Collection value is not modeled" },
             (context, range) =>
-                parseExpressionRange(context, range, this.queryParser, this.nestingDepth + 1)
+                parseExpressionRange(context, range, this.queryParser, valueDepth)
         );
         this.position = closePosition + 1;
         return this.create(
@@ -564,7 +580,7 @@ class PrattParser {
         );
     }
 
-    private parseBareCollection(): ExpressionNode {
+    private parseBareCollection(nestingDepth: number): ExpressionNode {
         const openPosition = this.position;
         const open = this.indexes[openPosition]!;
         const closePosition = this.matchingPosition(openPosition);
@@ -578,13 +594,17 @@ class PrattParser {
                 []
             );
         }
+        const valueDepth = descendParserDepth(
+            { start: open, end: close + 1 },
+            nestingDepth
+        );
         const list = parseList(
             this.context,
             expressionRange(this.indexes, openPosition + 1, closePosition),
             "values",
             { allowAlias: false, reasonMessage: "Collection value is not modeled" },
             (context, range) =>
-                parseExpressionRange(context, range, this.queryParser, this.nestingDepth + 1)
+                parseExpressionRange(context, range, this.queryParser, valueDepth)
         );
         this.position = closePosition + 1;
         return this.create(
@@ -595,7 +615,7 @@ class PrattParser {
         );
     }
 
-    private parseParenthesized(): ExpressionNode {
+    private parseParenthesized(nestingDepth: number): ExpressionNode {
         const openPosition = this.position;
         const closePosition = this.matchingPosition(openPosition);
         const open = this.indexes[openPosition]!;
@@ -613,7 +633,7 @@ class PrattParser {
             const query = this.queryParser(
                 this.context,
                 { start: open, end: close + 1 },
-                this.nestingDepth + 1
+                nestingDepth
             );
             return this.create(
                 { start: open, end: close + 1 },
@@ -628,13 +648,17 @@ class PrattParser {
             this.context.leaves[index]!.raw === ","
         );
         if (hasComma) {
+            const valueDepth = descendParserDepth(
+                { start: open, end: close + 1 },
+                nestingDepth
+            );
             const list = parseList(
                 this.context,
                 innerRange,
                 "values",
                 { allowAlias: false, reasonMessage: "Tuple value is not modeled" },
                 (context, range) =>
-                    parseExpressionRange(context, range, this.queryParser, this.nestingDepth + 1)
+                    parseExpressionRange(context, range, this.queryParser, valueDepth)
             );
             return this.create(
                 { start: open, end: close + 1 },
@@ -647,7 +671,10 @@ class PrattParser {
             this.context,
             innerRange,
             this.queryParser,
-            this.nestingDepth + 1
+            descendParserDepth(
+                { start: open, end: close + 1 },
+                nestingDepth
+            )
         );
         return this.create(
             { start: open, end: close + 1 },
@@ -657,7 +684,7 @@ class PrattParser {
         );
     }
 
-    private parseCast(): ExpressionNode {
+    private parseCast(nestingDepth: number): ExpressionNode {
         const castPosition = this.position;
         const openPosition = castPosition + 1;
         const closePosition = this.matchingPosition(openPosition);
@@ -682,14 +709,19 @@ class PrattParser {
                 "CAST requires expression AS type"
             );
         }
+        const bodyDepth = descendParserDepth(
+            { start: this.indexes[castPosition]!, end: close + 1 },
+            nestingDepth
+        );
         const value = parseExpressionRange(
             this.context,
             expressionRange(this.indexes, openPosition + 1, asPosition),
             this.queryParser,
-            this.nestingDepth + 1
+            bodyDepth
         );
         const type = this.parseTypeOrOpaque(
-            expressionRange(this.indexes, asPosition + 1, closePosition)
+            expressionRange(this.indexes, asPosition + 1, closePosition),
+            bodyDepth
         );
         this.position = closePosition + 1;
         return this.create(
@@ -700,7 +732,7 @@ class PrattParser {
         );
     }
 
-    private parseExists(): ExpressionNode {
+    private parseExists(nestingDepth: number): ExpressionNode {
         const existsPosition = this.position;
         const openPosition = existsPosition + 1;
         const closePosition = this.matchingPosition(openPosition);
@@ -724,7 +756,7 @@ class PrattParser {
         const query = this.queryParser(
             this.context,
             { start: open, end: close + 1 },
-            this.nestingDepth + 1
+            nestingDepth
         );
         const subquery = this.create(
             { start: open, end: close + 1 },
@@ -741,7 +773,7 @@ class PrattParser {
         );
     }
 
-    private parseCase(): ExpressionNode {
+    private parseCase(nestingDepth: number): ExpressionNode {
         const casePosition = this.position;
         const caseDepth = this.context.table.depthBefore(this.indexes[casePosition]!);
         let nestedCases = 0;
@@ -791,13 +823,17 @@ class PrattParser {
 
         const children: SyntaxNode[] = [];
         const operators: number[] = [this.indexes[casePosition]!];
+        const branchDepth = descendParserDepth(
+            expressionRange(this.indexes, casePosition, endPosition + 1),
+            nestingDepth
+        );
         if (firstWhen > casePosition + 1) {
             children.push(
                 parseExpressionRange(
                     this.context,
                     expressionRange(this.indexes, casePosition + 1, firstWhen),
                     this.queryParser,
-                    this.nestingDepth + 1
+                    branchDepth
                 )
             );
         }
@@ -829,13 +865,13 @@ class PrattParser {
                     this.context,
                     expressionRange(this.indexes, marker + 1, then),
                     this.queryParser,
-                    this.nestingDepth + 1
+                    branchDepth
                 );
                 const value = parseExpressionRange(
                     this.context,
                     expressionRange(this.indexes, then + 1, nextMarker),
                     this.queryParser,
-                    this.nestingDepth + 1
+                    branchDepth
                 );
                 children.push(
                     this.context.factory.createCaseBranch(
@@ -861,7 +897,7 @@ class PrattParser {
                     this.context,
                     expressionRange(this.indexes, marker + 1, endPosition),
                     this.queryParser,
-                    this.nestingDepth + 1
+                    branchDepth
                 );
                 children.push(
                     this.context.factory.createCaseBranch(
@@ -894,7 +930,7 @@ class PrattParser {
     private parseBetween(
         left: ExpressionNode,
         match: OperatorMatch,
-        recursionDepth: number
+        nestingDepth: number
     ): ExpressionNode {
         const operatorIds = match.positions.map((position) => this.indexes[position]!);
         const valueStart = match.positions[match.positions.length - 1]! + 1;
@@ -921,12 +957,21 @@ class PrattParser {
             this.context,
             expressionRange(this.indexes, valueStart, andPosition),
             this.queryParser,
-            this.nestingDepth + 1
+            descendParserDepth(
+                expressionRange(this.indexes, valueStart, andPosition),
+                nestingDepth
+            )
         );
         this.position = andPosition + 1;
         const upper = this.parseExpression(
             match.semantics.precedence + 1,
-            recursionDepth + 1
+            descendParserDepth(
+                {
+                    start: this.indexes[andPosition]!,
+                    end: this.indexes[andPosition]! + 1,
+                },
+                nestingDepth
+            )
         );
         operatorIds.push(this.indexes[andPosition]!);
         return this.create(
@@ -937,7 +982,11 @@ class PrattParser {
         );
     }
 
-    private parseIn(left: ExpressionNode, match: OperatorMatch): ExpressionNode {
+    private parseIn(
+        left: ExpressionNode,
+        match: OperatorMatch,
+        nestingDepth: number
+    ): ExpressionNode {
         const operatorIds = match.positions.map((position) => this.indexes[position]!);
         const openPosition = match.positions[match.positions.length - 1]! + 1;
         if (this.raw(openPosition) !== "(") {
@@ -964,7 +1013,7 @@ class PrattParser {
             const query = this.queryParser(
                 this.context,
                 { start: open, end: close + 1 },
-                this.nestingDepth + 1
+                nestingDepth
             );
             right = this.create(
                 { start: open, end: close + 1 },
@@ -973,13 +1022,17 @@ class PrattParser {
                 [query]
             );
         } else {
+            const valueDepth = descendParserDepth(
+                { start: open, end: close + 1 },
+                nestingDepth
+            );
             right = parseList(
                 this.context,
                 innerRange,
                 "values",
                 { allowAlias: false, reasonMessage: "IN value is not modeled" },
                 (context, range) =>
-                    parseExpressionRange(context, range, this.queryParser, this.nestingDepth + 1)
+                    parseExpressionRange(context, range, this.queryParser, valueDepth)
             );
         }
         this.position = closePosition + 1;
@@ -992,7 +1045,10 @@ class PrattParser {
         );
     }
 
-    private parseWindow(left: ExpressionNode): ExpressionNode {
+    private parseWindow(
+        left: ExpressionNode,
+        nestingDepth: number
+    ): ExpressionNode {
         const over = this.leafIndex()!;
         const specStart = this.position + 1;
         if (specStart >= this.indexes.length) {
@@ -1008,7 +1064,7 @@ class PrattParser {
             spec = parseWindowSpecRange(
                 this.context,
                 expressionRange(this.indexes, specStart, closePosition + 1),
-                this.nestingDepth + 1,
+                nestingDepth,
                 (context, range, nestingDepth) =>
                     parseExpressionRange(
                         context,
@@ -1135,22 +1191,16 @@ export function parseExpressionRange(
             "Expression range is empty"
         );
     }
-    const factoryCheckpoint = context.factory.checkpoint();
-    const diagnosticCheckpoint = context.diagnostics.length;
+    const checkpoint = createParserCheckpoint(context);
     try {
         return new PrattParser(context, range, queryParser, nestingDepth).parseBounded();
     } catch (error) {
-        if (!(error instanceof ParserSyntaxError)) {
-            throw error;
-        }
-        context.factory.rollback(factoryCheckpoint);
-        context.diagnostics.splice(diagnosticCheckpoint);
-        return createOpaqueWithDiagnostic(
+        return recoverOpaqueFromError(
             context,
+            checkpoint,
             range,
-            error.code,
+            error,
             "expression",
-            error.message
         );
     }
 }

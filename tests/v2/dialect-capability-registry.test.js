@@ -62,6 +62,7 @@ var HIVE_PRESERVATION_CAPABILITIES = {
     'merge': 'diagnostic',
     'match-recognize': 'diagnostic',
     'pivot': 'diagnostic',
+    'qualify': 'diagnostic',
     'unpivot': 'diagnostic'
 };
 
@@ -266,6 +267,34 @@ CANONICAL.forEach(function(dialectId) {
         joinIds[join.id] = true;
         assert.strictEqual(join.words[join.words.length - 1], 'join');
         assert.ok(view.getCapability(join.capabilityId));
+    });
+
+    var unsupported = view.listUnsupportedSyntax();
+    assertImmutableArray(unsupported, 'unsupported syntax for ' + dialectId);
+    assert.strictEqual(view.listUnsupportedSyntax(), unsupported);
+    unsupported.forEach(function(signature) {
+        assert.ok(Object.isFrozen(signature), 'unsupported signature frozen');
+        assertImmutableArray(signature.words, 'unsupported signature words');
+        assert.ok(['statement-start', 'query-clause', 'relation-suffix']
+            .indexOf(signature.context) >= 0);
+        var capability = view.getCapability(signature.capabilityId);
+        assert.ok(capability, 'unsupported signature capability must exist');
+        assert.ok(capability.state === 'verbatim' || capability.state === 'diagnostic');
+        assert.strictEqual(
+            signature.context === 'query-clause',
+            Number.isInteger(signature.order),
+            'only query-clause signatures own an order slot'
+        );
+        if (signature.context === 'relation-suffix') {
+            assertImmutableArray(signature.bodyEvidence, 'relation body evidence');
+            assert.ok(signature.bodyEvidence.length > 0);
+            signature.bodyEvidence.forEach(function(sequence) {
+                assertImmutableArray(sequence, 'relation body evidence sequence');
+                assert.ok(sequence.length > 0);
+            });
+        } else {
+            assert.strictEqual(signature.bodyEvidence, null);
+        }
     });
 });
 

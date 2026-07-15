@@ -3,7 +3,6 @@ import { listItemRoleFor } from "./list-role-contract";
 import type { AliasInfo, ListNode, ListRole, SyntaxNode } from "./node";
 import {
     ParserSyntaxError,
-    createOpaqueWithDiagnostic,
     isAliasNameLeaf,
     isCodeWord,
     isDottedNamePart,
@@ -14,6 +13,12 @@ import {
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext } from "./parser-context";
+import {
+    createOpaqueWithDiagnostic,
+    createParserCheckpoint,
+    recoverOpaqueFromError,
+    rollbackParserCheckpoint,
+} from "./recovery";
 
 export interface OpaqueListOptions {
     readonly allowAlias: boolean;
@@ -226,28 +231,61 @@ export function parseList(
     }
     const split = splitTopLevelByComma(context, trimmed);
     const items = split.ranges.map((itemRange) => {
-        const facts = parseItemFacts(context, itemRange, options);
-        if (options.requireSingleName === true) {
-            const nameIndexes = topLevelSyntaxIndexes(context, facts.valueRange);
-            if (
-                nameIndexes.length !== 1 ||
-                !isAliasNameLeaf(context.leaves[nameIndexes[0]!]!)
-            ) {
-                throw new ParserSyntaxError(
-                    "SYN_UNEXPECTED_TOKEN",
-                    facts.valueRange,
-                    `${listRole} item must be a single identifier`
-                );
+        const itemCheckpoint = createParserCheckpoint(context);
+        try {
+            let facts = parseItemFacts(context, itemRange, options);
+            if (options.requireSingleName === true) {
+                const nameIndexes = topLevelSyntaxIndexes(context, facts.valueRange);
+                if (
+                    nameIndexes.length !== 1 ||
+                    !isAliasNameLeaf(context.leaves[nameIndexes[0]!]!)
+                ) {
+                    throw new ParserSyntaxError(
+                        "SYN_UNEXPECTED_TOKEN",
+                        facts.valueRange,
+                        `${listRole} item must be a single identifier`
+                    );
+                }
             }
+            const hasImplicitAlias =
+                facts.alias !== null && facts.alias.keywordLeafId === null;
+            const aliasCheckpoint = hasImplicitAlias
+                ? createParserCheckpoint(context)
+                : null;
+            let value = parseValue(context, facts.valueRange);
+            if (aliasCheckpoint !== null && value.kind === "opaque") {
+                rollbackParserCheckpoint(context, aliasCheckpoint);
+                facts = parseItemFacts(
+                    context,
+                    itemRange,
+                    Object.freeze({ ...options, allowAlias: false })
+                );
+                value = parseValue(context, facts.valueRange);
+            }
+            return context.factory.createListItem(
+                itemRange,
+                listItemRoleFor(listRole),
+                facts.alias,
+                facts.modifierLeafIds,
+                value
+            );
+        } catch (error) {
+            const opaque = recoverOpaqueFromError(
+                context,
+                itemCheckpoint,
+                itemRange,
+                error,
+                "list-item",
+                `${listRole} item preserved: `
+            );
+            return context.factory.createListItem(
+                itemRange,
+                listItemRoleFor(listRole),
+                null,
+                [],
+                opaque
+            );
         }
-        const value = parseValue(context, facts.valueRange);
-        return context.factory.createListItem(
-            itemRange,
-            listItemRoleFor(listRole),
-            facts.alias,
-            facts.modifierLeafIds,
-            value
-        );
     });
     return context.factory.createList(trimmed, listRole, split.separators, items);
 }

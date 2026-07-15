@@ -1,15 +1,21 @@
 import type { LeafRange } from "./leaf-range";
+import type { RecoveryAction } from "../diagnostics/diagnostic";
 import type { QueryNode, StatementNode } from "./node";
 import {
     ParserSyntaxError,
     addDiagnostic,
-    createOpaqueWithDiagnostic,
     isCodeWord,
     isSyntaxLeaf,
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext, SyntaxDiagnosticCode } from "./parser-context";
 import { parseInsertQueryRange, parseQueryRange } from "./query-parser";
+import {
+    createOpaqueWithDiagnostic,
+    createParserCheckpoint,
+    rollbackParserCheckpoint,
+} from "./recovery";
+import { classifyUnsupportedStatementStart } from "./unsupported-recognizer";
 
 function statementRecovery(
     context: ParserContext
@@ -71,7 +77,7 @@ export function createOpaqueStatement(
     range: LeafRange,
     code: SyntaxDiagnosticCode,
     message: string,
-    recovery: "preserve-statement" | "preserve-target"
+    recovery: Extract<RecoveryAction, "verbatim-node" | "preserve-statement" | "preserve-target">
 ): StatementNode {
     if (isEmptyStatementRange(context, range)) {
         return context.factory.createStatement(range, "empty", null);
@@ -80,7 +86,7 @@ export function createOpaqueStatement(
         context,
         range,
         code,
-        "statement",
+        recovery === "preserve-target" ? "target" : "statement",
         message,
         recovery
     );
@@ -110,24 +116,42 @@ export function parseStatementRange(
     const startsParenthesized =
         context.leaves[bodyRange.start]!.channel === "code" &&
         context.leaves[bodyRange.start]!.raw === "(";
+    const unsupported = classifyUnsupportedStatementStart(context, bodyRange);
+    if (unsupported?.state === "verbatim") {
+        return createOpaqueStatement(
+            context,
+            range,
+            "SYN_UNSUPPORTED_STATEMENT",
+            `${context.dialect} ${unsupported.signature.capabilityId} statement is preserved verbatim`,
+            "verbatim-node"
+        );
+    }
     if (
         !startsSelect &&
         !startsWith &&
         !startsParenthesized &&
-        !startsInsert
+        !startsInsert &&
+        unsupported === null
     ) {
         return createOpaqueStatement(
             context,
             range,
             "SYN_UNSUPPORTED_STATEMENT",
-            `${context.dialect} statement ${context.leaves[bodyRange.start]!.raw} is not modeled in Wave 2C`,
+            `${context.dialect} statement ${context.leaves[bodyRange.start]!.raw} is not structured`,
             statementRecovery(context)
         );
     }
 
-    const factoryCheckpoint = context.factory.checkpoint();
-    const diagnosticCheckpoint = context.diagnostics.length;
+    const checkpoint = createParserCheckpoint(context);
     try {
+        if (unsupported?.state === "diagnostic") {
+            throw new ParserSyntaxError(
+                "SYN_UNSUPPORTED_STATEMENT",
+                bodyRange,
+                `${context.dialect} ${unsupported.signature.capabilityId} statement is recognized but not structured`,
+                "statement"
+            );
+        }
         const query = startsInsert
             ? parseInsertQueryRange(context, bodyRange)
             : parseQueryRange(context, bodyRange);
@@ -137,8 +161,7 @@ export function parseStatementRange(
             query
         );
     } catch (error) {
-        context.factory.rollback(factoryCheckpoint);
-        context.diagnostics.length = diagnosticCheckpoint;
+        rollbackParserCheckpoint(context, checkpoint);
         if (!(error instanceof ParserSyntaxError)) {
             throw error;
         }
@@ -147,9 +170,7 @@ export function parseStatementRange(
             range,
             error.code,
             `Statement preserved: ${error.message}`,
-            context.mode === "fragment" || error.recovery === "preserve-target"
-                ? "preserve-target"
-                : "preserve-statement"
+            context.mode === "fragment" ? "preserve-target" : "preserve-statement"
         );
         if (
             error.range.start !== range.start ||
@@ -160,7 +181,7 @@ export function parseStatementRange(
                 error.code,
                 error.range,
                 error.message,
-                context.mode === "fragment" ? "preserve-target" : error.recovery,
+                context.mode === "fragment" ? "preserve-target" : "preserve-statement",
                 "warning"
             );
         }

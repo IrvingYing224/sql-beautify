@@ -5,7 +5,8 @@ import type { LexOutput } from "../lexer/lossless-lexer";
 import { getDialect } from "../dialects/registry";
 import { freezeImmutableArray } from "../util/immutable-array";
 import { createNodeFactory } from "./node-factory";
-import type { ProgramNode, StatementNode } from "./node";
+import type { ProgramNode, StatementNode, SyntaxNode } from "./node";
+import { createOpaqueWithDiagnostic } from "./recovery";
 import {
     addDiagnostic,
     finalizeDiagnostics,
@@ -20,13 +21,13 @@ import type {
     ParseOutput,
     ParserBackend,
 } from "./parser-backend";
-import { createOpaqueStatement, parseStatementRange } from "./statement-parser";
+import { parseStatementRange } from "./statement-parser";
 import { buildStructuralTokenTable } from "./token-table";
 import type { StructuralTokenTable } from "./token-table";
 import { validateSyntaxInvariants } from "./invariants";
 
 const BACKEND_ID = "sql-beautify-v2";
-const BACKEND_VERSION = "2c";
+const BACKEND_VERSION = "2d";
 
 function createContext(
     dialect: Dialect,
@@ -45,33 +46,55 @@ function createContext(
     });
 }
 
-function buildProgram(
-    context: ParserContext,
-    parseStatements: boolean,
-    fallbackCode?: SyntaxDiagnosticCode,
-    fallbackMessage?: string,
-    fallbackRecovery: "preserve-statement" | "preserve-target" = "preserve-target"
-): ProgramNode {
+function buildProgram(context: ParserContext): ProgramNode {
     const statements: StatementNode[] = [];
     for (const range of context.table.statementRanges()) {
-        if (parseStatements) {
-            statements.push(parseStatementRange(context, range));
-        } else {
-            statements.push(
-                createOpaqueStatement(
-                    context,
-                    range,
-                    fallbackCode ?? "SYN_INTERNAL_INVARIANT",
-                    fallbackMessage ?? "Parser target was preserved",
-                    fallbackRecovery
-                )
-            );
-        }
+        statements.push(parseStatementRange(context, range));
     }
     return context.factory.createProgram(
         { start: 0, end: context.leaves.length },
         statements
     );
+}
+
+function programContainsOpaque(root: ProgramNode): boolean {
+    const work: SyntaxNode[] = [root];
+    while (work.length > 0) {
+        const node = work.pop()!;
+        if (node.kind === "opaque") {
+            return true;
+        }
+        for (const child of node.children) {
+            work.push(child);
+        }
+    }
+    return false;
+}
+
+function buildTargetPreservingProgram(
+    context: ParserContext,
+    code: SyntaxDiagnosticCode,
+    message: string
+): ProgramNode {
+    const fullRange = Object.freeze({ start: 0, end: context.leaves.length });
+    if (context.leaves.length === 0) {
+        addDiagnostic(context, code, fullRange, message, "preserve-target");
+        return context.factory.createProgram(fullRange, []);
+    }
+    const opaque = createOpaqueWithDiagnostic(
+        context,
+        fullRange,
+        code,
+        "target",
+        message,
+        "preserve-target"
+    );
+    const statement = context.factory.createStatement(
+        fullRange,
+        "opaque",
+        opaque
+    );
+    return context.factory.createProgram(fullRange, [statement]);
 }
 
 function outputOf(context: ParserContext, root: ProgramNode): ParseOutput {
@@ -82,30 +105,16 @@ function outputOf(context: ParserContext, root: ProgramNode): ParseOutput {
     });
 }
 
-function fallbackOutput(
+function targetFallbackOutput(
     dialect: Dialect,
     mode: ParseOptions["mode"],
     lexed: LexOutput,
     table: StructuralTokenTable,
     code: SyntaxDiagnosticCode,
-    message: string,
-    recovery: "preserve-statement" | "preserve-target"
+    message: string
 ): ParseOutput {
     const context = createContext(dialect, mode, lexed, table);
-    const diagnosticCount = context.diagnostics.length;
-    const root = buildProgram(context, false, code, message, recovery);
-    if (
-        context.diagnostics.length === diagnosticCount &&
-        table.syntaxLeafCount() > 0
-    ) {
-        addDiagnostic(
-            context,
-            code,
-            { start: 0, end: lexed.leaves.length },
-            message,
-            recovery
-        );
-    }
+    const root = buildTargetPreservingProgram(context, code, message);
     return outputOf(context, root);
 }
 
@@ -128,41 +137,48 @@ export function parseSql(source: string, options: ParseOptions = {}): ParseOutpu
     const table = buildStructuralTokenTable(lexed.leaves, source);
 
     if (hasFatalLexicalDiagnostic(lexed)) {
-        return fallbackOutput(
+        return targetFallbackOutput(
             dialect,
             mode,
             lexed,
             table,
             "SYN_UNEXPECTED_TOKEN",
-            "Lexical error prevents safe CST construction",
-            "preserve-target"
+            "Lexical error prevents safe CST construction"
         );
     }
     if (!table.statementBoundariesReliable()) {
-        return fallbackOutput(
+        return targetFallbackOutput(
             dialect,
             mode,
             lexed,
             table,
             "SYN_UNMATCHED_DELIMITER",
-            "Unreliable delimiter structure prevents safe statement parsing",
-            "preserve-target"
+            "Unreliable delimiter structure prevents safe statement parsing"
         );
     }
     if (mode !== "document" && table.statementRanges().length > 1) {
-        return fallbackOutput(
+        return targetFallbackOutput(
             dialect,
             mode,
             lexed,
             table,
             "SYN_UNEXPECTED_TOKEN",
-            `${mode} mode requires exactly one complete target`,
-            "preserve-target"
+            `${mode} mode requires exactly one complete target`
         );
     }
     try {
         const context = createContext(dialect, mode, lexed, table);
-        const root = buildProgram(context, true);
+        const root = buildProgram(context);
+        if (mode === "fragment" && programContainsOpaque(root)) {
+            return targetFallbackOutput(
+                dialect,
+                mode,
+                lexed,
+                table,
+                "SYN_UNMODELED_CONSTRUCT",
+                "Fragment target could not be fully structured"
+            );
+        }
         const invariant = validateSyntaxInvariants({
             root,
             leaves: lexed.leaves,
@@ -173,27 +189,25 @@ export function parseSql(source: string, options: ParseOptions = {}): ParseOutpu
             const codes = Array.from(new Set(invariant.failures.map((failure) => failure.code)))
                 .slice(0, 8)
                 .join(", ");
-            return fallbackOutput(
+            return targetFallbackOutput(
                 dialect,
                 mode,
                 lexed,
                 table,
                 "SYN_INTERNAL_INVARIANT",
-                `CST invariant validation failed: ${codes}`,
-                "preserve-target"
+                `CST invariant validation failed: ${codes}`
             );
         }
         return outputOf(context, root);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return fallbackOutput(
+        return targetFallbackOutput(
             dialect,
             mode,
             lexed,
             table,
             "SYN_INTERNAL_INVARIANT",
-            `Parser internal failure: ${message}`,
-            "preserve-target"
+            `Parser internal failure: ${message}`
         );
     }
 }

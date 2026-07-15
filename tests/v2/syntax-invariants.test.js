@@ -8,6 +8,7 @@ var root = path.join(__dirname, '..', '..');
 var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
 var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
+var parserPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js');
 
 assert.ok(fs.existsSync(corePath), 'build:v2-core required');
 assert.ok(fs.existsSync(invariantsPath), 'invariants module must exist');
@@ -15,6 +16,7 @@ assert.ok(fs.existsSync(invariantsPath), 'invariants module must exist');
 var core = require(corePath);
 var invariants = require(invariantsPath);
 var tokenTableMod = require(tokenTablePath);
+var parser = require(parserPath);
 
 assert.strictEqual(typeof invariants.validateSyntaxInvariants, 'function');
 assert.deepStrictEqual(Object.keys(core).sort(), ['lexSql']);
@@ -100,6 +102,79 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     });
     assert.strictEqual(result.ok, true, JSON.stringify(result.failures));
     console.log('  ok - full opaque tree');
+})();
+
+(function testTargetOpaqueMustBeTheUniqueFullProgramFallback() {
+    var source = 'SELECT 1;;';
+    var leaves = lex(source).leaves;
+    var table = tokenTableMod.buildStructuralTokenTable(leaves, source);
+    var ranges = table.statementRanges();
+    assert.strictEqual(ranges.length, 2);
+    var firstSpan = table.rangeToSpan(ranges[0]);
+    var secondSpan = table.rangeToSpan(ranges[1]);
+    var target = makeOpaque(
+        2,
+        firstSpan.start,
+        firstSpan.end,
+        ranges[0].start,
+        ranges[0].end,
+        'target'
+    );
+    var root = {
+        id: 0,
+        kind: 'program',
+        span: { start: 0, end: source.length },
+        leafRange: { start: 0, end: leaves.length },
+        children: [
+            makeStatement(
+                1,
+                firstSpan.start,
+                firstSpan.end,
+                ranges[0].start,
+                ranges[0].end,
+                2,
+                [target]
+            ),
+            makeStatement(
+                3,
+                secondSpan.start,
+                secondSpan.end,
+                ranges[1].start,
+                ranges[1].end,
+                null,
+                []
+            )
+        ]
+    };
+    var result = invariants.validateSyntaxInvariants({
+        root: root,
+        leaves: leaves,
+        source: source,
+        tokenTable: table
+    });
+    assert.strictEqual(result.ok, false);
+    assert.ok(result.failures.some(function(failure) {
+        return /target opaque.*complete leaf stream/i.test(failure.message);
+    }));
+
+    var fullTarget = makeOpaque(2, 0, source.length, 0, leaves.length, 'target');
+    var fullRoot = {
+        id: 0,
+        kind: 'program',
+        span: { start: 0, end: source.length },
+        leafRange: { start: 0, end: leaves.length },
+        children: [
+            makeStatement(1, 0, source.length, 0, leaves.length, 2, [fullTarget])
+        ]
+    };
+    var fullResult = invariants.validateSyntaxInvariants({
+        root: fullRoot,
+        leaves: leaves,
+        source: source,
+        tokenTable: table
+    });
+    assert.strictEqual(fullResult.ok, true, JSON.stringify(fullResult.failures));
+    console.log('  ok - target opaque is unique full-program fallback');
 })();
 
 // ---------------------------------------------------------------------------
@@ -394,6 +469,52 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     } catch (_e) { /* ok */ }
     assert.strictEqual(result.failures.length, before);
     console.log('  ok - failures immutability');
+})();
+
+(function testJoinUsingContainerContractFailsClosed() {
+    var source = 'SELECT * FROM a JOIN b USING (id)';
+    var parsed = parser.parseSql(source, { dialect: 'hive', mode: 'document' });
+
+    function mutateAndValidate(mutator) {
+        var rootNode = JSON.parse(JSON.stringify(parsed.root));
+        var stack = [rootNode];
+        var usingClause = null;
+        while (stack.length > 0) {
+            var node = stack.pop();
+            if (node.kind === 'clause' && node.clauseKind === 'join-using') {
+                usingClause = node;
+                break;
+            }
+            if (Array.isArray(node.children)) {
+                Array.prototype.push.apply(stack, node.children);
+            }
+        }
+        assert.ok(usingClause, 'JOIN USING clause fixture');
+        mutator(usingClause);
+        return invariants.validateSyntaxInvariants({
+            root: rootNode,
+            leaves: parsed.leaves,
+            source: source,
+            tokenTable: tokenTableMod.buildStructuralTokenTable(parsed.leaves, source)
+        });
+    }
+
+    var wrongRole = mutateAndValidate(function(clause) {
+        clause.children[0].listRole = 'select-items';
+    });
+    assert.strictEqual(wrongRole.ok, false);
+    assert.ok(wrongRole.failures.some(function(failure) {
+        return /join-using|relationship/i.test(failure.message);
+    }), 'JOIN USING wrong list role must fail its container contract');
+
+    var missingChild = mutateAndValidate(function(clause) {
+        clause.children = [];
+    });
+    assert.strictEqual(missingChild.ok, false);
+    assert.ok(missingChild.failures.some(function(failure) {
+        return /join-using|relationship/i.test(failure.message);
+    }), 'JOIN USING missing child must fail its container contract');
+    console.log('  ok - JOIN USING container contract fails closed');
 })();
 
 console.log('v2 syntax invariants tests passed');

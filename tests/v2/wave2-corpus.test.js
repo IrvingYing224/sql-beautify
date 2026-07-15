@@ -86,13 +86,15 @@ evaluationCases.forEach(function(testCase) {
             testCase.id + ' must not expose a partial trusted query tree');
         assert.ok(recoveries.indexOf('preserve-target') >= 0,
             testCase.id + ' must preserve the complete target');
-    } else if (
-        testCase.id === 'hive-complex-type-ddl' ||
-        testCase.id === 'match-recognize-construct'
-    ) {
+    } else if (testCase.id === 'hive-complex-type-ddl') {
+        assert.deepStrictEqual(statementKinds, ['opaque']);
+        assert.ok(recoveries.indexOf('verbatim-node') >= 0,
+            testCase.id + ' must follow the registry verbatim capability state');
+        assert.strictEqual(recoveries.indexOf('preserve-statement'), -1);
+    } else if (testCase.id === 'match-recognize-construct') {
         assert.deepStrictEqual(statementKinds, ['opaque']);
         assert.ok(recoveries.indexOf('preserve-statement') >= 0,
-            testCase.id + ' remains statement-level opaque in Wave 2C');
+            testCase.id + ' remains statement-level opaque in the current parser');
     } else {
         assert.ok(statementKinds.every(function(kind) {
             return kind === 'query' || kind === 'insert-query';

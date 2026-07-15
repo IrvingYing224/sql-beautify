@@ -14,6 +14,8 @@ export type {
     QueryClauseSyntaxId,
     SetOperatorSyntax,
     SetOperatorSyntaxId,
+    UnsupportedSyntaxContext,
+    UnsupportedSyntaxSignature,
 } from "./types";
 export {
     getDialect,

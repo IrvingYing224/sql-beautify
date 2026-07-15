@@ -6,8 +6,6 @@ import { parseExpressionRange } from "./expression-parser";
 import type { AliasInfo, QueryNode, RelationNode, SyntaxNode } from "./node";
 import {
     ParserSyntaxError,
-    baseDepth,
-    createOpaqueWithDiagnostic,
     isAliasNameLeaf,
     isCodeWord,
     isDottedNamePart,
@@ -21,12 +19,26 @@ import {
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext } from "./parser-context";
+import {
+    createOpaqueWithDiagnostic,
+    createParserCheckpoint,
+    rollbackParserCheckpoint,
+} from "./recovery";
+import { rejectUnsupportedRelationConstructs } from "./unsupported-recognizer";
 
 export type QueryRangeParser = (
     context: ParserContext,
     range: LeafRange,
     nestingDepth: number
 ) => QueryNode;
+
+export interface RelationAliasCandidate {
+    readonly start: number;
+    readonly hasAliasColumnList: boolean;
+    readonly continuationStart: number | null;
+}
+
+export type RelationPrefixCandidateFact = "alias" | "join-condition" | null;
 
 type MarkerKind = "comma" | "join" | "lateral";
 type RelationMarker = {
@@ -143,37 +155,6 @@ function aliasFromTrailingIndexes(
     });
 }
 
-function rejectUnsupportedRelationConstructs(
-    context: ParserContext,
-    range: LeafRange,
-    indexes: readonly number[]
-): void {
-    for (let i = 1; i < indexes.length; i++) {
-        const index = indexes[i]!;
-        const leaf = context.leaves[index]!;
-        if (leaf.channel !== "code") {
-            continue;
-        }
-        const raw = context.table.normalizedWord(index);
-        if (raw !== "match_recognize" && raw !== "pivot" && raw !== "unpivot") {
-            continue;
-        }
-        const next = i + 1 < indexes.length ? indexes[i + 1]! : null;
-        const previous = indexes[i - 1]!;
-        if (
-            context.leaves[previous]!.raw !== "." &&
-            next !== null &&
-            context.leaves[next]!.raw === "("
-        ) {
-            throw new ParserSyntaxError(
-                "SYN_UNMODELED_CONSTRUCT",
-                range,
-                `${context.dialect} relation construct ${raw.toUpperCase()} is not modeled in Wave 2C`
-            );
-        }
-    }
-}
-
 function parseKnownTrailingAlias(
     context: ParserContext,
     range: LeafRange,
@@ -227,6 +208,163 @@ function createOpaqueRelation(
     return context.factory.createRelation(range, "opaque", null, opaque, [opaque]);
 }
 
+function trailingAliasColumnListCore(
+    context: ParserContext,
+    range: LeafRange,
+    indexes: readonly number[]
+): LeafRange | null {
+    if (indexes.length < 3) {
+        return null;
+    }
+    const open = indexes[indexes.length - 1]!;
+    if (context.leaves[open]!.raw !== "(") {
+        return null;
+    }
+    const close = context.table.matchingDelimiterIndex(open);
+    if (
+        close === null ||
+        close >= range.end ||
+        trimToSyntax(context.leaves, { start: close + 1, end: range.end }) !== null
+    ) {
+        return null;
+    }
+    const aliasIndex = indexes[indexes.length - 2]!;
+    if (!isAliasNameLeaf(context.leaves[aliasIndex]!)) {
+        return null;
+    }
+    const columnIndexes = topLevelSyntaxIndexes(context, {
+        start: open + 1,
+        end: close,
+    });
+    if (
+        columnIndexes.length === 0 ||
+        columnIndexes.length % 2 === 0 ||
+        !columnIndexes.every((index, position) =>
+            position % 2 === 0
+                ? isAliasNameLeaf(context.leaves[index]!)
+                : context.leaves[index]!.raw === ","
+        )
+    ) {
+        return null;
+    }
+
+    const beforeAlias = indexes[indexes.length - 3]!;
+    let coreEnd = aliasIndex;
+    if (isCodeWord(context, beforeAlias, "as")) {
+        coreEnd = beforeAlias;
+    } else {
+        const coreLast = previousSyntaxIndex(context, aliasIndex, range.start);
+        if (
+            coreLast === null ||
+            !canBeImplicitRelationAlias(context, aliasIndex) ||
+            !syntaxLeavesAreSeparated(context, coreLast, aliasIndex)
+        ) {
+            return null;
+        }
+    }
+    return trimToSyntax(context.leaves, { start: range.start, end: coreEnd });
+}
+
+function containsOpaqueSyntax(node: SyntaxNode): boolean {
+    const stack: SyntaxNode[] = [node];
+    while (stack.length > 0) {
+        const current = stack.pop()!;
+        if (current.kind === "opaque") {
+            return true;
+        }
+        for (let index = current.children.length - 1; index >= 0; index--) {
+            stack.push(current.children[index]!);
+        }
+    }
+    return false;
+}
+
+function relationAliasColumnListIsBounded(
+    context: ParserContext,
+    range: LeafRange,
+    indexes: readonly number[],
+    nestingDepth: number,
+    parseQueryRange: QueryRangeParser
+): boolean {
+    const coreRange = trailingAliasColumnListCore(context, range, indexes);
+    if (coreRange === null) {
+        return false;
+    }
+    const checkpoint = createParserCheckpoint(context);
+    try {
+        const core = parseSingleRelation(
+            context,
+            coreRange,
+            nestingDepth,
+            parseQueryRange
+        );
+        const bounded =
+            core.alias === null &&
+            !containsOpaqueSyntax(core) &&
+            (core.relationKind === "table" ||
+                core.relationKind === "subquery" ||
+                core.relationKind === "table-function");
+        rollbackParserCheckpoint(context, checkpoint);
+        return bounded;
+    } catch (error) {
+        rollbackParserCheckpoint(context, checkpoint);
+        if (error instanceof ParserSyntaxError) {
+            return false;
+        }
+        throw error;
+    }
+}
+
+export function relationRangeIsBoundedAliasColumnList(
+    context: ParserContext,
+    inputRange: LeafRange,
+    nestingDepth: number,
+    parseQueryRange: QueryRangeParser
+): boolean {
+    const range = trimToSyntax(context.leaves, inputRange);
+    if (range === null) {
+        return false;
+    }
+    return relationAliasColumnListIsBounded(
+        context,
+        range,
+        topLevelSyntaxIndexes(context, range),
+        nestingDepth,
+        parseQueryRange
+    );
+}
+
+function containsUnprovenRelationOpaque(
+    context: ParserContext,
+    node: SyntaxNode,
+    nestingDepth: number,
+    parseQueryRange: QueryRangeParser
+): boolean {
+    const stack: SyntaxNode[] = [node];
+    while (stack.length > 0) {
+        const current = stack.pop()!;
+        if (
+            current.kind === "relation" &&
+            current.relationKind === "opaque" &&
+            relationRangeIsBoundedAliasColumnList(
+                context,
+                current.leafRange,
+                nestingDepth,
+                parseQueryRange
+            )
+        ) {
+            continue;
+        }
+        if (current.kind === "opaque") {
+            return true;
+        }
+        for (let index = current.children.length - 1; index >= 0; index--) {
+            stack.push(current.children[index]!);
+        }
+    }
+    return false;
+}
+
 function parseSingleRelation(
     context: ParserContext,
     inputRange: LeafRange,
@@ -249,6 +387,21 @@ function parseSingleRelation(
             "Relation contains no syntax"
         );
     }
+    if (
+        relationAliasColumnListIsBounded(
+            context,
+            range,
+            indexes,
+            nestingDepth,
+            parseQueryRange
+        )
+    ) {
+        return createOpaqueRelation(
+            context,
+            range,
+            "Relation alias column list is recognized but not structured"
+        );
+    }
     rejectUnsupportedRelationConstructs(context, range, indexes);
 
     const first = indexes[0]!;
@@ -267,7 +420,7 @@ function parseSingleRelation(
                     const query = parseQueryRange(
                         context,
                         { start: first, end: close + 1 },
-                        nestingDepth + 1
+                        nestingDepth
                     );
                     return context.factory.createRelation(
                         range,
@@ -297,7 +450,7 @@ function parseSingleRelation(
                 context,
                 callRange,
                 parseQueryRange,
-                nestingDepth + 1
+                nestingDepth
             );
             return context.factory.createRelation(
                 range,
@@ -329,7 +482,7 @@ function parseSingleRelation(
     return createOpaqueRelation(
         context,
         range,
-        "Relation syntax remains opaque because Wave 2C cannot prove a table boundary"
+        "Relation syntax remains opaque because a table boundary cannot be proven"
     );
 }
 
@@ -550,6 +703,270 @@ function findMarkers(context: ParserContext, range: LeafRange): readonly Relatio
     return Object.freeze(markers.sort((left, right) => left.start - right.start));
 }
 
+function relationMarkerIsStructured(
+    context: ParserContext,
+    range: LeafRange,
+    markers: readonly RelationMarker[],
+    markerPosition: number,
+    nestingDepth: number,
+    parseQueryRange: QueryRangeParser
+): boolean {
+    const first = markers[markerPosition];
+    if (
+        first === undefined ||
+        (first.kind !== "join" && first.kind !== "lateral")
+    ) {
+        return false;
+    }
+    let nextPosition = markerPosition + 1;
+    if (first.kind === "lateral") {
+        while (
+            nextPosition < markers.length &&
+            markers[nextPosition]!.kind === "comma"
+        ) {
+            nextPosition += 1;
+        }
+    }
+    const constructEnd = nextPosition < markers.length
+        ? markers[nextPosition]!.start
+        : range.end;
+    const constructRange = trimToSyntax(context.leaves, {
+        start: first.start,
+        end: constructEnd,
+    });
+    if (constructRange === null) {
+        return false;
+    }
+    const checkpoint = createParserCheckpoint(context);
+    try {
+        const node = first.kind === "join"
+            ? parseJoin(
+                  context,
+                  first,
+                  constructRange,
+                  nestingDepth,
+                  parseQueryRange
+              )
+            : parseLateralView(
+                  context,
+                  first,
+                  constructRange,
+                  nestingDepth,
+                  parseQueryRange
+              );
+        const structured = !containsUnprovenRelationOpaque(
+            context,
+            node,
+            nestingDepth,
+            parseQueryRange
+        );
+        rollbackParserCheckpoint(context, checkpoint);
+        return structured;
+    } catch (error) {
+        rollbackParserCheckpoint(context, checkpoint);
+        if (error instanceof ParserSyntaxError) {
+            return false;
+        }
+        throw error;
+    }
+}
+
+export function relationPrefixesCanAcceptAlias(
+    context: ParserContext,
+    inputRange: LeafRange,
+    candidates: readonly RelationAliasCandidate[],
+    nestingDepth: number,
+    parseQueryRange: QueryRangeParser
+): readonly RelationPrefixCandidateFact[] {
+    const results: RelationPrefixCandidateFact[] = candidates.map(() => null);
+    const range = trimToSyntax(context.leaves, inputRange);
+    if (range === null || candidates.length === 0) {
+        return Object.freeze(results);
+    }
+    const ordered = candidates
+        .map((candidate, resultIndex) => Object.freeze({
+            start: candidate.start,
+            hasAliasColumnList: candidate.hasAliasColumnList,
+            continuationStart: candidate.continuationStart,
+            resultIndex,
+        }))
+        .sort((left, right) => left.start - right.start);
+    const markers = findMarkers(context, range);
+    const markerPositions = new Map<number, number>();
+    markers.forEach((marker, index) => markerPositions.set(marker.start, index));
+    const structuredContinuationCache = new Map<number, boolean>();
+    let markerPosition = 0;
+    let activeMarker: RelationMarker | null = null;
+    let intervalOrdinal = 0;
+    let lastParsedInterval = -1;
+
+    for (const candidate of ordered) {
+        if (
+            !Number.isInteger(candidate.start) ||
+            candidate.start <= range.start ||
+            candidate.start >= range.end
+        ) {
+            continue;
+        }
+        while (
+            markerPosition < markers.length &&
+            markers[markerPosition]!.start < candidate.start
+        ) {
+            const marker = markers[markerPosition]!;
+            markerPosition += 1;
+            if (activeMarker?.kind === "lateral" && marker.kind === "comma") {
+                continue;
+            }
+            activeMarker = marker;
+            intervalOrdinal += 1;
+        }
+        if (activeMarker?.kind === "lateral") {
+            continue;
+        }
+        let canBeAlias =
+            candidate.hasAliasColumnList && candidate.continuationStart === null;
+        let requiresJoinOwner = false;
+        if (candidate.continuationStart !== null) {
+            const continuationLeaf = context.leaves[candidate.continuationStart];
+            if (continuationLeaf?.raw === ",") {
+                canBeAlias = true;
+            } else if (
+                isCodeWord(context, candidate.continuationStart, "on") ||
+                isCodeWord(context, candidate.continuationStart, "using")
+            ) {
+                canBeAlias = true;
+                requiresJoinOwner = true;
+            } else {
+                const continuationMarkerPosition = markerPositions.get(
+                    candidate.continuationStart
+                );
+                if (continuationMarkerPosition !== undefined) {
+                    let structured = structuredContinuationCache.get(
+                        candidate.continuationStart
+                    );
+                    if (structured === undefined) {
+                        structured = relationMarkerIsStructured(
+                            context,
+                            range,
+                            markers,
+                            continuationMarkerPosition,
+                            nestingDepth,
+                            parseQueryRange
+                        );
+                        structuredContinuationCache.set(
+                            candidate.continuationStart,
+                            structured
+                        );
+                    }
+                    canBeAlias = structured;
+                }
+            }
+        }
+        let prefixStart = range.start;
+        if (activeMarker?.kind === "comma") {
+            prefixStart = activeMarker.token + 1;
+        } else if (activeMarker?.kind === "join") {
+            const afterJoin = nextSyntaxIndex(
+                context,
+                activeMarker.token,
+                candidate.start
+            );
+            if (afterJoin === null) {
+                continue;
+            }
+            prefixStart = afterJoin;
+        }
+        const prefix = trimToSyntax(context.leaves, {
+            start: prefixStart,
+            end: candidate.start,
+        });
+        if (prefix === null) {
+            continue;
+        }
+        if (activeMarker?.kind === "join") {
+            const condition = findJoinConditionMarker(
+                context,
+                prefixStart,
+                candidate.start
+            );
+            if (
+                condition?.kind === "on" &&
+                previousSyntaxIndex(context, candidate.start, prefixStart) ===
+                    condition.index
+            ) {
+                results[candidate.resultIndex] = "join-condition";
+                continue;
+            }
+        }
+        if (
+            !canBeAlias ||
+            (requiresJoinOwner && activeMarker?.kind !== "join") ||
+            intervalOrdinal === lastParsedInterval
+        ) {
+            continue;
+        }
+        lastParsedInterval = intervalOrdinal;
+        const checkpoint = createParserCheckpoint(context);
+        try {
+            const relation = parseSingleRelation(
+                context,
+                prefix,
+                nestingDepth,
+                parseQueryRange
+            );
+            results[candidate.resultIndex] =
+                relation.alias === null &&
+                (relation.relationKind === "table" ||
+                    relation.relationKind === "subquery" ||
+                    relation.relationKind === "table-function")
+                    ? "alias"
+                    : null;
+            rollbackParserCheckpoint(context, checkpoint);
+        } catch (error) {
+            rollbackParserCheckpoint(context, checkpoint);
+            if (!(error instanceof ParserSyntaxError)) {
+                throw error;
+            }
+        }
+    }
+    return Object.freeze(results);
+}
+
+type JoinConditionMarker = {
+    readonly kind: "on" | "using";
+    readonly index: number;
+};
+
+function findJoinConditionMarker(
+    context: ParserContext,
+    afterJoin: number,
+    rangeEnd: number
+): JoinConditionMarker | null {
+    const depth = context.table.depthBefore(afterJoin);
+    for (const index of syntaxIndexesInRange(context, {
+        start: afterJoin,
+        end: rangeEnd,
+    })) {
+        if (context.table.depthBefore(index) !== depth) {
+            continue;
+        }
+        const previous = previousSyntaxIndex(context, index, afterJoin);
+        const keywordActsAsName =
+            isDottedNamePart(context, index, afterJoin, rangeEnd) ||
+            (previous !== null && isCodeWord(context, previous, "as"));
+        if (keywordActsAsName) {
+            continue;
+        }
+        if (isCodeWord(context, index, "using")) {
+            return Object.freeze({ kind: "using", index });
+        }
+        if (isCodeWord(context, index, "on")) {
+            return Object.freeze({ kind: "on", index });
+        }
+    }
+    return null;
+}
+
 function parseJoin(
     context: ParserContext,
     marker: RelationMarker,
@@ -566,31 +983,12 @@ function parseJoin(
             "JOIN requires a right relation"
         );
     }
-    const depth = baseDepth(context, range);
-    let onIndex: number | null = null;
-    for (const index of syntaxIndexesInRange(context, { start: afterJoin, end: range.end })) {
-        if (context.table.depthBefore(index) !== depth) {
-            continue;
-        }
-        const previous = previousSyntaxIndex(context, index, afterJoin);
-        const keywordActsAsName =
-            isDottedNamePart(context, index, afterJoin, range.end) ||
-            (previous !== null && isCodeWord(context, previous, "as"));
-        if (!keywordActsAsName && isCodeWord(context, index, "using")) {
-            throw new ParserSyntaxError(
-                "SYN_UNMODELED_CONSTRUCT",
-                { start: index, end: range.end },
-                "JOIN USING is not modeled in Wave 2C"
-            );
-        }
-        if (!keywordActsAsName && isCodeWord(context, index, "on")) {
-            onIndex = index;
-            break;
-        }
-    }
+    const conditionMarker = findJoinConditionMarker(context, afterJoin, range.end);
+    const onIndex = conditionMarker?.kind === "on" ? conditionMarker.index : null;
+    const usingIndex = conditionMarker?.kind === "using" ? conditionMarker.index : null;
     const rightRange = trimToSyntax(context.leaves, {
         start: afterJoin,
-        end: onIndex === null ? range.end : onIndex,
+        end: onIndex ?? usingIndex ?? range.end,
     });
     if (rightRange === null) {
         throw new ParserSyntaxError(
@@ -614,7 +1012,7 @@ function parseJoin(
             context,
             onBody,
             parseQueryRange,
-            nestingDepth + 1
+            nestingDepth
         );
         const onClause = context.factory.createClause(
             { start: onIndex, end: range.end },
@@ -624,6 +1022,63 @@ function parseJoin(
             [condition]
         );
         children.push(onClause);
+    } else if (usingIndex !== null) {
+        const open = nextSyntaxIndex(context, usingIndex, range.end);
+        if (open === null || context.leaves[open]!.raw !== "(") {
+            throw new ParserSyntaxError(
+                "SYN_INCOMPLETE_CLAUSE",
+                { start: usingIndex, end: range.end },
+                "JOIN USING requires a parenthesized column list"
+            );
+        }
+        const close = context.table.matchingDelimiterIndex(open);
+        if (
+            close === null ||
+            close >= range.end ||
+            trimToSyntax(context.leaves, { start: close + 1, end: range.end }) !== null
+        ) {
+            throw new ParserSyntaxError(
+                "SYN_UNMATCHED_DELIMITER",
+                { start: open, end: range.end },
+                "JOIN USING column list has an invalid closing boundary"
+            );
+        }
+        const columnRange = trimToSyntax(context.leaves, {
+            start: open + 1,
+            end: close,
+        });
+        if (columnRange === null) {
+            throw new ParserSyntaxError(
+                "SYN_INCOMPLETE_CLAUSE",
+                { start: usingIndex, end: close + 1 },
+                "JOIN USING column list is empty"
+            );
+        }
+        const columns = parseList(
+            context,
+            columnRange,
+            "other",
+            {
+                allowAlias: false,
+                requireSingleName: true,
+                reasonMessage: "JOIN USING column is not a single name",
+            },
+            (parserContext, valueRange) =>
+                parseExpressionRange(
+                    parserContext,
+                    valueRange,
+                    parseQueryRange,
+                    nestingDepth
+                )
+        );
+        const usingClause = context.factory.createClause(
+            { start: usingIndex, end: range.end },
+            "join-using",
+            { start: usingIndex, end: usingIndex + 1 },
+            { start: usingIndex + 1, end: range.end },
+            [columns]
+        );
+        children.push(usingClause);
     }
     return context.factory.createRelation(range, "join", null, right, children);
 }
@@ -735,7 +1190,7 @@ function parseLateralView(
         context,
         callRange,
         parseQueryRange,
-        nestingDepth + 1
+        nestingDepth
     );
     const tableFunction = context.factory.createRelation(
         { start: functionStart, end: functionRelationEnd },
@@ -768,7 +1223,7 @@ function parseLateralView(
                     parserContext,
                     valueRange,
                     parseQueryRange,
-                    nestingDepth + 1
+                    nestingDepth
                 )
         )
     );
@@ -818,11 +1273,7 @@ export function parseFromClauseChildren(
         if (before !== null) {
             children.push(parseSingleRelation(context, before, nestingDepth, parseQueryRange));
             requiresRelationAfterComma = false;
-        } else if (
-            marker.kind === "comma" ||
-            children.length === 0 ||
-            requiresRelationAfterComma
-        ) {
+        } else if (children.length === 0 || requiresRelationAfterComma) {
             throw new ParserSyntaxError(
                 "SYN_INCOMPLETE_CLAUSE",
                 range,

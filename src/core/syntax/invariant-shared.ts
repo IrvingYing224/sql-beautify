@@ -68,6 +68,7 @@ export const CLAUSE_KINDS = new Set([
     "sort-by",
     "limit",
     "join-on",
+    "join-using",
     "lateral-view",
     "insert",
     "partition",
@@ -221,7 +222,7 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
                 },
                 allowedOpaqueBoundaries: (n: Record<string, unknown>) => {
                     if (n.statementKind === "opaque") {
-                        return ["statement"] as const;
+                        return ["statement", "target"] as const;
                     }
                     return [] as const;
                 },

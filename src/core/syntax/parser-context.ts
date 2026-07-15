@@ -4,7 +4,6 @@ import type { SourceLeaf } from "../lexer/token";
 import { freezeImmutableArray } from "../util/immutable-array";
 import type { LeafRange } from "./leaf-range";
 import type { NodeFactory } from "./node-factory";
-import type { OpaqueBoundary, OpaqueNode } from "./node";
 import type { StructuralTokenTable } from "./token-table";
 import type { ParseMode } from "./parser-backend";
 
@@ -29,19 +28,19 @@ export interface ParserContext {
 export class ParserSyntaxError extends Error {
     readonly code: SyntaxDiagnosticCode;
     readonly range: LeafRange;
-    readonly recovery: RecoveryAction;
+    readonly minimumBoundary: "local" | "statement";
 
     constructor(
         code: SyntaxDiagnosticCode,
         range: LeafRange,
         message: string,
-        recovery: RecoveryAction = "preserve-statement"
+        minimumBoundary: "local" | "statement" = "local"
     ) {
         super(message);
         this.name = "ParserSyntaxError";
         this.code = code;
         this.range = Object.freeze({ start: range.start, end: range.end });
-        this.recovery = recovery;
+        this.minimumBoundary = minimumBoundary;
     }
 }
 
@@ -306,19 +305,6 @@ export function addDiagnostic(
     });
     context.diagnostics.push(diagnostic);
     return diagnostic;
-}
-
-export function createOpaqueWithDiagnostic(
-    context: ParserContext,
-    range: LeafRange,
-    code: SyntaxDiagnosticCode,
-    boundary: OpaqueBoundary,
-    message: string,
-    recovery: RecoveryAction = "verbatim-node"
-): OpaqueNode {
-    const opaque = context.factory.createOpaque(range, code, boundary);
-    addDiagnostic(context, code, range, message, recovery);
-    return opaque;
 }
 
 export function finalizeDiagnostics(values: readonly Diagnostic[]): readonly Diagnostic[] {

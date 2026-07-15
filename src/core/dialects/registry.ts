@@ -12,6 +12,7 @@ import type {
     OperatorSemantics,
     QueryClauseSyntax,
     SetOperatorSyntax,
+    UnsupportedSyntaxSignature,
 } from "./types";
 
 const CANONICAL_DIALECTS: readonly Dialect[] = freezeImmutableArray([
@@ -269,15 +270,90 @@ const HIVE_JOIN_SYNTAX: readonly JoinSyntax[] = freezeImmutableArray([
     Object.freeze({ id: "left-anti-join", words: freezeImmutableArray(["left", "anti", "join"]), capabilityId: "join" }),
 ]);
 
+const SHARED_UNSUPPORTED_SYNTAX: readonly UnsupportedSyntaxSignature[] = freezeImmutableArray([
+    Object.freeze({
+        capabilityId: "merge",
+        context: "statement-start" as const,
+        words: freezeImmutableArray(["merge"]),
+        order: null,
+        bodyEvidence: null,
+    }),
+    Object.freeze({
+        capabilityId: "match-recognize",
+        context: "relation-suffix" as const,
+        words: freezeImmutableArray(["match_recognize"]),
+        order: null,
+        bodyEvidence: freezeImmutableArray([
+            freezeImmutableArray(["pattern", "("]),
+        ]),
+    }),
+    Object.freeze({
+        capabilityId: "pivot",
+        context: "relation-suffix" as const,
+        words: freezeImmutableArray(["pivot"]),
+        order: null,
+        bodyEvidence: freezeImmutableArray([
+            freezeImmutableArray(["(", "for", "in", "("]),
+        ]),
+    }),
+    Object.freeze({
+        capabilityId: "unpivot",
+        context: "relation-suffix" as const,
+        words: freezeImmutableArray(["unpivot"]),
+        order: null,
+        bodyEvidence: freezeImmutableArray([freezeImmutableArray(["for", "in", "("])]),
+    }),
+    Object.freeze({
+        capabilityId: "unpivot",
+        context: "relation-suffix" as const,
+        words: freezeImmutableArray(["unpivot", "include", "nulls"]),
+        order: null,
+        bodyEvidence: freezeImmutableArray([freezeImmutableArray(["for", "in", "("])]),
+    }),
+    Object.freeze({
+        capabilityId: "unpivot",
+        context: "relation-suffix" as const,
+        words: freezeImmutableArray(["unpivot", "exclude", "nulls"]),
+        order: null,
+        bodyEvidence: freezeImmutableArray([freezeImmutableArray(["for", "in", "("])]),
+    }),
+    Object.freeze({
+        capabilityId: "qualify",
+        context: "query-clause" as const,
+        words: freezeImmutableArray(["qualify"]),
+        order: 55,
+        bodyEvidence: null,
+    }),
+]);
+
+const HIVE_UNSUPPORTED_SYNTAX: readonly UnsupportedSyntaxSignature[] = freezeImmutableArray([
+    ...SHARED_UNSUPPORTED_SYNTAX,
+    ...["create", "alter", "drop", "truncate"].map((word) => Object.freeze({
+        capabilityId: "hive-ddl",
+        context: "statement-start" as const,
+        words: freezeImmutableArray([word]),
+        order: null,
+        bodyEvidence: null,
+    })),
+]);
+
+const SHARED_PRESERVATION_CAPABILITIES: readonly Readonly<{
+    id: string;
+    state: "diagnostic";
+}>[] = freezeImmutableArray([
+    Object.freeze({ id: "merge", state: "diagnostic" as const }),
+    Object.freeze({ id: "match-recognize", state: "diagnostic" as const }),
+    Object.freeze({ id: "pivot", state: "diagnostic" as const }),
+    Object.freeze({ id: "qualify", state: "diagnostic" as const }),
+    Object.freeze({ id: "unpivot", state: "diagnostic" as const }),
+]);
+
 const HIVE_PRESERVATION_CAPABILITIES: readonly Readonly<{
     id: string;
     state: "verbatim" | "diagnostic";
 }>[] = freezeImmutableArray([
     Object.freeze({ id: "hive-ddl", state: "verbatim" as const }),
-    Object.freeze({ id: "merge", state: "diagnostic" as const }),
-    Object.freeze({ id: "match-recognize", state: "diagnostic" as const }),
-    Object.freeze({ id: "pivot", state: "diagnostic" as const }),
-    Object.freeze({ id: "unpivot", state: "diagnostic" as const }),
+    ...SHARED_PRESERVATION_CAPABILITIES,
 ]);
 
 const SHARED_STRUCTURED_CAPABILITIES: readonly string[] = freezeImmutableArray([
@@ -385,7 +461,8 @@ function validateSyntaxLists(
     capabilityById: ReadonlyMap<string, CapabilityEntry>,
     queryClauses: readonly QueryClauseSyntax[],
     setOperators: readonly SetOperatorSyntax[],
-    joins: readonly JoinSyntax[]
+    joins: readonly JoinSyntax[],
+    unsupported: readonly UnsupportedSyntaxSignature[]
 ): void {
     const clauseIds = new Set<string>();
     let previousOrder = Number.NEGATIVE_INFINITY;
@@ -452,6 +529,42 @@ function validateSyntaxLists(
         joinIds.add(join.id);
         joinHeads.add(head);
     }
+
+    const unsupportedKeys = new Set<string>();
+    for (const signature of unsupported) {
+        const capability = capabilityById.get(signature.capabilityId);
+        const key = `${signature.context}\0${signature.words.join("\0")}`;
+        if (
+            unsupportedKeys.has(key) ||
+            signature.words.length === 0 ||
+            !signature.words.every(
+                (word) => word === word.toLowerCase() && /^[a-z_]+$/.test(word)
+            ) ||
+            !capability ||
+            (capability.state !== "verbatim" && capability.state !== "diagnostic") ||
+            (signature.context === "query-clause"
+                ? !Number.isInteger(signature.order)
+                : signature.order !== null) ||
+            (signature.context === "relation-suffix"
+                ? signature.bodyEvidence === null ||
+                    signature.bodyEvidence.length === 0 ||
+                    signature.bodyEvidence.some(
+                        (sequence) =>
+                            sequence.length === 0 ||
+                            !sequence.every(
+                                (token) =>
+                                    token === token.toLowerCase() &&
+                                    /^(?:[a-z_]+|\()$/.test(token)
+                            )
+                    )
+                : signature.bodyEvidence !== null)
+        ) {
+            throw new Error(
+                `Invalid unsupported syntax for ${dialect}: ${signature.capabilityId}`
+            );
+        }
+        unsupportedKeys.add(key);
+    }
 }
 
 function createDialectView(
@@ -460,10 +573,18 @@ function createDialectView(
     operators: readonly OperatorSemantics[],
     queryClauses: readonly QueryClauseSyntax[],
     setOperators: readonly SetOperatorSyntax[],
-    joins: readonly JoinSyntax[]
+    joins: readonly JoinSyntax[],
+    unsupported: readonly UnsupportedSyntaxSignature[]
 ): DialectCapabilityView {
     const capabilityById = new Map(capabilities.map((c) => [c.id, c]));
-    validateSyntaxLists(dialect, capabilityById, queryClauses, setOperators, joins);
+    validateSyntaxLists(
+        dialect,
+        capabilityById,
+        queryClauses,
+        setOperators,
+        joins,
+        unsupported
+    );
     const operatorsByKeyFixity = new Map<string, OperatorSemantics>();
     const operatorsByKey = new Map<string, OperatorSemantics[]>();
     const recognitionSignatures = new Set<string>();
@@ -527,6 +648,9 @@ function createDialectView(
         listJoinSyntax(): readonly JoinSyntax[] {
             return joins;
         },
+        listUnsupportedSyntax(): readonly UnsupportedSyntaxSignature[] {
+            return unsupported;
+        },
     });
     return view;
 }
@@ -555,7 +679,8 @@ function buildRegistry(): DialectCapabilityRegistry {
             buildOperatorList("hive"),
             HIVE_QUERY_CLAUSES,
             SHARED_SET_OPERATORS,
-            HIVE_JOIN_SYNTAX
+            HIVE_JOIN_SYNTAX,
+            HIVE_UNSUPPORTED_SYNTAX
         )
     );
 
@@ -586,13 +711,15 @@ function buildRegistry(): DialectCapabilityRegistry {
                             id,
                             state: "structured" as const,
                         })),
+                        ...SHARED_PRESERVATION_CAPABILITIES,
                         ...extra,
                     ])
                 ),
                 buildOperatorList(dialect),
                 SHARED_QUERY_CLAUSES,
                 SHARED_SET_OPERATORS,
-                SHARED_JOIN_SYNTAX
+                SHARED_JOIN_SYNTAX,
+                SHARED_UNSUPPORTED_SYNTAX
             )
         );
     }

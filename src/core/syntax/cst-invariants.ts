@@ -888,6 +888,23 @@ function enforceRelationships(
 
         // Free-form direct Opaque children: boundary must match owner kind policy.
         if (child.kind === "opaque" && typeof child.boundary === "string") {
+            if (
+                raw.kind === "statement" &&
+                child.boundary === "target" &&
+                (!isLeafRange(raw.leafRange) ||
+                    raw.leafRange.start !== 0 ||
+                    raw.leafRange.end !== leaves.length ||
+                    !isLeafRange(child.leafRange) ||
+                    child.leafRange.start !== 0 ||
+                    child.leafRange.end !== leaves.length)
+            ) {
+                fail(
+                    failures,
+                    "INV_RELATIONSHIP",
+                    `target opaque under statement ${nodeId} must cover the complete leaf stream`,
+                    nodeId
+                );
+            }
             const allowed = FREE_FORM_OPAQUE_BOUNDARIES[raw.kind as string];
             if (allowed && (allowed as readonly string[]).indexOf(child.boundary) < 0) {
                 fail(
@@ -1089,10 +1106,84 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
         const seenObjects = new WeakSet<object>();
         const allNodes: Record<string, unknown>[] = [];
 
-        function visit(raw: unknown, parent: Record<string, unknown> | null): void {
+        type VisitFrame =
+            | {
+                  readonly stage: "enter";
+                  readonly raw: unknown;
+                  readonly parent: Record<string, unknown> | null;
+              }
+            | {
+                  readonly stage: "children";
+                  readonly raw: Record<string, unknown>;
+                  readonly childrenRaw: unknown[];
+                  readonly childObjects: Record<string, unknown>[];
+                  index: number;
+              };
+        const visitStack: VisitFrame[] = [
+            { stage: "enter", raw: root, parent: null },
+        ];
+
+        while (visitStack.length > 0) {
+            const frame = visitStack.pop()!;
+            if (frame.stage === "children") {
+                if (frame.index >= frame.childrenRaw.length) {
+                    // Relationship contracts run post-order, after every child visit.
+                    enforceRelationships(
+                        frame.raw,
+                        frame.childObjects,
+                        leaves,
+                        failures
+                    );
+                    continue;
+                }
+                const childIndex = frame.index;
+                frame.index += 1;
+                visitStack.push(frame);
+                const child = frame.childrenRaw[childIndex];
+                if (!isObject(child)) {
+                    fail(
+                        failures,
+                        "INV_MALFORMED_NODE",
+                        `Malformed child at index ${childIndex} of node ${String(frame.raw.id)}`,
+                        isFiniteNonNegInt(frame.raw.id) ? frame.raw.id : undefined
+                    );
+                    continue;
+                }
+                const previous = frame.childObjects[frame.childObjects.length - 1];
+                if (
+                    previous !== undefined &&
+                    isLeafRange(previous.leafRange) &&
+                    isLeafRange(child.leafRange) &&
+                    isSourceSpan(previous.span) &&
+                    isSourceSpan(child.span) &&
+                    (child.leafRange.start < previous.leafRange.end ||
+                        child.span.start < previous.span.end)
+                ) {
+                    if (rangesOverlap(previous.leafRange, child.leafRange)) {
+                        fail(
+                            failures,
+                            "INV_SIBLING_OVERLAP",
+                            `Sibling overlap between ${String(previous.id)} and ${String(child.id)}`,
+                            isFiniteNonNegInt(child.id) ? child.id : undefined
+                        );
+                    } else {
+                        fail(
+                            failures,
+                            "INV_CHILDREN_ORDER",
+                            `Children out of source order under ${String(frame.raw.id)}`,
+                            isFiniteNonNegInt(child.id) ? child.id : undefined
+                        );
+                    }
+                }
+                frame.childObjects.push(child);
+                visitStack.push({ stage: "enter", raw: child, parent: frame.raw });
+                continue;
+            }
+
+            const raw = frame.raw;
             if (!isObject(raw)) {
                 fail(failures, "INV_MALFORMED_NODE", "child is not an object");
-                return;
+                continue;
             }
             if (seenObjects.has(raw)) {
                 fail(
@@ -1101,7 +1192,7 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                     `Shared child or cycle detected at node id ${String(raw.id)}`,
                     isFiniteNonNegInt(raw.id) ? raw.id : undefined
                 );
-                return;
+                continue;
             }
             seenObjects.add(raw);
             validateNodeShape(raw, leaves, failures);
@@ -1114,7 +1205,6 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 seenIds.add(raw.id);
             }
 
-            // Span / leafRange consistency
             if (isLeafRange(raw.leafRange) && isSourceSpan(raw.span)) {
                 if (
                     raw.leafRange.end > leaves.length ||
@@ -1144,81 +1234,34 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 }
             }
 
-            // Parent containment
+            const parent = frame.parent;
             if (
                 parent &&
                 isSourceSpan(parent.span) &&
                 isSourceSpan(raw.span) &&
                 isLeafRange(parent.leafRange) &&
-                isLeafRange(raw.leafRange)
-            ) {
-                if (
-                    raw.span.start < parent.span.start ||
+                isLeafRange(raw.leafRange) &&
+                (raw.span.start < parent.span.start ||
                     raw.span.end > parent.span.end ||
                     raw.leafRange.start < parent.leafRange.start ||
-                    raw.leafRange.end > parent.leafRange.end
-                ) {
-                    fail(
-                        failures,
-                        "INV_PARENT_CONTAINMENT",
-                        `Child ${String(raw.id)} not contained by parent ${String(parent.id)}`,
-                        isFiniteNonNegInt(raw.id) ? raw.id : undefined
-                    );
-                }
+                    raw.leafRange.end > parent.leafRange.end)
+            ) {
+                fail(
+                    failures,
+                    "INV_PARENT_CONTAINMENT",
+                    `Child ${String(raw.id)} not contained by parent ${String(parent.id)}`,
+                    isFiniteNonNegInt(raw.id) ? raw.id : undefined
+                );
             }
 
-            const childrenRaw = getChildrenRaw(raw);
-            const childObjects: Record<string, unknown>[] = [];
-            for (let i = 0; i < childrenRaw.length; i++) {
-                const child = childrenRaw[i];
-                if (!isObject(child)) {
-                    fail(
-                        failures,
-                        "INV_MALFORMED_NODE",
-                        `Malformed child at index ${i} of node ${String(raw.id)}`,
-                        isFiniteNonNegInt(raw.id) ? raw.id : undefined
-                    );
-                    continue;
-                }
-                childObjects.push(child);
-                if (i > 0) {
-                    const prev = childObjects[i - 1]!;
-                    if (
-                        isLeafRange(prev.leafRange) &&
-                        isLeafRange(child.leafRange) &&
-                        isSourceSpan(prev.span) &&
-                        isSourceSpan(child.span)
-                    ) {
-                        if (
-                            child.leafRange.start < prev.leafRange.end ||
-                            child.span.start < prev.span.end
-                        ) {
-                            if (rangesOverlap(prev.leafRange, child.leafRange)) {
-                                fail(
-                                    failures,
-                                    "INV_SIBLING_OVERLAP",
-                                    `Sibling overlap between ${String(prev.id)} and ${String(child.id)}`,
-                                    isFiniteNonNegInt(child.id) ? child.id : undefined
-                                );
-                            } else {
-                                fail(
-                                    failures,
-                                    "INV_CHILDREN_ORDER",
-                                    `Children out of source order under ${String(raw.id)}`,
-                                    isFiniteNonNegInt(child.id) ? child.id : undefined
-                                );
-                            }
-                        }
-                    }
-                }
-                visit(child, raw);
-            }
-
-            // Relationship contracts (after children visited so shapes known)
-            enforceRelationships(raw, childObjects, leaves, failures);
+            visitStack.push({
+                stage: "children",
+                raw,
+                childrenRaw: getChildrenRaw(raw),
+                childObjects: [],
+                index: 0,
+            });
         }
-
-        visit(root, null);
 
         // Root coverage
         if (isLeafRange(root.leafRange) && isSourceSpan(root.span)) {
@@ -1297,6 +1340,27 @@ function validateProgramStatementCoverage(
     leaves: readonly SourceLeaf[],
     failures: InvariantFailure[]
 ): void {
+    if (
+        leaves.length > 0 &&
+        children.length === 1 &&
+        isObject(children[0]) &&
+        children[0].kind === "statement" &&
+        children[0].statementKind === "opaque" &&
+        isLeafRange(children[0].leafRange) &&
+        children[0].leafRange.start === 0 &&
+        children[0].leafRange.end === leaves.length &&
+        isDenseArray(children[0].children) &&
+        children[0].children.length === 1 &&
+        isObject(children[0].children[0]) &&
+        children[0].children[0].kind === "opaque" &&
+        children[0].children[0].boundary === "target" &&
+        isLeafRange(children[0].children[0].leafRange) &&
+        children[0].children[0].leafRange.start === 0 &&
+        children[0].children[0].leafRange.end === leaves.length
+    ) {
+        return;
+    }
+
     const statements: Record<string, unknown>[] = [];
     for (let i = 0; i < children.length; i++) {
         const child = children[i];

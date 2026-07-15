@@ -9,13 +9,18 @@ import type {
 import {
     ParserSyntaxError,
     baseDepth,
-    createOpaqueWithDiagnostic,
     isAliasNameLeaf,
     isCodeWord,
     syntaxIndexesInRange,
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext } from "./parser-context";
+import { assertParserDepth, descendParserDepth } from "./parser-depth";
+import {
+    createOpaqueWithDiagnostic,
+    createParserCheckpoint,
+    recoverOpaqueFromError,
+} from "./recovery";
 
 export type WindowValueParser = (
     context: ParserContext,
@@ -52,6 +57,7 @@ class WindowParser {
         nestingDepth: number,
         parseValue: WindowValueParser
     ) {
+        assertParserDepth(range, nestingDepth);
         this.context = context;
         this.indexes = syntaxIndexesInRange(context, range);
         this.nestingDepth = nestingDepth;
@@ -83,6 +89,25 @@ class WindowParser {
             nodeRange,
             nameLeafRange
         );
+    }
+
+    private parseNestedValue(range: LeafRange): ExpressionNode | OpaqueNode {
+        const checkpoint = createParserCheckpoint(this.context);
+        try {
+            return this.parseValue(
+                this.context,
+                range,
+                descendParserDepth(range, this.nestingDepth)
+            );
+        } catch (error) {
+            return recoverOpaqueFromError(
+                this.context,
+                checkpoint,
+                range,
+                error,
+                "expression"
+            );
+        }
     }
 
     private raw(position: number): string | null {
@@ -211,8 +236,7 @@ class WindowParser {
                 rangeFromIndexes(this.indexes, partitionStart, partitionEnd),
                 "window-partition",
                 { allowAlias: false, reasonMessage: "Window partition is not modeled" },
-                (context, range) =>
-                    this.parseValue(context, range, this.nestingDepth + 1)
+                (_context, range) => this.parseNestedValue(range)
             );
         }
         if (orderPosition >= 0) {
@@ -237,8 +261,7 @@ class WindowParser {
                     modifierWords: ["asc", "desc"],
                     reasonMessage: "Window order is not modeled",
                 },
-                (context, range) =>
-                    this.parseValue(context, range, this.nestingDepth + 1)
+                (_context, range) => this.parseNestedValue(range)
             );
         }
         if (framePosition >= 0) {
@@ -320,11 +343,8 @@ class WindowParser {
         }
         if (end - start >= 2 && FRAME_BOUND_SUFFIXES.includes(words[words.length - 1]!)) {
             const suffix = this.indexes[end - 1]!;
-            const value = this.parseValue(
-                this.context,
-                rangeFromIndexes(this.indexes, start, end - 1),
-                this.nestingDepth + 1
-            );
+            const valueRange = rangeFromIndexes(this.indexes, start, end - 1);
+            const value = this.parseNestedValue(valueRange);
             return this.context.factory.createExpression(
                 rangeFromIndexes(this.indexes, start, end),
                 "frame-bound",
@@ -402,29 +422,23 @@ export function parseWindowDeclaration(
         );
     }
 
-    const factoryCheckpoint = context.factory.checkpoint();
-    const diagnosticCheckpoint = context.diagnostics.length;
+    const checkpoint = createParserCheckpoint(context);
     try {
         return parseWindowSpecRange(
             context,
             { start: indexes[2]!, end: close + 1 },
-            nestingDepth + 1,
+            nestingDepth,
             parseValue,
             range,
             { start: indexes[0]!, end: indexes[0]! + 1 }
         );
     } catch (error) {
-        if (!(error instanceof ParserSyntaxError)) {
-            throw error;
-        }
-        context.factory.rollback(factoryCheckpoint);
-        context.diagnostics.splice(diagnosticCheckpoint);
-        return createOpaqueWithDiagnostic(
+        return recoverOpaqueFromError(
             context,
+            checkpoint,
             range,
-            error.code,
+            error,
             "window",
-            error.message
         );
     }
 }
