@@ -26,8 +26,9 @@ function flatten(rootNode) {
 }
 
 function parse(source, mode, dialect) {
+    var dialectId = dialect || 'hive';
     var result = parser.parseSql(source, {
-        dialect: dialect || 'hive',
+        dialect: dialectId,
         mode: mode || 'document'
     });
     assert.strictEqual(result.leaves.map(function(leaf) {
@@ -37,6 +38,7 @@ function parse(source, mode, dialect) {
         root: result.root,
         leaves: result.leaves,
         source: source,
+        dialect: dialectId,
         tokenTable: tokenTable.buildStructuralTokenTable(result.leaves, source)
     });
     assert.strictEqual(

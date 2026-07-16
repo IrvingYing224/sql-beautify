@@ -1,6 +1,7 @@
 import type { Dialect } from "../config/options";
 import { getLexicalProfile } from "../lexer/lexical-profile";
 import { EMPTY_FROZEN_ARRAY, freezeImmutableArray } from "../util/immutable-array";
+import { isRecognizedCapabilityState } from "./capability-state";
 import type {
     CapabilityEntry,
     CapabilityState,
@@ -8,6 +9,7 @@ import type {
     DialectCapabilityView,
     JoinSyntax,
     OperatorFixity,
+    OperatorFormatClass,
     OperatorForm,
     OperatorSemantics,
     QueryClauseSyntax,
@@ -247,7 +249,7 @@ const HIVE_EXPRESSION_STRUCTURED: readonly string[] = freezeImmutableArray([
 ]);
 
 const SHARED_QUERY_CLAUSES: readonly QueryClauseSyntax[] = freezeImmutableArray([
-    Object.freeze({ id: "select", words: freezeImmutableArray(["select"]), order: 0, capabilityId: "select-without-from" }),
+    Object.freeze({ id: "select", words: freezeImmutableArray(["select"]), order: 0, capabilityId: null }),
     Object.freeze({ id: "from", words: freezeImmutableArray(["from"]), order: 10, capabilityId: "from" }),
     Object.freeze({ id: "where", words: freezeImmutableArray(["where"]), order: 20, capabilityId: "where" }),
     Object.freeze({ id: "group-by", words: freezeImmutableArray(["group", "by"]), order: 30, capabilityId: "group-by" }),
@@ -404,9 +406,6 @@ function freezeEntry(id: string, state: CapabilityState, notes?: string): Capabi
     if (!CAPABILITY_STATES.has(state)) {
         throw new Error(`Invalid capability state for ${id}: ${state}`);
     }
-    if (state === "formatted") {
-        throw new Error(`Wave 2 must not declare formatted capability: ${id}`);
-    }
     return notes
         ? Object.freeze({ id, state, notes })
         : Object.freeze({ id, state });
@@ -473,10 +472,59 @@ function buildOperatorList(dialect: Dialect): readonly OperatorSemantics[] {
             continue;
         }
         identities.add(identity);
-        entries.push(Object.freeze({ ...item, words: freezeImmutableArray(item.words) }));
+        const capabilityId = operatorCapabilityId(dialect, item.key);
+        const formatClass = operatorFormatClass(item);
+        entries.push(Object.freeze({
+            ...item,
+            id: `${item.fixity}:${item.key}`,
+            words: freezeImmutableArray(item.words),
+            capabilityId,
+            formatClass,
+        }));
     }
 
     return freezeImmutableArray(entries);
+}
+
+function operatorCapabilityId(dialect: Dialect, key: string): string | null {
+    if (dialect === "postgresql") {
+        if (key === "::") {
+            return "postgres-type-cast";
+        }
+        if (
+            key === "->" ||
+            key === "->>" ||
+            key === "#>" ||
+            key === "#>>" ||
+            key === "@>" ||
+            key === "<@" ||
+            key === "?" ||
+            key === "?|" ||
+            key === "?&" ||
+            key === "@?" ||
+            key === "@@"
+        ) {
+            return "postgres-json-operators";
+        }
+    }
+    if (dialect === "mysql" && (key === "->" || key === "->>")) {
+        return "mysql-json-operators";
+    }
+    return null;
+}
+
+function operatorFormatClass(item: OperatorDefinition): OperatorFormatClass {
+    if (item.key === "::") {
+        return "attached";
+    }
+    const word = item.form !== "symbol";
+    if (item.fixity === "prefix") {
+        return word ? "prefix-word" : "prefix-symbol";
+    }
+    if (item.fixity === "postfix") {
+        return word ? "postfix-word" : "postfix-symbol";
+    }
+    return word ? "infix-word" : "infix-symbol";
 }
 
 function validateSyntaxLists(
@@ -490,7 +538,10 @@ function validateSyntaxLists(
     const clauseIds = new Set<string>();
     let previousOrder = Number.NEGATIVE_INFINITY;
     for (const clause of queryClauses) {
-        const capability = capabilityById.get(clause.capabilityId);
+        const capability =
+            clause.capabilityId === null
+                ? null
+                : capabilityById.get(clause.capabilityId);
         if (
             clauseIds.has(clause.id) ||
             !Number.isInteger(clause.order) ||
@@ -501,8 +552,12 @@ function validateSyntaxLists(
                     word === word.toLowerCase() &&
                     /^[a-z_]+$/.test(word)
             ) ||
-            !capability ||
-            (capability.state !== "recognized" && capability.state !== "structured")
+            (clause.id === "select"
+                ? clause.capabilityId !== null
+                : clause.capabilityId === null ||
+                  capability === null ||
+                  capability === undefined ||
+                  !isRecognizedCapabilityState(capability.state))
         ) {
             throw new Error(`Invalid query clause syntax for ${dialect}: ${clause.id}`);
         }
@@ -523,7 +578,7 @@ function validateSyntaxLists(
             operator.word !== operator.word.toLowerCase() ||
             !/^[a-z_]+$/.test(operator.word) ||
             !capability ||
-            (capability.state !== "recognized" && capability.state !== "structured")
+            !isRecognizedCapabilityState(capability.state)
         ) {
             throw new Error(`Invalid set operator syntax for ${dialect}: ${operator.id}`);
         }
@@ -545,7 +600,7 @@ function validateSyntaxLists(
                 (word) => word === word.toLowerCase() && /^[a-z_]+$/.test(word)
             ) ||
             !capability ||
-            (capability.state !== "recognized" && capability.state !== "structured")
+            !isRecognizedCapabilityState(capability.state)
         ) {
             throw new Error(`Invalid JOIN syntax for ${dialect}: ${join.id}`);
         }
@@ -611,6 +666,7 @@ function createDialectView(
     const operatorsByKeyFixity = new Map<string, OperatorSemantics>();
     const operatorsByKey = new Map<string, OperatorSemantics[]>();
     const recognitionSignatures = new Set<string>();
+    const operatorIds = new Set<string>();
 
     for (const op of operators) {
         const mapKey = `${op.key}\0${op.fixity}`;
@@ -619,6 +675,9 @@ function createDialectView(
                 ? `${op.fixity}\0symbol\0${op.key}`
                 : `${op.fixity}\0words\0${op.words.join("\0")}`;
         if (
+            typeof op.id !== "string" ||
+            op.id.length === 0 ||
+            operatorIds.has(op.id) ||
             operatorsByKeyFixity.has(mapKey) ||
             recognitionSignatures.has(recognitionSignature) ||
             !Number.isInteger(op.precedence) ||
@@ -626,12 +685,25 @@ function createDialectView(
             (op.associativity !== "left" &&
                 op.associativity !== "right" &&
                 op.associativity !== "none") ||
-            (op.form === "symbol" ? op.words.length !== 0 : op.words.length === 0)
+            (op.form === "symbol" ? op.words.length !== 0 : op.words.length === 0) ||
+            (op.capabilityId !== null &&
+                (capabilityById.get(op.capabilityId) === undefined ||
+                    !isRecognizedCapabilityState(
+                        capabilityById.get(op.capabilityId)!.state
+                    ))) ||
+            (op.formatClass !== "prefix-word" &&
+                op.formatClass !== "prefix-symbol" &&
+                op.formatClass !== "infix-word" &&
+                op.formatClass !== "infix-symbol" &&
+                op.formatClass !== "postfix-word" &&
+                op.formatClass !== "postfix-symbol" &&
+                op.formatClass !== "attached")
         ) {
             throw new Error(
                 `Invalid or conflicting operator semantics for ${dialect}: ${op.key} / ${op.fixity}`
             );
         }
+        operatorIds.add(op.id);
         recognitionSignatures.add(recognitionSignature);
         operatorsByKeyFixity.set(mapKey, op);
         const list = operatorsByKey.get(op.key) ?? [];

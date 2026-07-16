@@ -14,9 +14,12 @@ export type {
     CaseBranchNode,
     ClauseKind,
     ClauseNode,
+    ClauseNodeFacts,
     CteNode,
     ExpressionKind,
     ExpressionNode,
+    ExpressionNodeFacts,
+    FormatRole,
     LeafRange,
     ListItemNode,
     ListItemRole,
@@ -24,17 +27,24 @@ export type {
     ListRole,
     OpaqueBoundary,
     OpaqueNode,
+    OperatorOccurrence,
+    OperatorOccurrenceInput,
     ProgramNode,
     QueryKind,
     QueryNode,
     RelationKind,
     RelationNode,
+    RelationNodeFacts,
     StatementKind,
     StatementNode,
     StructuredNode,
     StructuredSyntaxKind,
     SyntaxNode,
     SyntaxNodeBase,
+    SyntaxNodeFacts,
+    SyntaxLeafRole,
+    SyntaxMarker,
+    SyntaxMarkerId,
     TypeExpressionNode,
     WindowSpecNode,
 } from "./syntax/node";
@@ -45,7 +55,49 @@ export type {
     ParseOutput,
     ParserBackend,
 } from "./syntax/parser-backend";
-export type { LayoutDoc } from "./layout/doc";
+export type {
+    AlignDoc,
+    AutoGroupDoc,
+    ConcatDoc,
+    ForcedGroupDoc,
+    HardLineDoc,
+    IndentDoc,
+    LayoutDoc,
+    LeafDoc,
+    LeafTransform,
+    LineSuffixDoc,
+    LineSuffixSpacing,
+    PadToColumnDoc,
+    PositiveColumns,
+    PositiveLevels,
+    SoftLineDoc,
+    SpaceDoc,
+    VerbatimDoc,
+    VerbatimTrigger,
+} from "./layout/doc";
+export type {
+    LayoutDocFactory,
+    LineSuffixSpacingInput,
+} from "./layout/doc-factory";
+export type {
+    CreateLayoutArtifactResult,
+    LayoutArtifact,
+    LayoutArtifactFailure,
+    LayoutArtifactFailureCode,
+    LayoutArtifactSuccess,
+} from "./layout/artifact";
+export type {
+    LayoutInvariantFailure,
+    LayoutInvariantFailureCode,
+    LayoutInvariantFailureResult,
+    LayoutInvariantResult,
+    LayoutInvariantSuccess,
+} from "./layout/invariants";
+export type { LayoutResourceBudget } from "./layout/resource-budget";
+export type {
+    DominatingVerbatimClaim,
+    DominatingVerbatimClaims,
+} from "./layout/verbatim-claims";
 export type {
     CanonicalFormatOptions,
     CaseLayout,
@@ -56,17 +108,31 @@ export type {
     KeywordCase,
     UnsupportedSyntaxPolicy,
 } from "./config/options";
+export type {
+    FormatConfigFailure,
+    FormatConfigFailureCode,
+    ResolveFormatOptionsResult,
+    ResolvedFormatOptions,
+} from "./config/resolve-options";
 export type { FormatResult, FormatStatus, SourceMap, SourceMapEntry } from "./api/format-result";
 export type {
+    AnalysisArtifact,
+    AnalysisArtifactBase,
     AnalysisOutput,
     AnalysisStatus,
+    AnalyzedArtifact,
+    CapabilityOccurrence,
     CommentBinding,
+    ContextualLeafFacts,
+    FailedAnalysisArtifact,
     FailedAnalysisOutput,
     IndexedAnalysisOutput,
     OffsetLeafLocation,
+    PreservedAnalysisArtifact,
     SeparatorOwnership,
     SourcePosition,
     StructuralIndex,
     StructuralIndexSnapshot,
+    SyntaxLeafOccurrence,
     TriviaPlacement,
 } from "./analysis/types";

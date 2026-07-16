@@ -10,10 +10,14 @@ import type {
 import {
     ParserSyntaxError,
     isAliasNameLeaf,
+    mergeSyntaxMarkers,
+    nodeFacts,
     syntaxIndexesInRange,
+    syntaxMarkers,
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext } from "./parser-context";
+import { isBuiltinTypeName } from "./contextual-fact-contract";
 import { assertParserDepth, descendParserDepth } from "./parser-depth";
 
 type VirtualTypeToken = Readonly<{
@@ -25,6 +29,46 @@ type ParsedType = Readonly<{
     node: TypeExpressionNode;
     next: number;
 }>;
+
+function typeFacts(
+    context: ParserContext,
+    nameRange: LeafRange,
+    delimiterLeafIds: readonly number[] = [],
+    directChildren: readonly (ListNode | TypeExpressionNode)[] = []
+) {
+    const word = context.leaves[nameRange.start]!.channel === "code"
+        ? context.table.normalizedWord(nameRange.start)
+        : "";
+    const builtin = isBuiltinTypeName(word);
+    const nameLeaf = context.leaves[nameRange.start]!;
+    return nodeFacts(
+        null,
+        "intrinsic-primitive",
+        mergeSyntaxMarkers(
+            nameLeaf.channel === "code"
+                ? syntaxMarkers(
+                      [nameRange.start],
+                      "type:name",
+                      builtin ? "builtin-type-keyword" : "user-type-name",
+                      builtin
+                  )
+                : [],
+            syntaxMarkers(
+                delimiterLeafIds.filter(
+                    (leafId) =>
+                        !directChildren.some(
+                            (child) =>
+                                leafId >= child.leafRange.start &&
+                                leafId < child.leafRange.end
+                        )
+                ),
+                "delimiter",
+                "delimiter",
+                false
+            )
+        )
+    );
+}
 
 export type ParsedTypePrefix = Readonly<{
     node: TypeExpressionNode;
@@ -105,7 +149,11 @@ function createScalarArgument(
         trimmed,
         leaf.kind === "number" ? "literal" : "identifier",
         [],
-        []
+        [],
+        {
+            ...nodeFacts(null, "intrinsic-primitive"),
+            operatorOccurrences: [],
+        }
     );
 }
 
@@ -123,7 +171,13 @@ function createList(
             `${role} requires at least one item`
         );
     }
-    return context.factory.createList(range, role, separators, items);
+    return context.factory.createList(
+        range,
+        role,
+        separators,
+        items,
+        nodeFacts(null, "intrinsic-container")
+    );
 }
 
 class TypeParser {
@@ -212,7 +266,8 @@ class TypeParser {
                 nameRange,
                 nameRange,
                 null,
-                null
+                null,
+                typeFacts(this.context, nameRange)
             ),
             next: start + 1,
         });
@@ -279,7 +334,18 @@ class TypeParser {
         const list = createList(this.context, "type-args", listRange, separators, items);
         const range = rangeFromTokens(this.tokens, start, closePosition + 1);
         return Object.freeze({
-            node: this.context.factory.createTypeExpression(range, nameRange, list, null),
+            node: this.context.factory.createTypeExpression(
+                range,
+                nameRange,
+                list,
+                null,
+                typeFacts(
+                    this.context,
+                    nameRange,
+                    [openLeafIndex, closeLeafIndex],
+                    [list]
+                )
+            ),
             next: closePosition + 1,
         });
     }
@@ -303,6 +369,7 @@ class TypeParser {
         while (position < this.tokens.length && this.tokens[position]!.raw !== ">") {
             const itemStart = position;
             let alias: AliasInfo | null = null;
+            let memberColonLeafId: number | null = null;
             if (members) {
                 const memberName = this.tokens[position];
                 const memberLeaf = memberName === undefined
@@ -329,6 +396,7 @@ class TypeParser {
                         end: memberName.leafIndex + 1,
                     }),
                 });
+                memberColonLeafId = colon.leafIndex;
                 position += 2;
             }
 
@@ -351,7 +419,19 @@ class TypeParser {
                     members ? "type-member" : "type-arg",
                     alias,
                     [],
-                    parsed.node
+                    parsed.node,
+                    nodeFacts(
+                        null,
+                        "intrinsic-container",
+                        memberColonLeafId === null
+                            ? []
+                            : syntaxMarkers(
+                                  [memberColonLeafId],
+                                  "type:member-colon",
+                                  "punctuation",
+                                  false
+                              )
+                    )
                 )
             );
             if (this.tokens[position]?.raw === ",") {
@@ -405,7 +485,16 @@ class TypeParser {
                 range,
                 nameRange,
                 members ? null : list,
-                members ? list : null
+                members ? list : null,
+                typeFacts(
+                    this.context,
+                    nameRange,
+                    [
+                        this.tokens[start + 1]!.leafIndex,
+                        this.tokens[position]!.leafIndex,
+                    ],
+                    [list]
+                )
             ),
             next: position + 1,
         });

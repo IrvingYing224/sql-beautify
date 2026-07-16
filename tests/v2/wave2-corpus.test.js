@@ -26,8 +26,14 @@ function flatten(rootNode) {
 }
 
 function validateResult(label, source, dialect, result) {
-    assert.strictEqual(result.status, 'analyzed',
-        label + ' must build a trusted analysis index without fallback');
+    var preservesTarget = result.diagnostics.some(function(diagnostic) {
+        return diagnostic.recovery === 'preserve-target';
+    });
+    assert.strictEqual(
+        result.status,
+        preservesTarget ? 'preserved' : 'analyzed',
+        label + ' status must match target-level recovery while retaining a trusted index'
+    );
     assert.ok(result.index && Object.isFrozen(result.index), label + ' frozen index');
     assert.strictEqual(result.leaves.map(function(leaf) { return leaf.raw; }).join(''),
         source, label + ' source conservation');
@@ -40,6 +46,7 @@ function validateResult(label, source, dialect, result) {
         root: result.root,
         leaves: result.leaves,
         source: source,
+        dialect: dialect,
         tokenTable: table
     });
     assert.strictEqual(checked.ok, true,

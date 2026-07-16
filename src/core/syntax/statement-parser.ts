@@ -9,6 +9,9 @@ import {
     addDiagnostic,
     isCodeWord,
     isSyntaxLeaf,
+    lastSyntaxIndex,
+    nodeFacts,
+    syntaxMarkers,
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext, SyntaxDiagnosticCode } from "./parser-context";
@@ -24,6 +27,16 @@ function statementRecovery(
     context: ParserContext
 ): "preserve-statement" | "preserve-target" {
     return context.mode === "fragment" ? "preserve-target" : "preserve-statement";
+}
+
+function statementFacts(context: ParserContext, range: LeafRange) {
+    const last = lastSyntaxIndex(context.leaves, range);
+    const terminator =
+        last !== null && context.leaves[last]!.channel === "code" &&
+        context.leaves[last]!.raw === ";"
+            ? syntaxMarkers([last], "statement-terminator", "punctuation", false)
+            : [];
+    return nodeFacts(null, "intrinsic-container", terminator);
 }
 
 function representsInsertQuery(query: QueryNode): boolean {
@@ -84,7 +97,7 @@ export function createOpaqueStatement(
     capabilityId: CapabilityIdentity = null
 ): StatementNode {
     if (isEmptyStatementRange(context, range)) {
-        return context.factory.createStatement(range, "empty", null);
+        return context.factory.createStatement(range, "empty", null, statementFacts(context, range));
     }
     const opaque = createOpaqueWithDiagnostic(
         context,
@@ -95,7 +108,12 @@ export function createOpaqueStatement(
         recovery,
         capabilityId
     );
-    return context.factory.createStatement(range, "opaque", opaque);
+    return context.factory.createStatement(
+        range,
+        "opaque",
+        opaque,
+        nodeFacts(null, "intrinsic-container")
+    );
 }
 
 export function parseStatementRange(
@@ -103,7 +121,7 @@ export function parseStatementRange(
     range: LeafRange
 ): StatementNode {
     if (isEmptyStatementRange(context, range)) {
-        return context.factory.createStatement(range, "empty", null);
+        return context.factory.createStatement(range, "empty", null, statementFacts(context, range));
     }
     const bodyRange = queryBodyRange(context, range);
     if (bodyRange === null) {
@@ -165,7 +183,8 @@ export function parseStatementRange(
         return context.factory.createStatement(
             range,
             startsInsert || representsInsertQuery(query) ? "insert-query" : "query",
-            query
+            query,
+            statementFacts(context, range)
         );
     } catch (error) {
         rollbackParserCheckpoint(context, checkpoint);

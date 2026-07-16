@@ -10,6 +10,7 @@ import { createOpaqueWithDiagnostic } from "./recovery";
 import {
     addDiagnostic,
     finalizeDiagnostics,
+    nodeFacts,
 } from "./parser-context";
 import type {
     ParserContext,
@@ -77,7 +78,7 @@ function createContext(
         mode: mode ?? "document",
         leaves: lexed.leaves,
         table,
-        factory: createParserNodeFactory(table),
+        factory: createParserNodeFactory(table, dialect),
         diagnostics,
     });
 }
@@ -89,7 +90,11 @@ function buildProgram(context: ParserContext): ProgramNode {
     }
     return context.factory.createProgram(
         { start: 0, end: context.leaves.length },
-        statements
+        statements,
+        nodeFacts(
+            statements.length > 1 ? "multi-statement" : null,
+            statements.length > 1 ? "capability" : "intrinsic-container"
+        )
     );
 }
 
@@ -115,7 +120,11 @@ function buildTargetPreservingProgram(
     const fullRange = Object.freeze({ start: 0, end: context.leaves.length });
     if (context.leaves.length === 0) {
         addDiagnostic(context, code, fullRange, message, "preserve-target");
-        return context.factory.createProgram(fullRange, []);
+        return context.factory.createProgram(
+            fullRange,
+            [],
+            nodeFacts(null, "intrinsic-container")
+        );
     }
     const opaque = createOpaqueWithDiagnostic(
         context,
@@ -128,9 +137,14 @@ function buildTargetPreservingProgram(
     const statement = context.factory.createStatement(
         fullRange,
         "opaque",
-        opaque
+        opaque,
+        nodeFacts(null, "intrinsic-container")
     );
-    return context.factory.createProgram(fullRange, [statement]);
+    return context.factory.createProgram(
+        fullRange,
+        [statement],
+        nodeFacts(null, "intrinsic-container")
+    );
 }
 
 function outputOf(context: ParserContext, root: ProgramNode): ParseOutput {
@@ -285,6 +299,7 @@ export function parseSqlArtifact(
             root,
             leaves: lexed.leaves,
             source,
+            dialect,
             tokenTable: table,
         });
         if (!invariant.ok) {

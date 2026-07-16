@@ -1,4 +1,5 @@
 import { getDialect } from "../dialects/registry";
+import { isParserStructuredCapabilityState } from "../dialects/capability-state";
 import type {
     OperatorSemantics,
     QueryClauseSyntax,
@@ -29,12 +30,17 @@ import {
     isDottedNamePart,
     isQueryLeadingRange,
     lastSyntaxOrdinalInRange,
+    mergeSyntaxMarkers,
+    nodeFacts,
     nextSyntaxIndex,
     previousSyntaxIndex,
+    syntaxIndexesInRange,
+    syntaxMarkers,
     topLevelSyntaxIndexes,
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext } from "./parser-context";
+import { hasAsciiKeywordCaseShape } from "./contextual-fact-contract";
 import { assertParserDepth, descendParserDepth } from "./parser-depth";
 import {
     createParserCheckpoint,
@@ -62,6 +68,48 @@ type SetMarker = {
 };
 
 const MAX_UNSUPPORTED_CLAUSE_PROOFS = 16;
+
+function queryClauseFacts(
+    context: ParserContext,
+    clauseKind: ClauseKind,
+    headRange: LeafRange,
+    capabilityId: string | null,
+    separatorLeafIds: readonly number[] = []
+) {
+    const headLeafIds = syntaxIndexesInRange(context, headRange);
+    const keywordLeafIds: number[] = [];
+    const delimiterLeafIds: number[] = [];
+    for (const leafId of headLeafIds) {
+        const leaf = context.leaves[leafId]!;
+        if (
+            leaf.channel === "code" &&
+            hasAsciiKeywordCaseShape(leaf.raw)
+        ) {
+            keywordLeafIds.push(leafId);
+        } else if (context.table.matchingDelimiterIndex(leafId) !== null) {
+            delimiterLeafIds.push(leafId);
+        }
+    }
+    const facts = nodeFacts(
+        capabilityId,
+        capabilityId === null ? "intrinsic-container" : "capability",
+        mergeSyntaxMarkers(
+            syntaxMarkers(keywordLeafIds, `clause:${clauseKind}`),
+            syntaxMarkers(
+                delimiterLeafIds,
+                "delimiter",
+                "delimiter",
+                false
+            )
+        )
+    );
+    return {
+        syntaxMarkers: facts.syntaxMarkers,
+        capabilityId: facts.capabilityId,
+        formatRole: facts.formatRole,
+        separatorLeafIds,
+    };
+}
 
 type StructuredQuerySyntaxView = Readonly<{
     syntaxes: readonly QueryClauseSyntax[];
@@ -110,7 +158,10 @@ function structuredQuerySyntaxes(context: ParserContext): StructuredQuerySyntaxV
     const syntaxes = Object.freeze(
         dialect.listQueryClauseSyntax().filter(
             (syntax) =>
-                dialect.getCapability(syntax.capabilityId)?.state === "structured"
+                syntax.capabilityId === null ||
+                isParserStructuredCapabilityState(
+                    dialect.getCapability(syntax.capabilityId)?.state
+                )
         )
     );
     let select: QueryClauseSyntax | null = null;
@@ -158,7 +209,8 @@ function structuredSetSyntaxes(context: ParserContext): StructuredSetSyntaxView 
     const syntaxes = dialect.listSetOperatorSyntax();
     for (let index = 0; index < syntaxes.length; index++) {
         const syntax = syntaxes[index]!;
-        if (dialect.getCapability(syntax.capabilityId)?.state === "structured") {
+        const state = dialect.getCapability(syntax.capabilityId)?.state;
+        if (isParserStructuredCapabilityState(state)) {
             byWord[syntax.word] = syntax;
             count += 1;
         }
@@ -429,7 +481,21 @@ function parseSetQuery(
                 "set-operation",
                 { start: marker.start, end: marker.headEnd },
                 { start: marker.headEnd, end: marker.headEnd },
-                []
+                [],
+                {
+                    ...nodeFacts(
+                        marker.syntax.capabilityId,
+                        "capability",
+                        syntaxMarkers(
+                            syntaxIndexesInRange(context, {
+                                start: marker.start,
+                                end: marker.headEnd,
+                            }),
+                            "set-operator"
+                        )
+                    ),
+                    separatorLeafIds: [],
+                }
             )
         );
         operatorLeafIds.push(marker.start);
@@ -477,7 +543,13 @@ function parseSetQuery(
             )
         );
     }
-    return context.factory.createQuery(range, "set", operatorLeafIds, children);
+    return context.factory.createQuery(
+        range,
+        "set",
+        operatorLeafIds,
+        children,
+        nodeFacts("set-operations", "capability")
+    );
 }
 
 function parseCteColumnList(
@@ -528,6 +600,7 @@ function parseWithQuery(
         );
     }
     const ctes: CteNode[] = [];
+    const cteSeparators: number[] = [];
     let lastCteEnd = current;
     let mainStart: number | null = null;
 
@@ -596,12 +669,18 @@ function parseWithQuery(
                 { start: nameIndex, end: closeQuery + 1 },
                 { start: nameIndex, end: nameIndex + 1 },
                 columnList,
-                query
+                query,
+                nodeFacts(
+                    null,
+                    "intrinsic-container",
+                    syntaxMarkers([afterName], "cte-as")
+                )
             )
         );
         lastCteEnd = closeQuery + 1;
         const afterCte = nextSyntaxIndex(context, closeQuery, range.end);
         if (afterCte !== null && context.leaves[afterCte]!.raw === ",") {
+            cteSeparators.push(afterCte);
             current = nextSyntaxIndex(context, afterCte, range.end);
             if (current === null) {
                 throw new ParserSyntaxError(
@@ -664,9 +743,24 @@ function parseWithQuery(
         "with",
         { start: withIndex, end: withIndex + 1 },
         { start: withIndex + 1, end: lastCteEnd },
-        ctes
+        ctes,
+        {
+            ...queryClauseFacts(
+                context,
+                "with",
+                { start: withIndex, end: withIndex + 1 },
+                null
+            ),
+            separatorLeafIds: cteSeparators,
+        }
     );
-    return context.factory.createQuery(range, main.queryKind, [], [withClause, main]);
+    return context.factory.createQuery(
+        range,
+        main.queryKind,
+        [],
+        [withClause, main],
+        nodeFacts("with-cte", "capability")
+    );
 }
 
 function markerHeadEndAfterFirst(
@@ -978,6 +1072,7 @@ function buildSelectClause(
     }
     const checkpoint = createParserCheckpoint(context);
     let children: readonly SyntaxNode[];
+    let separatorLeafIds: readonly number[] = [];
     try {
         const listFacts = listFactsForClause(clauseKind);
         if (listFacts !== null) {
@@ -1015,7 +1110,14 @@ function buildSelectClause(
                 ),
             ];
         } else if (clauseKind === "from") {
-            children = parseFromClauseChildren(context, body, nestingDepth, parseQueryRange);
+            const parsedFrom = parseFromClauseChildren(
+                context,
+                body,
+                nestingDepth,
+                parseQueryRange
+            );
+            children = parsedFrom.children;
+            separatorLeafIds = parsedFrom.separatorLeafIds;
         } else {
             children = [
                 parseExpressionRange(
@@ -1043,7 +1145,14 @@ function buildSelectClause(
         clauseKind,
         { start: marker.start, end: marker.headEnd },
         bodyRange,
-        children
+        children,
+        queryClauseFacts(
+            context,
+            clauseKind,
+            { start: marker.start, end: marker.headEnd },
+            marker.syntax.capabilityId,
+            separatorLeafIds
+        )
     );
 }
 
@@ -1403,7 +1512,14 @@ function parseSelectQuery(
         const clauseEnd = clauseEndBeforeNextMarker(context, marker, next, range.end);
         clauses.push(buildSelectClause(context, marker, clauseEnd, nestingDepth));
     }
-    return context.factory.createQuery(range, "select", [], clauses);
+    const hasFrom = clauses.some((clause) => clause.clauseKind === "from");
+    return context.factory.createQuery(
+        range,
+        "select",
+        [],
+        clauses,
+        nodeFacts(hasFrom ? "from" : "select-without-from", "capability")
+    );
 }
 
 function parseParenthesizedQuery(
@@ -1432,7 +1548,22 @@ function parseParenthesizedQuery(
         inner,
         descendParserDepth(inner, nestingDepth)
     );
-    return context.factory.createQuery(range, "parenthesized", [], [child]);
+    return context.factory.createQuery(
+        range,
+        "parenthesized",
+        [],
+        [child],
+        nodeFacts(
+            "subquery",
+            "capability",
+            syntaxMarkers(
+                [range.start, close],
+                "delimiter",
+                "delimiter",
+                false
+            )
+        )
+    );
 }
 
 function parseQueryAtom(
@@ -1508,9 +1639,11 @@ export function parseInsertQueryRange(
         );
     }
     if (
-        getDialect(context.dialect).getCapability(
-            "insert-overwrite-partition-select"
-        )?.state !== "structured"
+        !isParserStructuredCapabilityState(
+            getDialect(context.dialect).getCapability(
+                "insert-overwrite-partition-select"
+            )?.state
+        )
     ) {
         throw new ParserSyntaxError(
             "SYN_UNSUPPORTED_STATEMENT",
@@ -1611,7 +1744,13 @@ export function parseInsertQueryRange(
         "insert",
         { start: range.start, end: headLast + 1 },
         { start: headLast + 1, end: targetRange.end },
-        [target]
+        [target],
+        queryClauseFacts(
+            context,
+            "insert",
+            { start: range.start, end: headLast + 1 },
+            "insert-overwrite-partition-select"
+        )
     );
     const children: SyntaxNode[] = [insertClause];
 
@@ -1670,7 +1809,13 @@ export function parseInsertQueryRange(
                 "partition",
                 { start: partitionStart, end: open + 1 },
                 { start: open + 1, end: close },
-                [list]
+                [list],
+                queryClauseFacts(
+                    context,
+                    "partition",
+                    { start: partitionStart, end: open + 1 },
+                    "insert-overwrite-partition-select"
+                )
             )
         );
     }
@@ -1684,5 +1829,11 @@ export function parseInsertQueryRange(
         );
     }
     children.push(parseQueryRange(context, selectRange, nestingDepth));
-    return context.factory.createQuery(range, "select", [], children);
+    return context.factory.createQuery(
+        range,
+        "select",
+        [],
+        children,
+        nodeFacts("insert-overwrite-partition-select", "capability")
+    );
 }

@@ -1,5 +1,6 @@
+import { isProxy } from "node:util/types";
 import type { SourceLeaf } from "../lexer/token";
-import { getDialect } from "../dialects/registry";
+import type { CstDialectInvariantContext } from "./cst-dialect-context";
 import type { InvariantFailure } from "./invariant-types";
 import { listItemRoleFor } from "./list-role-contract";
 import type { ListRole } from "./node";
@@ -10,16 +11,27 @@ import {
     isLeafRange,
 } from "./invariant-shared";
 
-const SELECT_CLAUSE_ORDER: Readonly<Record<string, number>> = Object.freeze(
-    Object.fromEntries(
-        getDialect("hive")
-            .listQueryClauseSyntax()
-            .map((clause) => [clause.id, clause.order])
-    )
-);
-const SET_OPERATOR_WORDS = new Set(
-    getDialect("hive").listSetOperatorSyntax().map((operator) => operator.word)
-);
+const EMPTY_VALUES: readonly unknown[] = Object.freeze([]);
+
+function readNodeArray(
+    raw: Record<string, unknown>,
+    field: string,
+    trustedCanonicalShape: boolean
+): readonly unknown[] {
+    const value = trustedCanonicalShape
+        ? raw[field]
+        : Object.getOwnPropertyDescriptor(raw, field)?.value;
+    if (trustedCanonicalShape) {
+        return Array.isArray(value) ? value : EMPTY_VALUES;
+    }
+    if (
+        (typeof value === "object" && value !== null && isProxy(value)) ||
+        !isDenseArray(value)
+    ) {
+        return EMPTY_VALUES;
+    }
+    return value;
+}
 
 function failRelationship(
     failures: InvariantFailure[],
@@ -38,15 +50,19 @@ function validateQueryRelationships(
     raw: Record<string, unknown>,
     directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
-    failures: InvariantFailure[]
+    failures: InvariantFailure[],
+    dialectContext: CstDialectInvariantContext,
+    trustedCanonicalShape: boolean
 ): void {
     if (raw.kind !== "query" || typeof raw.queryKind !== "string") {
         return;
     }
     const first = directChildren[0];
-    const operatorIds = isDenseArray(raw.setOperatorLeafIds)
-        ? raw.setOperatorLeafIds
-        : [];
+    const operatorIds = readNodeArray(
+        raw,
+        "setOperatorLeafIds",
+        trustedCanonicalShape
+    );
 
     if (first?.kind === "clause" && first.clauseKind === "with") {
         const main = directChildren[1];
@@ -65,6 +81,13 @@ function validateQueryRelationships(
                 failures,
                 raw,
                 `WITH query ${String(raw.id)} kind must match its main query child`
+            );
+        }
+        if (raw.capabilityId !== "with-cte" || raw.formatRole !== "capability") {
+            failRelationship(
+                failures,
+                raw,
+                `WITH query ${String(raw.id)} must use with-cte capability authority`
             );
         }
         return;
@@ -88,6 +111,16 @@ function validateQueryRelationships(
                 `INSERT query ${String(raw.id)} must contain INSERT, optional PARTITION, and one query child`
             );
         }
+        if (
+            raw.capabilityId !== "insert-overwrite-partition-select" ||
+            raw.formatRole !== "capability"
+        ) {
+            failRelationship(
+                failures,
+                raw,
+                `INSERT query ${String(raw.id)} must use insert-overwrite-partition-select capability authority`
+            );
+        }
         return;
     }
 
@@ -101,6 +134,13 @@ function validateQueryRelationships(
                 failures,
                 raw,
                 `parenthesized query ${String(raw.id)} must contain exactly one query child`
+            );
+        }
+        if (raw.capabilityId !== "subquery" || raw.formatRole !== "capability") {
+            failRelationship(
+                failures,
+                raw,
+                `parenthesized query ${String(raw.id)} must use subquery capability authority`
             );
         }
         return;
@@ -121,9 +161,9 @@ function validateQueryRelationships(
         for (const child of tail) {
             const order =
                 typeof child.clauseKind === "string"
-                    ? SELECT_CLAUSE_ORDER[child.clauseKind]
-                    : undefined;
-            if (order === undefined || order <= previousTailOrder) {
+                    ? dialectContext.queryClauseOrder(child.clauseKind)
+                    : null;
+            if (order === null || order <= previousTailOrder) {
                 failRelationship(
                     failures,
                     raw,
@@ -169,7 +209,7 @@ function validateQueryRelationships(
                 !isLeafRange(child.headLeafRange) ||
                 child.headLeafRange.start !== operatorId ||
                 operatorLeaf?.channel !== "code" ||
-                !SET_OPERATOR_WORDS.has(operatorLeaf.raw.toLowerCase())
+                !dialectContext.isSetOperatorWord(operatorLeaf.raw.toLowerCase())
             ) {
                 failRelationship(
                     failures,
@@ -177,6 +217,13 @@ function validateQueryRelationships(
                     `set query ${String(raw.id)} operator ${operatorPosition} has an invalid clause or leaf reference`
                 );
             }
+        }
+        if (raw.capabilityId !== "set-operations" || raw.formatRole !== "capability") {
+            failRelationship(
+                failures,
+                raw,
+                `set query ${String(raw.id)} must use set-operations capability authority`
+            );
         }
         return;
     }
@@ -199,9 +246,9 @@ function validateQueryRelationships(
         for (const child of directChildren) {
             const order =
                 child.kind === "clause" && typeof child.clauseKind === "string"
-                    ? SELECT_CLAUSE_ORDER[child.clauseKind]
-                    : undefined;
-            if (order === undefined || order <= previousOrder) {
+                    ? dialectContext.queryClauseOrder(child.clauseKind)
+                    : null;
+            if (order === null || order <= previousOrder) {
                 failRelationship(
                     failures,
                     raw,
@@ -210,6 +257,20 @@ function validateQueryRelationships(
                 return;
             }
             previousOrder = order;
+        }
+        const hasFromClause = directChildren.some(
+            (child) => child.kind === "clause" && child.clauseKind === "from"
+        );
+        const expectedCapability = hasFromClause ? "from" : "select-without-from";
+        if (
+            raw.capabilityId !== expectedCapability ||
+            raw.formatRole !== "capability"
+        ) {
+            failRelationship(
+                failures,
+                raw,
+                `select query ${String(raw.id)} must use ${expectedCapability} capability authority`
+            );
         }
     }
 }
@@ -294,7 +355,9 @@ function isChild(
 function validateClauseRelationships(
     raw: Record<string, unknown>,
     directChildren: readonly Record<string, unknown>[],
-    failures: InvariantFailure[]
+    leaves: readonly SourceLeaf[],
+    failures: InvariantFailure[],
+    trustedCanonicalShape: boolean
 ): void {
     if (raw.kind !== "clause" || typeof raw.clauseKind !== "string") {
         return;
@@ -314,6 +377,14 @@ function validateClauseRelationships(
             }
         }
     }
+
+    validateClauseSeparatorOwnership(
+        raw,
+        directChildren,
+        leaves,
+        failures,
+        trustedCanonicalShape
+    );
 
     const only = directChildren[0];
     // Every clause kind may use one clause-boundary opaque child for local recovery.
@@ -416,19 +487,87 @@ function validateClauseRelationships(
     }
 }
 
+function validateClauseSeparatorOwnership(
+    raw: Record<string, unknown>,
+    directChildren: readonly Record<string, unknown>[],
+    leaves: readonly SourceLeaf[],
+    failures: InvariantFailure[],
+    trustedCanonicalShape: boolean
+): void {
+    const separators = readNodeArray(
+        raw,
+        "separatorLeafIds",
+        trustedCanonicalShape
+    ).filter(isFiniteNonNegInt);
+    if (raw.clauseKind !== "with" && raw.clauseKind !== "from") {
+        if (separators.length !== 0) {
+            failRelationship(
+                failures,
+                raw,
+                `${String(raw.clauseKind)} clause ${String(raw.id)} must not own direct comma separators`
+            );
+        }
+        return;
+    }
+
+    const expected: number[] = [];
+    for (let childIndex = 0; childIndex + 1 < directChildren.length; childIndex++) {
+        const left = directChildren[childIndex];
+        const right = directChildren[childIndex + 1];
+        if (!isLeafRange(left?.leafRange) || !isLeafRange(right?.leafRange)) {
+            continue;
+        }
+        let gapComma: number | null = null;
+        for (
+            let leafId = left.leafRange.end;
+            leafId < right.leafRange.start && leafId < leaves.length;
+            leafId++
+        ) {
+            const leaf = leaves[leafId]!;
+            if (leaf.channel === "code" && leaf.raw === ",") {
+                if (gapComma !== null) {
+                    failRelationship(
+                        failures,
+                        raw,
+                        `${String(raw.clauseKind)} clause ${String(raw.id)} has multiple comma claims between direct children ${String(left.id)} and ${String(right.id)}`
+                    );
+                    break;
+                }
+                gapComma = leafId;
+            }
+        }
+        if (gapComma !== null) {
+            expected.push(gapComma);
+        }
+    }
+    if (
+        separators.length !== expected.length ||
+        separators.some((leafId, index) => leafId !== expected[index])
+    ) {
+        failRelationship(
+            failures,
+            raw,
+            `${String(raw.clauseKind)} clause ${String(raw.id)} separatorLeafIds must exactly own every direct-child comma gap`
+        );
+    }
+}
+
 function validateListRelationships(
     raw: Record<string, unknown>,
     directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
-    failures: InvariantFailure[]
+    failures: InvariantFailure[],
+    trustedCanonicalShape: boolean
 ): void {
     if (raw.kind !== "list" || typeof raw.listRole !== "string") {
         return;
     }
     const expectedItemRole = listItemRoleFor(raw.listRole as ListRole);
-    const separators = isDenseArray(raw.separatorLeafIds)
-        ? raw.separatorLeafIds
-        : [];
+    const separators = readNodeArray(
+        raw,
+        "separatorLeafIds",
+        trustedCanonicalShape
+    );
     if (
         directChildren.length === 0 ||
         directChildren.some(
@@ -470,15 +609,42 @@ function validateExpressionRelationships(
     raw: Record<string, unknown>,
     directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
-    failures: InvariantFailure[]
+    failures: InvariantFailure[],
+    trustedCanonicalShape: boolean
 ): void {
     if (raw.kind !== "expression" || typeof raw.expressionKind !== "string") {
         return;
     }
-    const operatorIds = isDenseArray(raw.operatorLeafIds)
-        ? raw.operatorLeafIds
-        : [];
+    const operatorIds = readNodeArray(
+        raw,
+        "operatorLeafIds",
+        trustedCanonicalShape
+    );
     const operatorCount = operatorIds.length;
+    const markers = readNodeArray(
+        raw,
+        "syntaxMarkers",
+        trustedCanonicalShape
+    );
+    let isWindowFrameExpression = false;
+    let hasOperatorMarker = false;
+    for (const marker of markers) {
+        if (marker === null || typeof marker !== "object") {
+            continue;
+        }
+        const syntaxId = (marker as Record<string, unknown>).syntaxId;
+        if (syntaxId === "operator") {
+            hasOperatorMarker = true;
+        }
+        if (
+            syntaxId === "window:rows" ||
+            syntaxId === "window:range" ||
+            syntaxId === "window:groups"
+        ) {
+            isWindowFrameExpression = true;
+            break;
+        }
+    }
     for (const operatorId of operatorIds) {
         if (!isFiniteNonNegInt(operatorId) || operatorId >= leaves.length) {
             continue;
@@ -519,14 +685,13 @@ function validateExpressionRelationships(
         case "qualified-identifier":
             valid =
                 directChildren.length === 2 &&
-                directChildren.every((child) => child.kind === "expression") &&
-                operatorCount >= 1;
+                directChildren.every((child) => child.kind === "expression");
             break;
         case "unary":
             valid =
                 directChildren.length === 1 &&
                 isExpressionValue(directChildren[0]) &&
-                operatorCount >= 1;
+                (operatorCount >= 1 || isWindowFrameExpression);
             break;
         case "binary":
             valid =
@@ -541,8 +706,7 @@ function validateExpressionRelationships(
                 directChildren[0]?.kind === "expression" &&
                 (directChildren.length === 1 ||
                     (directChildren[1]?.kind === "list" &&
-                        directChildren[1]?.listRole === "function-args")) &&
-                operatorCount >= 2;
+                        directChildren[1]?.listRole === "function-args"));
             break;
         case "cast":
             valid =
@@ -551,8 +715,7 @@ function validateExpressionRelationships(
                     directChildren[0]?.kind === "opaque") &&
                 (directChildren[1]?.kind === "type-expression" ||
                     (directChildren[1]?.kind === "opaque" &&
-                        directChildren[1]?.boundary === "type")) &&
-                operatorCount >= 1;
+                        directChildren[1]?.boundary === "type"));
             break;
         case "case": {
             const branchStart = directChildren[0]?.kind === "case-branch" ? 0 : 1;
@@ -563,21 +726,18 @@ function validateExpressionRelationships(
                     directChildren[0]?.kind === "opaque") &&
                 directChildren
                     .slice(branchStart)
-                    .every((child) => child.kind === "case-branch") &&
-                operatorCount >= 3;
+                    .every((child) => child.kind === "case-branch");
             break;
         }
         case "subquery":
             valid =
                 directChildren.length === 1 &&
-                directChildren[0]?.kind === "query" &&
-                operatorCount >= 2;
+                directChildren[0]?.kind === "query";
             break;
         case "parenthesized":
             valid =
                 directChildren.length === 1 &&
-                isExpressionValue(directChildren[0]) &&
-                operatorCount >= 2;
+                isExpressionValue(directChildren[0]);
             break;
         case "collection":
             valid =
@@ -587,21 +747,19 @@ function validateExpressionRelationships(
                     directChildren[0]?.kind === "list") &&
                 (directChildren.length < 2 ||
                     (directChildren[0]?.kind === "expression" &&
-                        directChildren[1]?.kind === "list")) &&
-                operatorCount >= 2;
+                        directChildren[1]?.kind === "list"));
             break;
         case "window":
             valid =
                 directChildren.length === 2 &&
                 directChildren[0]?.kind === "expression" &&
-                directChildren[1]?.kind === "window-spec" &&
-                operatorCount >= 1;
+                directChildren[1]?.kind === "window-spec";
             break;
         case "between":
             valid =
                 (directChildren.length === 2 || directChildren.length === 3) &&
                 directChildren.every(isExpressionValue) &&
-                operatorCount >= 2;
+                (operatorCount >= 2 || isWindowFrameExpression);
             break;
         case "in":
             valid =
@@ -611,14 +769,15 @@ function validateExpressionRelationships(
                 (directChildren[1]?.kind === "list" ||
                     (directChildren[1]?.kind === "expression" &&
                         directChildren[1]?.expressionKind === "subquery")) &&
-                operatorCount >= 3;
+                operatorCount >= 1;
             break;
         case "exists":
             valid =
                 directChildren.length === 1 &&
                 directChildren[0]?.kind === "expression" &&
                 directChildren[0]?.expressionKind === "subquery" &&
-                operatorCount >= 1;
+                operatorCount === 0 &&
+                hasOperatorMarker;
             break;
         case "is":
             valid =
@@ -630,15 +789,13 @@ function validateExpressionRelationships(
             valid =
                 directChildren.length <= 1 &&
                 (directChildren.length === 0 ||
-                    isExpressionValue(directChildren[0])) &&
-                operatorCount >= 1;
+                    isExpressionValue(directChildren[0]));
             break;
         case "typed-literal":
             valid =
                 directChildren.length === 1 &&
                 directChildren[0]?.kind === "expression" &&
-                directChildren[0]?.expressionKind === "literal" &&
-                operatorCount >= 1;
+                directChildren[0]?.expressionKind === "literal";
             break;
         default:
             return;
@@ -729,23 +886,50 @@ export function validateContainerRelationships(
     raw: Record<string, unknown>,
     directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
-    failures: InvariantFailure[]
+    failures: InvariantFailure[],
+    dialectContext: CstDialectInvariantContext,
+    trustedCanonicalShape: boolean
 ): void {
     switch (raw.kind) {
         case "query":
-            validateQueryRelationships(raw, directChildren, leaves, failures);
+            validateQueryRelationships(
+                raw,
+                directChildren,
+                leaves,
+                failures,
+                dialectContext,
+                trustedCanonicalShape
+            );
             break;
         case "relation":
             validateRelationRelationships(raw, directChildren, failures);
             break;
         case "clause":
-            validateClauseRelationships(raw, directChildren, failures);
+            validateClauseRelationships(
+                raw,
+                directChildren,
+                leaves,
+                failures,
+                trustedCanonicalShape
+            );
             break;
         case "list":
-            validateListRelationships(raw, directChildren, leaves, failures);
+            validateListRelationships(
+                raw,
+                directChildren,
+                leaves,
+                failures,
+                trustedCanonicalShape
+            );
             break;
         case "expression":
-            validateExpressionRelationships(raw, directChildren, leaves, failures);
+            validateExpressionRelationships(
+                raw,
+                directChildren,
+                leaves,
+                failures,
+                trustedCanonicalShape
+            );
             break;
         case "window-spec":
             validateWindowRelationships(raw, directChildren, failures);

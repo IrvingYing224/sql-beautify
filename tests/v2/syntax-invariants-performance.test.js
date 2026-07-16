@@ -27,6 +27,14 @@ var tokenTableMod = require(tokenTablePath);
 var invariants = require(invariantsPath);
 var expectedTableMod = require(expectedTablePath);
 var MAX_BROKEN_TABLE_FAILURES = 32;
+var EMPTY_FACTS = Object.freeze([]);
+
+function withFacts(node, formatRole, capabilityId) {
+    node.capabilityId = capabilityId === undefined ? null : capabilityId;
+    node.formatRole = formatRole;
+    node.syntaxMarkers = EMPTY_FACTS;
+    return node;
+}
 
 function median(samples) {
     var s = samples.slice().sort(function(a, b) { return a - b; });
@@ -91,32 +99,31 @@ for (var j = 0; j < ranges.length; j++) {
     var r = ranges[j];
     var span = table.rangeToSpan(r);
     var bodyId = nextId + 1;
-    children.push({
+    children.push(withFacts({
         id: nextId,
         kind: 'statement',
         statementKind: 'opaque',
         bodyChildId: bodyId,
         leafRange: r,
         span: span,
-        children: [{
+        children: [withFacts({
             id: bodyId,
             kind: 'opaque',
             reasonCode: 'X',
-            capabilityId: null,
             boundary: 'statement',
             leafRange: r,
             span: span
-        }]
-    });
+        }, 'opaque')]
+    }, 'intrinsic-container'));
     nextId = bodyId + 1;
 }
-var root = {
+var root = withFacts({
     id: 0,
     kind: 'program',
     leafRange: { start: 0, end: leaves.length },
     span: { start: 0, end: source.length },
     children: children
-};
+}, 'intrinsic-container');
 
 // A full CST validation owns one independent structural oracle. The nested
 // token-table contract must consume that exact oracle instead of rebuilding

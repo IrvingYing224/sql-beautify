@@ -1,21 +1,29 @@
 import { getDialect } from "../dialects/registry";
+import { isParserStructuredCapabilityState } from "../dialects/capability-state";
 import type { OperatorSemantics } from "../dialects/types";
 import type { LeafRange } from "./leaf-range";
 import { parseList } from "./list-parser";
 import type {
     ExpressionKind,
     ExpressionNode,
+    FormatRole,
+    OperatorOccurrenceInput,
     OpaqueNode,
     QueryNode,
+    SyntaxMarker,
     SyntaxNode,
     TypeExpressionNode,
     WindowSpecNode,
 } from "./node";
+import { primitiveExpressionCapabilityId } from "./primitive-capability";
 import {
     ParserSyntaxError,
     baseDepth,
     isAliasNameLeaf,
     isQueryLeadingRange,
+    mergeSyntaxMarkers,
+    nodeFacts,
+    syntaxMarkers,
     syntaxIndexesInRange,
     trimToSyntax,
 } from "./parser-context";
@@ -80,7 +88,10 @@ function supportsCollectionSyntax(dialect: ParserContext["dialect"]): boolean {
               : dialect === "generic"
                 ? "generic-array-subset"
                 : null;
-    return capabilityId !== null && getDialect(dialect).getCapability(capabilityId)?.state === "structured";
+    const state = capabilityId === null
+        ? null
+        : getDialect(dialect).getCapability(capabilityId)?.state;
+    return isParserStructuredCapabilityState(state);
 }
 
 class PrattParser {
@@ -170,9 +181,85 @@ class PrattParser {
         range: LeafRange,
         kind: ExpressionKind,
         operators: readonly number[],
-        children: readonly SyntaxNode[]
+        children: readonly SyntaxNode[],
+        operatorOccurrences: readonly OperatorOccurrenceInput[] = [],
+        markers: readonly SyntaxMarker[] = []
     ): ExpressionNode {
-        return this.context.factory.createExpression(range, kind, operators, children);
+        const capabilityId = this.expressionCapabilityId(kind, range);
+        const primitive =
+            kind === "identifier" ||
+            kind === "wildcard" ||
+            kind === "literal" ||
+            kind === "parameter" ||
+            kind === "typed-literal";
+        const formatRole: FormatRole = capabilityId === null
+            ? primitive
+                ? "intrinsic-primitive"
+                : "intrinsic-container"
+            : "capability";
+        const facts =
+            capabilityId === null &&
+            formatRole === "intrinsic-primitive" &&
+            markers.length === 0 &&
+            operatorOccurrences.length === 0
+                ? undefined
+                : {
+                      syntaxMarkers: markers,
+                      capabilityId,
+                      formatRole,
+                      operatorOccurrences,
+                  };
+        return this.context.factory.createExpression(
+            range,
+            kind,
+            operators,
+            children,
+            facts
+        );
+    }
+
+    private expressionCapabilityId(
+        kind: ExpressionKind,
+        range: LeafRange
+    ): string | null {
+        const primitiveCapability =
+            kind === "literal" || kind === "parameter"
+                ? primitiveExpressionCapabilityId(
+                      this.context.dialect,
+                      kind,
+                      this.context.leaves[range.start]
+                  )
+                : null;
+        if (primitiveCapability !== null) {
+            return primitiveCapability;
+        }
+        if (kind === "function-call") {
+            return "function-call";
+        }
+        if (kind === "cast") {
+            return "cast-type";
+        }
+        if (kind === "case") {
+            return "case-expression";
+        }
+        if (kind === "subquery") {
+            return "subquery-expression";
+        }
+        if (kind === "window") {
+            return "window-expression";
+        }
+        if (kind === "collection") {
+            if (this.context.dialect === "hive") {
+                return "collection-expression";
+            }
+            if (this.context.dialect === "postgresql") {
+                return "postgres-array-subset";
+            }
+            if (this.context.dialect === "generic") {
+                return "generic-array-subset";
+            }
+        }
+        return null;
     }
 
     private parseTypeOrOpaque(
@@ -226,7 +313,8 @@ class PrattParser {
                     { start: left.leafRange.start, end: operatorIds[operatorIds.length - 1]! + 1 },
                     "is",
                     operatorIds,
-                    [left]
+                    [left],
+                    [{ semantics: postfix.semantics, leafIds: operatorIds }]
                 );
                 if (postfix.semantics.associativity === "none") {
                     nonAssociativePrecedence = postfix.semantics.precedence;
@@ -282,7 +370,8 @@ class PrattParser {
                 { start: left.leafRange.start, end: right.leafRange.end },
                 "binary",
                 operatorIds,
-                [left, right]
+                [left, right],
+                [{ semantics: infix.semantics, leafIds: operatorIds }]
             );
             if (infix.semantics.associativity === "none") {
                 nonAssociativePrecedence = precedence;
@@ -316,7 +405,11 @@ class PrattParser {
                 { start: leafIndex, end: operand.leafRange.end },
                 "unary",
                 prefix.positions.map((position) => this.indexes[position]!),
-                [operand]
+                [operand],
+                [{
+                    semantics: prefix.semantics,
+                    leafIds: prefix.positions.map((position) => this.indexes[position]!),
+                }]
             );
         }
 
@@ -369,8 +462,14 @@ class PrattParser {
                 return this.create(
                     { start: leafIndex, end: literalIndex + 1 },
                     "typed-literal",
-                    [leafIndex],
-                    [literal]
+                    [],
+                    [literal],
+                    [],
+                    syntaxMarkers(
+                        [leafIndex],
+                        "type:name",
+                        "builtin-type-keyword"
+                    )
                 );
             }
             this.position += 1;
@@ -423,8 +522,10 @@ class PrattParser {
                 left = this.create(
                     { start: left.leafRange.start, end: partIndex + 1 },
                     "qualified-identifier",
-                    [dot],
-                    [left, part]
+                    [],
+                    [left, part],
+                    [],
+                    syntaxMarkers([dot], "delimiter", "punctuation", false)
                 );
                 continue;
             }
@@ -469,7 +570,8 @@ class PrattParser {
                     { start: left.leafRange.start, end: type.leafRange.end },
                     "cast",
                     [operator],
-                    [left, type]
+                    [left, type],
+                    [{ semantics: cast, leafIds: [operator] }]
                 );
                 continue;
             }
@@ -486,11 +588,11 @@ class PrattParser {
         const closePosition = this.matchingPosition(openPosition);
         const open = this.indexes[openPosition]!;
         const close = this.indexes[closePosition]!;
-        const operators: number[] = [open];
         const children: SyntaxNode[] = [callee];
         let bodyStart = openPosition + 1;
+        let distinctLeafId: number | null = null;
         if (bodyStart < closePosition && this.wordIs(bodyStart, "distinct")) {
-            operators.push(this.indexes[bodyStart]!);
+            distinctLeafId = this.indexes[bodyStart]!;
             bodyStart += 1;
             if (bodyStart === closePosition) {
                 throw new ParserSyntaxError(
@@ -525,7 +627,6 @@ class PrattParser {
                 )
             );
         }
-        operators.push(close);
         const calleeWord =
             callee.leafRange.end === callee.leafRange.start + 1
                 ? this.context.table.normalizedWord(callee.leafRange.start)
@@ -536,8 +637,15 @@ class PrattParser {
             calleeWord !== null && isCollectionName(this.context.dialect, calleeWord)
                 ? "collection"
                 : "function-call",
-            operators,
-            children
+            [],
+            children,
+            [],
+            mergeSyntaxMarkers(
+                syntaxMarkers([open, close], "delimiter", "delimiter", false),
+                distinctLeafId === null
+                    ? []
+                    : syntaxMarkers([distinctLeafId], "operator")
+            )
         );
     }
 
@@ -554,8 +662,10 @@ class PrattParser {
             return this.create(
                 { start: left.leafRange.start, end: close + 1 },
                 "collection",
-                [open, close],
-                [left]
+                [],
+                [left],
+                [],
+                syntaxMarkers([open, close], "delimiter", "delimiter", false)
             );
         }
         const body = expressionRange(this.indexes, openPosition + 1, closePosition);
@@ -575,8 +685,10 @@ class PrattParser {
         return this.create(
             { start: left.leafRange.start, end: close + 1 },
             "collection",
-            [open, close],
-            [left, list]
+            [],
+            [left, list],
+            [],
+            syntaxMarkers([open, close], "delimiter", "delimiter", false)
         );
     }
 
@@ -590,8 +702,10 @@ class PrattParser {
             return this.create(
                 { start: open, end: close + 1 },
                 "collection",
-                [open, close],
-                []
+                [],
+                [],
+                [],
+                syntaxMarkers([open, close], "delimiter", "delimiter", false)
             );
         }
         const valueDepth = descendParserDepth(
@@ -610,8 +724,10 @@ class PrattParser {
         return this.create(
             { start: open, end: close + 1 },
             "collection",
-            [open, close],
-            [list]
+            [],
+            [list],
+            [],
+            syntaxMarkers([open, close], "delimiter", "delimiter", false)
         );
     }
 
@@ -638,7 +754,7 @@ class PrattParser {
             return this.create(
                 { start: open, end: close + 1 },
                 "subquery",
-                [open, close],
+                [],
                 [query]
             );
         }
@@ -663,8 +779,10 @@ class PrattParser {
             return this.create(
                 { start: open, end: close + 1 },
                 "collection",
-                [open, close],
-                [list]
+                [],
+                [list],
+                [],
+                syntaxMarkers([open, close], "delimiter", "delimiter", false)
             );
         }
         const child = parseExpressionRange(
@@ -679,8 +797,10 @@ class PrattParser {
         return this.create(
             { start: open, end: close + 1 },
             "parenthesized",
-            [open, close],
-            [child]
+            [],
+            [child],
+            [],
+            syntaxMarkers([open, close], "delimiter", "delimiter", false)
         );
     }
 
@@ -724,11 +844,19 @@ class PrattParser {
             bodyDepth
         );
         this.position = closePosition + 1;
+        const cast = this.indexes[castPosition]!;
+        const as = this.indexes[asPosition]!;
         return this.create(
-            { start: this.indexes[castPosition]!, end: close + 1 },
+            { start: cast, end: close + 1 },
             "cast",
-            [this.indexes[castPosition]!, open, this.indexes[asPosition]!, close],
-            [value, type]
+            [],
+            [value, type],
+            [],
+            mergeSyntaxMarkers(
+                syntaxMarkers([cast], "type:cast"),
+                syntaxMarkers([open, close], "delimiter", "delimiter", false),
+                syntaxMarkers([as], "type:as")
+            )
         );
     }
 
@@ -761,15 +889,18 @@ class PrattParser {
         const subquery = this.create(
             { start: open, end: close + 1 },
             "subquery",
-            [open, close],
+            [],
             [query]
         );
         this.position = closePosition + 1;
+        const exists = this.indexes[existsPosition]!;
         return this.create(
-            { start: this.indexes[existsPosition]!, end: close + 1 },
+            { start: exists, end: close + 1 },
             "exists",
-            [this.indexes[existsPosition]!],
-            [subquery]
+            [],
+            [subquery],
+            [],
+            syntaxMarkers([exists], "operator", "word-operator-keyword")
         );
     }
 
@@ -822,7 +953,7 @@ class PrattParser {
         }
 
         const children: SyntaxNode[] = [];
-        const operators: number[] = [this.indexes[casePosition]!];
+        const caseLeafId = this.indexes[casePosition]!;
         const branchDepth = descendParserDepth(
             expressionRange(this.indexes, casePosition, endPosition + 1),
             nestingDepth
@@ -878,10 +1009,23 @@ class PrattParser {
                         expressionRange(this.indexes, marker, nextMarker),
                         "when",
                         condition,
-                        value
+                        value,
+                        nodeFacts(
+                            null,
+                            "intrinsic-container",
+                            mergeSyntaxMarkers(
+                                syntaxMarkers(
+                                    [this.indexes[marker]!],
+                                    "case:when"
+                                ),
+                                syntaxMarkers(
+                                    [this.indexes[then]!],
+                                    "case:then"
+                                )
+                            )
+                        )
                     )
                 );
-                operators.push(this.indexes[marker]!, this.indexes[then]!);
                 markerIndex += 2;
                 continue;
             }
@@ -904,10 +1048,17 @@ class PrattParser {
                         expressionRange(this.indexes, marker, endPosition),
                         "else",
                         null,
-                        value
+                        value,
+                        nodeFacts(
+                            null,
+                            "intrinsic-container",
+                            syntaxMarkers(
+                                [this.indexes[marker]!],
+                                "case:else"
+                            )
+                        )
                     )
                 );
-                operators.push(this.indexes[marker]!);
                 markerIndex += 1;
                 continue;
             }
@@ -917,13 +1068,18 @@ class PrattParser {
                 "Unexpected CASE branch marker"
             );
         }
-        operators.push(this.indexes[endPosition]!);
+        const endLeafId = this.indexes[endPosition]!;
         this.position = endPosition + 1;
         return this.create(
             expressionRange(this.indexes, casePosition, endPosition + 1),
             "case",
-            operators,
-            children
+            [],
+            children,
+            [],
+            mergeSyntaxMarkers(
+                syntaxMarkers([caseLeafId], "case:start"),
+                syntaxMarkers([endLeafId], "case:end")
+            )
         );
     }
 
@@ -978,7 +1134,8 @@ class PrattParser {
             { start: left.leafRange.start, end: upper.leafRange.end },
             "between",
             operatorIds,
-            [left, lower, upper]
+            [left, lower, upper],
+            [{ semantics: match.semantics, leafIds: operatorIds }]
         );
     }
 
@@ -1018,7 +1175,7 @@ class PrattParser {
             right = this.create(
                 { start: open, end: close + 1 },
                 "subquery",
-                [open, close],
+                [],
                 [query]
             );
         } else {
@@ -1036,12 +1193,23 @@ class PrattParser {
             );
         }
         this.position = closePosition + 1;
-        operatorIds.push(open, close);
+        const occurrenceLeafIds = operatorIds.slice();
+        const rightOwnsDelimiters =
+            right.kind === "expression" && right.expressionKind === "subquery";
         return this.create(
             { start: left.leafRange.start, end: close + 1 },
             "in",
-            operatorIds,
-            [left, right]
+            occurrenceLeafIds,
+            [left, right],
+            [{ semantics: match.semantics, leafIds: occurrenceLeafIds }],
+            rightOwnsDelimiters
+                ? []
+                : syntaxMarkers(
+                      [open, close],
+                      "delimiter",
+                      "delimiter",
+                      false
+                  )
         );
     }
 
@@ -1096,8 +1264,10 @@ class PrattParser {
         return this.create(
             { start: left.leafRange.start, end: spec.leafRange.end },
             "window",
-            [over],
-            [left, spec]
+            [],
+            [left, spec],
+            [],
+            syntaxMarkers([over], "window:over")
         );
     }
 

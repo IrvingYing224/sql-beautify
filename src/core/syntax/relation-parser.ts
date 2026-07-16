@@ -1,5 +1,6 @@
 import type { SourceLeaf } from "../lexer/token";
 import { getDialect } from "../dialects/registry";
+import { isParserStructuredCapabilityState } from "../dialects/capability-state";
 import type { LeafRange } from "./leaf-range";
 import { parseList } from "./list-parser";
 import { parseExpressionRange } from "./expression-parser";
@@ -11,10 +12,13 @@ import {
     isDottedNamePart,
     isQueryLeadingRange,
     matchesSyntaxWords,
+    mergeSyntaxMarkers,
     nextSyntaxIndex,
+    nodeFacts,
     previousSyntaxIndex,
     syntaxLeavesAreSeparated,
     syntaxIndexesInRange,
+    syntaxMarkers,
     topLevelSyntaxIndexes,
     trimToSyntax,
 } from "./parser-context";
@@ -40,6 +44,11 @@ export interface RelationAliasCandidate {
 
 export type RelationPrefixCandidateFact = "alias" | "join-condition" | null;
 
+export interface ParsedFromClauseChildren {
+    readonly children: readonly SyntaxNode[];
+    readonly separatorLeafIds: readonly number[];
+}
+
 type MarkerKind = "comma" | "join" | "lateral";
 type RelationMarker = {
     readonly kind: MarkerKind;
@@ -64,6 +73,27 @@ const IMPLICIT_RELATION_ALIAS_BLOCKERS = Object.freeze([
     "using",
     "view",
 ]);
+
+function relationFacts(
+    alias: AliasInfo | null,
+    capabilityId: string | null,
+    nameLeafRange: LeafRange | null,
+    markers: ReturnType<typeof syntaxMarkers> = []
+) {
+    const aliasMarkers = alias?.keywordLeafId === null || alias === null
+        ? []
+        : syntaxMarkers([alias.keywordLeafId], "alias-as");
+    return {
+        ...nodeFacts(
+            capabilityId,
+            capabilityId === null
+                ? nameLeafRange === null ? "intrinsic-container" : "intrinsic-primitive"
+                : "capability",
+            mergeSyntaxMarkers(markers, aliasMarkers)
+        ),
+        nameLeafRange,
+    };
+}
 
 function canBeImplicitRelationAlias(
     context: ParserContext,
@@ -205,7 +235,14 @@ function createOpaqueRelation(
         "relation",
         message
     );
-    return context.factory.createRelation(range, "opaque", null, opaque, [opaque]);
+    return context.factory.createRelation(
+        range,
+        "opaque",
+        null,
+        opaque,
+        [opaque],
+        relationFacts(null, null, null)
+    );
 }
 
 function trailingAliasColumnListCore(
@@ -427,7 +464,8 @@ function parseSingleRelation(
                         "subquery",
                         alias,
                         query,
-                        [query]
+                        [query],
+                        relationFacts(alias, "subquery", null)
                     );
                 }
             }
@@ -457,7 +495,8 @@ function parseSingleRelation(
                 "table-function",
                 alias,
                 call,
-                [call]
+                [call],
+                relationFacts(alias, "table-function", null)
             );
         }
     }
@@ -476,7 +515,8 @@ function parseSingleRelation(
             "table",
             aliasFacts.alias,
             null,
-            []
+            [],
+            relationFacts(aliasFacts.alias, null, coreRange)
         );
     }
     return createOpaqueRelation(
@@ -636,8 +676,9 @@ function markerActsAsOnExpressionName(
 
 function findMarkers(context: ParserContext, range: LeafRange): readonly RelationMarker[] {
     const indexes = topLevelSyntaxIndexes(context, range);
-    const supportsLateralView =
-        getDialect(context.dialect).getCapability("lateral-view")?.state === "structured";
+    const supportsLateralView = isParserStructuredCapabilityState(
+        getDialect(context.dialect).getCapability("lateral-view")?.state
+    );
     const markers: RelationMarker[] = [];
     const starts = new Set<number>();
     let joinMayOwnOn = false;
@@ -1019,7 +1060,15 @@ function parseJoin(
             "join-on",
             { start: onIndex, end: onIndex + 1 },
             { start: onIndex + 1, end: range.end },
-            [condition]
+            [condition],
+            {
+                ...nodeFacts(
+                    "join",
+                    "capability",
+                    syntaxMarkers([onIndex], "clause:join-on")
+                ),
+                separatorLeafIds: [],
+            }
         );
         children.push(onClause);
     } else if (usingIndex !== null) {
@@ -1076,11 +1125,37 @@ function parseJoin(
             "join-using",
             { start: usingIndex, end: usingIndex + 1 },
             { start: usingIndex + 1, end: range.end },
-            [columns]
+            [columns],
+            {
+                ...nodeFacts(
+                    "join",
+                    "capability",
+                    syntaxMarkers([usingIndex], "clause:join-using")
+                ),
+                separatorLeafIds: [],
+            }
         );
         children.push(usingClause);
     }
-    return context.factory.createRelation(range, "join", null, right, children);
+    return context.factory.createRelation(
+        range,
+        "join",
+        null,
+        right,
+        children,
+        relationFacts(
+            null,
+            "join",
+            null,
+            syntaxMarkers(
+                syntaxIndexesInRange(context, {
+                    start: marker.start,
+                    end: marker.token + 1,
+                }),
+                "join-head"
+            )
+        )
+    );
 }
 
 function parseLateralView(
@@ -1197,7 +1272,8 @@ function parseLateralView(
         "table-function",
         relationAlias,
         functionExpression,
-        [functionExpression]
+        [functionExpression],
+        relationFacts(relationAlias, "table-function", null)
     );
     const relationChildren: SyntaxNode[] = [tableFunction];
     const outputRange = trimToSyntax(context.leaves, { start: outputStart, end: range.end });
@@ -1232,14 +1308,29 @@ function parseLateralView(
         "lateral-view",
         null,
         tableFunction,
-        relationChildren
+        relationChildren,
+        relationFacts(null, "lateral-view", null)
     );
     return context.factory.createClause(
         range,
         "lateral-view",
         { start: marker.start, end: headLast + 1 },
         { start: headLast + 1, end: range.end },
-        [lateralRelation]
+        [lateralRelation],
+        {
+            ...nodeFacts(
+                "lateral-view",
+                "capability",
+                syntaxMarkers(
+                    syntaxIndexesInRange(context, {
+                        start: marker.start,
+                        end: headLast + 1,
+                    }),
+                    "clause:lateral-view"
+                )
+            ),
+            separatorLeafIds: [],
+        }
     );
 }
 
@@ -1248,7 +1339,7 @@ export function parseFromClauseChildren(
     inputRange: LeafRange,
     nestingDepth: number,
     parseQueryRange: QueryRangeParser
-): readonly SyntaxNode[] {
+): ParsedFromClauseChildren {
     const range = trimToSyntax(context.leaves, inputRange);
     if (range === null) {
         throw new ParserSyntaxError(
@@ -1341,5 +1432,20 @@ export function parseFromClauseChildren(
             "FROM requires at least one relation"
         );
     }
-    return Object.freeze(children);
+    return Object.freeze({
+        children: Object.freeze(children),
+        separatorLeafIds: Object.freeze(
+            markers
+                .filter(
+                    (marker) =>
+                        marker.kind === "comma" &&
+                        !children.some(
+                            (child) =>
+                                marker.token >= child.leafRange.start &&
+                                marker.token < child.leafRange.end
+                        )
+                )
+                .map((marker) => marker.token)
+        ),
+    });
 }

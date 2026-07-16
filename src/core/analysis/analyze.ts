@@ -11,6 +11,7 @@ import {
 import type { ParseArtifact } from "../syntax/parser";
 import { isCanonicalStructuralTokenTableForLeaves } from "../syntax/token-table";
 import { buildStructuralIndex } from "./structural-index";
+import { createAnalysisArtifact } from "./artifact";
 import type {
     AnalysisOutput,
     AnalysisStatus,
@@ -45,23 +46,17 @@ function outputWithIndex(
     artifact: ParseArtifact,
     index: StructuralIndex
 ): AnalysisOutput {
-    return Object.freeze({
-        status,
-        root: artifact.output.root,
-        leaves: artifact.output.leaves,
-        diagnostics: artifact.output.diagnostics,
-        index,
-    });
+    return createAnalysisArtifact(artifact, status, index);
 }
 
 function failedOutput(artifact: ParseArtifact): AnalysisOutput {
-    return Object.freeze({
-        status: "failed",
-        root: artifact.output.root,
-        leaves: artifact.output.leaves,
-        diagnostics: artifact.output.diagnostics,
-        index: null,
-    });
+    return createAnalysisArtifact(artifact, "failed", null);
+}
+
+function artifactPreservesTarget(artifact: ParseArtifact): boolean {
+    return artifact.output.diagnostics.some(
+        (diagnostic) => diagnostic.recovery === "preserve-target"
+    );
 }
 
 function artifactProvenanceIsConsistent(artifact: ParseArtifact): boolean {
@@ -106,7 +101,11 @@ export function analyzeParseArtifact(artifact: ParseArtifact): AnalysisOutput {
         if (!artifactProvenanceIsConsistent(artifact)) {
             return failedProvenanceOutput(artifact);
         }
-        return outputWithIndex("analyzed", artifact, buildIndex(artifact));
+        return outputWithIndex(
+            artifactPreservesTarget(artifact) ? "preserved" : "analyzed",
+            artifact,
+            buildIndex(artifact)
+        );
     } catch (error) {
         let preserved: ParseArtifact;
         try {

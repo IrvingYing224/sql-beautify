@@ -18,7 +18,228 @@ assert.ok(fs.existsSync(invariantsPath), 'invariants required');
 
 var core = require(corePath);
 var tokenTableMod = require(tokenTablePath);
-var invariants = require(invariantsPath);
+var invariantRuntime = require(invariantsPath);
+
+var EMPTY_FACTS = Object.freeze([]);
+
+function hasOwn(value, key) {
+    return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function dataValue(value, key) {
+    var descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && hasOwn(descriptor, 'value') ? descriptor.value : undefined;
+}
+
+function freezeDataRange(value) {
+    if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+        Object.freeze(value);
+    }
+    return value;
+}
+
+function freezeDataArray(value, itemFreezer) {
+    if (!Array.isArray(value)) {
+        return value;
+    }
+    for (var index = 0; index < value.length; index += 1) {
+        var descriptor = Object.getOwnPropertyDescriptor(value, index);
+        if (descriptor && hasOwn(descriptor, 'value') && itemFreezer) {
+            itemFreezer(descriptor.value);
+        }
+    }
+    if (!Object.isFrozen(value)) {
+        Object.freeze(value);
+    }
+    return value;
+}
+
+function marker(leafId, syntaxId, partOrdinal, syntaxRole, keywordCaseEligible) {
+    return Object.freeze({
+        leafId: leafId,
+        syntaxId: syntaxId,
+        partOrdinal: partOrdinal,
+        syntaxRole: syntaxRole,
+        keywordCaseEligible: keywordCaseEligible
+    });
+}
+
+function inferredKind(node) {
+    var kind = dataValue(node, 'kind');
+    if (typeof kind === 'string') {
+        return kind;
+    }
+    // The mutable-leaf oracle fixture intentionally exposes kind through a
+    // getter. Infer its opaque shape without consuming that getter early.
+    if (hasOwn(node, 'reasonCode') && hasOwn(node, 'boundary')) {
+        return 'opaque';
+    }
+    return null;
+}
+
+function formatFactsFor(node, kind) {
+    var capabilityId = null;
+    var formatRole = 'intrinsic-container';
+    if (kind === 'opaque') {
+        formatRole = 'opaque';
+    } else if (kind === 'query') {
+        formatRole = 'capability';
+        capabilityId = dataValue(node, 'queryKind') === 'parenthesized'
+            ? 'subquery'
+            : dataValue(node, 'queryKind') === 'set'
+                ? 'set-operations'
+                : 'select-without-from';
+    } else if (kind === 'expression') {
+        var expressionKind = dataValue(node, 'expressionKind');
+        var capabilityByKind = {
+            'function-call': 'function-call',
+            cast: 'cast-type',
+            case: 'case-expression',
+            subquery: 'subquery-expression',
+            window: 'window-expression',
+            collection: 'collection-expression'
+        };
+        if (capabilityByKind[expressionKind]) {
+            formatRole = 'capability';
+            capabilityId = capabilityByKind[expressionKind];
+        } else if (
+            expressionKind === 'identifier' ||
+            expressionKind === 'wildcard' ||
+            expressionKind === 'literal' ||
+            expressionKind === 'parameter' ||
+            expressionKind === 'typed-literal'
+        ) {
+            formatRole = 'intrinsic-primitive';
+        }
+    } else if (kind === 'type-expression') {
+        formatRole = 'intrinsic-primitive';
+    }
+    return { capabilityId: capabilityId, formatRole: formatRole };
+}
+
+function defaultSyntaxMarkers(node, kind, leaves) {
+    var markers = [];
+    if (kind === 'clause') {
+        var headRange = dataValue(node, 'headLeafRange');
+        var clauseKind = dataValue(node, 'clauseKind');
+        var ordinal = 0;
+        if (headRange && typeof clauseKind === 'string') {
+            for (var leafId = headRange.start; leafId < headRange.end; leafId += 1) {
+                if (leaves[leafId] && leaves[leafId].channel === 'code') {
+                    markers.push(marker(
+                        leafId,
+                        'clause:' + clauseKind,
+                        ordinal,
+                        'syntax-keyword',
+                        true
+                    ));
+                    ordinal += 1;
+                }
+            }
+        }
+    } else if (kind === 'list-item') {
+        var alias = dataValue(node, 'alias');
+        var keywordLeafId = alias && typeof alias === 'object'
+            ? dataValue(alias, 'keywordLeafId')
+            : null;
+        if (Number.isInteger(keywordLeafId)) {
+            markers.push(marker(keywordLeafId, 'alias-as', 0, 'syntax-keyword', true));
+        }
+    }
+    return markers.length === 0 ? EMPTY_FACTS : Object.freeze(markers);
+}
+
+function freezeAlias(alias) {
+    if (!alias || typeof alias !== 'object') {
+        return;
+    }
+    freezeDataRange(dataValue(alias, 'nameLeafRange'));
+    if (!Object.isFrozen(alias)) {
+        Object.freeze(alias);
+    }
+}
+
+function freezeOperatorOccurrence(occurrence) {
+    if (!occurrence || typeof occurrence !== 'object') {
+        return;
+    }
+    freezeDataArray(dataValue(occurrence, 'leafIds'));
+    if (!Object.isFrozen(occurrence)) {
+        Object.freeze(occurrence);
+    }
+}
+
+function supplyWave3Facts(node, leaves, seen) {
+    if (!node || typeof node !== 'object') {
+        return;
+    }
+    seen = seen || new Set();
+    if (seen.has(node)) {
+        return;
+    }
+    seen.add(node);
+
+    var kind = inferredKind(node);
+    var facts = formatFactsFor(node, kind);
+    if (!hasOwn(node, 'capabilityId')) {
+        node.capabilityId = facts.capabilityId;
+    }
+    if (!hasOwn(node, 'formatRole')) {
+        node.formatRole = facts.formatRole;
+    }
+    if (!hasOwn(node, 'syntaxMarkers')) {
+        node.syntaxMarkers = defaultSyntaxMarkers(node, kind, leaves);
+    } else {
+        freezeDataArray(dataValue(node, 'syntaxMarkers'), function(value) {
+            if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+                Object.freeze(value);
+            }
+        });
+    }
+
+    if (kind === 'clause') {
+        if (!hasOwn(node, 'separatorLeafIds')) {
+            node.separatorLeafIds = EMPTY_FACTS;
+        } else {
+            freezeDataArray(dataValue(node, 'separatorLeafIds'));
+        }
+    } else if (kind === 'list') {
+        freezeDataArray(dataValue(node, 'separatorLeafIds'));
+    } else if (kind === 'expression') {
+        freezeDataArray(dataValue(node, 'operatorLeafIds'));
+        if (!hasOwn(node, 'operatorOccurrences')) {
+            node.operatorOccurrences = EMPTY_FACTS;
+        } else {
+            freezeDataArray(dataValue(node, 'operatorOccurrences'), freezeOperatorOccurrence);
+        }
+    }
+
+    freezeDataArray(dataValue(node, 'setOperatorLeafIds'));
+    freezeDataArray(dataValue(node, 'modifierLeafIds'));
+    freezeDataRange(dataValue(node, 'nameLeafRange'));
+    freezeDataRange(dataValue(node, 'typeNameLeafRange'));
+    freezeAlias(dataValue(node, 'alias'));
+
+    var children = dataValue(node, 'children');
+    if (!Array.isArray(children)) {
+        return;
+    }
+    // Do not consume array accessors here. The children snapshot regression
+    // must still exercise the production validator's single read.
+    for (var childIndex = 0; childIndex < children.length; childIndex += 1) {
+        var childDescriptor = Object.getOwnPropertyDescriptor(children, childIndex);
+        if (childDescriptor && hasOwn(childDescriptor, 'value')) {
+            supplyWave3Facts(childDescriptor.value, leaves, seen);
+        }
+    }
+}
+
+var invariants = Object.assign({}, invariantRuntime, {
+    validateSyntaxInvariants: function(input) {
+        supplyWave3Facts(input.root, input.leaves);
+        return invariantRuntime.validateSyntaxInvariants(input);
+    }
+});
 
 function lex(source) {
     return core.lexSql(source, { dialect: 'hive' });
@@ -38,6 +259,11 @@ function test(name, fn) {
 function assertFails(label, result, codeHint) {
     assert.strictEqual(result.ok, false, label + ' expected ok=false: ' + JSON.stringify(result.failures));
     assert.ok(result.failures.length >= 1, label + ' expected failures');
+    assert.strictEqual(result.failures.some(function(failure) {
+        return /(?:capabilityId|formatRole|syntaxMarkers|separatorLeafIds|operatorOccurrences|nameLeafRange).*own data property/i.test(
+            failure.message
+        );
+    }), false, label + ' must not pass through missing Wave 3 facts: ' + JSON.stringify(result.failures));
     if (codeHint) {
         var joined = result.failures.map(function(f) {
             return f.code + ' ' + f.message;
@@ -272,7 +498,11 @@ test('TREE Expression + opaque(expression) ok', function() {
                         id: 6,
                         kind: 'expression',
                         expressionKind: 'parenthesized',
-                        operatorLeafIds: [2, 4],
+                        operatorLeafIds: [],
+                        syntaxMarkers: Object.freeze([
+                            marker(2, 'delimiter', 0, 'delimiter', false),
+                            marker(4, 'delimiter', 1, 'delimiter', false)
+                        ]),
                         leafRange: itemRange,
                         span: spanOfLeaves(leaves, itemRange),
                         children: [{
@@ -982,6 +1212,7 @@ test('stateful child ref cannot claim multiple children', function() {
         leafRange: secondRange,
         span: spanOfLeaves(leaves, secondRange)
     };
+    supplyWave3Facts(second, leaves);
     var reads = 0;
     var statement = twoOpaqueChildStatement(leaves, range, [first, second], 2);
     Object.defineProperty(statement, 'bodyChildId', {
@@ -1023,6 +1254,7 @@ test('children accessor is snapshotted before post-order relationships', functio
         leafRange: secondRange,
         span: spanOfLeaves(leaves, secondRange)
     };
+    supplyWave3Facts(second, leaves);
     var reads = 0;
     var children = [first];
     Object.defineProperty(children, 1, {

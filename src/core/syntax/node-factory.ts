@@ -7,16 +7,19 @@ import {
     freezeImmutableArray,
 } from "../util/immutable-array";
 import type { SourceLeaf } from "../lexer/token";
+import type { Dialect } from "../config/options";
 import type { LeafRange } from "./leaf-range";
 import type {
     AliasInfo,
     CaseBranchKind,
     CaseBranchNode,
+    ClauseNodeFacts,
     ClauseKind,
     ClauseNode,
     CteNode,
     ExpressionKind,
     ExpressionNode,
+    ExpressionNodeFacts,
     ListItemNode,
     ListItemRole,
     ListNode,
@@ -28,9 +31,12 @@ import type {
     QueryNode,
     RelationKind,
     RelationNode,
+    RelationNodeFacts,
     StatementKind,
     StatementNode,
     SyntaxNode,
+    SyntaxNodeFacts,
+    SyntaxMarker,
     TypeExpressionNode,
     WindowSpecNode,
 } from "./node";
@@ -39,79 +45,96 @@ import {
     canonicalStructuralTokenTableLeaves,
 } from "./token-table";
 import type { StructuralTokenTable } from "./token-table";
+import {
+    isFormatRole,
+    isKeywordCaseRole,
+    isSyntaxLeafRole,
+    isSyntaxMarkerId,
+} from "./contextual-fact-contract";
 
 export interface NodeFactory {
     checkpoint(): number;
     rollback(checkpoint: number): void;
-    createProgram(range: LeafRange, children: readonly StatementNode[]): ProgramNode;
+    createProgram(range: LeafRange, children: readonly StatementNode[], facts?: SyntaxNodeFacts): ProgramNode;
     createStatement(
         range: LeafRange,
         statementKind: StatementKind,
-        body: QueryNode | OpaqueNode | null
+        body: QueryNode | OpaqueNode | null,
+        facts?: SyntaxNodeFacts
     ): StatementNode;
     createQuery(
         range: LeafRange,
         queryKind: QueryKind,
         setOperatorLeafIds: readonly number[],
-        children: readonly SyntaxNode[]
+        children: readonly SyntaxNode[],
+        facts?: SyntaxNodeFacts
     ): QueryNode;
     createCte(
         range: LeafRange,
         nameLeafRange: LeafRange,
         columnList: ListNode | null,
-        query: QueryNode | OpaqueNode
+        query: QueryNode | OpaqueNode,
+        facts?: SyntaxNodeFacts
     ): CteNode;
     createClause(
         range: LeafRange,
         clauseKind: ClauseKind,
         headLeafRange: LeafRange,
         bodyLeafRange: LeafRange,
-        children: readonly SyntaxNode[]
+        children: readonly SyntaxNode[],
+        facts?: ClauseNodeFacts
     ): ClauseNode;
     createRelation(
         range: LeafRange,
         relationKind: RelationKind,
         alias: AliasInfo | null,
         body: SyntaxNode | null,
-        children: readonly SyntaxNode[]
+        children: readonly SyntaxNode[],
+        facts?: RelationNodeFacts
     ): RelationNode;
     createList(
         range: LeafRange,
         listRole: ListRole,
         separatorLeafIds: readonly number[],
-        children: readonly ListItemNode[]
+        children: readonly ListItemNode[],
+        facts?: SyntaxNodeFacts
     ): ListNode;
     createListItem(
         range: LeafRange,
         itemRole: ListItemRole,
         alias: AliasInfo | null,
         modifierLeafIds: readonly number[],
-        value: SyntaxNode
+        value: SyntaxNode,
+        facts?: SyntaxNodeFacts
     ): ListItemNode;
     createExpression(
         range: LeafRange,
         expressionKind: ExpressionKind,
         operatorLeafIds: readonly number[],
-        children: readonly SyntaxNode[]
+        children: readonly SyntaxNode[],
+        facts?: ExpressionNodeFacts
     ): ExpressionNode;
     createCaseBranch(
         range: LeafRange,
         branchKind: CaseBranchKind,
         condition: ExpressionNode | OpaqueNode | null,
-        value: ExpressionNode | OpaqueNode
+        value: ExpressionNode | OpaqueNode,
+        facts?: SyntaxNodeFacts
     ): CaseBranchNode;
     createWindowSpec(
         range: LeafRange,
         nameLeafRange: LeafRange | null,
         partition: ListNode | OpaqueNode | null,
         order: ListNode | OpaqueNode | null,
-        frame: ExpressionNode | ListNode | OpaqueNode | null
+        frame: ExpressionNode | ListNode | OpaqueNode | null,
+        facts?: SyntaxNodeFacts
     ): WindowSpecNode;
     createTypeExpression(
         range: LeafRange,
         typeNameLeafRange: LeafRange,
         argumentList: ListNode | null,
-        memberList: ListNode | null
+        memberList: ListNode | null,
+        facts?: SyntaxNodeFacts
     ): TypeExpressionNode;
     createOpaque(
         range: LeafRange,
@@ -124,6 +147,13 @@ export interface NodeFactory {
 interface CanonicalProgramProof {
     readonly nodeCount: number;
     readonly leaves: readonly SourceLeaf[];
+    readonly dialect: Dialect;
+    readonly validation: CanonicalProgramValidationProof;
+}
+
+export interface CanonicalProgramValidationProof {
+    readonly nodeCount: number;
+    ownsNode(value: unknown): boolean;
 }
 
 const CANONICAL_PROGRAM_PROOFS = new WeakMap<object, CanonicalProgramProof>();
@@ -146,6 +176,21 @@ export function canonicalProgramNodeCountForLeaves(
     }
     const proof = CANONICAL_PROGRAM_PROOFS.get(value);
     return proof?.leaves === leaves ? proof.nodeCount : null;
+}
+
+/** Internal whole-graph identity proof for the parser factory and leaf partition. */
+export function canonicalProgramValidationProofForLeaves(
+    value: unknown,
+    leaves: readonly SourceLeaf[],
+    dialect: Dialect
+): CanonicalProgramValidationProof | null {
+    if (typeof value !== "object" || value === null) {
+        return null;
+    }
+    const proof = CANONICAL_PROGRAM_PROOFS.get(value);
+    return proof?.leaves === leaves && proof.dialect === dialect
+        ? proof.validation
+        : null;
 }
 
 function freezeRange(range: LeafRange, leafCount: number, allowEmpty: boolean): LeafRange {
@@ -196,18 +241,169 @@ function freezeIds(values: readonly number[], leafCount: number, label: string):
     return Object.freeze(copy);
 }
 
+const INTRINSIC_CONTAINER_FACTS: SyntaxNodeFacts = Object.freeze({
+    syntaxMarkers: EMPTY_FROZEN_ARRAY as readonly SyntaxMarker[],
+    capabilityId: null,
+    formatRole: "intrinsic-container",
+});
+const INTRINSIC_PRIMITIVE_FACTS: SyntaxNodeFacts = Object.freeze({
+    syntaxMarkers: EMPTY_FROZEN_ARRAY as readonly SyntaxMarker[],
+    capabilityId: null,
+    formatRole: "intrinsic-primitive",
+});
+const EMPTY_CAPABILITY_FACTS = new Map<string, SyntaxNodeFacts>();
+
+function fallbackFacts(formatRole: "intrinsic-container" | "intrinsic-primitive"): SyntaxNodeFacts {
+    return formatRole === "intrinsic-container"
+        ? INTRINSIC_CONTAINER_FACTS
+        : INTRINSIC_PRIMITIVE_FACTS;
+}
+
+function freezeFacts(
+    facts: SyntaxNodeFacts | undefined,
+    ownerRange: LeafRange,
+    leafCount: number,
+    defaultRole: "intrinsic-container" | "intrinsic-primitive"
+): SyntaxNodeFacts {
+    const value = facts ?? fallbackFacts(defaultRole);
+    if (
+        !isCapabilityIdentity(value.capabilityId) ||
+        !isFormatRole(value.formatRole) ||
+        value.formatRole === "opaque" ||
+        (value.formatRole === "capability") !== (value.capabilityId !== null) ||
+        !Array.isArray(value.syntaxMarkers)
+    ) {
+        throw new Error("Invalid syntax node facts");
+    }
+    if (value.syntaxMarkers.length === 0) {
+        if (value.capabilityId === null) {
+            if (value.formatRole === "intrinsic-container") {
+                return INTRINSIC_CONTAINER_FACTS;
+            }
+            if (value.formatRole === "intrinsic-primitive") {
+                return INTRINSIC_PRIMITIVE_FACTS;
+            }
+        }
+        const cached = EMPTY_CAPABILITY_FACTS.get(value.capabilityId!);
+        if (cached !== undefined) {
+            return cached;
+        }
+        const canonical = Object.freeze({
+            syntaxMarkers: EMPTY_FROZEN_ARRAY as readonly SyntaxMarker[],
+            capabilityId: value.capabilityId,
+            formatRole: value.formatRole,
+        });
+        EMPTY_CAPABILITY_FACTS.set(value.capabilityId!, canonical);
+        return canonical;
+    }
+    const markers: SyntaxMarker[] = [];
+    let previousLeafId = -1;
+    for (const marker of value.syntaxMarkers) {
+        if (
+            marker === null ||
+            typeof marker !== "object" ||
+            !Number.isInteger(marker.leafId) ||
+            marker.leafId < ownerRange.start ||
+            marker.leafId >= ownerRange.end ||
+            marker.leafId >= leafCount ||
+            marker.leafId <= previousLeafId ||
+            !isSyntaxMarkerId(marker.syntaxId) ||
+            !Number.isInteger(marker.partOrdinal) ||
+            marker.partOrdinal < 0 ||
+            !isSyntaxLeafRole(marker.syntaxRole) ||
+            typeof marker.keywordCaseEligible !== "boolean" ||
+            (marker.keywordCaseEligible && !isKeywordCaseRole(marker.syntaxRole))
+        ) {
+            throw new Error("Invalid syntax marker");
+        }
+        previousLeafId = marker.leafId;
+        markers.push(Object.freeze({
+            leafId: marker.leafId,
+            syntaxId: marker.syntaxId,
+            partOrdinal: marker.partOrdinal,
+            syntaxRole: marker.syntaxRole,
+            keywordCaseEligible: marker.keywordCaseEligible,
+        }));
+    }
+    return Object.freeze({
+        syntaxMarkers: Object.freeze(markers),
+        capabilityId: value.capabilityId,
+        formatRole: value.formatRole,
+    });
+}
+
+function freezeOperatorOccurrences(
+    inputs: ExpressionNodeFacts["operatorOccurrences"] | undefined,
+    ownerNodeId: number,
+    ownerRange: LeafRange,
+    operatorLeafIds: readonly number[],
+    leafCount: number
+): ExpressionNode["operatorOccurrences"] {
+    if (inputs === undefined || inputs.length === 0) {
+        return EMPTY_FROZEN_ARRAY as ExpressionNode["operatorOccurrences"];
+    }
+    if (!Array.isArray(inputs)) {
+        throw new Error("Expression operator occurrences must be an array");
+    }
+    const operatorIds = new Set(operatorLeafIds);
+    const claimedLeaves = new Set<number>();
+    const occurrences: ExpressionNode["operatorOccurrences"][number][] = [];
+    for (const input of inputs) {
+        const semantics = input.semantics;
+        const leafIds = freezeIds(input.leafIds, leafCount, "operator occurrence");
+        if (
+            semantics === null ||
+            typeof semantics !== "object" ||
+            !Object.isFrozen(semantics) ||
+            typeof semantics.id !== "string" ||
+            semantics.id.length === 0 ||
+            leafIds.length === 0
+        ) {
+            throw new Error("Invalid operator occurrence semantics");
+        }
+        let previous = -1;
+        for (const leafId of leafIds) {
+            if (
+                leafId < ownerRange.start ||
+                leafId >= ownerRange.end ||
+                leafId <= previous ||
+                !operatorIds.has(leafId) ||
+                claimedLeaves.has(leafId)
+            ) {
+                throw new Error("Invalid or duplicate operator occurrence leaf");
+            }
+            previous = leafId;
+            claimedLeaves.add(leafId);
+        }
+        occurrences.push(Object.freeze({
+            ownerNodeId,
+            leafIds,
+            operatorId: semantics.id,
+            capabilityId: semantics.capabilityId,
+            fixity: semantics.fixity,
+            formatClass: semantics.formatClass,
+            semantics,
+        }));
+    }
+    return Object.freeze(occurrences);
+}
+
 export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
-    return createNodeFactoryInternal(table, false);
+    return createNodeFactoryInternal(table, false, null);
 }
 
 /** Parser-only factory; deliberately not re-exported from the syntax facade. */
-export function createParserNodeFactory(table: StructuralTokenTable): NodeFactory {
-    return createNodeFactoryInternal(table, true);
+export function createParserNodeFactory(
+    table: StructuralTokenTable,
+    dialect: Dialect
+): NodeFactory {
+    return createNodeFactoryInternal(table, true, dialect);
 }
 
 function createNodeFactoryInternal(
     table: StructuralTokenTable,
-    grantCanonicalProgramProvenance: boolean
+    grantCanonicalProgramProvenance: boolean,
+    canonicalDialect: Dialect | null
 ): NodeFactory {
     const leafCount = table.leafCount();
     const trustedRangeToSpan = canonicalRangeToSpan(table);
@@ -217,7 +413,11 @@ function createNodeFactoryInternal(
     if (grantCanonicalProgramProvenance && canonicalLeaves === null) {
         throw new Error("Parser node factory requires a canonical structural token table");
     }
+    if (grantCanonicalProgramProvenance && canonicalDialect === null) {
+        throw new Error("Parser node factory requires a canonical dialect");
+    }
     const spanForRange = trustedRangeToSpan ?? ((range: LeafRange) => table.rangeToSpan(range));
+    const createdNodes: (SyntaxNode | undefined)[] = [];
     let nextId = 1;
     let programCreated = false;
 
@@ -241,33 +441,58 @@ function createNodeFactoryInternal(
             ) {
                 throw new Error(`Invalid node factory rollback checkpoint: ${checkpoint}`);
             }
+            if (grantCanonicalProgramProvenance) {
+                createdNodes.length = checkpoint;
+            }
             nextId = checkpoint;
         },
 
-        createProgram(range, children): ProgramNode {
+        createProgram(range, children, facts): ProgramNode {
             if (programCreated) {
                 throw new Error("Node factory may create ProgramNode only once");
             }
             programCreated = true;
             const leafRange = freezeRange(range, leafCount, true);
             const span = spanForRange(leafRange);
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
             const program = Object.freeze({
                 id: 0,
                 kind: "program" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 children: freezeImmutableArray(children),
             });
             if (grantCanonicalProgramProvenance) {
+                createdNodes[program.id] = program;
+                const canonicalNodes = Object.freeze(
+                    createdNodes as readonly SyntaxNode[]
+                );
+                const validation: CanonicalProgramValidationProof = Object.freeze({
+                    nodeCount: nextId,
+                    ownsNode(value: unknown): boolean {
+                        return (
+                            typeof value === "object" &&
+                            value !== null &&
+                            Number.isInteger((value as { id?: unknown }).id) &&
+                            canonicalNodes[(value as { id: number }).id] === value
+                        );
+                    },
+                });
                 CANONICAL_PROGRAM_PROOFS.set(
                     program,
-                    Object.freeze({ nodeCount: nextId, leaves: canonicalLeaves! })
+                    Object.freeze({
+                        nodeCount: nextId,
+                        leaves: canonicalLeaves!,
+                        dialect: canonicalDialect!,
+                        validation,
+                    })
                 );
             }
             return program;
         },
 
-        createStatement(range, statementKind, body): StatementNode {
+        createStatement(range, statementKind, body, facts): StatementNode {
             if (statementKind === "empty" && body !== null) {
                 throw new Error("Empty statement must not have a body");
             }
@@ -284,25 +509,33 @@ function createNodeFactoryInternal(
             }
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            return Object.freeze({
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "statement" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 statementKind,
                 bodyChildId: body === null ? null : body.id,
                 children: body === null ? freezeImmutableArray([]) : freezeImmutableArray([body]),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
-        createQuery(range, queryKind, setOperatorLeafIds, children): QueryNode {
+        createQuery(range, queryKind, setOperatorLeafIds, children, facts): QueryNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            return Object.freeze({
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "query" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 queryKind,
                 setOperatorLeafIds: freezeIds(
                     setOperatorLeafIds,
@@ -311,46 +544,68 @@ function createNodeFactoryInternal(
                 ),
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
-        createCte(range, nameLeafRange, columnList, query): CteNode {
+        createCte(range, nameLeafRange, columnList, query, facts): CteNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
             const children: SyntaxNode[] = [];
             if (columnList !== null) {
                 children.push(columnList);
             }
             children.push(query);
-            return Object.freeze({
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "cte" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 nameLeafRange: freezeRange(nameLeafRange, leafCount, false),
                 queryChildId: query.id,
                 columnListChildId: columnList === null ? null : columnList.id,
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
-        createClause(range, clauseKind, headLeafRange, bodyLeafRange, children): ClauseNode {
+        createClause(range, clauseKind, headLeafRange, bodyLeafRange, children, facts): ClauseNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            return Object.freeze({
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "clause" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 clauseKind,
                 headLeafRange: freezeRange(headLeafRange, leafCount, true),
                 bodyLeafRange: freezeRange(bodyLeafRange, leafCount, true),
+                separatorLeafIds: freezeIds(
+                    facts?.separatorLeafIds ?? [],
+                    leafCount,
+                    "clause separator"
+                ),
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
-        createRelation(range, relationKind, alias, body, children): RelationNode {
+        createRelation(range, relationKind, alias, body, children, facts): RelationNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
             if (body !== null) {
                 let occurrences = 0;
                 for (const child of children) {
@@ -364,67 +619,103 @@ function createNodeFactoryInternal(
                     );
                 }
             }
-            return Object.freeze({
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "relation" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 relationKind,
+                nameLeafRange:
+                    facts?.nameLeafRange === null || facts?.nameLeafRange === undefined
+                        ? null
+                        : freezeRange(facts.nameLeafRange, leafCount, false),
                 alias: freezeAlias(alias, leafCount),
                 bodyChildId: body === null ? null : body.id,
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
-        createList(range, listRole, separatorLeafIds, children): ListNode {
+        createList(range, listRole, separatorLeafIds, children, facts): ListNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            return Object.freeze({
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "list" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 listRole,
                 separatorLeafIds: freezeIds(separatorLeafIds, leafCount, "separator"),
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
-        createListItem(range, itemRole, alias, modifierLeafIds, value): ListItemNode {
+        createListItem(range, itemRole, alias, modifierLeafIds, value, facts): ListItemNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            return Object.freeze({
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "list-item" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 itemRole,
                 alias: freezeAlias(alias, leafCount),
                 modifierLeafIds: freezeIds(modifierLeafIds, leafCount, "modifier"),
                 valueChildId: value.id,
                 children: freezeImmutableArray([value]),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
-        createExpression(range, expressionKind, operatorLeafIds, children): ExpressionNode {
+        createExpression(range, expressionKind, operatorLeafIds, children, facts): ExpressionNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            return Object.freeze({
-                id: allocateId(),
+            const nodeId = allocateId();
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-primitive");
+            const frozenOperatorLeafIds = freezeIds(
+                operatorLeafIds,
+                leafCount,
+                "expression operator"
+            );
+            const node = Object.freeze({
+                id: nodeId,
                 kind: "expression" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 expressionKind,
-                operatorLeafIds: freezeIds(
-                    operatorLeafIds,
-                    leafCount,
-                    "expression operator"
+                operatorLeafIds: frozenOperatorLeafIds,
+                operatorOccurrences: freezeOperatorOccurrences(
+                    facts?.operatorOccurrences,
+                    nodeId,
+                    leafRange,
+                    frozenOperatorLeafIds,
+                    leafCount
                 ),
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
-        createCaseBranch(range, branchKind, condition, value): CaseBranchNode {
+        createCaseBranch(range, branchKind, condition, value, facts): CaseBranchNode {
             if (branchKind === "when" && condition === null) {
                 throw new Error("WHEN branch requires a condition");
             }
@@ -433,21 +724,27 @@ function createNodeFactoryInternal(
             }
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
             const children: SyntaxNode[] = [];
             if (condition !== null) {
                 children.push(condition);
             }
             children.push(value);
-            return Object.freeze({
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "case-branch" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 branchKind,
                 conditionChildId: condition === null ? null : condition.id,
                 valueChildId: value.id,
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
         createWindowSpec(
@@ -455,10 +752,12 @@ function createNodeFactoryInternal(
             nameLeafRange,
             partition,
             order,
-            frame
+            frame,
+            facts
         ): WindowSpecNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
             const children: SyntaxNode[] = [];
             if (partition !== null) {
                 children.push(partition);
@@ -469,11 +768,12 @@ function createNodeFactoryInternal(
             if (frame !== null) {
                 children.push(frame);
             }
-            return Object.freeze({
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "window-spec" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 nameLeafRange:
                     nameLeafRange === null
                         ? null
@@ -483,19 +783,25 @@ function createNodeFactoryInternal(
                 frameChildId: frame === null ? null : frame.id,
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
         createTypeExpression(
             range,
             typeNameLeafRange,
             argumentList,
-            memberList
+            memberList,
+            facts
         ): TypeExpressionNode {
             if (argumentList !== null && memberList !== null) {
                 throw new Error("Type expression cannot own argument and member lists together");
             }
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
+            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-primitive");
             const children: SyntaxNode[] = [];
             if (argumentList !== null) {
                 children.push(argumentList);
@@ -503,16 +809,21 @@ function createNodeFactoryInternal(
             if (memberList !== null) {
                 children.push(memberList);
             }
-            return Object.freeze({
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "type-expression" as const,
                 span,
                 leafRange,
+                ...nodeFacts,
                 typeNameLeafRange: freezeRange(typeNameLeafRange, leafCount, false),
                 argumentListChildId: argumentList === null ? null : argumentList.id,
                 memberListChildId: memberList === null ? null : memberList.id,
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
 
         createOpaque(range, reasonCode, boundary, capabilityId = null): OpaqueNode {
@@ -526,15 +837,21 @@ function createNodeFactoryInternal(
             }
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            return Object.freeze({
+            const node = Object.freeze({
                 id: allocateId(),
                 kind: "opaque" as const,
                 span,
                 leafRange,
-                reasonCode,
+                syntaxMarkers: EMPTY_FROZEN_ARRAY as readonly SyntaxMarker[],
                 capabilityId,
+                formatRole: "opaque" as const,
+                reasonCode,
                 boundary,
             });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
         },
     };
 

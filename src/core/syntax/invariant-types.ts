@@ -1,3 +1,4 @@
+import type { Dialect } from "../config/options";
 import type { StructuralTokenTable } from "./token-table";
 
 export type InvariantFailureCode =
@@ -44,6 +45,8 @@ export interface SyntaxInvariantInput {
     readonly root: unknown;
     readonly leaves: unknown;
     readonly source: unknown;
+    /** Defaults to Hive for legacy/manual invariant fixtures. Parser callers pass it explicitly. */
+    readonly dialect?: Dialect;
     /**
      * Optional. Absent or `undefined` skips table validation.
      * Explicit `null` / non-object / incomplete table must fail closed.

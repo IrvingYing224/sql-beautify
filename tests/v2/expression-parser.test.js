@@ -23,6 +23,14 @@ var typeParserPath = path.join(
     'type-parser.js'
 );
 var dialectsPath = path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'index.js');
+var dialectRegistryPath = path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'dialects',
+    'registry.js'
+);
 var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
 
@@ -33,6 +41,62 @@ var parser = require(parserPath);
 var dialects = require(dialectsPath);
 var invariants = require(invariantsPath);
 var tokenTableModule = require(tokenTablePath);
+
+function withFormattedHiveCapabilities(capabilityIds, callback) {
+    var registryRuntime = require(dialectRegistryPath);
+    var originalGetDialect = registryRuntime.getDialect;
+    var base = originalGetDialect('hive');
+    var formattedIds = new Set(capabilityIds);
+    var capabilities = Object.freeze(base.listCapabilities().map(function(entry) {
+        return formattedIds.has(entry.id)
+            ? Object.freeze(Object.assign({}, entry, { state: 'formatted' }))
+            : entry;
+    }));
+    var capabilityById = new Map(capabilities.map(function(entry) {
+        return [entry.id, entry];
+    }));
+    var formattedView = Object.freeze({
+        id: base.id,
+        getCapability: function(id) {
+            return capabilityById.get(id) || null;
+        },
+        listCapabilities: function() {
+            return capabilities;
+        },
+        getOperatorSemantics: function(key, fixity) {
+            return base.getOperatorSemantics(key, fixity);
+        },
+        listOperatorSemantics: function() {
+            return base.listOperatorSemantics();
+        },
+        listOperatorSemanticsForKey: function(key) {
+            return base.listOperatorSemanticsForKey(key);
+        },
+        listQueryClauseSyntax: function() {
+            return base.listQueryClauseSyntax();
+        },
+        listSetOperatorSyntax: function() {
+            return base.listSetOperatorSyntax();
+        },
+        listJoinSyntax: function() {
+            return base.listJoinSyntax();
+        },
+        listUnsupportedSyntax: function() {
+            return base.listUnsupportedSyntax();
+        }
+    });
+
+    registryRuntime.getDialect = function(dialectId) {
+        return dialectId === 'hive'
+            ? formattedView
+            : originalGetDialect(dialectId);
+    };
+    try {
+        callback(formattedView);
+    } finally {
+        registryRuntime.getDialect = originalGetDialect;
+    }
+}
 
 function flatten(rootNode) {
     var nodes = [];
@@ -50,8 +114,9 @@ function flatten(rootNode) {
 }
 
 function parse(source, dialect) {
+    var dialectId = dialect || 'hive';
     var result = parser.parseSql(source, {
-        dialect: dialect || 'hive',
+        dialect: dialectId,
         mode: 'document'
     });
     var table = tokenTableModule.buildStructuralTokenTable(result.leaves, source);
@@ -59,6 +124,7 @@ function parse(source, dialect) {
         root: result.root,
         leaves: result.leaves,
         source: source,
+        dialect: dialectId,
         tokenTable: table
     });
     assert.strictEqual(
@@ -305,9 +371,15 @@ function assertNoOpaque(parsed, label) {
         return slice(source, node).indexOf('concat(') === 0;
     });
     assert.ok(concat, 'concat call required');
-    assert.ok(concat.operatorLeafIds.some(function(leafId) {
-        return parsed.result.leaves[leafId].raw.toLowerCase() === 'distinct';
-    }), 'DISTINCT must be retained as a call operator fact');
+    assert.ok(concat.syntaxMarkers.some(function(marker) {
+        return marker.syntaxId === 'operator' &&
+            parsed.result.leaves[marker.leafId].raw.toLowerCase() === 'distinct';
+    }), 'DISTINCT must be retained as a direct call grammar marker');
+    assert.strictEqual(concat.operatorLeafIds.indexOf(
+        concat.syntaxMarkers.find(function(marker) {
+            return parsed.result.leaves[marker.leafId].raw.toLowerCase() === 'distinct';
+        }).leafId
+    ), -1, 'DISTINCT grammar must not masquerade as a registry operator occurrence');
 }());
 
 (function testEmptyCollectionFormsRemainStructured() {
@@ -467,18 +539,58 @@ function assertNoOpaque(parsed, label) {
     var mysqlSource = "SELECT @name, _utf8mb4'abc', json_col->>'$.x', map('x', 1)";
     var mysql = parse(mysqlSource, 'mysql');
     assertNoOpaque(mysql, mysqlSource);
-    assert.ok(nodesOf(mysql, 'expression', 'expressionKind', 'parameter').some(function(node) {
+    var mysqlVariable = nodesOf(
+        mysql,
+        'expression',
+        'expressionKind',
+        'parameter'
+    ).find(function(node) {
         return slice(mysqlSource, node) === '@name';
-    }), 'MySQL variable must be structured as one parameter');
-    assert.ok(nodesOf(mysql, 'expression', 'expressionKind', 'literal').some(function(node) {
+    });
+    assert.ok(mysqlVariable, 'MySQL variable must be structured as one parameter');
+    assert.strictEqual(mysqlVariable.capabilityId, 'mysql-variables');
+    assert.strictEqual(mysqlVariable.formatRole, 'capability');
+    var mysqlPrefixedLiteral = nodesOf(
+        mysql,
+        'expression',
+        'expressionKind',
+        'literal'
+    ).find(function(node) {
         return slice(mysqlSource, node) === "_utf8mb4'abc'";
-    }), 'MySQL prefixed literal must remain one structured literal');
+    });
+    assert.ok(mysqlPrefixedLiteral,
+        'MySQL prefixed literal must remain one structured literal');
+    assert.strictEqual(
+        mysqlPrefixedLiteral.capabilityId,
+        'mysql-prefixed-literals'
+    );
+    assert.strictEqual(mysqlPrefixedLiteral.formatRole, 'capability');
     assert.ok(nodesOf(mysql, 'expression', 'expressionKind', 'binary').some(function(node) {
         return slice(mysqlSource, node) === "json_col->>'$.x'";
     }), 'MySQL JSON operator must be structured');
     assert.ok(nodesOf(mysql, 'expression', 'expressionKind', 'function-call').some(function(node) {
         return slice(mysqlSource, node) === "map('x', 1)";
     }), 'MySQL must not inherit Hive MAP collection semantics');
+
+    var hivePrimitiveSource = 'SELECT ${hiveconf:key}, ?';
+    var hivePrimitives = parse(hivePrimitiveSource, 'hive');
+    var hiveParameters = nodesOf(
+        hivePrimitives,
+        'expression',
+        'expressionKind',
+        'parameter'
+    );
+    var templateParameter = hiveParameters.find(function(node) {
+        return slice(hivePrimitiveSource, node) === '${hiveconf:key}';
+    });
+    var ordinaryParameter = hiveParameters.find(function(node) {
+        return slice(hivePrimitiveSource, node) === '?';
+    });
+    assert.ok(templateParameter && ordinaryParameter);
+    assert.strictEqual(templateParameter.capabilityId, 'template-parameter');
+    assert.strictEqual(templateParameter.formatRole, 'capability');
+    assert.strictEqual(ordinaryParameter.capabilityId, null);
+    assert.strictEqual(ordinaryParameter.formatRole, 'intrinsic-primitive');
 
     var mysqlCollectionSource = 'SELECT [1, 2], value[1]';
     var mysqlCollection = parse(mysqlCollectionSource, 'mysql');
@@ -540,6 +652,49 @@ function assertNoOpaque(parsed, label) {
         assert.deepStrictEqual(nodesOf(json, 'opaque').map(function(node) {
             return slice(jsonSource, node);
         }), ["payload->'x'"], dialectId + ' must not inherit JSON arrow operators');
+    });
+}());
+
+(function testFormattedCapabilityStateRemainsParserStructured() {
+    withFormattedHiveCapabilities([
+        'insert-overwrite-partition-select',
+        'lateral-view',
+        'collection-expression'
+    ], function(formattedHive) {
+        [
+            'insert-overwrite-partition-select',
+            'lateral-view',
+            'collection-expression'
+        ].forEach(function(capabilityId) {
+            assert.strictEqual(
+                formattedHive.getCapability(capabilityId).state,
+                'formatted',
+                capabilityId + ' test view must simulate the state transition'
+            );
+        });
+
+        var insertSource = 'INSERT OVERWRITE TABLE dst SELECT id FROM src';
+        var insert = parse(insertSource, 'hive');
+        assertNoOpaque(insert, insertSource);
+        assert.strictEqual(insert.result.root.children[0].statementKind, 'insert-query');
+
+        var lateralSource = 'SELECT * FROM t LATERAL VIEW EXPLODE(items) e AS item';
+        var lateral = parse(lateralSource, 'hive');
+        assertNoOpaque(lateral, lateralSource);
+        assert.strictEqual(
+            nodesOf(lateral, 'relation', 'relationKind', 'lateral-view').length,
+            1,
+            'formatted LATERAL VIEW must remain parser-structured'
+        );
+
+        var collectionSource = 'SELECT ARRAY[1, 2]';
+        var collection = parse(collectionSource, 'hive');
+        assertNoOpaque(collection, collectionSource);
+        assert.strictEqual(
+            nodesOf(collection, 'expression', 'expressionKind', 'collection').length,
+            1,
+            'formatted collection capability must remain parser-structured'
+        );
     });
 }());
 

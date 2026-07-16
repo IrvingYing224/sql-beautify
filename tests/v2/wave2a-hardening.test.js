@@ -24,8 +24,111 @@ assert.ok(fs.existsSync(dialectsPath), 'dialects required');
 var core = require(corePath);
 var tokenTableMod = require(tokenTablePath);
 var cursorMod = require(cursorPath);
-var invariants = require(invariantsPath);
+var invariantRuntime = require(invariantsPath);
 var dialects = require(dialectsPath);
+
+var EMPTY_FACTS = Object.freeze([]);
+
+function hasOwn(value, key) {
+    return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function frozenRange(value) {
+    if (!value || typeof value !== 'object') {
+        return value;
+    }
+    return Object.freeze({ start: value.start, end: value.end });
+}
+
+function formatFactsFor(node) {
+    var formatRole = 'intrinsic-container';
+    if (node.kind === 'opaque') {
+        formatRole = 'opaque';
+    } else if (node.kind === 'relation' && node.relationKind === 'table') {
+        formatRole = 'intrinsic-primitive';
+    } else if (node.kind === 'expression') {
+        if (
+            node.expressionKind === 'identifier' ||
+            node.expressionKind === 'wildcard' ||
+            node.expressionKind === 'literal' ||
+            node.expressionKind === 'parameter' ||
+            node.expressionKind === 'typed-literal' ||
+            (node.expressionKind === 'frame-bound' &&
+                (!Array.isArray(node.children) || node.children.length === 0))
+        ) {
+            formatRole = 'intrinsic-primitive';
+        }
+    } else if (node.kind === 'type-expression') {
+        formatRole = 'intrinsic-primitive';
+    }
+    return { capabilityId: null, formatRole: formatRole };
+}
+
+function supplyWave3Facts(node) {
+    if (!node || typeof node !== 'object') {
+        return;
+    }
+    var facts = formatFactsFor(node);
+    if (!hasOwn(node, 'capabilityId')) {
+        node.capabilityId = facts.capabilityId;
+    }
+    if (!hasOwn(node, 'formatRole')) {
+        node.formatRole = facts.formatRole;
+    }
+    if (!hasOwn(node, 'syntaxMarkers')) {
+        node.syntaxMarkers = EMPTY_FACTS;
+    } else if (Array.isArray(node.syntaxMarkers) && !Object.isFrozen(node.syntaxMarkers)) {
+        node.syntaxMarkers = Object.freeze(node.syntaxMarkers.map(function(marker) {
+            return marker && typeof marker === 'object' ? Object.freeze(marker) : marker;
+        }));
+    }
+    if ((node.kind === 'clause' || node.kind === 'list') &&
+        Array.isArray(node.separatorLeafIds) && !Object.isFrozen(node.separatorLeafIds)) {
+        node.separatorLeafIds = Object.freeze(node.separatorLeafIds.slice());
+    }
+    if (node.kind === 'clause' && !hasOwn(node, 'separatorLeafIds')) {
+        node.separatorLeafIds = EMPTY_FACTS;
+    }
+    if (node.kind === 'expression') {
+        if (Array.isArray(node.operatorLeafIds) && !Object.isFrozen(node.operatorLeafIds)) {
+            node.operatorLeafIds = Object.freeze(node.operatorLeafIds.slice());
+        }
+        if (!hasOwn(node, 'operatorOccurrences')) {
+            node.operatorOccurrences = EMPTY_FACTS;
+        }
+    }
+    if (node.kind === 'cte' && node.nameLeafRange) {
+        node.nameLeafRange = frozenRange(node.nameLeafRange);
+    }
+    if (node.kind === 'relation') {
+        if (!hasOwn(node, 'nameLeafRange')) {
+            node.nameLeafRange = node.relationKind === 'table' && node.leafRange
+                ? Object.freeze({
+                    start: node.leafRange.start,
+                    end: Math.min(node.leafRange.start + 1, node.leafRange.end)
+                })
+                : null;
+        } else if (node.nameLeafRange) {
+            node.nameLeafRange = frozenRange(node.nameLeafRange);
+        }
+        if (node.alias && typeof node.alias === 'object') {
+            node.alias = Object.freeze({
+                keywordLeafId: node.alias.keywordLeafId,
+                nameLeafRange: frozenRange(node.alias.nameLeafRange)
+            });
+        }
+    }
+    if (Array.isArray(node.children)) {
+        node.children.forEach(supplyWave3Facts);
+    }
+}
+
+var invariants = Object.assign({}, invariantRuntime, {
+    validateSyntaxInvariants: function(input) {
+        supplyWave3Facts(input.root);
+        return invariantRuntime.validateSyntaxInvariants(input);
+    }
+});
 
 function lex(source, dialect) {
     return core.lexSql(source, dialect ? { dialect: dialect } : undefined);

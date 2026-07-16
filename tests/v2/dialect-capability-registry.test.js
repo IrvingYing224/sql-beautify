@@ -136,6 +136,29 @@ assert.strictEqual(typeof core.listDialects, 'undefined');
 assert.strictEqual(typeof dialects.getDialectCapabilityRegistry, 'function');
 assert.strictEqual(typeof dialects.listDialects, 'function');
 assert.strictEqual(typeof dialects.getDialect, 'function');
+assert.strictEqual(typeof dialects.isRecognizedCapabilityState, 'function');
+assert.strictEqual(typeof dialects.isParserStructuredCapabilityState, 'function');
+
+[
+    ['recognized', true, false],
+    ['structured', true, true],
+    ['formatted', true, true],
+    ['verbatim', false, false],
+    ['diagnostic', false, false],
+    [null, false, false],
+    [undefined, false, false]
+].forEach(function(row) {
+    assert.strictEqual(
+        dialects.isRecognizedCapabilityState(row[0]),
+        row[1],
+        String(row[0]) + ' recognized-state classification'
+    );
+    assert.strictEqual(
+        dialects.isParserStructuredCapabilityState(row[0]),
+        row[2],
+        String(row[0]) + ' parser-structured classification'
+    );
+});
 
 var registry = dialects.getDialectCapabilityRegistry();
 assert.ok(registry, 'registry must be returned');
@@ -206,6 +229,8 @@ CANONICAL.forEach(function(dialectId) {
         lexicalOps[op] = true;
     });
     operators.forEach(function(op) {
+        assert.ok(typeof op.id === 'string' && op.id.length > 0,
+            'stable operator id required');
         assert.ok(typeof op.key === 'string' && op.key.length > 0, 'operator key required');
         assert.ok(
             op.fixity === 'prefix' || op.fixity === 'infix' || op.fixity === 'postfix',
@@ -215,6 +240,13 @@ CANONICAL.forEach(function(dialectId) {
             op.form === 'symbol' || op.form === 'keyword' || op.form === 'compound' || op.form === 'special',
             'form required for ' + op.key
         );
+        assert.ok(
+            /^(?:prefix|infix|postfix)-(?:word|symbol)$/.test(op.formatClass) ||
+                op.formatClass === 'attached',
+            'format class required for ' + op.id
+        );
+        assert.ok(op.capabilityId === null || view.getCapability(op.capabilityId),
+            'operator capability must exist when present: ' + dialectId + '/' + op.id);
         if (op.form === 'symbol') {
             assert.ok(
                 lexicalOps[op.key],
@@ -239,8 +271,13 @@ CANONICAL.forEach(function(dialectId) {
         clauseIds[clause.id] = true;
         assert.ok(clause.order > lastOrder, 'clause order must be strictly increasing: ' + dialectId);
         lastOrder = clause.order;
-        assert.ok(view.getCapability(clause.capabilityId),
-            'clause capability must exist: ' + dialectId + '/' + clause.capabilityId);
+        if (clause.id === 'select') {
+            assert.strictEqual(clause.capabilityId, null,
+                'SELECT clause is intrinsic; query node owns no-FROM/FROM authority');
+        } else {
+            assert.ok(view.getCapability(clause.capabilityId),
+                'clause capability must exist: ' + dialectId + '/' + clause.capabilityId);
+        }
     });
 
     var setOperators = view.listSetOperatorSyntax();

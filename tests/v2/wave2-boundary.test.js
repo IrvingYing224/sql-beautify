@@ -333,15 +333,13 @@ runtimeFiles.forEach(function(relativePath) {
     });
 });
 
-// src must not grow layout/renderer/adapter/DDL product implementations
+// The Wave 2 type-only layout contract must remain present. Later waves may add
+// focused layout modules, so this historical gate must not freeze the directory.
 var layoutFiles = collectFiles('src/core/layout', function(name) {
     return /\.ts$/.test(name);
 });
-assert.deepStrictEqual(
-    layoutFiles,
-    ['src/core/layout/doc.ts'],
-    'Wave 2 must not expand layout beyond doc contract'
-);
+assert.ok(layoutFiles.indexOf('src/core/layout/doc.ts') >= 0,
+    'Wave 2 LayoutDoc contract must remain present');
 
 // VSIX content
 var packagedFiles = listPackagedFiles();

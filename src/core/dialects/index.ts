@@ -8,6 +8,7 @@ export type {
     OperatorArity,
     OperatorAssociativity,
     OperatorFixity,
+    OperatorFormatClass,
     OperatorForm,
     OperatorSemantics,
     QueryClauseSyntax,
@@ -17,6 +18,14 @@ export type {
     UnsupportedSyntaxContext,
     UnsupportedSyntaxSignature,
 } from "./types";
+export type {
+    ParserStructuredCapabilityState,
+    RecognizedCapabilityState,
+} from "./capability-state";
+export {
+    isParserStructuredCapabilityState,
+    isRecognizedCapabilityState,
+} from "./capability-state";
 export {
     getDialect,
     getDialectCapabilityRegistry,

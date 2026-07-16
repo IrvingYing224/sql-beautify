@@ -32,11 +32,23 @@ const nonEmptyRange: LeafRange = { start: 0, end: 3 };
 void emptyRange;
 void nonEmptyRange;
 
+const nodeFacts = {
+    syntaxMarkers: [] as const,
+    capabilityId: null,
+    formatRole: "intrinsic-container" as const,
+};
+const opaqueFacts = {
+    syntaxMarkers: [] as const,
+    capabilityId: null,
+    formatRole: "opaque" as const,
+};
+
 // @ts-expect-error LeafRange must not accept string indexes
 const badRange: LeafRange = { start: "0", end: 1 };
 void badRange;
 
 const opaque: OpaqueNode = {
+    ...opaqueFacts,
     id: 2,
     kind: "opaque",
     span: { start: 0, end: 6 },
@@ -47,6 +59,7 @@ const opaque: OpaqueNode = {
 };
 
 const opaqueWithChildren: OpaqueNode = {
+    ...opaqueFacts,
     id: 2,
     kind: "opaque",
     span: { start: 0, end: 6 },
@@ -60,6 +73,7 @@ const opaqueWithChildren: OpaqueNode = {
 void opaqueWithChildren;
 
 const statement: StatementNode = {
+    ...nodeFacts,
     id: 1,
     kind: "statement",
     span: { start: 0, end: 6 },
@@ -70,6 +84,7 @@ const statement: StatementNode = {
 };
 
 const program: ProgramNode = {
+    ...nodeFacts,
     id: 0,
     kind: "program",
     span: { start: 0, end: 6 },
@@ -79,6 +94,7 @@ const program: ProgramNode = {
 
 // Program children must be statements only
 const badProgramChildren: ProgramNode = {
+    ...nodeFacts,
     id: 0,
     kind: "program",
     span: { start: 0, end: 6 },
@@ -89,6 +105,7 @@ const badProgramChildren: ProgramNode = {
 void badProgramChildren;
 
 const query: QueryNode = {
+    ...nodeFacts,
     id: 3,
     kind: "query",
     span: { start: 0, end: 6 },
@@ -99,6 +116,7 @@ const query: QueryNode = {
 };
 
 const listItem: ListItemNode = {
+    ...nodeFacts,
     id: 8,
     kind: "list-item",
     span: { start: 0, end: 6 },
@@ -111,6 +129,7 @@ const listItem: ListItemNode = {
 };
 
 const list: ListNode = {
+    ...nodeFacts,
     id: 7,
     kind: "list",
     span: { start: 0, end: 6 },
@@ -121,6 +140,7 @@ const list: ListNode = {
 };
 
 const cte: CteNode = {
+    ...nodeFacts,
     id: 4,
     kind: "cte",
     span: { start: 0, end: 6 },
@@ -132,6 +152,7 @@ const cte: CteNode = {
 };
 
 const clause: ClauseNode = {
+    ...nodeFacts,
     id: 5,
     kind: "clause",
     span: { start: 0, end: 6 },
@@ -139,6 +160,7 @@ const clause: ClauseNode = {
     clauseKind: "select",
     headLeafRange: { start: 0, end: 1 },
     bodyLeafRange: { start: 1, end: 1 },
+    separatorLeafIds: [],
     children: [],
 };
 
@@ -148,27 +170,32 @@ const alias: AliasInfo = {
 };
 
 const relation: RelationNode = {
+    ...nodeFacts,
     id: 6,
     kind: "relation",
     span: { start: 0, end: 6 },
     leafRange: { start: 0, end: 1 },
     relationKind: "table",
+    nameLeafRange: { start: 0, end: 1 },
     alias,
     bodyChildId: null,
     children: [],
 };
 
 const expression: ExpressionNode = {
+    ...nodeFacts,
     id: 9,
     kind: "expression",
     span: { start: 0, end: 6 },
     leafRange: { start: 0, end: 1 },
     expressionKind: "binary",
     operatorLeafIds: [1],
+    operatorOccurrences: [],
     children: [],
 };
 
 const opaqueExpr: ExpressionNode = {
+    ...nodeFacts,
     id: 99,
     kind: "expression",
     span: { start: 0, end: 1 },
@@ -176,11 +203,13 @@ const opaqueExpr: ExpressionNode = {
     // @ts-expect-error ExpressionKind no longer includes opaque
     expressionKind: "opaque",
     operatorLeafIds: [],
+    operatorOccurrences: [],
     children: [],
 };
 void opaqueExpr;
 
 const caseBranch: CaseBranchNode = {
+    ...nodeFacts,
     id: 10,
     kind: "case-branch",
     span: { start: 0, end: 6 },
@@ -192,6 +221,7 @@ const caseBranch: CaseBranchNode = {
 };
 
 const windowSpec: WindowSpecNode = {
+    ...nodeFacts,
     id: 11,
     kind: "window-spec",
     span: { start: 0, end: 6 },
@@ -204,6 +234,7 @@ const windowSpec: WindowSpecNode = {
 };
 
 const typeExpression: TypeExpressionNode = {
+    ...nodeFacts,
     id: 12,
     kind: "type-expression",
     span: { start: 0, end: 6 },
@@ -260,11 +291,13 @@ void notStructured;
 void structuredKind;
 
 const badAliasRelation: RelationNode = {
+    ...nodeFacts,
     id: 99,
     kind: "relation",
     span: { start: 0, end: 1 },
     leafRange: { start: 0, end: 1 },
     relationKind: "table",
+    nameLeafRange: { start: 0, end: 1 },
     // @ts-expect-error alias must not be a bare string
     alias: "t",
     bodyChildId: null,
@@ -273,6 +306,7 @@ const badAliasRelation: RelationNode = {
 void badAliasRelation;
 
 const badList: ListNode = {
+    ...nodeFacts,
     id: 98,
     kind: "list",
     span: { start: 0, end: 1 },
@@ -285,6 +319,7 @@ const badList: ListNode = {
 void badList;
 
 const badStatement: StatementNode = {
+    ...nodeFacts,
     id: 97,
     kind: "statement",
     span: { start: 0, end: 1 },
@@ -306,6 +341,7 @@ const legacyNode: SyntaxNode = {
 void legacyNode;
 
 const metadataNode: ProgramNode = {
+    ...nodeFacts,
     id: 0,
     kind: "program",
     span: { start: 0, end: 1 },

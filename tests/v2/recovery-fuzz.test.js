@@ -308,6 +308,7 @@ function verifyCase(source, dialect, caseIndex) {
         root: result.root,
         leaves: result.leaves,
         source: source,
+        dialect: dialect,
         tokenTable: table
     });
     assert.strictEqual(checked.ok, true,
@@ -327,7 +328,14 @@ function verifyCase(source, dialect, caseIndex) {
 
     var analyzed = analysis.analyzeSql(source, options);
     var analyzedAgain = analysis.analyzeSql(source, options);
-    assert.strictEqual(analyzed.status, 'analyzed', label + ' analysis status');
+    var preservesTarget = result.diagnostics.some(function(diagnostic) {
+        return diagnostic.recovery === 'preserve-target';
+    });
+    assert.strictEqual(
+        analyzed.status,
+        preservesTarget ? 'preserved' : 'analyzed',
+        label + ' analysis status must reflect target-level recovery'
+    );
     assert.deepStrictEqual(analyzed.root, result.root, label + ' analysis/parser CST agreement');
     assert.deepStrictEqual(analyzed.leaves, result.leaves,
         label + ' analysis/parser leaf agreement');

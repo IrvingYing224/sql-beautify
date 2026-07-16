@@ -9,8 +9,16 @@ import type { SourceLeaf } from "../lexer/token";
 import { freezeImmutableArray } from "../util/immutable-array";
 import type { LeafRange } from "./leaf-range";
 import type { NodeFactory } from "./node-factory";
+import type {
+    FormatRole,
+    SyntaxLeafRole,
+    SyntaxMarker,
+    SyntaxMarkerId,
+    SyntaxNodeFacts,
+} from "./node";
 import type { StructuralTokenTable } from "./token-table";
 import type { ParseMode } from "./parser-backend";
+import { isKeywordCaseRole } from "./contextual-fact-contract";
 
 export type SyntaxDiagnosticCode =
     | "SYN_UNMODELED_CONSTRUCT"
@@ -28,6 +36,91 @@ export interface ParserContext {
     readonly table: StructuralTokenTable;
     readonly factory: NodeFactory;
     readonly diagnostics: Diagnostic[];
+}
+
+const EMPTY_SYNTAX_MARKERS: readonly SyntaxMarker[] = Object.freeze([]);
+const INTRINSIC_CONTAINER_FACTS: SyntaxNodeFacts = Object.freeze({
+    syntaxMarkers: EMPTY_SYNTAX_MARKERS,
+    capabilityId: null,
+    formatRole: "intrinsic-container",
+});
+const INTRINSIC_PRIMITIVE_FACTS: SyntaxNodeFacts = Object.freeze({
+    syntaxMarkers: EMPTY_SYNTAX_MARKERS,
+    capabilityId: null,
+    formatRole: "intrinsic-primitive",
+});
+
+export function syntaxMarkers(
+    leafIds: readonly number[],
+    syntaxId: SyntaxMarkerId,
+    syntaxRole: SyntaxLeafRole = "syntax-keyword",
+    keywordCaseEligible: boolean = isKeywordCaseRole(syntaxRole)
+): readonly SyntaxMarker[] {
+    if (leafIds.length === 0) {
+        return EMPTY_SYNTAX_MARKERS;
+    }
+    const markers: SyntaxMarker[] = new Array(leafIds.length);
+    for (let partOrdinal = 0; partOrdinal < leafIds.length; partOrdinal++) {
+        markers[partOrdinal] = {
+            leafId: leafIds[partOrdinal]!,
+            syntaxId,
+            partOrdinal,
+            syntaxRole,
+            keywordCaseEligible,
+        };
+    }
+    return markers;
+}
+
+export function mergeSyntaxMarkers(
+    ...groups: readonly (readonly SyntaxMarker[])[]
+): readonly SyntaxMarker[] {
+    let onlyNonEmpty: readonly SyntaxMarker[] | null = null;
+    for (const group of groups) {
+        if (group.length === 0) {
+            continue;
+        }
+        if (onlyNonEmpty !== null) {
+            onlyNonEmpty = null;
+            break;
+        }
+        onlyNonEmpty = group;
+    }
+    if (onlyNonEmpty !== null) {
+        return onlyNonEmpty;
+    }
+    if (groups.every((group) => group.length === 0)) {
+        return EMPTY_SYNTAX_MARKERS;
+    }
+    const sorted = groups.flat().slice().sort((left, right) => left.leafId - right.leafId);
+    return sorted.filter((marker, index) => {
+        const previous = sorted[index - 1];
+        return previous === undefined ||
+            previous.leafId !== marker.leafId ||
+            previous.syntaxId !== marker.syntaxId ||
+            previous.syntaxRole !== marker.syntaxRole ||
+            previous.keywordCaseEligible !== marker.keywordCaseEligible;
+    });
+}
+
+export function nodeFacts(
+    capabilityId: CapabilityIdentity,
+    formatRole: FormatRole,
+    markers: readonly SyntaxMarker[] = []
+): SyntaxNodeFacts {
+    if (capabilityId === null && markers.length === 0) {
+        if (formatRole === "intrinsic-container") {
+            return INTRINSIC_CONTAINER_FACTS;
+        }
+        if (formatRole === "intrinsic-primitive") {
+            return INTRINSIC_PRIMITIVE_FACTS;
+        }
+    }
+    return {
+        syntaxMarkers: markers,
+        capabilityId,
+        formatRole,
+    };
 }
 
 export class ParserSyntaxError extends Error {

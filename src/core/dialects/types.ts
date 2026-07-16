@@ -1,9 +1,6 @@
 import type { Dialect } from "../config/options";
 
-/**
- * Capability state is a fact about current implementation status.
- * Wave 2A must not declare `formatted` (reserved for Wave 3).
- */
+/** Capability state is a fact about current implementation status. */
 export type CapabilityState =
     | "recognized"
     | "structured"
@@ -13,6 +10,14 @@ export type CapabilityState =
 
 export type OperatorFixity = "prefix" | "infix" | "postfix";
 export type OperatorAssociativity = "left" | "right" | "none";
+export type OperatorFormatClass =
+    | "prefix-word"
+    | "prefix-symbol"
+    | "infix-word"
+    | "infix-symbol"
+    | "postfix-word"
+    | "postfix-symbol"
+    | "attached";
 
 /**
  * How the operator is recognized in the leaf stream.
@@ -34,6 +39,8 @@ export interface CapabilityEntry {
  * Lookup is (key, fixity) — the same lexical token may have multiple entries.
  */
 export interface OperatorSemantics {
+    /** Stable and unique within one dialect registry view. */
+    readonly id: string;
     readonly key: string;
     readonly fixity: OperatorFixity;
     readonly form: OperatorForm;
@@ -44,6 +51,8 @@ export interface OperatorSemantics {
     readonly words: readonly string[];
     readonly precedence: number;
     readonly associativity: OperatorAssociativity;
+    readonly capabilityId: string | null;
+    readonly formatClass: OperatorFormatClass;
 }
 
 export type QueryClauseSyntaxId =
@@ -63,7 +72,8 @@ export interface QueryClauseSyntax {
     readonly id: QueryClauseSyntaxId;
     readonly words: readonly string[];
     readonly order: number;
-    readonly capabilityId: string;
+    /** SELECT is an intrinsic container; query-level nodes own its authority. */
+    readonly capabilityId: string | null;
 }
 
 export type SetOperatorSyntaxId = "union" | "intersect" | "except";

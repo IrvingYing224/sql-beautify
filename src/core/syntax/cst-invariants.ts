@@ -1,3 +1,5 @@
+import { isProxy } from "node:util/types";
+
 import { isCapabilityIdentity } from "../diagnostics/diagnostic";
 import {
     isImmutableSourceLeafPartition,
@@ -8,9 +10,14 @@ import type { LeafRange } from "./leaf-range";
 import type { OpaqueBoundary, StatementKind } from "./node";
 import {
     canonicalProgramNodeCount,
-    canonicalProgramNodeCountForLeaves,
+    canonicalProgramValidationProofForLeaves,
 } from "./node-factory";
 import { validateContainerRelationships } from "./cst-container-invariants";
+import { validateContextualNodeFacts } from "./cst-contextual-invariants";
+import {
+    getCstDialectInvariantContext,
+    type CstDialectInvariantContext,
+} from "./cst-dialect-context";
 import type {
     InvariantFailure,
     InvariantResult,
@@ -463,9 +470,27 @@ type ChildrenSnapshotState = {
     stableFrozenData: boolean;
 };
 
+function sameChildrenDescriptor(
+    left: PropertyDescriptor,
+    right: PropertyDescriptor | undefined
+): boolean {
+    if (
+        right === undefined ||
+        left.enumerable !== right.enumerable ||
+        left.configurable !== right.configurable ||
+        ("value" in left) !== ("value" in right)
+    ) {
+        return false;
+    }
+    return "value" in left
+        ? left.value === right.value && left.writable === right.writable
+        : left.get === right.get && left.set === right.set;
+}
+
 function snapshotChildren(
     raw: Record<string, unknown>,
-    state: ChildrenSnapshotState
+    state: ChildrenSnapshotState,
+    trustedCanonicalShape: boolean
 ): readonly unknown[] {
     if (raw.kind === "opaque") {
         state.dense = true;
@@ -473,25 +498,56 @@ function snapshotChildren(
         return EMPTY_CHILDREN_RAW;
     }
     const binding = raw.children;
-    if (!Array.isArray(binding)) {
+    if (trustedCanonicalShape) {
+        state.dense = true;
+        state.stableFrozenData = true;
+        return binding as readonly unknown[];
+    }
+    if (isProxy(binding) || !Array.isArray(binding)) {
         state.dense = false;
         state.stableFrozenData = false;
         return EMPTY_CHILDREN_RAW;
     }
-    let dense = true;
-    let stableFrozenData = Object.isFrozen(binding);
-    for (let index = 0; index < binding.length; index++) {
+    const length = binding.length;
+    const descriptors = new Array<PropertyDescriptor>(length);
+    for (let index = 0; index < length; index++) {
         const descriptor = Object.getOwnPropertyDescriptor(binding, index);
         if (descriptor === undefined) {
-            dense = false;
-            stableFrozenData = false;
-        } else if (!("value" in descriptor)) {
-            stableFrozenData = false;
+            state.dense = false;
+            state.stableFrozenData = false;
+            return EMPTY_CHILDREN_RAW;
+        }
+        descriptors[index] = descriptor;
+    }
+    const snapshot = new Array<unknown>(length);
+    for (let index = 0; index < length; index++) {
+        const descriptor = descriptors[index]!;
+        snapshot[index] = "value" in descriptor
+            ? descriptor.value
+            : descriptor.get === undefined
+              ? undefined
+              : Reflect.apply(descriptor.get, binding, []);
+    }
+    if (binding.length !== length) {
+        state.dense = false;
+        state.stableFrozenData = false;
+        return EMPTY_CHILDREN_RAW;
+    }
+    for (let index = 0; index < length; index++) {
+        if (
+            !sameChildrenDescriptor(
+                descriptors[index]!,
+                Object.getOwnPropertyDescriptor(binding, index)
+            )
+        ) {
+            state.dense = false;
+            state.stableFrozenData = false;
+            return EMPTY_CHILDREN_RAW;
         }
     }
-    state.dense = dense;
-    state.stableFrozenData = dense && stableFrozenData;
-    return dense ? binding : EMPTY_CHILDREN_RAW;
+    state.dense = true;
+    state.stableFrozenData = true;
+    return Object.freeze(snapshot);
 }
 
 function validateNodeShape(
@@ -499,8 +555,63 @@ function validateNodeShape(
     childrenRaw: readonly unknown[],
     childrenDense: boolean,
     leaves: readonly SourceLeaf[],
-    failures: InvariantFailure[]
+    failures: InvariantFailure[],
+    trustedCanonicalShape: boolean
 ): void {
+    if (trustedCanonicalShape) {
+        const nodeId = raw.id as number;
+        let validSubtype = true;
+        switch (raw.kind) {
+            case "statement":
+                validSubtype = STATEMENT_KINDS.has(raw.statementKind as StatementKind);
+                break;
+            case "query":
+                validSubtype = typeof raw.queryKind === "string" && QUERY_KINDS.has(raw.queryKind);
+                break;
+            case "clause":
+                validSubtype = typeof raw.clauseKind === "string" && CLAUSE_KINDS.has(raw.clauseKind);
+                if ((raw.headLeafRange as LeafRange).end > (raw.bodyLeafRange as LeafRange).start) {
+                    fail(
+                        failures,
+                        "INV_RELATIONSHIP",
+                        `clause ${nodeId} headLeafRange must end at or before bodyLeafRange.start (no overlap/reorder)`,
+                        nodeId
+                    );
+                }
+                break;
+            case "relation":
+                validSubtype = typeof raw.relationKind === "string" && RELATION_KINDS.has(raw.relationKind);
+                break;
+            case "list":
+                validSubtype = typeof raw.listRole === "string" && LIST_ROLES.has(raw.listRole);
+                break;
+            case "list-item":
+                validSubtype = typeof raw.itemRole === "string" && LIST_ITEM_ROLES.has(raw.itemRole);
+                break;
+            case "expression":
+                validSubtype = typeof raw.expressionKind === "string" && EXPRESSION_KINDS.has(raw.expressionKind);
+                break;
+            case "case-branch":
+                validSubtype = typeof raw.branchKind === "string" && CASE_BRANCH_KINDS.has(raw.branchKind);
+                break;
+            case "opaque":
+                validSubtype =
+                    typeof raw.boundary === "string" &&
+                    OPAQUE_BOUNDARIES.has(raw.boundary as OpaqueBoundary);
+                break;
+            default:
+                break;
+        }
+        if (!validSubtype) {
+            fail(
+                failures,
+                "INV_ENUM",
+                `illegal subtype on canonical ${String(raw.kind)} node ${nodeId}`,
+                nodeId
+            );
+        }
+        return;
+    }
     const leavesLen = leaves.length;
     if (!isFiniteNonNegInt(raw.id)) {
         fail(failures, "INV_SHAPE", `node id must be non-negative integer, got ${String(raw.id)}`);
@@ -918,7 +1029,9 @@ function enforceRelationships(
     raw: Record<string, unknown>,
     directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
-    failures: InvariantFailure[]
+    failures: InvariantFailure[],
+    dialectContext: CstDialectInvariantContext,
+    trustedCanonicalShape: boolean
 ): void {
     if (typeof raw.kind !== "string" || !isFiniteNonNegInt(raw.id)) {
         return;
@@ -1126,7 +1239,22 @@ function enforceRelationships(
         }
     }
 
-    validateContainerRelationships(raw, directChildren, leaves, failures);
+    validateContextualNodeFacts(
+        raw,
+        directChildren,
+        leaves,
+        failures,
+        dialectContext,
+        trustedCanonicalShape
+    );
+    validateContainerRelationships(
+        raw,
+        directChildren,
+        leaves,
+        failures,
+        dialectContext,
+        trustedCanonicalShape
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1145,6 +1273,9 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
             fail(failures, "INV_MALFORMED_NODE", "Invariant input is missing or not an object");
             return resultOf(failures);
         }
+        const dialectContext = getCstDialectInvariantContext(
+            input.dialect ?? "hive"
+        );
 
         const partition = validateLeafPartition(input.leaves, input.source, failures);
         if (!partition) {
@@ -1158,17 +1289,42 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
         }
 
         const root = input.root;
+        const canonicalValidation = canonicalProgramValidationProofForLeaves(
+            root,
+            leaves,
+            dialectContext.dialect
+        );
+        const canonicalNodeCount = canonicalValidation?.nodeCount ?? null;
+        if (
+            canonicalNodeCount === null &&
+            canonicalProgramNodeCount(root) !== null
+        ) {
+            fail(
+                failures,
+                "INV_LEAF_PARTITION",
+                "Canonical ProgramNode belongs to a different leaf partition or dialect"
+            );
+        }
+        const hasCanonicalProgramProof = canonicalNodeCount !== null;
+        const trustedRootShape =
+            hasCanonicalProgramProof &&
+            canonicalValidation!.ownsNode(root);
         const rootChildrenState: ChildrenSnapshotState = {
             dense: false,
             stableFrozenData: false,
         };
-        const rootChildren = snapshotChildren(root, rootChildrenState);
+        const rootChildren = snapshotChildren(
+            root,
+            rootChildrenState,
+            trustedRootShape
+        );
         validateNodeShape(
             root,
             rootChildren,
             rootChildrenState.dense,
             leaves,
-            failures
+            failures,
+            trustedRootShape
         );
 
         if (root.kind !== "program") {
@@ -1203,17 +1359,6 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
             );
         }
 
-        const canonicalNodeCount = canonicalProgramNodeCountForLeaves(root, leaves);
-        if (
-            canonicalNodeCount === null &&
-            canonicalProgramNodeCount(root) !== null
-        ) {
-            fail(
-                failures,
-                "INV_LEAF_PARTITION",
-                "Canonical ProgramNode belongs to a different leaf partition"
-            );
-        }
         const seenIdBitmap =
             canonicalNodeCount === null ? null : new Uint8Array(canonicalNodeCount);
         const seenIds = seenIdBitmap === null ? new Set<number>() : null;
@@ -1230,6 +1375,8 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
             childrenRaw: readonly unknown[];
             childObjects: Record<string, unknown>[] | null;
             previousChildObject: Record<string, unknown> | null;
+            previousChildTrustedCanonicalShape: boolean;
+            trustedCanonicalShape: boolean;
             index: number;
         };
         const visitStack: VisitFrame[] = [];
@@ -1238,9 +1385,11 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
         const enterNode = (
             rawValue: unknown,
             parent: Record<string, unknown> | null,
+            parentTrustedCanonicalShape: boolean,
             childrenRawOverride?: readonly unknown[],
             childrenDenseOverride?: boolean,
-            childrenStableOverride?: boolean
+            childrenStableOverride?: boolean,
+            trustedCanonicalShapeOverride?: boolean
         ): void => {
             const raw = rawValue;
             if (!isObject(raw)) {
@@ -1257,6 +1406,9 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 return;
             }
             seenObjects?.add(raw);
+            const trustedCanonicalShape =
+                trustedCanonicalShapeOverride ??
+                (hasCanonicalProgramProof && canonicalValidation!.ownsNode(raw));
             let childrenRaw = childrenRawOverride;
             let childrenDense = childrenDenseOverride;
             let childrenStable = childrenStableOverride;
@@ -1265,11 +1417,22 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 childrenDense === undefined ||
                 childrenStable === undefined
             ) {
-                childrenRaw = snapshotChildren(raw, childSnapshotState);
+                childrenRaw = snapshotChildren(
+                    raw,
+                    childSnapshotState,
+                    trustedCanonicalShape
+                );
                 childrenDense = childSnapshotState.dense;
                 childrenStable = childSnapshotState.stableFrozenData;
             }
-            validateNodeShape(raw, childrenRaw, childrenDense, leaves, failures);
+            validateNodeShape(
+                raw,
+                childrenRaw,
+                childrenDense,
+                leaves,
+                failures,
+                trustedCanonicalShape
+            );
 
             if (isFiniteNonNegInt(raw.id)) {
                 validIdOccurrenceCount += 1;
@@ -1299,7 +1462,11 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 }
             }
 
-            if (isLeafRange(raw.leafRange) && isSourceSpan(raw.span)) {
+            if (
+                !trustedCanonicalShape &&
+                isLeafRange(raw.leafRange) &&
+                isSourceSpan(raw.span)
+            ) {
                 if (
                     raw.leafRange.end > leaves.length ||
                     raw.leafRange.start < 0 ||
@@ -1343,16 +1510,29 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 }
             }
 
+            const trustedContainment =
+                parent !== null &&
+                trustedCanonicalShape &&
+                parentTrustedCanonicalShape;
+            const comparableContainment =
+                parent !== null &&
+                (trustedContainment ||
+                    (isSourceSpan(parent.span) &&
+                        isSourceSpan(raw.span) &&
+                        isLeafRange(parent.leafRange) &&
+                        isLeafRange(raw.leafRange)));
+            const rawSpan = raw.span as { start: number; end: number };
+            const parentSpan = parent?.span as
+                | { start: number; end: number }
+                | undefined;
+            const rawLeafRange = raw.leafRange as LeafRange;
+            const parentLeafRange = parent?.leafRange as LeafRange | undefined;
             if (
-                parent &&
-                isSourceSpan(parent.span) &&
-                isSourceSpan(raw.span) &&
-                isLeafRange(parent.leafRange) &&
-                isLeafRange(raw.leafRange) &&
-                (raw.span.start < parent.span.start ||
-                    raw.span.end > parent.span.end ||
-                    raw.leafRange.start < parent.leafRange.start ||
-                    raw.leafRange.end > parent.leafRange.end)
+                comparableContainment &&
+                (rawSpan.start < parentSpan!.start ||
+                    rawSpan.end > parentSpan!.end ||
+                    rawLeafRange.start < parentLeafRange!.start ||
+                    rawLeafRange.end > parentLeafRange!.end)
             ) {
                 fail(
                     failures,
@@ -1369,6 +1549,8 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                     childrenRaw,
                     childObjects: childrenStable ? null : [],
                     previousChildObject: null,
+                    previousChildTrustedCanonicalShape: false,
+                    trustedCanonicalShape,
                     index: 0,
                 });
             } else {
@@ -1378,6 +1560,8 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                     ? null
                     : [];
                 recycledFrame.previousChildObject = null;
+                recycledFrame.previousChildTrustedCanonicalShape = false;
+                recycledFrame.trustedCanonicalShape = trustedCanonicalShape;
                 recycledFrame.index = 0;
                 visitStack.push(recycledFrame);
             }
@@ -1386,21 +1570,27 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
         enterNode(
             root,
             null,
+            false,
             rootChildren,
             rootChildrenState.dense,
-            rootChildrenState.stableFrozenData
+            rootChildrenState.stableFrozenData,
+            trustedRootShape
         );
         while (visitStack.length > 0) {
             const frame = visitStack[visitStack.length - 1]!;
             if (frame.index >= frame.childrenRaw.length) {
                 visitStack.pop();
                 // Relationship contracts run post-order, after every child visit.
+                const directChildren = frame.childObjects === null
+                    ? (frame.childrenRaw as readonly Record<string, unknown>[])
+                    : Object.freeze(frame.childObjects);
                 enforceRelationships(
                     frame.raw,
-                    frame.childObjects ??
-                        (frame.childrenRaw as readonly Record<string, unknown>[]),
+                    directChildren,
                     leaves,
-                    failures
+                    failures,
+                    dialectContext,
+                    frame.trustedCanonicalShape
                 );
                 freeVisitFrames.push(frame);
                 continue;
@@ -1423,16 +1613,29 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 continue;
             }
             const previous = frame.previousChildObject;
+            const childTrustedCanonicalShape =
+                hasCanonicalProgramProof && canonicalValidation!.ownsNode(child);
+            const trustedSiblingComparison =
+                previous !== null &&
+                frame.previousChildTrustedCanonicalShape &&
+                childTrustedCanonicalShape;
+            const previousLeafRange = previous?.leafRange as LeafRange | undefined;
+            const childLeafRange = child.leafRange as LeafRange;
+            const previousSpan = previous?.span as
+                | { start: number; end: number }
+                | undefined;
+            const childSpan = child.span as { start: number; end: number };
             if (
                 previous !== null &&
-                isLeafRange(previous.leafRange) &&
-                isLeafRange(child.leafRange) &&
-                isSourceSpan(previous.span) &&
-                isSourceSpan(child.span) &&
-                (child.leafRange.start < previous.leafRange.end ||
-                    child.span.start < previous.span.end)
+                (trustedSiblingComparison ||
+                    (isLeafRange(previous.leafRange) &&
+                        isLeafRange(child.leafRange) &&
+                        isSourceSpan(previous.span) &&
+                        isSourceSpan(child.span))) &&
+                (childLeafRange.start < previousLeafRange!.end ||
+                    childSpan.start < previousSpan!.end)
             ) {
-                if (rangesOverlap(previous.leafRange, child.leafRange)) {
+                if (rangesOverlap(previousLeafRange!, childLeafRange)) {
                     fail(
                         failures,
                         "INV_SIBLING_OVERLAP",
@@ -1452,7 +1655,16 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 frame.childObjects.push(child);
             }
             frame.previousChildObject = child;
-            enterNode(child, frame.raw);
+            frame.previousChildTrustedCanonicalShape = childTrustedCanonicalShape;
+            enterNode(
+                child,
+                frame.raw,
+                frame.trustedCanonicalShape,
+                undefined,
+                undefined,
+                undefined,
+                childTrustedCanonicalShape
+            );
         }
 
         // Root coverage

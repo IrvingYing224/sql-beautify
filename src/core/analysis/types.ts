@@ -8,12 +8,14 @@ import type {
     ClauseNode,
     ListItemNode,
     ListNode,
+    OperatorOccurrence,
     ProgramNode,
     QueryNode,
     StatementNode,
     SyntaxNode,
 } from "../syntax/node";
 import type { StructuralTokenTable } from "../syntax/token-table";
+import type { ParseMode } from "../syntax/parser-backend";
 
 export type TriviaPlacement = "leading" | "trailing" | "dangling";
 
@@ -44,6 +46,35 @@ export interface SeparatorOwnership {
     readonly leftMemberNodeId: number;
     readonly rightMemberNodeId: number;
 }
+
+export interface SyntaxLeafOccurrence {
+    readonly leafId: number;
+    readonly directOwnerNodeId: number;
+    readonly syntaxRole: import("../syntax/node").SyntaxLeafRole;
+    readonly syntaxId: import("../syntax/node").SyntaxMarkerId | null;
+    readonly capabilityId: string | null;
+    readonly keywordCaseEligible: boolean;
+}
+
+export interface ContextualLeafFacts {
+    readonly leafId: number;
+    readonly syntax: SyntaxLeafOccurrence | null;
+    readonly opaqueOwnerNodeId: number | null;
+}
+
+export type CapabilityOccurrence =
+    | {
+          readonly ownerNodeId: number;
+          readonly capabilityId: string;
+          readonly source: "node";
+          readonly operatorId: null;
+      }
+    | {
+          readonly ownerNodeId: number;
+          readonly capabilityId: string;
+          readonly source: "operator";
+          readonly operatorId: string;
+      };
 
 export interface StructuralIndexSnapshot {
     readonly nodeIds: readonly number[];
@@ -99,6 +130,12 @@ export interface StructuralIndex {
 
     lineStarts(): readonly number[];
     leafPosition(leafId: number): SourcePosition;
+    leafContainsLineBreak(leafId: number): boolean;
+    leafStartsWithLineBreak(leafId: number): boolean;
+    leafEndsWithLineBreak(leafId: number): boolean;
+    rangeContainsLineBreak(range: LeafRange): boolean;
+    rangeStartsWithLineBreak(range: LeafRange): boolean;
+    rangeEndsWithLineBreak(range: LeafRange): boolean;
     /**
      * Accepts 0..sourceLength. Empty-source offset 0 returns null. For a
      * non-empty source, sourceLength maps to the final leaf's exclusive end.
@@ -112,8 +149,14 @@ export interface StructuralIndex {
     commentBinding(commentLeafId: number): CommentBinding | null;
     commentsForOwner(ownerNodeId: number): readonly CommentBinding[];
 
+    leafContext(leafId: number): ContextualLeafFacts;
+    capabilityForNode(nodeId: number): CapabilityEntry | null;
+    capabilityOccurrencesOf(nodeId: number): readonly CapabilityOccurrence[];
+    operatorOccurrencesOf(expressionNodeId: number): readonly OperatorOccurrence[];
+    operatorOccurrenceForLeaf(leafId: number): OperatorOccurrence | null;
+
     capability(capabilityId: string): CapabilityEntry | null;
-    /** Only OpaqueNode carries an occurrence identity; structured nodes do not. */
+    /** Resolves the preservation capability identity carried by an OpaqueNode. */
     capabilityForOpaque(opaqueNodeId: number): CapabilityEntry | null;
     capabilityForDiagnostic(diagnosticIndex: number): CapabilityEntry | null;
 
@@ -123,20 +166,34 @@ export interface StructuralIndex {
 
 export type AnalysisStatus = "analyzed" | "preserved" | "failed";
 
-interface AnalysisOutputBase<S extends AnalysisStatus> {
+export interface AnalysisArtifactBase<S extends AnalysisStatus> {
     readonly status: S;
+    readonly source: string;
+    readonly dialect: Dialect;
+    readonly mode: ParseMode;
     readonly root: ProgramNode;
     readonly leaves: readonly SourceLeaf[];
     readonly diagnostics: readonly Diagnostic[];
 }
 
-export interface IndexedAnalysisOutput
-    extends AnalysisOutputBase<"analyzed" | "preserved"> {
+export interface AnalyzedArtifact extends AnalysisArtifactBase<"analyzed"> {
     readonly index: StructuralIndex;
 }
 
-export interface FailedAnalysisOutput extends AnalysisOutputBase<"failed"> {
+export interface PreservedAnalysisArtifact
+    extends AnalysisArtifactBase<"preserved"> {
+    readonly index: StructuralIndex;
+}
+
+export interface FailedAnalysisArtifact extends AnalysisArtifactBase<"failed"> {
     readonly index: null;
 }
 
-export type AnalysisOutput = IndexedAnalysisOutput | FailedAnalysisOutput;
+export type IndexedAnalysisOutput = AnalyzedArtifact | PreservedAnalysisArtifact;
+export type FailedAnalysisOutput = FailedAnalysisArtifact;
+export type AnalysisArtifact =
+    | AnalyzedArtifact
+    | PreservedAnalysisArtifact
+    | FailedAnalysisArtifact;
+/** @deprecated Internal compatibility alias; use AnalysisArtifact. */
+export type AnalysisOutput = AnalysisArtifact;

@@ -25,30 +25,36 @@ function lex(source) {
     return core.lexSql(source);
 }
 
+function withFacts(node, formatRole, capabilityId) {
+    node.capabilityId = capabilityId === undefined ? null : capabilityId;
+    node.formatRole = formatRole;
+    node.syntaxMarkers = Object.freeze([]);
+    return node;
+}
+
 function emptyProgram(source) {
-    return {
+    return withFacts({
         id: 0,
         kind: 'program',
         span: { start: 0, end: source.length },
         leafRange: { start: 0, end: 0 },
         children: []
-    };
+    }, 'intrinsic-container');
 }
 
 function makeOpaque(id, start, end, leafStart, leafEnd, boundary) {
-    return {
+    return withFacts({
         id: id,
         kind: 'opaque',
         span: { start: start, end: end },
         leafRange: { start: leafStart, end: leafEnd },
         reasonCode: 'SYN_UNMODELED_CONSTRUCT',
-        capabilityId: null,
         boundary: boundary || 'statement'
-    };
+    }, 'opaque');
 }
 
 function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children) {
-    return {
+    return withFacts({
         id: id,
         kind: 'statement',
         span: { start: start, end: end },
@@ -56,7 +62,25 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
         statementKind: bodyChildId === null ? 'empty' : 'opaque',
         bodyChildId: bodyChildId,
         children: children || []
-    };
+    }, 'intrinsic-container');
+}
+
+function makeProgram(start, end, leafStart, leafEnd, children) {
+    return withFacts({
+        id: 0,
+        kind: 'program',
+        span: { start: start, end: end },
+        leafRange: { start: leafStart, end: leafEnd },
+        children: children || []
+    }, 'intrinsic-container');
+}
+
+function cloneSyntaxTree(node) {
+    var clone = Object.assign({}, node);
+    if (Array.isArray(node.children)) {
+        clone.children = node.children.map(cloneSyntaxTree);
+    }
+    return clone;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,17 +109,11 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
 (function testFullOpaque() {
     var source = 'SELECT 1';
     var leaves = lex(source).leaves;
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: [
+    var root = makeProgram(0, source.length, 0, leaves.length, [
             makeStatement(1, 0, source.length, 0, leaves.length, 2, [
                 makeOpaque(2, 0, source.length, 0, leaves.length)
             ])
-        ]
-    };
+        ]);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -159,12 +177,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
         ranges[0].end,
         'target'
     );
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: [
+    var root = makeProgram(0, source.length, 0, leaves.length, [
             makeStatement(
                 1,
                 firstSpan.start,
@@ -183,8 +196,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
                 null,
                 []
             )
-        ]
-    };
+        ]);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -197,15 +209,9 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     }));
 
     var fullTarget = makeOpaque(2, 0, source.length, 0, leaves.length, 'target');
-    var fullRoot = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: [
+    var fullRoot = makeProgram(0, source.length, 0, leaves.length, [
             makeStatement(1, 0, source.length, 0, leaves.length, 2, [fullTarget])
-        ]
-    };
+        ]);
     var fullResult = invariants.validateSyntaxInvariants({
         root: fullRoot,
         leaves: leaves,
@@ -238,13 +244,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
         children.push(stmt);
         nextId = opaqueId + 1;
     }
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: children
-    };
+    var root = makeProgram(0, source.length, 0, leaves.length, children);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -261,13 +261,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
 (function testLeafRangeBounds() {
     var source = 'SELECT 1';
     var leaves = lex(source).leaves;
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length + 5 },
-        children: []
-    };
+    var root = makeProgram(0, source.length, 0, leaves.length + 5, []);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -284,13 +278,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
 (function testSpanMismatch() {
     var source = 'SELECT 1';
     var leaves = lex(source).leaves;
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: 1 },
-        leafRange: { start: 0, end: leaves.length },
-        children: []
-    };
+    var root = makeProgram(0, 1, 0, leaves.length, []);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -307,13 +295,9 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     var source = 'SELECT 1';
     var leaves = lex(source).leaves;
     var opaque = makeOpaque(0, 0, source.length, 0, leaves.length);
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: [makeStatement(1, 0, source.length, 0, leaves.length, 0, [opaque])]
-    };
+    var root = makeProgram(0, source.length, 0, leaves.length, [
+        makeStatement(1, 0, source.length, 0, leaves.length, 0, [opaque])
+    ]);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -337,13 +321,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     var b = makeStatement(2, 2, source.length, 0, leaves.length, null, []);
     b.statementKind = 'empty';
     b.bodyChildId = null;
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: [a, b]
-    };
+    var root = makeProgram(0, source.length, 0, leaves.length, [a, b]);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -362,13 +340,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     var child = makeStatement(1, 0, source.length, 0, leaves.length, null, []);
     child.statementKind = 'empty';
     child.bodyChildId = null;
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: 3 },
-        leafRange: { start: 0, end: 1 },
-        children: [child]
-    };
+    var root = makeProgram(0, 3, 0, 1, [child]);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -387,13 +359,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     var shared = makeOpaque(2, 0, source.length, 0, leaves.length);
     var stmtA = makeStatement(1, 0, source.length, 0, leaves.length, 2, [shared]);
     var stmtB = makeStatement(3, 0, source.length, 0, leaves.length, 2, [shared]);
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: [stmtA, stmtB]
-    };
+    var root = makeProgram(0, source.length, 0, leaves.length, [stmtA, stmtB]);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -411,13 +377,9 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     var leaves = lex(source).leaves;
     var opaque = makeOpaque(2, 0, source.length, 0, leaves.length);
     opaque.children = [];
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: [makeStatement(1, 0, source.length, 0, leaves.length, 2, [opaque])]
-    };
+    var root = makeProgram(0, source.length, 0, leaves.length, [
+        makeStatement(1, 0, source.length, 0, leaves.length, 2, [opaque])
+    ]);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -437,15 +399,9 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
         } else {
             opaque.capabilityId = capabilityId;
         }
-        var root = {
-            id: 0,
-            kind: 'program',
-            span: { start: 0, end: source.length },
-            leafRange: { start: 0, end: leaves.length },
-            children: [makeStatement(
+        var root = makeProgram(0, source.length, 0, leaves.length, [makeStatement(
                 1, 0, source.length, 0, leaves.length, 2, [opaque]
-            )]
-        };
+            )]);
         var result = invariants.validateSyntaxInvariants({
             root: root,
             leaves: leaves,
@@ -465,22 +421,18 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
 (function testOwnerReference() {
     var source = 'SELECT 1, 2';
     var leaves = lex(source).leaves;
-    var list = {
+    var list = withFacts({
         id: 2,
         kind: 'list',
         span: { start: 0, end: source.length },
         leafRange: { start: 0, end: leaves.length },
         listRole: 'select-items',
-        separatorLeafIds: [leaves.length + 10],
+        separatorLeafIds: Object.freeze([leaves.length + 10]),
         children: []
-    };
-    var root = {
-        id: 0,
-        kind: 'program',
-        span: { start: 0, end: source.length },
-        leafRange: { start: 0, end: leaves.length },
-        children: [makeStatement(1, 0, source.length, 0, leaves.length, 2, [list])]
-    };
+    }, 'intrinsic-container');
+    var root = makeProgram(0, source.length, 0, leaves.length, [
+        makeStatement(1, 0, source.length, 0, leaves.length, 2, [list])
+    ]);
     var result = invariants.validateSyntaxInvariants({
         root: root,
         leaves: leaves,
@@ -521,13 +473,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     var source = 'SELECT 1';
     var leaves = lex(source).leaves;
     var result = invariants.validateSyntaxInvariants({
-        root: {
-            id: 0,
-            kind: 'program',
-            span: { start: 0, end: 1 },
-            leafRange: { start: 0, end: leaves.length + 1 },
-            children: []
-        },
+        root: makeProgram(0, 1, 0, leaves.length + 1, []),
         leaves: leaves,
         source: source
     });
@@ -547,7 +493,7 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     var parsed = parser.parseSql(source, { dialect: 'hive', mode: 'document' });
 
     function mutateAndValidate(mutator) {
-        var rootNode = JSON.parse(JSON.stringify(parsed.root));
+        var rootNode = cloneSyntaxTree(parsed.root);
         var stack = [rootNode];
         var usingClause = null;
         while (stack.length > 0) {

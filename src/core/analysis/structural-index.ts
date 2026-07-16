@@ -18,6 +18,7 @@ import type {
     ClauseNode,
     ListItemNode,
     ListNode,
+    OperatorOccurrence,
     QueryNode,
     StatementNode,
     SyntaxNode,
@@ -31,8 +32,11 @@ import {
 import type { PreparedTriviaFacts } from "./trivia-binding";
 import type {
     CommentBinding,
+    CapabilityOccurrence,
+    ContextualLeafFacts,
     OffsetLeafLocation,
     SeparatorOwnership,
+    SyntaxLeafOccurrence,
     SourcePosition,
     StructuralIndex,
     StructuralIndexInput,
@@ -48,9 +52,26 @@ const EMPTY_NODES = EMPTY_FROZEN_ARRAY as readonly SyntaxNode[];
 const EMPTY_CLAUSES = EMPTY_FROZEN_ARRAY as readonly ClauseNode[];
 const EMPTY_BINDINGS = EMPTY_FROZEN_ARRAY as readonly CommentBinding[];
 const EMPTY_BINDING_GROUPS = EMPTY_FROZEN_ARRAY as readonly (readonly CommentBinding[])[];
+const EMPTY_OPERATORS = EMPTY_FROZEN_ARRAY as readonly OperatorOccurrence[];
+const EMPTY_CAPABILITY_OCCURRENCES =
+    EMPTY_FROZEN_ARRAY as readonly CapabilityOccurrence[];
 // Recovery fuzz locks the parser to this linear node budget. Enforce the same
 // bound before any attacker-controlled id can expand a direct-address array.
 const MAX_NODES_PER_LEAF = 16;
+const CANONICAL_INDEX_PARSE_ARTIFACTS = new WeakMap<object, ParseArtifact>();
+
+/** Internal proof that an index was built from this exact canonical parse artifact. */
+export function isCanonicalStructuralIndexForParseArtifact(
+    value: unknown,
+    artifact: ParseArtifact
+): value is StructuralIndex {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        isCanonicalParseArtifact(artifact) &&
+        CANONICAL_INDEX_PARSE_ARTIFACTS.get(value) === artifact
+    );
+}
 
 function invariantFailure(message: string): never {
     throw new Error(`Structural index invariant failed: ${message}`);
@@ -167,6 +188,40 @@ function resolvePreservationCapability(
     return capability;
 }
 
+function formatRoleOf(node: SyntaxNode): SyntaxNode["formatRole"] {
+    if (!Object.prototype.hasOwnProperty.call(node, "formatRole")) {
+        invariantFailure(`node ${node.id} is missing required formatRole`);
+    }
+    const role = node.formatRole;
+    if (
+        role !== "capability" &&
+        role !== "intrinsic-container" &&
+        role !== "intrinsic-primitive" &&
+        role !== "opaque"
+    ) {
+        invariantFailure(`node ${node.id} has invalid formatRole ${String(role)}`);
+    }
+    return role;
+}
+
+function syntaxOccurrence(
+    leafId: number,
+    directOwnerNodeId: number,
+    syntaxRole: SyntaxLeafOccurrence["syntaxRole"],
+    syntaxId: SyntaxLeafOccurrence["syntaxId"],
+    capabilityId: string | null,
+    keywordCaseEligible: boolean
+): SyntaxLeafOccurrence {
+    return Object.freeze({
+        leafId,
+        directOwnerNodeId,
+        syntaxRole,
+        syntaxId,
+        capabilityId,
+        keywordCaseEligible,
+    });
+}
+
 function freezeSparseNullableIds(
     values: readonly (number | null | undefined)[],
     length: number
@@ -253,6 +308,9 @@ export function buildStructuralIndex(
         invariantFailure("token table must describe the same canonical leaf stream");
     }
     const dialect = getDialect(input.dialect);
+    const canonicalOperatorById = new Map(
+        dialect.listOperatorSemantics().map((semantics) => [semantics.id, semantics])
+    );
     const leafCount = leaves.length;
     const canonicalSourceLength =
         leafCount === 0 ? 0 : leaves[leafCount - 1]!.span.end;
@@ -302,14 +360,63 @@ export function buildStructuralIndex(
     const lists: ListNode[] = [];
     const opaqueNodeIds: number[] = [];
     const separatorOwnershipByLeaf = new Map<number, SeparatorOwnership>();
+    const explicitSyntaxByLeaf: Array<SyntaxLeafOccurrence | undefined> = new Array(
+        leafCount
+    );
+    const operatorOccurrenceByLeaf: Array<OperatorOccurrence | undefined> = new Array(
+        leafCount
+    );
+    const operatorOccurrencesByNode: Array<readonly OperatorOccurrence[] | undefined> = [];
+    const capabilityByNode: Array<CapabilityEntry | null | undefined> = [];
+    const capabilityOccurrencesByNode: Array<CapabilityOccurrence[] | undefined> = [];
     let visitedNodeCount = 0;
 
-    const startEvents: Array<TraversalMeta[] | undefined> = hasCommentTrivia
-        ? new Array(leafCount + 1)
-        : [];
-    const endEvents: Array<TraversalMeta[] | undefined> = hasCommentTrivia
-        ? new Array(leafCount + 1)
-        : [];
+    const registerExplicitSyntax = (occurrence: SyntaxLeafOccurrence): void => {
+        const leaf = leaves[occurrence.leafId];
+        if (
+            leaf === undefined ||
+            !isSyntax(leaf) ||
+            (occurrence.keywordCaseEligible && leaf.channel !== "code")
+        ) {
+            invariantFailure(
+                `syntax occurrence references invalid grammar leaf ${occurrence.leafId}`
+            );
+        }
+        const previous = explicitSyntaxByLeaf[occurrence.leafId];
+        if (previous !== undefined) {
+            if (
+                previous.directOwnerNodeId === occurrence.directOwnerNodeId &&
+                previous.syntaxRole === occurrence.syntaxRole &&
+                previous.syntaxId === occurrence.syntaxId &&
+                previous.capabilityId === occurrence.capabilityId &&
+                previous.keywordCaseEligible === occurrence.keywordCaseEligible
+            ) {
+                return;
+            }
+            invariantFailure(
+                `leaf ${occurrence.leafId} has conflicting explicit syntax owners`
+            );
+        }
+        explicitSyntaxByLeaf[occurrence.leafId] = occurrence;
+    };
+
+    const registerNameRange = (
+        range: LeafRange,
+        ownerNodeId: number,
+        role: SyntaxLeafOccurrence["syntaxRole"]
+    ): void => {
+        validateRange(range, leafCount, ownerNodeId);
+        for (let leafId = range.start; leafId < range.end; leafId++) {
+            if (isSyntax(leaves[leafId]!)) {
+                registerExplicitSyntax(
+                    syntaxOccurrence(leafId, ownerNodeId, role, null, null, false)
+                );
+            }
+        }
+    };
+
+    const startEvents: Array<TraversalMeta[] | undefined> = new Array(leafCount + 1);
+    const endEvents: Array<TraversalMeta[] | undefined> = new Array(leafCount + 1);
     const leadingOwners: Array<TraversalMeta | undefined> = hasCommentTrivia
         ? new Array(leafCount + 1)
         : [];
@@ -403,6 +510,272 @@ export function buildStructuralIndex(
         recordsById[node.id] = node;
         visitedNodeCount += 1;
 
+        const formatRole = formatRoleOf(node);
+        const nodeCapabilityId = capabilityIdOf(node, `node ${node.id}`);
+        if (
+            (formatRole === "capability" && nodeCapabilityId === null) ||
+            ((formatRole === "intrinsic-container" ||
+                formatRole === "intrinsic-primitive") &&
+                nodeCapabilityId !== null) ||
+            (node.kind === "opaque") !== (formatRole === "opaque")
+        ) {
+            invariantFailure(
+                `node ${node.id} has illegal ${formatRole}/${String(nodeCapabilityId)} capability combination`
+            );
+        }
+        const nodeCapability = resolveCapability(
+            dialect,
+            nodeCapabilityId,
+            `node ${node.id}`
+        );
+        if (
+            formatRole === "capability" &&
+            nodeCapability !== null &&
+            nodeCapability.state !== "recognized" &&
+            nodeCapability.state !== "structured" &&
+            nodeCapability.state !== "formatted"
+        ) {
+            invariantFailure(
+                `node ${node.id} capability ${nodeCapability.id} cannot grant format authority from ${nodeCapability.state}`
+            );
+        }
+        if (formatRole === "opaque") {
+            resolvePreservationCapability(dialect, nodeCapabilityId, `opaque node ${node.id}`);
+        }
+        capabilityByNode[node.id] = nodeCapability;
+        if (nodeCapabilityId !== null) {
+            capabilityOccurrencesByNode[node.id] = [Object.freeze({
+                ownerNodeId: node.id,
+                capabilityId: nodeCapabilityId,
+                source: "node" as const,
+                operatorId: null,
+            })];
+        }
+
+        if (!isStableFrozenDataArray(node.syntaxMarkers)) {
+            invariantFailure(`node ${node.id} syntaxMarkers must be a stable frozen data array`);
+        }
+        let previousMarkerLeafId = -1;
+        for (const marker of node.syntaxMarkers) {
+            if (
+                !Object.isFrozen(marker) ||
+                !Number.isInteger(marker.leafId) ||
+                marker.leafId < node.leafRange.start ||
+                marker.leafId >= node.leafRange.end ||
+                marker.leafId <= previousMarkerLeafId ||
+                !Number.isInteger(marker.partOrdinal) ||
+                marker.partOrdinal < 0 ||
+                typeof marker.syntaxId !== "string" ||
+                typeof marker.syntaxRole !== "string" ||
+                typeof marker.keywordCaseEligible !== "boolean"
+            ) {
+                invariantFailure(`node ${node.id} has an invalid syntax marker`);
+            }
+            previousMarkerLeafId = marker.leafId;
+            registerExplicitSyntax(
+                syntaxOccurrence(
+                    marker.leafId,
+                    node.id,
+                    marker.syntaxRole,
+                    marker.syntaxId,
+                    nodeCapabilityId,
+                    marker.keywordCaseEligible
+                )
+            );
+        }
+
+        if (node.kind === "cte") {
+            registerNameRange(node.nameLeafRange, node.id, "identifier-name");
+        } else if (node.kind === "relation" && node.nameLeafRange !== null) {
+            if (node.relationKind !== "table") {
+                invariantFailure(`non-table relation ${node.id} must not own a name range`);
+            }
+            registerNameRange(node.nameLeafRange, node.id, "relation-name");
+        } else if (node.kind === "window-spec" && node.nameLeafRange !== null) {
+            registerNameRange(node.nameLeafRange, node.id, "identifier-name");
+        } else if (node.kind === "type-expression") {
+            validateRange(node.typeNameLeafRange, leafCount, node.id);
+            for (
+                let leafId = node.typeNameLeafRange.start;
+                leafId < node.typeNameLeafRange.end;
+                leafId++
+            ) {
+                if (
+                    isSyntax(leaves[leafId]!) &&
+                    explicitSyntaxByLeaf[leafId] === undefined
+                ) {
+                    if (leaves[leafId]!.channel === "code") {
+                        invariantFailure(
+                            `code type name leaf ${leafId} requires exact parser marker ownership`
+                        );
+                    }
+                    registerExplicitSyntax(
+                        syntaxOccurrence(
+                            leafId,
+                            node.id,
+                            "user-type-name",
+                            null,
+                            null,
+                            false
+                        )
+                    );
+                }
+            }
+        }
+        if (node.kind === "relation" || node.kind === "list-item") {
+            if (node.alias !== null) {
+                registerNameRange(node.alias.nameLeafRange, node.id, "alias-name");
+                if (node.alias.keywordLeafId !== null) {
+                    const existing = explicitSyntaxByLeaf[node.alias.keywordLeafId];
+                    if (
+                        existing === undefined ||
+                        existing.directOwnerNodeId !== node.id ||
+                        existing.syntaxId !== "alias-as" ||
+                        existing.syntaxRole !== "syntax-keyword" ||
+                        existing.keywordCaseEligible !== true
+                    ) {
+                        invariantFailure(
+                            `alias AS leaf ${node.alias.keywordLeafId} requires exact parser marker ownership`
+                        );
+                    }
+                }
+            }
+        }
+
+        if (node.kind === "expression") {
+            if (!isStableFrozenDataArray(node.operatorLeafIds)) {
+                invariantFailure(
+                    `expression ${node.id} operatorLeafIds must be a stable frozen data array`
+                );
+            }
+            if (!isStableFrozenDataArray(node.operatorOccurrences)) {
+                invariantFailure(
+                    `expression ${node.id} operatorOccurrences must be a stable frozen data array`
+                );
+            }
+            const remainingOperatorLeafIds = new Set<number>();
+            let previousOperatorLeafId = -1;
+            for (const leafId of node.operatorLeafIds) {
+                const leaf = leaves[leafId];
+                if (
+                    !Number.isInteger(leafId) ||
+                    leafId <= previousOperatorLeafId ||
+                    leafId < node.leafRange.start ||
+                    leafId >= node.leafRange.end ||
+                    leaf === undefined ||
+                    leaf.channel !== "code"
+                ) {
+                    invariantFailure(
+                        `expression ${node.id} operatorLeafIds must be unique, strictly source-ordered code leaves inside its range`
+                    );
+                }
+                previousOperatorLeafId = leafId;
+                remainingOperatorLeafIds.add(leafId);
+            }
+            const occurrences: OperatorOccurrence[] = [];
+            let previousOccurrenceFirstLeafId = -1;
+            for (const occurrence of node.operatorOccurrences) {
+                const canonicalSemantics = canonicalOperatorById.get(occurrence.operatorId);
+                if (
+                    !Object.isFrozen(occurrence) ||
+                    occurrence.ownerNodeId !== node.id ||
+                    canonicalSemantics === undefined ||
+                    occurrence.semantics !== canonicalSemantics ||
+                    occurrence.capabilityId !== canonicalSemantics.capabilityId ||
+                    occurrence.fixity !== canonicalSemantics.fixity ||
+                    occurrence.formatClass !== canonicalSemantics.formatClass ||
+                    !isStableFrozenDataArray(occurrence.leafIds) ||
+                    occurrence.leafIds.length === 0
+                ) {
+                    invariantFailure(`expression ${node.id} has an invalid operator occurrence`);
+                }
+                const occurrenceLeaves: SourceLeaf[] = [];
+                let previousOccurrenceLeafId = -1;
+                for (const leafId of occurrence.leafIds) {
+                    const leaf = leaves[leafId];
+                    if (
+                        !Number.isInteger(leafId) ||
+                        leafId <= previousOccurrenceLeafId ||
+                        !remainingOperatorLeafIds.delete(leafId) ||
+                        leaf === undefined ||
+                        leaf.channel !== "code" ||
+                        operatorOccurrenceByLeaf[leafId] !== undefined
+                    ) {
+                        invariantFailure(
+                            `operator leaf ${leafId} has duplicate or inconsistent ownership`
+                        );
+                    }
+                    previousOccurrenceLeafId = leafId;
+                    occurrenceLeaves.push(leaf);
+                }
+                const firstLeafId = occurrence.leafIds[0]!;
+                if (firstLeafId <= previousOccurrenceFirstLeafId) {
+                    invariantFailure(
+                        `operator occurrences must be strictly source-ordered on expression ${node.id}`
+                    );
+                }
+                previousOccurrenceFirstLeafId = firstLeafId;
+                if (canonicalSemantics.form === "symbol") {
+                    if (
+                        occurrenceLeaves.length !== 1 ||
+                        occurrenceLeaves[0]!.kind !== "operator" ||
+                        occurrenceLeaves[0]!.raw !== canonicalSemantics.key
+                    ) {
+                        invariantFailure(
+                            `symbol operator occurrence does not match ${canonicalSemantics.id} on expression ${node.id}`
+                        );
+                    }
+                } else if (
+                    occurrenceLeaves.length !== canonicalSemantics.words.length ||
+                    occurrenceLeaves.some(
+                        (leaf, index) =>
+                            leaf.raw.toLowerCase() !== canonicalSemantics.words[index]
+                    )
+                ) {
+                    invariantFailure(
+                        `word operator occurrence does not match ${canonicalSemantics.id} on expression ${node.id}`
+                    );
+                }
+                for (const leafId of occurrence.leafIds) {
+                    operatorOccurrenceByLeaf[leafId] = occurrence;
+                    registerExplicitSyntax(
+                        syntaxOccurrence(
+                            leafId,
+                            node.id,
+                            canonicalSemantics.form === "symbol"
+                                ? "symbol-operator"
+                                : "word-operator-keyword",
+                            "operator",
+                            occurrence.capabilityId,
+                            canonicalSemantics.form !== "symbol"
+                        )
+                    );
+                }
+                if (occurrence.capabilityId !== null) {
+                    resolveCapability(
+                        dialect,
+                        occurrence.capabilityId,
+                        `operator ${occurrence.operatorId}`
+                    );
+                    const projected = capabilityOccurrencesByNode[node.id] ?? [];
+                    projected.push(Object.freeze({
+                        ownerNodeId: node.id,
+                        capabilityId: occurrence.capabilityId,
+                        source: "operator" as const,
+                        operatorId: occurrence.operatorId,
+                    }));
+                    capabilityOccurrencesByNode[node.id] = projected;
+                }
+                occurrences.push(occurrence);
+            }
+            if (remainingOperatorLeafIds.size !== 0) {
+                invariantFailure(
+                    `every operatorLeafId must belong to exactly one canonical operator occurrence on expression ${node.id}`
+                );
+            }
+            operatorOccurrencesByNode[node.id] = Object.freeze(occurrences);
+        }
+
         const statementNodeId =
             node.kind === "statement" ? node.id : inheritedStatementNodeId;
         const queryNodeId = node.kind === "query" ? node.id : inheritedQueryNodeId;
@@ -423,22 +796,20 @@ export function buildStructuralIndex(
             queryByNodeId![node.id] = queryNodeId;
         }
 
-        const meta: TraversalMeta | null = hasCommentTrivia
-            ? { node, depth }
-            : null;
-        if (meta !== null) {
-            const starting = startEvents[node.leafRange.start];
-            if (starting === undefined) {
-                startEvents[node.leafRange.start] = [meta];
-            } else {
-                starting.push(meta);
-            }
-            const ending = endEvents[node.leafRange.end];
-            if (ending === undefined) {
-                endEvents[node.leafRange.end] = [meta];
-            } else {
-                ending.push(meta);
-            }
+        const meta: TraversalMeta = { node, depth };
+        const starting = startEvents[node.leafRange.start];
+        if (starting === undefined) {
+            startEvents[node.leafRange.start] = [meta];
+        } else {
+            starting.push(meta);
+        }
+        const ending = endEvents[node.leafRange.end];
+        if (ending === undefined) {
+            endEvents[node.leafRange.end] = [meta];
+        } else {
+            ending.push(meta);
+        }
+        if (hasCommentTrivia) {
             selectBoundaryOwner(
                 leadingOwners,
                 node.leafRange.start,
@@ -457,8 +828,7 @@ export function buildStructuralIndex(
             statements.push(node);
             const selected = statementOwnersByEnd[node.leafRange.end];
             if (
-                meta !== null &&
-                (selected === undefined || depth > selected.depth)
+                selected === undefined || depth > selected.depth
             ) {
                 statementOwnersByEnd[node.leafRange.end] = meta;
             }
@@ -474,6 +844,28 @@ export function buildStructuralIndex(
                 invariantFailure(`clause ${node.id} references unknown query ${queryNodeId}`);
             }
             clauses.push(node);
+            for (const separatorLeafId of node.separatorLeafIds) {
+                const separatorLeaf = leaves[separatorLeafId];
+                if (
+                    separatorLeaf === undefined ||
+                    separatorLeaf.channel !== "code" ||
+                    separatorLeaf.raw !== ","
+                ) {
+                    invariantFailure(
+                        `clause ${node.id} separator ${separatorLeafId} is not a code comma`
+                    );
+                }
+                registerExplicitSyntax(
+                    syntaxOccurrence(
+                        separatorLeafId,
+                        node.id,
+                        "separator",
+                        "separator",
+                        nodeCapabilityId,
+                        false
+                    )
+                );
+            }
         } else if (node.kind === "list") {
             lists.push(node);
             const members = node.children;
@@ -532,6 +924,16 @@ export function buildStructuralIndex(
                 if (separatorOwnershipByLeaf.has(separatorLeafId)) {
                     invariantFailure(`separator leaf ${separatorLeafId} has multiple list owners`);
                 }
+                registerExplicitSyntax(
+                    syntaxOccurrence(
+                        separatorLeafId,
+                        node.id,
+                        "separator",
+                        "separator",
+                        nodeCapabilityId,
+                        false
+                    )
+                );
                 const left = members[ordinal];
                 const right = members[ordinal + 1];
                 if (left === undefined || right === undefined) {
@@ -657,6 +1059,9 @@ export function buildStructuralIndex(
     };
 
     const startLineByLeaf = new Uint32Array(leafCount);
+    const lineBreakPrefixByLeaf = new Uint32Array(leafCount + 1);
+    const startsWithLineBreakByLeaf = new Uint8Array(leafCount);
+    const endsWithLineBreakByLeaf = new Uint8Array(leafCount);
     const endLineByLeaf: number[] = hasCommentTrivia ? new Array(leafCount) : [];
     const previousSyntaxByLeaf: Array<number | null | undefined> = hasCommentTrivia
         ? new Array(leafCount)
@@ -665,11 +1070,12 @@ export function buildStructuralIndex(
         ? new Array(leafCount)
         : [];
     const deepestContainerNodeIdByLeaf: Array<number | null | undefined> = new Array(
-        hasCommentTrivia ? leafCount : 0
+        leafCount
     );
     const deepestOpaqueNodeIdByLeaf: Array<number | null | undefined> = new Array(
-        hasCommentTrivia ? leafCount : 0
+        leafCount
     );
+    const contextualFactsByLeaf: ContextualLeafFacts[] = new Array(leafCount);
     const commentLeafIndexes: number[] = [];
     const lineStarts: number[] = [0];
     const lineHasContent: boolean[] = hasCommentTrivia ? [false] : [];
@@ -696,43 +1102,101 @@ export function buildStructuralIndex(
         }
         expectedSourceOffset = leaf.span.end;
 
+        const endingAtLeaf = endEvents[leafIndex];
+        if (endingAtLeaf !== undefined) {
+            for (const ending of endingAtLeaf) {
+                activeByDepth[ending.depth] = undefined;
+                if (ending.node.kind === "opaque") {
+                    activeOpaqueByDepth[ending.depth] = undefined;
+                }
+            }
+        }
+        while (
+            deepestActiveDepth >= 0 &&
+            activeByDepth[deepestActiveDepth] === undefined
+        ) {
+            deepestActiveDepth -= 1;
+        }
+        while (
+            deepestOpaqueDepth >= 0 &&
+            activeOpaqueByDepth[deepestOpaqueDepth] === undefined
+        ) {
+            deepestOpaqueDepth -= 1;
+        }
+        const startingAtLeaf = startEvents[leafIndex];
+        if (startingAtLeaf !== undefined) {
+            for (const starting of startingAtLeaf) {
+                activeByDepth[starting.depth] = starting;
+                if (starting.depth > deepestActiveDepth) {
+                    deepestActiveDepth = starting.depth;
+                }
+                if (starting.node.kind === "opaque") {
+                    activeOpaqueByDepth[starting.depth] = starting;
+                    if (starting.depth > deepestOpaqueDepth) {
+                        deepestOpaqueDepth = starting.depth;
+                    }
+                }
+            }
+        }
+
+        const directOwner = activeByDepth[deepestActiveDepth]?.node ?? root;
+        const opaqueOwnerNodeId =
+            activeOpaqueByDepth[deepestOpaqueDepth]?.node.id ?? null;
+        let contextualSyntax: SyntaxLeafOccurrence | null = null;
+        if (opaqueOwnerNodeId === null && isSyntax(leaf)) {
+            contextualSyntax = explicitSyntaxByLeaf[leafIndex] ?? null;
+            if (contextualSyntax === null) {
+                let role: SyntaxLeafOccurrence["syntaxRole"] = "unknown-preserved";
+                if (directOwner.kind === "expression") {
+                    if (directOwner.expressionKind === "identifier") {
+                        role = "identifier-name";
+                    } else if (
+                        directOwner.expressionKind === "literal" ||
+                        directOwner.expressionKind === "typed-literal"
+                    ) {
+                        role = "literal";
+                    } else if (directOwner.expressionKind === "parameter") {
+                        role = "parameter";
+                    }
+                }
+                if (leaf.kind === "operator" && role === "unknown-preserved") {
+                    role = "symbol-operator";
+                } else if (
+                    leaf.kind === "punctuation" &&
+                    role === "unknown-preserved"
+                ) {
+                    role = tokenTable.matchingDelimiterIndex(leafIndex) === null
+                        ? "punctuation"
+                        : "delimiter";
+                } else if (leaf.kind === "parameter") {
+                    role = "parameter";
+                } else if (leaf.kind === "string" || leaf.kind === "number") {
+                    role = "literal";
+                }
+                const directPrimitiveCapabilityId =
+                    directOwner.kind === "expression" &&
+                    (directOwner.expressionKind === "literal" ||
+                        directOwner.expressionKind === "parameter") &&
+                    directOwner.formatRole === "capability"
+                        ? directOwner.capabilityId
+                        : null;
+                contextualSyntax = syntaxOccurrence(
+                    leafIndex,
+                    directOwner.id,
+                    role,
+                    null,
+                    directPrimitiveCapabilityId,
+                    false
+                );
+            }
+        }
+        contextualFactsByLeaf[leafIndex] = Object.freeze({
+            leafId: leafIndex,
+            syntax: contextualSyntax,
+            opaqueOwnerNodeId,
+        });
+
         if (hasCommentTrivia) {
-            const endingAtLeaf = endEvents[leafIndex];
-            if (endingAtLeaf !== undefined) {
-                for (const ending of endingAtLeaf) {
-                    activeByDepth[ending.depth] = undefined;
-                    if (ending.node.kind === "opaque") {
-                        activeOpaqueByDepth[ending.depth] = undefined;
-                    }
-                }
-            }
-            while (
-                deepestActiveDepth >= 0 &&
-                activeByDepth[deepestActiveDepth] === undefined
-            ) {
-                deepestActiveDepth -= 1;
-            }
-            while (
-                deepestOpaqueDepth >= 0 &&
-                activeOpaqueByDepth[deepestOpaqueDepth] === undefined
-            ) {
-                deepestOpaqueDepth -= 1;
-            }
-            const startingAtLeaf = startEvents[leafIndex];
-            if (startingAtLeaf !== undefined) {
-                for (const starting of startingAtLeaf) {
-                    activeByDepth[starting.depth] = starting;
-                    if (starting.depth > deepestActiveDepth) {
-                        deepestActiveDepth = starting.depth;
-                    }
-                    if (starting.node.kind === "opaque") {
-                        activeOpaqueByDepth[starting.depth] = starting;
-                        if (starting.depth > deepestOpaqueDepth) {
-                            deepestOpaqueDepth = starting.depth;
-                        }
-                    }
-                }
-            }
 
             if (isSyntax(leaf)) {
                 if (leaf.channel === "code" && leaf.raw === ",") {
@@ -749,9 +1213,9 @@ export function buildStructuralIndex(
                 commentLeafIndexes.push(leafIndex);
                 pendingComments.push(leafIndex);
                 deepestContainerNodeIdByLeaf[leafIndex] =
-                    activeByDepth[deepestActiveDepth]?.node.id ?? root.id;
+                    directOwner.id;
                 deepestOpaqueNodeIdByLeaf[leafIndex] =
-                    activeOpaqueByDepth[deepestOpaqueDepth]?.node.id ?? null;
+                    opaqueOwnerNodeId;
             }
         } else if (isComment(leaf)) {
             invariantFailure("hasCommentTrivia=false but canonical leaves contain a comment");
@@ -762,7 +1226,17 @@ export function buildStructuralIndex(
         if (hasCommentTrivia && content && leaf.raw.length > 0) {
             lineHasContent[currentLine] = true;
         }
-        if (leaf.raw.indexOf("\n") !== -1 || leaf.raw.indexOf("\r") !== -1) {
+        const containsLineBreak =
+            leaf.raw.indexOf("\n") !== -1 || leaf.raw.indexOf("\r") !== -1;
+        const firstCodeUnit = leaf.raw.charCodeAt(0);
+        const lastCodeUnit = leaf.raw.charCodeAt(leaf.raw.length - 1);
+        startsWithLineBreakByLeaf[leafIndex] =
+            firstCodeUnit === 10 || firstCodeUnit === 13 ? 1 : 0;
+        endsWithLineBreakByLeaf[leafIndex] =
+            lastCodeUnit === 10 || lastCodeUnit === 13 ? 1 : 0;
+        lineBreakPrefixByLeaf[leafIndex + 1] =
+            lineBreakPrefixByLeaf[leafIndex]! + (containsLineBreak ? 1 : 0);
+        if (containsLineBreak) {
             for (let relativeOffset = 0; relativeOffset < leaf.raw.length; relativeOffset++) {
                 const code = leaf.raw.charCodeAt(relativeOffset);
                 if (code !== 10 && code !== 13) {
@@ -900,6 +1374,33 @@ export function buildStructuralIndex(
                           : Object.freeze(values);
                   })
               );
+    const frozenContextualFactsByLeaf = Object.freeze(contextualFactsByLeaf);
+    const frozenOperatorOccurrenceByLeaf = Object.freeze(
+        Array.from(
+            { length: leafCount },
+            (_, leafId) => operatorOccurrenceByLeaf[leafId] ?? null
+        )
+    );
+    const frozenOperatorOccurrencesByNode = Object.freeze(
+        Array.from(
+            { length: nodeCount },
+            (_, nodeId) => operatorOccurrencesByNode[nodeId] ?? EMPTY_OPERATORS
+        )
+    );
+    const frozenCapabilityByNode = Object.freeze(
+        Array.from(
+            { length: nodeCount },
+            (_, nodeId) => capabilityByNode[nodeId] ?? null
+        )
+    );
+    const frozenCapabilityOccurrencesByNode = Object.freeze(
+        Array.from({ length: nodeCount }, (_, nodeId) => {
+            const occurrences = capabilityOccurrencesByNode[nodeId];
+            return occurrences === undefined || occurrences.length === 0
+                ? EMPTY_CAPABILITY_OCCURRENCES
+                : Object.freeze(occurrences.slice());
+        })
+    );
 
     const diagnosticCapabilityIds = Object.freeze(
         diagnostics.map((diagnostic, diagnosticIndex) => {
@@ -1099,6 +1600,72 @@ export function buildStructuralIndex(
                 column: leaf.span.start - frozenLineStarts[line]!,
             });
         },
+        leafContainsLineBreak(leafId: number): boolean {
+            assertLeafId(leafId);
+            return (
+                lineBreakPrefixByLeaf[leafId + 1] !==
+                lineBreakPrefixByLeaf[leafId]
+            );
+        },
+        leafStartsWithLineBreak(leafId: number): boolean {
+            assertLeafId(leafId);
+            return startsWithLineBreakByLeaf[leafId] === 1;
+        },
+        leafEndsWithLineBreak(leafId: number): boolean {
+            assertLeafId(leafId);
+            return endsWithLineBreakByLeaf[leafId] === 1;
+        },
+        rangeContainsLineBreak(range: LeafRange): boolean {
+            if (
+                !Number.isSafeInteger(range.start) ||
+                !Number.isSafeInteger(range.end) ||
+                range.start < 0 ||
+                range.end < range.start ||
+                range.end > leafCount
+            ) {
+                throw new Error(
+                    `Leaf range out of bounds: [${String(range.start)}, ${String(range.end)})`
+                );
+            }
+            return (
+                lineBreakPrefixByLeaf[range.end] !==
+                lineBreakPrefixByLeaf[range.start]
+            );
+        },
+        rangeStartsWithLineBreak(range: LeafRange): boolean {
+            if (
+                !Number.isSafeInteger(range.start) ||
+                !Number.isSafeInteger(range.end) ||
+                range.start < 0 ||
+                range.end < range.start ||
+                range.end > leafCount
+            ) {
+                throw new Error(
+                    `Leaf range out of bounds: [${String(range.start)}, ${String(range.end)})`
+                );
+            }
+            return (
+                range.start < range.end &&
+                startsWithLineBreakByLeaf[range.start] === 1
+            );
+        },
+        rangeEndsWithLineBreak(range: LeafRange): boolean {
+            if (
+                !Number.isSafeInteger(range.start) ||
+                !Number.isSafeInteger(range.end) ||
+                range.start < 0 ||
+                range.end < range.start ||
+                range.end > leafCount
+            ) {
+                throw new Error(
+                    `Leaf range out of bounds: [${String(range.start)}, ${String(range.end)})`
+                );
+            }
+            return (
+                range.start < range.end &&
+                endsWithLineBreakByLeaf[range.end - 1] === 1
+            );
+        },
         offsetToLeaf(offset: number): OffsetLeafLocation | null {
             if (!Number.isInteger(offset) || offset < 0 || offset > sourceLength) {
                 throw new Error(
@@ -1151,6 +1718,32 @@ export function buildStructuralIndex(
         commentsForOwner(ownerNodeId: number): readonly CommentBinding[] {
             assertNodeId(ownerNodeId);
             return frozenBindingsByOwner[ownerNodeId] ?? EMPTY_BINDINGS;
+        },
+        leafContext(leafId: number): ContextualLeafFacts {
+            assertLeafId(leafId);
+            return frozenContextualFactsByLeaf[leafId]!;
+        },
+        capabilityForNode(nodeId: number): CapabilityEntry | null {
+            assertNodeId(nodeId);
+            return frozenCapabilityByNode[nodeId] ?? null;
+        },
+        capabilityOccurrencesOf(nodeId: number): readonly CapabilityOccurrence[] {
+            assertNodeId(nodeId);
+            return frozenCapabilityOccurrencesByNode[nodeId] ??
+                EMPTY_CAPABILITY_OCCURRENCES;
+        },
+        operatorOccurrencesOf(expressionNodeId: number): readonly OperatorOccurrence[] {
+            const node = assertNodeId(expressionNodeId);
+            if (node.kind !== "expression") {
+                throw new Error(
+                    `Expected expression node id, got ${expressionNodeId}:${node.kind}`
+                );
+            }
+            return frozenOperatorOccurrencesByNode[expressionNodeId] ?? EMPTY_OPERATORS;
+        },
+        operatorOccurrenceForLeaf(leafId: number): OperatorOccurrence | null {
+            assertLeafId(leafId);
+            return frozenOperatorOccurrenceByLeaf[leafId] ?? null;
         },
         capability(capabilityId: string): CapabilityEntry | null {
             if (typeof capabilityId !== "string" || capabilityId.length === 0) {
@@ -1223,6 +1816,10 @@ export function buildStructuralIndex(
             return snapshotCache;
         },
     });
+
+    if (trustedParserArtifact) {
+        CANONICAL_INDEX_PARSE_ARTIFACTS.set(index, parseArtifactProof!);
+    }
 
     return index;
 }

@@ -269,6 +269,7 @@ function assertDeepResult(source, result, expectedStatementKind, label) {
         root: result.root,
         leaves: result.leaves,
         source: source,
+        dialect: 'hive',
         tokenTable: tokenTable.buildStructuralTokenTable(result.leaves, source)
     });
     assert.strictEqual(

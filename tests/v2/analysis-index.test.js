@@ -1,10 +1,12 @@
 'use strict';
 
 var assert = require('assert');
+var lexer = require('../../.tmp/v2-core/core/lexer/lossless-lexer.js');
 var parser = require('../../.tmp/v2-core/core/syntax/parser.js');
 var tokenTable = require('../../.tmp/v2-core/core/syntax/token-table.js');
 var analysis = require('../../.tmp/v2-core/core/analysis/index.js');
 var analyzer = require('../../.tmp/v2-core/core/analysis/analyze.js');
+var dialectRegistry = require('../../.tmp/v2-core/core/dialects/registry.js');
 
 function build(source, dialect) {
     var artifact = parser.parseSqlArtifact(source, {
@@ -45,6 +47,16 @@ function replaceNode(root, targetId, replace) {
     return changed
         ? Object.freeze(Object.assign({}, root, { children: Object.freeze(children) }))
         : root;
+}
+
+function directBuild(built, root) {
+    return analysis.buildStructuralIndex({
+        root: root,
+        leaves: built.result.leaves,
+        tokenTable: built.table,
+        dialect: built.artifact.dialect,
+        diagnostics: built.result.diagnostics
+    });
 }
 
 (function testAnalyzeSqlConsumesRetainedParseArtifact() {
@@ -136,6 +148,28 @@ function replaceNode(root, targetId, replace) {
         dialect: 'mysql',
         mode: 'document'
     });
+    var mysqlIndex = analysis.buildStructuralIndex({
+        root: mysqlArtifact.output.root,
+        leaves: mysqlArtifact.output.leaves,
+        tokenTable: mysqlArtifact.tokenTable,
+        dialect: 'mysql',
+        diagnostics: mysqlArtifact.output.diagnostics
+    });
+    var mysqlVariableNode = mysqlIndex.nodes().filter(function(node) {
+        return node.kind === 'expression' && node.expressionKind === 'parameter';
+    })[0];
+    assert.ok(mysqlVariableNode);
+    assert.strictEqual(
+        mysqlIndex.capabilityForNode(mysqlVariableNode.id).id,
+        'mysql-variables',
+        'dialect-specific primitive capability must reach StructuralIndex'
+    );
+    assert.strictEqual(
+        mysqlIndex.leafContext(mysqlVariableNode.leafRange.start)
+            .syntax.capabilityId,
+        'mysql-variables',
+        'primitive capability must reach its contextual leaf occurrence'
+    );
     var wrongDialectArtifact = Object.freeze(Object.assign({}, mysqlArtifact, {
         dialect: 'postgresql'
     }));
@@ -261,6 +295,43 @@ function replaceNode(root, targetId, replace) {
     assert.deepStrictEqual(index.lineStarts(), [0, source.indexOf('\n') + 1]);
     assert.ok(Object.isFrozen(index.lineStarts()));
     assert.ok(Object.isFrozen(stringPosition));
+    var lineBreakLeaf = built.result.leaves.find(function(leaf) {
+        return leaf.raw.indexOf('\r') !== -1 || leaf.raw.indexOf('\n') !== -1;
+    });
+    assert.ok(lineBreakLeaf, 'CRLF source must expose one line-break leaf');
+    assert.strictEqual(index.leafContainsLineBreak(lineBreakLeaf.id), true);
+    assert.strictEqual(index.leafStartsWithLineBreak(lineBreakLeaf.id), true);
+    assert.strictEqual(index.leafEndsWithLineBreak(lineBreakLeaf.id), true);
+    assert.strictEqual(index.leafContainsLineBreak(stringLeaf.id), false);
+    assert.strictEqual(index.leafStartsWithLineBreak(stringLeaf.id), false);
+    assert.strictEqual(index.leafEndsWithLineBreak(stringLeaf.id), false);
+    assert.strictEqual(index.rangeContainsLineBreak({
+        start: lineBreakLeaf.id,
+        end: lineBreakLeaf.id + 1
+    }), true);
+    assert.strictEqual(index.rangeStartsWithLineBreak({
+        start: lineBreakLeaf.id,
+        end: lineBreakLeaf.id + 1
+    }), true);
+    assert.strictEqual(index.rangeEndsWithLineBreak({
+        start: lineBreakLeaf.id,
+        end: lineBreakLeaf.id + 1
+    }), true);
+    assert.strictEqual(index.rangeContainsLineBreak({
+        start: stringLeaf.id,
+        end: stringLeaf.id + 1
+    }), false);
+    assert.strictEqual(index.rangeStartsWithLineBreak({
+        start: stringLeaf.id,
+        end: stringLeaf.id + 1
+    }), false);
+    assert.strictEqual(index.rangeEndsWithLineBreak({
+        start: stringLeaf.id,
+        end: stringLeaf.id + 1
+    }), false);
+    assert.strictEqual(index.rangeContainsLineBreak({ start: 0, end: 0 }), false);
+    assert.strictEqual(index.rangeStartsWithLineBreak({ start: 0, end: 0 }), false);
+    assert.strictEqual(index.rangeEndsWithLineBreak({ start: 0, end: 0 }), false);
 
     var eof = index.offsetToLeaf(source.length);
     var lastLeaf = built.result.leaves[built.result.leaves.length - 1];
@@ -282,6 +353,9 @@ function replaceNode(root, targetId, replace) {
     assert.throws(function() { index.offsetToLeaf(-1); }, /offset/i);
     assert.throws(function() { index.offsetToLeaf(source.length + 1); }, /offset/i);
     assert.throws(function() { index.offsetToLeaf(1.5); }, /offset/i);
+    assert.throws(function() {
+        index.rangeContainsLineBreak({ start: -1, end: 0 });
+    }, /range/i);
 }());
 
 (function testEmptySourceContract() {
@@ -593,6 +667,276 @@ function replaceNode(root, targetId, replace) {
         });
     }, /opaque node .* lacks an exact matching diagnostic/i,
     'generic opaque recovery must also retain reason/span/recovery diagnostic identity');
+}());
+
+(function testDirectBuilderDoesNotSynthesizeParserMarkerIdentity() {
+    var aliasBuilt = build('SELECT a AS b');
+    var aliasOwner = nodesOfKind(aliasBuilt.index, 'list-item').filter(function(node) {
+        return node.alias !== null && node.alias.keywordLeafId !== null;
+    })[0];
+    assert.ok(aliasOwner, 'explicit alias owner required');
+    var missingAliasMarkerRoot = replaceNode(
+        aliasBuilt.result.root,
+        aliasOwner.id,
+        function(node) {
+            return Object.assign({}, node, {
+                syntaxMarkers: Object.freeze(node.syntaxMarkers.filter(function(marker) {
+                    return marker.syntaxId !== 'alias-as';
+                }))
+            });
+        }
+    );
+    assert.throws(function() {
+        directBuild(aliasBuilt, missingAliasMarkerRoot);
+    }, /alias AS leaf .* requires exact parser marker ownership/i);
+
+    var typeBuilt = build('SELECT CAST(a AS INT)');
+    var typeNode = nodesOfKind(typeBuilt.index, 'type-expression')[0];
+    assert.ok(typeNode, 'CAST type expression required');
+    var missingTypeMarkerRoot = replaceNode(
+        typeBuilt.result.root,
+        typeNode.id,
+        function(node) {
+            return Object.assign({}, node, {
+                syntaxMarkers: Object.freeze(node.syntaxMarkers.filter(function(marker) {
+                    return marker.syntaxId !== 'type:name';
+                }))
+            });
+        }
+    );
+    assert.throws(function() {
+        directBuild(typeBuilt, missingTypeMarkerRoot);
+    }, /code type name leaf .* requires exact parser marker ownership/i);
+}());
+
+(function testDirectBuilderRequiresExactCanonicalOperatorCoverage() {
+    var built = build('SELECT a NOT BETWEEN b AND c');
+    var expression = nodesOfKind(built.index, 'expression').filter(function(node) {
+        return node.operatorOccurrences.length === 1 &&
+            node.operatorOccurrences[0].leafIds.length === 3;
+    })[0];
+    assert.ok(expression, 'NOT BETWEEN expression with one three-word occurrence required');
+
+    var occurrence = expression.operatorOccurrences[0];
+    var positive = directBuild(built, built.result.root);
+    assert.deepStrictEqual(
+        positive.operatorOccurrencesOf(expression.id),
+        expression.operatorOccurrences,
+        'canonical multi-word occurrence must remain accepted'
+    );
+    occurrence.leafIds.forEach(function(leafId) {
+        assert.strictEqual(
+            positive.operatorOccurrenceForLeaf(leafId),
+            occurrence,
+            'every word of a multi-word operator must resolve to its occurrence'
+        );
+    });
+
+    var missingOccurrenceRoot = replaceNode(
+        built.result.root,
+        expression.id,
+        function(node) {
+            return Object.assign({}, node, {
+                operatorOccurrences: Object.freeze([])
+            });
+        }
+    );
+    assert.throws(function() {
+        directBuild(built, missingOccurrenceRoot);
+    }, /every operatorLeafId.*exactly one canonical operator occurrence/i,
+    'operatorLeafIds without occurrences must fail closed');
+
+    var duplicatedIds = expression.operatorLeafIds.slice();
+    duplicatedIds.splice(1, 0, duplicatedIds[0]);
+    var duplicateOperatorLeafIdRoot = replaceNode(
+        built.result.root,
+        expression.id,
+        function(node) {
+            return Object.assign({}, node, {
+                operatorLeafIds: Object.freeze(duplicatedIds)
+            });
+        }
+    );
+    assert.throws(function() {
+        directBuild(built, duplicateOperatorLeafIdRoot);
+    }, /operatorLeafIds.*unique.*source-ordered/i,
+    'duplicate operatorLeafIds must not collapse through Set equality');
+
+    var duplicateOccurrenceRoot = replaceNode(
+        built.result.root,
+        expression.id,
+        function(node) {
+            return Object.assign({}, node, {
+                operatorOccurrences: Object.freeze([occurrence, occurrence])
+            });
+        }
+    );
+    assert.throws(function() {
+        directBuild(built, duplicateOccurrenceRoot);
+    }, /duplicate.*inconsistent ownership/i,
+    'one operator leaf must not be consumed by two occurrences');
+
+    var partialOccurrence = Object.freeze(Object.assign({}, occurrence, {
+        leafIds: Object.freeze(occurrence.leafIds.slice(0, -1))
+    }));
+    var partialMultiWordRoot = replaceNode(
+        built.result.root,
+        expression.id,
+        function(node) {
+            return Object.assign({}, node, {
+                operatorOccurrences: Object.freeze([partialOccurrence])
+            });
+        }
+    );
+    assert.throws(function() {
+        directBuild(built, partialMultiWordRoot);
+    }, /word operator occurrence.*does not match|every operatorLeafId.*exactly one/i,
+    'partial multi-word occurrence must fail closed');
+
+    var wrongSemantics = dialectRegistry.getDialect('hive').getOperatorSemantics(
+        'is-not-null',
+        'postfix'
+    );
+    assert.ok(wrongSemantics, 'canonical three-word mismatch semantics required');
+    var mismatchedOccurrence = Object.freeze({
+        ownerNodeId: occurrence.ownerNodeId,
+        leafIds: occurrence.leafIds,
+        operatorId: wrongSemantics.id,
+        capabilityId: wrongSemantics.capabilityId,
+        fixity: wrongSemantics.fixity,
+        formatClass: wrongSemantics.formatClass,
+        semantics: wrongSemantics
+    });
+    var mismatchedMultiWordRoot = replaceNode(
+        built.result.root,
+        expression.id,
+        function(node) {
+            return Object.assign({}, node, {
+                operatorOccurrences: Object.freeze([mismatchedOccurrence])
+            });
+        }
+    );
+    assert.throws(function() {
+        directBuild(built, mismatchedMultiWordRoot);
+    }, /word operator occurrence.*does not match/i,
+    'canonical semantics identity must still match the referenced source words');
+}());
+
+function buildOperatorScaleFixture(operatorCount) {
+    var source = new Array(operatorCount).fill('+').join(' ');
+    var lexed = lexer.lexSql(source, { dialect: 'hive' });
+    var table = tokenTable.buildStructuralTokenTable(lexed.leaves, source);
+    var semantics = dialectRegistry.getDialect('hive').getOperatorSemantics('+', 'infix');
+    assert.ok(semantics, 'canonical infix + semantics required');
+    var operatorLeafIds = Object.freeze(lexed.leaves.filter(function(leaf) {
+        return leaf.raw === '+';
+    }).map(function(leaf) {
+        return leaf.id;
+    }));
+    assert.strictEqual(operatorLeafIds.length, operatorCount);
+
+    var empty = Object.freeze([]);
+    var range = Object.freeze({ start: 0, end: lexed.leaves.length });
+    var span = Object.freeze({ start: 0, end: source.length });
+    var occurrences = Object.freeze(operatorLeafIds.map(function(leafId) {
+        return Object.freeze({
+            ownerNodeId: 1,
+            leafIds: Object.freeze([leafId]),
+            operatorId: semantics.id,
+            capabilityId: semantics.capabilityId,
+            fixity: semantics.fixity,
+            formatClass: semantics.formatClass,
+            semantics: semantics
+        });
+    }));
+    var expression = Object.freeze({
+        id: 1,
+        kind: 'expression',
+        expressionKind: 'binary',
+        leafRange: range,
+        span: span,
+        children: empty,
+        operatorLeafIds: operatorLeafIds,
+        operatorOccurrences: occurrences,
+        syntaxMarkers: empty,
+        capabilityId: null,
+        formatRole: 'intrinsic-primitive'
+    });
+    var root = Object.freeze({
+        id: 0,
+        kind: 'program',
+        leafRange: range,
+        span: span,
+        children: Object.freeze([expression]),
+        syntaxMarkers: empty,
+        capabilityId: null,
+        formatRole: 'intrinsic-container'
+    });
+    return Object.freeze({
+        operatorCount: operatorCount,
+        operatorLeafIds: operatorLeafIds,
+        input: Object.freeze({
+            root: root,
+            leaves: lexed.leaves,
+            tokenTable: table,
+            dialect: 'hive',
+            diagnostics: empty,
+            hasCommentTrivia: false
+        })
+    });
+}
+
+function median(values) {
+    var sorted = values.slice().sort(function(left, right) {
+        return left - right;
+    });
+    return sorted[Math.floor(sorted.length / 2)];
+}
+
+function measureOperatorScale(fixture) {
+    var warm = analysis.buildStructuralIndex(fixture.input);
+    assert.strictEqual(warm.operatorOccurrencesOf(1).length, fixture.operatorCount);
+    assert.strictEqual(
+        warm.operatorOccurrenceForLeaf(
+            fixture.operatorLeafIds[fixture.operatorLeafIds.length - 1]
+        ).ownerNodeId,
+        1
+    );
+
+    var samples = [];
+    for (var sample = 0; sample < 3; sample++) {
+        var started = process.hrtime.bigint();
+        var index = analysis.buildStructuralIndex(fixture.input);
+        var elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+        assert.strictEqual(index.operatorOccurrencesOf(1).length, fixture.operatorCount);
+        samples.push(elapsedMs);
+    }
+    return Object.freeze({
+        operatorCount: fixture.operatorCount,
+        medianMs: median(samples),
+        samplesMs: Object.freeze(samples)
+    });
+}
+
+(function testDirectBuilderOperatorClosureScalesLinearly() {
+    var counts = [8000, 16000, 32000];
+    var timings = counts.map(function(count) {
+        return measureOperatorScale(buildOperatorScaleFixture(count));
+    });
+    var first = timings[0].medianMs;
+    var last = timings[2].medianMs;
+    var fourXGrowth = last / Math.max(first, 0.1);
+
+    assert.ok(
+        fourXGrowth <= 7,
+        '4x operators must remain near-linear; growth=' + fourXGrowth.toFixed(2) +
+            ' timings=' + JSON.stringify(timings)
+    );
+    assert.ok(
+        last <= 1000,
+        '32k exact operator coverage exceeded disaster gate: ' + JSON.stringify(timings)
+    );
+    console.log('operator exact-coverage scale ' + JSON.stringify(timings));
 }());
 
 (function testLinearScaleSmoke() {

@@ -3,6 +3,7 @@ import type {
     AnalysisOutput,
     CanonicalFormatOptions,
     Diagnostic,
+    FailedAnalysisArtifact,
     FormatResult,
     LayoutDoc,
     LeafRange,
@@ -21,6 +22,16 @@ import { lexSql } from "../../src/core/index";
 
 const span: SourceSpan = { start: 0, end: 6 };
 const leafRange: LeafRange = { start: 0, end: 1 };
+const containerFacts = {
+    syntaxMarkers: [] as const,
+    capabilityId: null,
+    formatRole: "intrinsic-container" as const,
+};
+const opaqueFacts = {
+    syntaxMarkers: [] as const,
+    capabilityId: null,
+    formatRole: "opaque" as const,
+};
 const leaf: SourceLeaf = {
     id: 0,
     kind: "keyword",
@@ -29,6 +40,7 @@ const leaf: SourceLeaf = {
     span,
 };
 const opaqueNode: OpaqueNode = {
+    ...opaqueFacts,
     id: 2,
     kind: "opaque",
     span,
@@ -38,12 +50,14 @@ const opaqueNode: OpaqueNode = {
     boundary: "statement",
 };
 const root: ProgramNode = {
+    ...containerFacts,
     id: 0,
     kind: "program",
     span,
     leafRange,
     children: [
         {
+            ...containerFacts,
             id: 1,
             kind: "statement",
             span,
@@ -65,6 +79,8 @@ const diagnostic: Diagnostic = {
 
 // @ts-expect-error capability identity is a required field, even when absent.
 const opaqueWithoutCapabilityId: OpaqueNode = {
+    syntaxMarkers: [],
+    formatRole: "opaque",
     id: 3,
     kind: "opaque",
     span,
@@ -82,15 +98,9 @@ const diagnosticWithoutCapabilityId: Diagnostic = {
     recovery: "verbatim-node",
 };
 const doc: LayoutDoc = {
-    kind: "group",
-    content: {
-        kind: "concat",
-        parts: [
-            { kind: "text", value: "SELECT" },
-            { kind: "line", mode: "soft" },
-            { kind: "verbatim", span },
-        ],
-    },
+    kind: "leaf",
+    leafId: 0,
+    transform: "raw",
 };
 const options: CanonicalFormatOptions = {
     dialect: "hive",
@@ -130,8 +140,11 @@ const result: FormatResult = {
         entries: [{ source: span, output: span }],
     },
 };
-const failedAnalysis: AnalysisOutput = {
+const failedAnalysis: FailedAnalysisArtifact = {
     status: "failed",
+    source: "SELECT",
+    dialect: "hive",
+    mode: "document",
     root,
     leaves: [leaf],
     diagnostics: [diagnostic],

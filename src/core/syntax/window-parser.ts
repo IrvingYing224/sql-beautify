@@ -2,8 +2,11 @@ import type { LeafRange } from "./leaf-range";
 import { parseList } from "./list-parser";
 import type {
     ExpressionNode,
+    ExpressionNodeFacts,
     ListNode,
     OpaqueNode,
+    SyntaxMarker,
+    SyntaxMarkerId,
     WindowSpecNode,
 } from "./node";
 import {
@@ -11,6 +14,9 @@ import {
     baseDepth,
     isAliasNameLeaf,
     isCodeWord,
+    mergeSyntaxMarkers,
+    nodeFacts,
+    syntaxMarkers,
     syntaxIndexesInRange,
     trimToSyntax,
 } from "./parser-context";
@@ -28,8 +34,18 @@ export type WindowValueParser = (
     nestingDepth: number
 ) => ExpressionNode | OpaqueNode;
 
-const FRAME_START_WORDS = Object.freeze(["rows", "range"]);
+const FRAME_START_WORDS = Object.freeze(["rows", "range", "groups"]);
 const FRAME_BOUND_SUFFIXES = Object.freeze(["preceding", "following"]);
+
+function expressionFacts(
+    formatRole: "intrinsic-container" | "intrinsic-primitive",
+    markers: readonly SyntaxMarker[]
+): ExpressionNodeFacts {
+    return {
+        ...nodeFacts(null, formatRole, markers),
+        operatorOccurrences: [],
+    };
+}
 
 function rangeFromIndexes(
     indexes: readonly number[],
@@ -66,7 +82,8 @@ class WindowParser {
 
     parseBounded(
         nodeRange?: LeafRange,
-        nameLeafRange: LeafRange | null = null
+        nameLeafRange: LeafRange | null = null,
+        declarationAsLeafId: number | null = null
     ): WindowSpecNode {
         if (
             this.indexes.length < 2 ||
@@ -87,7 +104,8 @@ class WindowParser {
             0,
             this.indexes.length - 1,
             nodeRange,
-            nameLeafRange
+            nameLeafRange,
+            declarationAsLeafId
         );
     }
 
@@ -140,18 +158,26 @@ class WindowParser {
         openPosition: number,
         closePosition: number,
         nodeRange?: LeafRange,
-        declarationName: LeafRange | null = null
+        declarationName: LeafRange | null = null,
+        declarationAsLeafId: number | null = null
     ): WindowSpecNode {
         const open = this.indexes[openPosition]!;
         const close = this.indexes[closePosition]!;
         const outputRange = nodeRange ?? { start: open, end: close + 1 };
+        const baseMarkers = mergeSyntaxMarkers(
+            declarationAsLeafId === null
+                ? []
+                : syntaxMarkers([declarationAsLeafId], "alias-as"),
+            syntaxMarkers([open, close], "delimiter", "delimiter", false)
+        );
         if (closePosition === openPosition + 1) {
             return this.context.factory.createWindowSpec(
                 outputRange,
                 declarationName,
                 null,
                 null,
-                null
+                null,
+                nodeFacts(null, "intrinsic-container", baseMarkers)
             );
         }
 
@@ -201,7 +227,8 @@ class WindowParser {
                     },
                     null,
                     null,
-                    null
+                    null,
+                    nodeFacts(null, "intrinsic-container", baseMarkers)
                 );
             }
             throw new ParserSyntaxError(
@@ -272,12 +299,52 @@ class WindowParser {
             declarationName,
             partition,
             order,
-            frame
+            frame,
+            nodeFacts(
+                null,
+                "intrinsic-container",
+                mergeSyntaxMarkers(
+                    baseMarkers,
+                    partitionPosition < 0
+                        ? []
+                        : syntaxMarkers(
+                              [
+                                  this.indexes[partitionPosition]!,
+                                  this.indexes[partitionPosition + 1]!,
+                              ],
+                              "window:partition-by"
+                          ),
+                    orderPosition < 0
+                        ? []
+                        : syntaxMarkers(
+                              [
+                                  this.indexes[orderPosition]!,
+                                  this.indexes[orderPosition + 1]!,
+                              ],
+                              "window:order-by"
+                          )
+                )
+            )
         );
     }
 
     private parseFrame(start: number, end: number): ExpressionNode {
         const unit = this.indexes[start]!;
+        const unitWord = this.word(start);
+        let unitSyntaxId: SyntaxMarkerId;
+        if (unitWord === "rows") {
+            unitSyntaxId = "window:rows";
+        } else if (unitWord === "range") {
+            unitSyntaxId = "window:range";
+        } else if (unitWord === "groups") {
+            unitSyntaxId = "window:groups";
+        } else {
+            throw new ParserSyntaxError(
+                "SYN_INTERNAL_INVARIANT",
+                { start: unit, end: unit + 1 },
+                "Window frame unit is not canonical"
+            );
+        }
         if (start + 1 >= end) {
             throw new ParserSyntaxError(
                 "SYN_INCOMPLETE_CLAUSE",
@@ -310,16 +377,34 @@ class WindowParser {
             return this.context.factory.createExpression(
                 rangeFromIndexes(this.indexes, start, end),
                 "between",
-                [unit, this.indexes[start + 1]!, this.indexes[andPosition]!],
-                [lower, upper]
+                [],
+                [lower, upper],
+                expressionFacts(
+                    "intrinsic-container",
+                    mergeSyntaxMarkers(
+                        syntaxMarkers([unit], unitSyntaxId),
+                        syntaxMarkers(
+                            [this.indexes[start + 1]!],
+                            "window:between"
+                        ),
+                        syntaxMarkers(
+                            [this.indexes[andPosition]!],
+                            "window:and"
+                        )
+                    )
+                )
             );
         }
         const bound = this.parseFrameBound(start + 1, end);
         return this.context.factory.createExpression(
             rangeFromIndexes(this.indexes, start, end),
             "unary",
-            [unit],
-            [bound]
+            [],
+            [bound],
+            expressionFacts(
+                "intrinsic-container",
+                syntaxMarkers([unit], unitSyntaxId)
+            )
         );
     }
 
@@ -334,11 +419,29 @@ class WindowParser {
                 FRAME_BOUND_SUFFIXES.includes(words[1]!)) ||
             (words.length === 2 && words[0] === "current" && words[1] === "row")
         ) {
+            const markers = words[0] === "current"
+                ? syntaxMarkers(
+                      this.indexes.slice(start, end),
+                      "window:current-row"
+                  )
+                : mergeSyntaxMarkers(
+                      syntaxMarkers(
+                          [this.indexes[start]!],
+                          "window:unbounded"
+                      ),
+                      syntaxMarkers(
+                          [this.indexes[end - 1]!],
+                          words[1] === "preceding"
+                              ? "window:preceding"
+                              : "window:following"
+                      )
+                  );
             return this.context.factory.createExpression(
                 rangeFromIndexes(this.indexes, start, end),
                 "frame-bound",
-                this.indexes.slice(start, end),
-                []
+                [],
+                [],
+                expressionFacts("intrinsic-primitive", markers)
             );
         }
         if (end - start >= 2 && FRAME_BOUND_SUFFIXES.includes(words[words.length - 1]!)) {
@@ -348,8 +451,17 @@ class WindowParser {
             return this.context.factory.createExpression(
                 rangeFromIndexes(this.indexes, start, end),
                 "frame-bound",
-                [suffix],
-                [value]
+                [],
+                [value],
+                expressionFacts(
+                    "intrinsic-container",
+                    syntaxMarkers(
+                        [suffix],
+                        words[words.length - 1] === "preceding"
+                            ? "window:preceding"
+                            : "window:following"
+                    )
+                )
             );
         }
         throw new ParserSyntaxError(
@@ -366,7 +478,8 @@ export function parseWindowSpecRange(
     nestingDepth: number,
     parseValue: WindowValueParser,
     nodeRange?: LeafRange,
-    nameLeafRange: LeafRange | null = null
+    nameLeafRange: LeafRange | null = null,
+    declarationAsLeafId: number | null = null
 ): WindowSpecNode {
     const range = trimToSyntax(context.leaves, inputRange);
     if (range === null) {
@@ -378,7 +491,8 @@ export function parseWindowSpecRange(
     }
     return new WindowParser(context, range, nestingDepth, parseValue).parseBounded(
         nodeRange,
-        nameLeafRange
+        nameLeafRange,
+        declarationAsLeafId
     );
 }
 
@@ -430,7 +544,8 @@ export function parseWindowDeclaration(
             nestingDepth,
             parseValue,
             range,
-            { start: indexes[0]!, end: indexes[0]! + 1 }
+            { start: indexes[0]!, end: indexes[0]! + 1 },
+            indexes[1]!
         );
     } catch (error) {
         return recoverOpaqueFromError(

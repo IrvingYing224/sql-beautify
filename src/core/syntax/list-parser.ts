@@ -6,8 +6,11 @@ import {
     isAliasNameLeaf,
     isCodeWord,
     isDottedNamePart,
+    mergeSyntaxMarkers,
+    nodeFacts,
     previousSyntaxIndex,
     splitTopLevelByComma,
+    syntaxMarkers,
     syntaxLeavesAreSeparated,
     topLevelSyntaxIndexes,
     trimToSyntax,
@@ -75,6 +78,28 @@ const IMPLICIT_ALIAS_PREDECESSOR_BLOCKERS = Object.freeze([
 ]);
 
 const EMPTY_MODIFIER_WORDS: readonly string[] = Object.freeze([]);
+
+function listItemFacts(alias: AliasInfo | null, modifierLeafIds: readonly number[]) {
+    const aliasKeywordLeafId = alias?.keywordLeafId ?? null;
+    if (aliasKeywordLeafId === null && modifierLeafIds.length === 0) {
+        return undefined;
+    }
+    const aliasMarkers = aliasKeywordLeafId === null
+        ? []
+        : syntaxMarkers([aliasKeywordLeafId], "alias-as");
+    const modifierMarkers = modifierLeafIds.length === 0
+        ? []
+        : syntaxMarkers(modifierLeafIds, "operator");
+    return nodeFacts(
+        null,
+        "intrinsic-container",
+        aliasMarkers.length === 0
+            ? modifierMarkers
+            : modifierMarkers.length === 0
+              ? aliasMarkers
+              : mergeSyntaxMarkers(aliasMarkers, modifierMarkers)
+    );
+}
 
 function normalizeModifierWords(
     words: readonly string[] | undefined
@@ -292,7 +317,8 @@ export function parseList(
                 listItemRoleFor(listRole),
                 facts.alias,
                 facts.modifierLeafIds,
-                value
+                value,
+                listItemFacts(facts.alias, facts.modifierLeafIds)
             );
         } catch (error) {
             const opaque = recoverOpaqueFromError(
@@ -308,11 +334,18 @@ export function parseList(
                 listItemRoleFor(listRole),
                 null,
                 [],
-                opaque
+                opaque,
+                nodeFacts(null, "intrinsic-container")
             );
         }
     });
-    return context.factory.createList(trimmed, listRole, split.separators, items);
+    return context.factory.createList(
+        trimmed,
+        listRole,
+        split.separators,
+        items,
+        nodeFacts(null, "intrinsic-container")
+    );
 }
 
 export function parseOpaqueList(

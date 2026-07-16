@@ -57,6 +57,7 @@ function parseChecked(source, dialect) {
         root: result.root,
         leaves: result.leaves,
         source: source,
+        dialect: options.dialect,
         tokenTable: table
     });
     assert.strictEqual(
