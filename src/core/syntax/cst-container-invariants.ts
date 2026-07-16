@@ -36,7 +36,7 @@ function failRelationship(
 
 function validateQueryRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
     failures: InvariantFailure[]
 ): void {
@@ -216,27 +216,43 @@ function validateQueryRelationships(
 
 function validateRelationRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     failures: InvariantFailure[]
 ): void {
     if (raw.kind !== "relation" || typeof raw.relationKind !== "string") {
         return;
     }
-    const body = isFiniteNonNegInt(raw.bodyChildId)
-        ? directChildren.find((child) => child.id === raw.bodyChildId)
-        : undefined;
-    const extensions = directChildren.filter((child) => child !== body);
+    let body: Record<string, unknown> | undefined;
+    if (isFiniteNonNegInt(raw.bodyChildId)) {
+        for (const child of directChildren) {
+            if (child.id === raw.bodyChildId) {
+                body = child;
+                break;
+            }
+        }
+    }
+    let extensionCount = 0;
+    let firstExtension: Record<string, unknown> | undefined;
+    let invalidJoinExtension = false;
+    for (const child of directChildren) {
+        if (child === body) {
+            continue;
+        }
+        extensionCount += 1;
+        firstExtension ??= child;
+        if (
+            child.kind !== "clause" ||
+            (child.clauseKind !== "join-on" && child.clauseKind !== "join-using")
+        ) {
+            invalidJoinExtension = true;
+        }
+    }
 
     if (raw.relationKind === "join") {
         if (
             body?.kind !== "relation" ||
-            extensions.length > 1 ||
-            extensions.some(
-                (child) =>
-                    child.kind !== "clause" ||
-                    (child.clauseKind !== "join-on" &&
-                        child.clauseKind !== "join-using")
-            )
+            extensionCount > 1 ||
+            invalidJoinExtension
         ) {
             failRelationship(
                 failures,
@@ -251,8 +267,8 @@ function validateRelationRelationships(
         if (
             body?.kind !== "relation" ||
             body.relationKind !== "table-function" ||
-            extensions.length !== 1 ||
-            extensions[0]?.kind !== "list"
+            extensionCount !== 1 ||
+            firstExtension?.kind !== "list"
         ) {
             failRelationship(
                 failures,
@@ -277,7 +293,7 @@ function isChild(
 
 function validateClauseRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     failures: InvariantFailure[]
 ): void {
     if (raw.kind !== "clause" || typeof raw.clauseKind !== "string") {
@@ -402,7 +418,7 @@ function validateClauseRelationships(
 
 function validateListRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
     failures: InvariantFailure[]
 ): void {
@@ -452,19 +468,17 @@ function validateListRelationships(
 
 function validateExpressionRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
     failures: InvariantFailure[]
 ): void {
     if (raw.kind !== "expression" || typeof raw.expressionKind !== "string") {
         return;
     }
-    const operatorCount = isDenseArray(raw.operatorLeafIds)
-        ? raw.operatorLeafIds.length
-        : 0;
     const operatorIds = isDenseArray(raw.operatorLeafIds)
         ? raw.operatorLeafIds
         : [];
+    const operatorCount = operatorIds.length;
     for (const operatorId of operatorIds) {
         if (!isFiniteNonNegInt(operatorId) || operatorId >= leaves.length) {
             continue;
@@ -493,9 +507,6 @@ function validateExpressionRelationships(
             }
         }
     }
-    const allExpressionValues = directChildren.every(
-        (child) => child.kind === "expression" || child.kind === "opaque"
-    );
     let valid = false;
 
     switch (raw.expressionKind) {
@@ -512,10 +523,17 @@ function validateExpressionRelationships(
                 operatorCount >= 1;
             break;
         case "unary":
-            valid = directChildren.length === 1 && allExpressionValues && operatorCount >= 1;
+            valid =
+                directChildren.length === 1 &&
+                isExpressionValue(directChildren[0]) &&
+                operatorCount >= 1;
             break;
         case "binary":
-            valid = directChildren.length === 2 && allExpressionValues && operatorCount >= 1;
+            valid =
+                directChildren.length === 2 &&
+                isExpressionValue(directChildren[0]) &&
+                isExpressionValue(directChildren[1]) &&
+                operatorCount >= 1;
             break;
         case "function-call":
             valid =
@@ -556,7 +574,10 @@ function validateExpressionRelationships(
                 operatorCount >= 2;
             break;
         case "parenthesized":
-            valid = directChildren.length === 1 && allExpressionValues && operatorCount >= 2;
+            valid =
+                directChildren.length === 1 &&
+                isExpressionValue(directChildren[0]) &&
+                operatorCount >= 2;
             break;
         case "collection":
             valid =
@@ -579,7 +600,7 @@ function validateExpressionRelationships(
         case "between":
             valid =
                 (directChildren.length === 2 || directChildren.length === 3) &&
-                allExpressionValues &&
+                directChildren.every(isExpressionValue) &&
                 operatorCount >= 2;
             break;
         case "in":
@@ -600,12 +621,16 @@ function validateExpressionRelationships(
                 operatorCount >= 1;
             break;
         case "is":
-            valid = directChildren.length === 1 && allExpressionValues && operatorCount >= 2;
+            valid =
+                directChildren.length === 1 &&
+                isExpressionValue(directChildren[0]) &&
+                operatorCount >= 2;
             break;
         case "frame-bound":
             valid =
                 directChildren.length <= 1 &&
-                allExpressionValues &&
+                (directChildren.length === 0 ||
+                    isExpressionValue(directChildren[0])) &&
                 operatorCount >= 1;
             break;
         case "typed-literal":
@@ -628,10 +653,14 @@ function validateExpressionRelationships(
     }
 }
 
+function isExpressionValue(child: Record<string, unknown> | undefined): boolean {
+    return child?.kind === "expression" || child?.kind === "opaque";
+}
+
 function referencedChild(
     raw: Record<string, unknown>,
     field: string,
-    directChildren: Record<string, unknown>[]
+    directChildren: readonly Record<string, unknown>[]
 ): Record<string, unknown> | null {
     const childId = raw[field];
     return isFiniteNonNegInt(childId)
@@ -641,7 +670,7 @@ function referencedChild(
 
 function validateWindowRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     failures: InvariantFailure[]
 ): void {
     if (raw.kind !== "window-spec") {
@@ -667,7 +696,7 @@ function validateWindowRelationships(
 
 function validateTypeRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     failures: InvariantFailure[]
 ): void {
     if (raw.kind !== "type-expression") {
@@ -698,15 +727,33 @@ function validateTypeRelationships(
 
 export function validateContainerRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
     failures: InvariantFailure[]
 ): void {
-    validateQueryRelationships(raw, directChildren, leaves, failures);
-    validateRelationRelationships(raw, directChildren, failures);
-    validateClauseRelationships(raw, directChildren, failures);
-    validateListRelationships(raw, directChildren, leaves, failures);
-    validateExpressionRelationships(raw, directChildren, leaves, failures);
-    validateWindowRelationships(raw, directChildren, failures);
-    validateTypeRelationships(raw, directChildren, failures);
+    switch (raw.kind) {
+        case "query":
+            validateQueryRelationships(raw, directChildren, leaves, failures);
+            break;
+        case "relation":
+            validateRelationRelationships(raw, directChildren, failures);
+            break;
+        case "clause":
+            validateClauseRelationships(raw, directChildren, failures);
+            break;
+        case "list":
+            validateListRelationships(raw, directChildren, leaves, failures);
+            break;
+        case "expression":
+            validateExpressionRelationships(raw, directChildren, leaves, failures);
+            break;
+        case "window-spec":
+            validateWindowRelationships(raw, directChildren, failures);
+            break;
+        case "type-expression":
+            validateTypeRelationships(raw, directChildren, failures);
+            break;
+        default:
+            break;
+    }
 }

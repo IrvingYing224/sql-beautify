@@ -23,14 +23,14 @@ import type {
 import {
     ParserSyntaxError,
     baseDepth,
+    firstSyntaxOrdinalInRange,
     isAliasNameLeaf,
     isCodeWord,
     isDottedNamePart,
     isQueryLeadingRange,
-    matchesSyntaxWords,
+    lastSyntaxOrdinalInRange,
     nextSyntaxIndex,
     previousSyntaxIndex,
-    syntaxIndexesInRange,
     topLevelSyntaxIndexes,
     trimToSyntax,
 } from "./parser-context";
@@ -63,6 +63,29 @@ type SetMarker = {
 
 const MAX_UNSUPPORTED_CLAUSE_PROOFS = 16;
 
+type StructuredQuerySyntaxView = Readonly<{
+    syntaxes: readonly QueryClauseSyntax[];
+    select: QueryClauseSyntax | null;
+    byFirstWord: Readonly<Record<string, readonly QueryClauseSyntax[]>>;
+}>;
+
+type StructuredSetSyntaxView = Readonly<{
+    count: number;
+    byWord: Readonly<Record<string, SetOperatorSyntax>>;
+}>;
+
+const STRUCTURED_QUERY_SYNTAX_CACHE: Partial<
+    Record<ParserContext["dialect"], StructuredQuerySyntaxView>
+> = Object.create(null) as Partial<
+    Record<ParserContext["dialect"], StructuredQuerySyntaxView>
+>;
+
+const STRUCTURED_SET_SYNTAX_CACHE: Partial<
+    Record<ParserContext["dialect"], StructuredSetSyntaxView>
+> = Object.create(null) as Partial<
+    Record<ParserContext["dialect"], StructuredSetSyntaxView>
+>;
+
 function hasPlausibleQueryBody(context: ParserContext, range: LeafRange): boolean {
     if (!isQueryLeadingRange(context, range)) {
         return false;
@@ -78,18 +101,74 @@ function isCteNameLeaf(context: ParserContext, leafIndex: number): boolean {
     return leaf?.kind === "identifier" || leaf?.kind === "quoted-identifier";
 }
 
-function clauseCapabilityIsStructured(
-    context: ParserContext,
-    syntax: QueryClauseSyntax
-): boolean {
-    return getDialect(context.dialect).getCapability(syntax.capabilityId)?.state === "structured";
+function structuredQuerySyntaxes(context: ParserContext): StructuredQuerySyntaxView {
+    const cached = STRUCTURED_QUERY_SYNTAX_CACHE[context.dialect];
+    if (cached !== undefined) {
+        return cached;
+    }
+    const dialect = getDialect(context.dialect);
+    const syntaxes = Object.freeze(
+        dialect.listQueryClauseSyntax().filter(
+            (syntax) =>
+                dialect.getCapability(syntax.capabilityId)?.state === "structured"
+        )
+    );
+    let select: QueryClauseSyntax | null = null;
+    const mutableByFirstWord = Object.create(null) as Record<
+        string,
+        QueryClauseSyntax[]
+    >;
+    for (let index = 0; index < syntaxes.length; index++) {
+        const syntax = syntaxes[index]!;
+        if (syntax.id === "select") {
+            select = syntax;
+        }
+        const firstWord = syntax.words[0]!;
+        const candidates = mutableByFirstWord[firstWord];
+        if (candidates === undefined) {
+            mutableByFirstWord[firstWord] = [syntax];
+        } else {
+            candidates.push(syntax);
+        }
+    }
+    const byFirstWord = Object.create(null) as Record<
+        string,
+        readonly QueryClauseSyntax[]
+    >;
+    for (const firstWord of Object.keys(mutableByFirstWord)) {
+        byFirstWord[firstWord] = Object.freeze(mutableByFirstWord[firstWord]!);
+    }
+    const view = Object.freeze({
+        syntaxes,
+        select,
+        byFirstWord: Object.freeze(byFirstWord),
+    });
+    STRUCTURED_QUERY_SYNTAX_CACHE[context.dialect] = view;
+    return view;
 }
 
-function setCapabilityIsStructured(
-    context: ParserContext,
-    syntax: SetOperatorSyntax
-): boolean {
-    return getDialect(context.dialect).getCapability(syntax.capabilityId)?.state === "structured";
+function structuredSetSyntaxes(context: ParserContext): StructuredSetSyntaxView {
+    const cached = STRUCTURED_SET_SYNTAX_CACHE[context.dialect];
+    if (cached !== undefined) {
+        return cached;
+    }
+    const dialect = getDialect(context.dialect);
+    const byWord = Object.create(null) as Record<string, SetOperatorSyntax>;
+    let count = 0;
+    const syntaxes = dialect.listSetOperatorSyntax();
+    for (let index = 0; index < syntaxes.length; index++) {
+        const syntax = syntaxes[index]!;
+        if (dialect.getCapability(syntax.capabilityId)?.state === "structured") {
+            byWord[syntax.word] = syntax;
+            count += 1;
+        }
+    }
+    const view = Object.freeze({
+        count,
+        byWord: Object.freeze(byWord),
+    });
+    STRUCTURED_SET_SYNTAX_CACHE[context.dialect] = view;
+    return view;
 }
 
 function followsClauseHead(
@@ -97,7 +176,6 @@ function followsClauseHead(
     index: number,
     rangeStart: number
 ): boolean {
-    const dialect = getDialect(context.dialect);
     const depth = context.table.depthBefore(index);
     const previous = previousSyntaxIndex(context, index, rangeStart);
     if (previous === null || context.table.depthBefore(previous) !== depth) {
@@ -113,10 +191,9 @@ function followsClauseHead(
             return true;
         }
     }
-    for (const syntax of dialect.listQueryClauseSyntax()) {
-        if (!clauseCapabilityIsStructured(context, syntax)) {
-            continue;
-        }
+    const syntaxes = structuredQuerySyntaxes(context).syntaxes;
+    for (let syntaxIndex = 0; syntaxIndex < syntaxes.length; syntaxIndex++) {
+        const syntax = syntaxes[syntaxIndex]!;
         let cursor: number | null = previous;
         let matches = true;
         for (let wordIndex = syntax.words.length - 1; wordIndex >= 0; wordIndex--) {
@@ -172,26 +249,22 @@ function setMarkerActsAsExpressionName(
     );
 }
 
-function findSetMarkers(context: ParserContext, range: LeafRange): readonly SetMarker[] {
-    const dialect = getDialect(context.dialect);
-    const syntaxes = dialect.listSetOperatorSyntax().filter((syntax) =>
-        setCapabilityIsStructured(context, syntax)
-    );
-    if (syntaxes.length === 0) {
+function findSetMarkers(
+    context: ParserContext,
+    range: LeafRange,
+    topLevelIndexes: readonly number[]
+): readonly SetMarker[] {
+    const syntaxes = structuredSetSyntaxes(context);
+    if (syntaxes.count === 0) {
         return Object.freeze([]);
     }
-    const byWord = new Map(syntaxes.map((syntax) => [syntax.word, syntax]));
-    const depth = baseDepth(context, range);
     const markers: SetMarker[] = [];
-    for (const index of syntaxIndexesInRange(context, range)) {
-        if (context.table.depthBefore(index) !== depth) {
-            continue;
-        }
+    for (const index of topLevelIndexes) {
         const leaf = context.leaves[index]!;
         if (leaf.channel !== "code") {
             continue;
         }
-        const syntax = byWord.get(context.table.normalizedWord(index));
+        const syntax = syntaxes.byWord[context.table.normalizedWord(index)];
         if (!syntax) {
             continue;
         }
@@ -251,25 +324,43 @@ function findSetTailMarkers(
     context: ParserContext,
     range: LeafRange
 ): readonly ClauseMarker[] {
-    const syntaxes = getDialect(context.dialect)
-        .listQueryClauseSyntax()
-        .filter(
-            (syntax) =>
-                (syntax.id === "order-by" || syntax.id === "limit") &&
-                clauseCapabilityIsStructured(context, syntax)
-        );
+    const syntaxView = structuredQuerySyntaxes(context);
     const depth = baseDepth(context, range);
     const markers: ClauseMarker[] = [];
     let previousOrder = Number.NEGATIVE_INFINITY;
-    for (const index of syntaxIndexesInRange(context, range)) {
+    const firstOrdinal = firstSyntaxOrdinalInRange(context, range);
+    const lastOrdinal = firstOrdinal === null
+        ? -1
+        : lastSyntaxOrdinalInRange(context, range)!;
+    for (let ordinal = firstOrdinal ?? 0; ordinal <= lastOrdinal; ordinal++) {
+        const index = context.table.leafIndexOfSyntaxOrdinal(ordinal);
         if (
             context.table.depthBefore(index) !== depth ||
             isDottedNamePart(context, index, range.start, range.end)
         ) {
             continue;
         }
-        for (const syntax of syntaxes) {
-            const headEnd = markerHeadEnd(context, index, range.end, syntax.words);
+        const leaf = context.leaves[index]!;
+        if (leaf.channel !== "code") {
+            continue;
+        }
+        const candidates = syntaxView.byFirstWord[
+            context.table.normalizedWord(index)
+        ];
+        if (candidates === undefined) {
+            continue;
+        }
+        for (let syntaxIndex = 0; syntaxIndex < candidates.length; syntaxIndex++) {
+            const syntax = candidates[syntaxIndex]!;
+            if (syntax.id !== "order-by" && syntax.id !== "limit") {
+                continue;
+            }
+            const headEnd = markerHeadEndAfterFirst(
+                context,
+                index,
+                range.end,
+                syntax.words
+            );
             if (
                 headEnd === null ||
                 markerActsAsExpressionName(
@@ -541,7 +632,8 @@ function parseWithQuery(
             "SYN_UNSUPPORTED_STATEMENT",
             mainRange!,
             `${context.dialect} ${unsupportedMain.signature.capabilityId} statement after WITH is recognized but not structured`,
-            "statement"
+            "statement",
+            unsupportedMain.signature.capabilityId
         );
     }
     const mainIsInsert =
@@ -577,23 +669,28 @@ function parseWithQuery(
     return context.factory.createQuery(range, main.queryKind, [], [withClause, main]);
 }
 
-function markerHeadEnd(
+function markerHeadEndAfterFirst(
     context: ParserContext,
     start: number,
     rangeEnd: number,
     words: readonly string[]
 ): number | null {
-    const matched = matchesSyntaxWords(context, start, rangeEnd, words);
-    if (matched === null) {
-        return null;
-    }
     const depth = context.table.depthBefore(start);
-    for (const index of matched) {
-        if (context.table.depthBefore(index) !== depth) {
+    let last = start;
+    let current = nextSyntaxIndex(context, start, rangeEnd);
+    for (let wordIndex = 1; wordIndex < words.length; wordIndex++) {
+        if (
+            current === null ||
+            current >= rangeEnd ||
+            context.table.depthBefore(current) !== depth ||
+            !isCodeWord(context, current, words[wordIndex]!)
+        ) {
             return null;
         }
+        last = current;
+        current = nextSyntaxIndex(context, current, rangeEnd);
     }
-    return matched[matched.length - 1]! + 1;
+    return last + 1;
 }
 
 function markerActsAsExpressionName(
@@ -624,16 +721,33 @@ function markerActsAsExpressionName(
     if (afterHead === null) {
         return true;
     }
-    if (
-        followsComma &&
-        getDialect(context.dialect).listQueryClauseSyntax().some(
-            (other) =>
-                other.id !== syntax.id &&
-                clauseCapabilityIsStructured(context, other) &&
-                markerHeadEnd(context, afterHead, rangeEnd, other.words) !== null
-        )
-    ) {
-        return true;
+    if (followsComma) {
+        const leaf = context.leaves[afterHead]!;
+        if (leaf.channel === "code") {
+            const candidates = structuredQuerySyntaxes(context).byFirstWord[
+                context.table.normalizedWord(afterHead)
+            ];
+            if (candidates !== undefined) {
+                for (
+                    let syntaxIndex = 0;
+                    syntaxIndex < candidates.length;
+                    syntaxIndex++
+                ) {
+                    const other = candidates[syntaxIndex]!;
+                    if (
+                        other.id !== syntax.id &&
+                        markerHeadEndAfterFirst(
+                            context,
+                            afterHead,
+                            rangeEnd,
+                            other.words
+                        ) !== null
+                    ) {
+                        return true;
+                    }
+                }
+            }
+        }
     }
     if (
         context.leaves[afterHead]!.kind === "operator" ||
@@ -657,12 +771,13 @@ function markerActsAsExpressionName(
     return open === null || context.leaves[open]!.raw !== "(";
 }
 
-function findClauseMarkers(context: ParserContext, range: LeafRange): readonly ClauseMarker[] {
-    const dialect = getDialect(context.dialect);
-    const syntaxes = dialect.listQueryClauseSyntax().filter((syntax) =>
-        clauseCapabilityIsStructured(context, syntax)
-    );
-    const selectSyntax = syntaxes.find((syntax) => syntax.id === "select");
+function findClauseMarkers(
+    context: ParserContext,
+    range: LeafRange,
+    topLevelIndexes: readonly number[]
+): readonly ClauseMarker[] {
+    const syntaxView = structuredQuerySyntaxes(context);
+    const selectSyntax = syntaxView.select;
     if (!selectSyntax || !isCodeWord(context, range.start, "select")) {
         throw new ParserSyntaxError(
             "SYN_UNEXPECTED_TOKEN",
@@ -696,12 +811,21 @@ function findClauseMarkers(context: ParserContext, range: LeafRange): readonly C
     const markers: ClauseMarker[] = [
         Object.freeze({ syntax: selectSyntax, start: range.start, headEnd: selectHeadEnd }),
     ];
-    const depth = baseDepth(context, range);
     let currentOrder = selectSyntax.order;
     let currentHeadEnd = selectHeadEnd;
 
-    for (const index of syntaxIndexesInRange(context, range)) {
-        if (index < currentHeadEnd || context.table.depthBefore(index) !== depth) {
+    for (const index of topLevelIndexes) {
+        if (index < currentHeadEnd) {
+            continue;
+        }
+        const leaf = context.leaves[index]!;
+        if (leaf.channel !== "code") {
+            continue;
+        }
+        const candidates = syntaxView.byFirstWord[
+            context.table.normalizedWord(index)
+        ];
+        if (candidates === undefined) {
             continue;
         }
         if (isDottedNamePart(context, index, range.start, range.end)) {
@@ -717,11 +841,17 @@ function findClauseMarkers(context: ParserContext, range: LeafRange): readonly C
                 continue;
             }
         }
-        for (const syntax of syntaxes) {
+        for (let syntaxIndex = 0; syntaxIndex < candidates.length; syntaxIndex++) {
+            const syntax = candidates[syntaxIndex]!;
             if (syntax.id === "select") {
                 continue;
             }
-            const headEnd = markerHeadEnd(context, index, range.end, syntax.words);
+            const headEnd = markerHeadEndAfterFirst(
+                context,
+                index,
+                range.end,
+                syntax.words
+            );
             if (headEnd === null) {
                 continue;
             }
@@ -765,57 +895,55 @@ function findClauseMarkers(context: ParserContext, range: LeafRange): readonly C
     return Object.freeze(markers);
 }
 
-function listFactsForClause(clauseKind: ClauseKind): {
+type ClauseListFacts = Readonly<{
     readonly listRole: ListRole;
     readonly allowAlias: boolean;
     readonly modifierWords: readonly string[];
-} | null {
-    switch (clauseKind) {
-        case "select":
-            return Object.freeze({
-                listRole: "select-items",
-                allowAlias: true,
-                modifierWords: Object.freeze([]),
-            });
-        case "group-by":
-            return Object.freeze({
-                listRole: "group-by-items",
-                allowAlias: false,
-                modifierWords: Object.freeze([]),
-            });
-        case "order-by":
-            return Object.freeze({
-                listRole: "order-by-items",
-                allowAlias: false,
-                modifierWords: Object.freeze(["asc", "desc"]),
-            });
-        case "cluster-by":
-            return Object.freeze({
-                listRole: "cluster-by-items",
-                allowAlias: false,
-                modifierWords: Object.freeze([]),
-            });
-        case "distribute-by":
-            return Object.freeze({
-                listRole: "distribute-by-items",
-                allowAlias: false,
-                modifierWords: Object.freeze([]),
-            });
-        case "sort-by":
-            return Object.freeze({
-                listRole: "sort-by-items",
-                allowAlias: false,
-                modifierWords: Object.freeze(["asc", "desc"]),
-            });
-        case "window":
-            return Object.freeze({
-                listRole: "other",
-                allowAlias: false,
-                modifierWords: Object.freeze([]),
-            });
-        default:
-            return null;
-    }
+}>;
+
+const EMPTY_LIST_MODIFIERS: readonly string[] = Object.freeze([]);
+const ORDER_LIST_MODIFIERS: readonly string[] = Object.freeze(["asc", "desc"]);
+const LIST_FACTS_BY_CLAUSE: Partial<Record<ClauseKind, ClauseListFacts>> =
+    Object.freeze({
+        select: Object.freeze({
+            listRole: "select-items" as const,
+            allowAlias: true,
+            modifierWords: EMPTY_LIST_MODIFIERS,
+        }),
+        "group-by": Object.freeze({
+            listRole: "group-by-items" as const,
+            allowAlias: false,
+            modifierWords: EMPTY_LIST_MODIFIERS,
+        }),
+        "order-by": Object.freeze({
+            listRole: "order-by-items" as const,
+            allowAlias: false,
+            modifierWords: ORDER_LIST_MODIFIERS,
+        }),
+        "cluster-by": Object.freeze({
+            listRole: "cluster-by-items" as const,
+            allowAlias: false,
+            modifierWords: EMPTY_LIST_MODIFIERS,
+        }),
+        "distribute-by": Object.freeze({
+            listRole: "distribute-by-items" as const,
+            allowAlias: false,
+            modifierWords: EMPTY_LIST_MODIFIERS,
+        }),
+        "sort-by": Object.freeze({
+            listRole: "sort-by-items" as const,
+            allowAlias: false,
+            modifierWords: ORDER_LIST_MODIFIERS,
+        }),
+        window: Object.freeze({
+            listRole: "other" as const,
+            allowAlias: false,
+            modifierWords: EMPTY_LIST_MODIFIERS,
+        }),
+    });
+
+function listFactsForClause(clauseKind: ClauseKind): ClauseListFacts | null {
+    return LIST_FACTS_BY_CLAUSE[clauseKind] ?? null;
 }
 
 function clauseEndBeforeNextMarker(
@@ -1048,17 +1176,33 @@ function relationAliasColumnListSuffix(
         start: close + 1,
         end: segmentEnd,
     });
-    const indexes = topLevelSyntaxIndexes(context, {
+    const innerRange = {
         start: suffix.start + 1,
         end: close,
-    });
-    return indexes.length > 0 &&
-        indexes.length % 2 === 1 &&
-        indexes.every((index, position) =>
+    };
+    const depth = baseDepth(context, innerRange);
+    const firstOrdinal = firstSyntaxOrdinalInRange(context, innerRange);
+    const lastOrdinal = firstOrdinal === null
+        ? -1
+        : lastSyntaxOrdinalInRange(context, innerRange)!;
+    let position = 0;
+    let valid = true;
+    for (let ordinal = firstOrdinal ?? 0; ordinal <= lastOrdinal; ordinal++) {
+        const index = context.table.leafIndexOfSyntaxOrdinal(ordinal);
+        if (context.table.depthBefore(index) !== depth) {
+            continue;
+        }
+        if (
             position % 2 === 0
-                ? isAliasNameLeaf(context.leaves[index]!)
-                : context.leaves[index]!.raw === ","
-        )
+                ? !isAliasNameLeaf(context.leaves[index]!)
+                : context.leaves[index]!.raw !== ","
+        ) {
+            valid = false;
+            break;
+        }
+        position += 1;
+    }
+    return valid && position > 0 && position % 2 === 1
         ? Object.freeze({
               continuationStart: continuation === null ? null : continuation.start,
           })
@@ -1138,9 +1282,14 @@ function rejectProvenUnsupportedQueryClauses(
     context: ParserContext,
     range: LeafRange,
     markers: readonly ClauseMarker[],
+    topLevelIndexes: readonly number[],
     nestingDepth: number
 ): void {
-    const candidates = findUnsupportedQueryClauseCandidates(context, range);
+    const candidates = findUnsupportedQueryClauseCandidates(
+        context,
+        range,
+        topLevelIndexes
+    );
     const relationCandidateFacts = relationAliasCandidateStarts(
         context,
         range,
@@ -1226,7 +1375,8 @@ function rejectProvenUnsupportedQueryClauses(
                 "SYN_UNMODELED_CONSTRUCT",
                 { start: candidate.range.start, end: range.end },
                 `${context.dialect} ${candidate.signature.capabilityId.toUpperCase()} clause is recognized but not structured`,
-                "statement"
+                "statement",
+                candidate.signature.capabilityId
             );
         }
     }
@@ -1235,10 +1385,17 @@ function rejectProvenUnsupportedQueryClauses(
 function parseSelectQuery(
     context: ParserContext,
     range: LeafRange,
+    topLevelIndexes: readonly number[],
     nestingDepth: number
 ): QueryNode {
-    const markers = findClauseMarkers(context, range);
-    rejectProvenUnsupportedQueryClauses(context, range, markers, nestingDepth);
+    const markers = findClauseMarkers(context, range, topLevelIndexes);
+    rejectProvenUnsupportedQueryClauses(
+        context,
+        range,
+        markers,
+        topLevelIndexes,
+        nestingDepth
+    );
     const clauses: ClauseNode[] = [];
     for (let i = 0; i < markers.length; i++) {
         const marker = markers[i]!;
@@ -1281,7 +1438,8 @@ function parseParenthesizedQuery(
 function parseQueryAtom(
     context: ParserContext,
     inputRange: LeafRange,
-    nestingDepth: number
+    nestingDepth: number,
+    topLevelIndexes?: readonly number[]
 ): QueryNode {
     assertParserDepth(inputRange, nestingDepth);
     const range = trimToSyntax(context.leaves, inputRange);
@@ -1299,7 +1457,12 @@ function parseQueryAtom(
         return parseWithQuery(context, range, nestingDepth);
     }
     if (isCodeWord(context, range.start, "select")) {
-        return parseSelectQuery(context, range, nestingDepth);
+        return parseSelectQuery(
+            context,
+            range,
+            topLevelIndexes ?? topLevelSyntaxIndexes(context, range),
+            nestingDepth
+        );
     }
     throw new ParserSyntaxError(
         "SYN_UNEXPECTED_TOKEN",
@@ -1322,11 +1485,12 @@ export function parseQueryRange(
             "Query range is empty"
         );
     }
-    const markers = findSetMarkers(context, range);
+    const topLevelIndexes = topLevelSyntaxIndexes(context, range);
+    const markers = findSetMarkers(context, range, topLevelIndexes);
     if (markers.length > 0) {
         return parseSetQuery(context, range, markers, nestingDepth);
     }
-    return parseQueryAtom(context, range, nestingDepth);
+    return parseQueryAtom(context, range, nestingDepth, topLevelIndexes);
 }
 
 export function parseInsertQueryRange(
@@ -1354,15 +1518,22 @@ export function parseInsertQueryRange(
             `${context.dialect} does not declare INSERT OVERWRITE query syntax`
         );
     }
-    const insertHead = matchesSyntaxWords(context, range.start, range.end, ["insert", "overwrite"]);
-    if (insertHead === null) {
+    if (!isCodeWord(context, range.start, "insert")) {
         throw new ParserSyntaxError(
             "SYN_UNSUPPORTED_STATEMENT",
             range,
             "Only INSERT OVERWRITE query statements are structured"
         );
     }
-    let headLast = insertHead[insertHead.length - 1]!;
+    const overwriteKeyword = nextSyntaxIndex(context, range.start, range.end);
+    if (overwriteKeyword === null || !isCodeWord(context, overwriteKeyword, "overwrite")) {
+        throw new ParserSyntaxError(
+            "SYN_UNSUPPORTED_STATEMENT",
+            range,
+            "Only INSERT OVERWRITE query statements are structured"
+        );
+    }
+    let headLast = overwriteKeyword;
     const tableKeyword = nextSyntaxIndex(context, headLast, range.end);
     if (tableKeyword === null || !isCodeWord(context, tableKeyword, "table")) {
         throw new ParserSyntaxError(
@@ -1383,7 +1554,13 @@ export function parseInsertQueryRange(
     const depth = baseDepth(context, range);
     let partitionStart: number | null = null;
     let selectStart: number | null = null;
-    for (const index of syntaxIndexesInRange(context, { start: targetStart, end: range.end })) {
+    const targetTail = { start: targetStart, end: range.end };
+    const firstOrdinal = firstSyntaxOrdinalInRange(context, targetTail);
+    const lastOrdinal = firstOrdinal === null
+        ? -1
+        : lastSyntaxOrdinalInRange(context, targetTail)!;
+    for (let ordinal = firstOrdinal ?? 0; ordinal <= lastOrdinal; ordinal++) {
+        const index = context.table.leafIndexOfSyntaxOrdinal(ordinal);
         if (context.table.depthBefore(index) !== depth) {
             continue;
         }

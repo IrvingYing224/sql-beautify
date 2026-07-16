@@ -1,3 +1,4 @@
+import type { CapabilityIdentity } from "../diagnostics/diagnostic";
 import type { SourceSpan } from "../source/source-span";
 import type { LeafRange } from "./leaf-range";
 
@@ -224,6 +225,7 @@ export interface TypeExpressionNode extends SyntaxNodeBase<"type-expression"> {
  */
 export interface OpaqueNode extends SyntaxNodeBase<"opaque"> {
     readonly reasonCode: string;
+    readonly capabilityId: CapabilityIdentity;
     readonly boundary: OpaqueBoundary;
 }
 

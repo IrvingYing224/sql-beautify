@@ -11,6 +11,9 @@
  *   rebuilding on every lookup.
  */
 export function freezeImmutableArray<T>(values: readonly T[]): readonly T[] {
+    if (values.length === 0) {
+        return EMPTY_FROZEN_ARRAY as readonly T[];
+    }
     return Object.freeze(Array.from(values));
 }
 

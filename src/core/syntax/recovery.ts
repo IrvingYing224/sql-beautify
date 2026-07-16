@@ -1,4 +1,7 @@
-import type { RecoveryAction } from "../diagnostics/diagnostic";
+import type {
+    CapabilityIdentity,
+    RecoveryAction,
+} from "../diagnostics/diagnostic";
 import type { LeafRange } from "./leaf-range";
 import type { OpaqueBoundary, OpaqueNode } from "./node";
 import {
@@ -36,7 +39,8 @@ export function createOpaqueWithDiagnostic(
     code: SyntaxDiagnosticCode,
     boundary: OpaqueBoundary,
     message: string,
-    recovery: RecoveryAction = "verbatim-node"
+    recovery: RecoveryAction = "verbatim-node",
+    capabilityId: CapabilityIdentity = null
 ): OpaqueNode {
     const recoveryIsValid =
         (boundary === "target" && recovery === "preserve-target") ||
@@ -50,8 +54,13 @@ export function createOpaqueWithDiagnostic(
             `${boundary} opaque cannot use recovery action ${recovery}`
         );
     }
-    const opaque = context.factory.createOpaque(range, code, boundary);
-    addDiagnostic(context, code, range, message, recovery);
+    const opaque = context.factory.createOpaque(
+        range,
+        code,
+        boundary,
+        capabilityId
+    );
+    addDiagnostic(context, code, range, message, recovery, "warning", capabilityId);
     return opaque;
 }
 
@@ -75,6 +84,8 @@ export function recoverOpaqueFromError(
         range,
         error.code,
         boundary,
-        `${messagePrefix}${error.message}`
+        `${messagePrefix}${error.message}`,
+        "verbatim-node",
+        error.capabilityId
     );
 }

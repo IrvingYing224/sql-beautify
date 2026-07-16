@@ -2,21 +2,17 @@
 
 var assert = require('assert');
 var parser = require('../../.tmp/v2-core/core/syntax/parser');
-var trivia = require('../../.tmp/v2-core/core/analysis/trivia-binding');
+var tokenTable = require('../../.tmp/v2-core/core/syntax/token-table');
+var analysis = require('../../.tmp/v2-core/core/analysis');
 
-function flatten(root) {
-    var nodes = [];
-    var stack = [root];
-    while (stack.length > 0) {
-        var node = stack.pop();
-        nodes.push(node);
-        if (Array.isArray(node.children)) {
-            for (var index = node.children.length - 1; index >= 0; index -= 1) {
-                stack.push(node.children[index]);
-            }
-        }
-    }
-    return nodes;
+function buildIndex(source, result, dialect) {
+    return analysis.buildStructuralIndex({
+        root: result.root,
+        leaves: result.leaves,
+        tokenTable: tokenTable.buildStructuralTokenTable(result.leaves, source),
+        dialect: dialect || 'hive',
+        diagnostics: result.diagnostics
+    });
 }
 
 function isComment(leaf) {
@@ -42,8 +38,9 @@ function inspect(source, dialect) {
         mode: 'document'
     });
     var beforeRaw = result.leaves.map(function(leaf) { return leaf.raw; });
-    var bindings = trivia.bindCommentTrivia(result.root, result.leaves);
-    var nodesById = new Map(flatten(result.root).map(function(node) {
+    var index = buildIndex(source, result, dialect);
+    var bindings = index.commentBindings();
+    var nodesById = new Map(index.nodes().map(function(node) {
         return [node.id, node];
     }));
     var leavesById = new Map(result.leaves.map(function(leaf) {
@@ -322,8 +319,21 @@ assertExpectedBindings(
 (function testBindingsAreDeterministicAndRejectMutation() {
     var source = 'SELECT a, /* first */ b; -- second';
     var result = parser.parseSql(source, { dialect: 'hive', mode: 'document' });
-    var first = trivia.bindCommentTrivia(result.root, result.leaves);
-    var second = trivia.bindCommentTrivia(result.root, result.leaves);
+    var table = tokenTable.buildStructuralTokenTable(result.leaves, source);
+    var first = analysis.buildStructuralIndex({
+        root: result.root,
+        leaves: result.leaves,
+        tokenTable: table,
+        dialect: 'hive',
+        diagnostics: result.diagnostics
+    }).commentBindings();
+    var second = analysis.buildStructuralIndex({
+        root: result.root,
+        leaves: result.leaves,
+        tokenTable: table,
+        dialect: 'hive',
+        diagnostics: result.diagnostics
+    }).commentBindings();
     assert.deepStrictEqual(second, first);
     assert.throws(function() {
         first.push({ commentLeafId: -1, ownerNodeId: -1, placement: 'dangling' });
@@ -339,8 +349,15 @@ assertExpectedBindings(
     var source = 'SELECT ' + '('.repeat(depth) +
         '/* dense */'.repeat(commentCount) + '1' + ')'.repeat(depth) + ';';
     var result = parser.parseSql(source, { dialect: 'hive', mode: 'document' });
+    var table = tokenTable.buildStructuralTokenTable(result.leaves, source);
     var started = process.hrtime.bigint();
-    var bindings = trivia.bindCommentTrivia(result.root, result.leaves);
+    var bindings = analysis.buildStructuralIndex({
+        root: result.root,
+        leaves: result.leaves,
+        tokenTable: table,
+        dialect: 'hive',
+        diagnostics: result.diagnostics
+    }).commentBindings();
     var elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
     assert.strictEqual(bindings.length, commentCount);
     assert.ok(elapsedMs < 1500,
@@ -351,8 +368,15 @@ assertExpectedBindings(
     var commentCount = 20000;
     var source = '-- dense line\n'.repeat(commentCount) + 'SELECT 1;';
     var result = parser.parseSql(source, { dialect: 'hive', mode: 'document' });
+    var table = tokenTable.buildStructuralTokenTable(result.leaves, source);
     var started = process.hrtime.bigint();
-    var bindings = trivia.bindCommentTrivia(result.root, result.leaves);
+    var bindings = analysis.buildStructuralIndex({
+        root: result.root,
+        leaves: result.leaves,
+        tokenTable: table,
+        dialect: 'hive',
+        diagnostics: result.diagnostics
+    }).commentBindings();
     var elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
     assert.strictEqual(bindings.length, commentCount);
     assert.ok(bindings.every(function(binding) {

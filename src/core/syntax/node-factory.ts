@@ -1,4 +1,12 @@
-import { freezeImmutableArray } from "../util/immutable-array";
+import {
+    isCapabilityIdentity,
+    type CapabilityIdentity,
+} from "../diagnostics/diagnostic";
+import {
+    EMPTY_FROZEN_ARRAY,
+    freezeImmutableArray,
+} from "../util/immutable-array";
+import type { SourceLeaf } from "../lexer/token";
 import type { LeafRange } from "./leaf-range";
 import type {
     AliasInfo,
@@ -26,6 +34,10 @@ import type {
     TypeExpressionNode,
     WindowSpecNode,
 } from "./node";
+import {
+    canonicalRangeToSpan,
+    canonicalStructuralTokenTableLeaves,
+} from "./token-table";
 import type { StructuralTokenTable } from "./token-table";
 
 export interface NodeFactory {
@@ -104,8 +116,36 @@ export interface NodeFactory {
     createOpaque(
         range: LeafRange,
         reasonCode: string,
-        boundary: OpaqueBoundary
+        boundary: OpaqueBoundary,
+        capabilityId?: CapabilityIdentity
     ): OpaqueNode;
+}
+
+interface CanonicalProgramProof {
+    readonly nodeCount: number;
+    readonly leaves: readonly SourceLeaf[];
+}
+
+const CANONICAL_PROGRAM_PROOFS = new WeakMap<object, CanonicalProgramProof>();
+
+/** Internal provenance for ProgramNodes completed by the canonical factory. */
+export function canonicalProgramNodeCount(value: unknown): number | null {
+    if (typeof value !== "object" || value === null) {
+        return null;
+    }
+    return CANONICAL_PROGRAM_PROOFS.get(value)?.nodeCount ?? null;
+}
+
+/** Internal proof that a canonical ProgramNode belongs to this exact leaf partition. */
+export function canonicalProgramNodeCountForLeaves(
+    value: unknown,
+    leaves: readonly SourceLeaf[]
+): number | null {
+    if (typeof value !== "object" || value === null) {
+        return null;
+    }
+    const proof = CANONICAL_PROGRAM_PROOFS.get(value);
+    return proof?.leaves === leaves ? proof.nodeCount : null;
 }
 
 function freezeRange(range: LeafRange, leafCount: number, allowEmpty: boolean): LeafRange {
@@ -143,6 +183,9 @@ function freezeAlias(alias: AliasInfo | null, leafCount: number): AliasInfo | nu
 }
 
 function freezeIds(values: readonly number[], leafCount: number, label: string): readonly number[] {
+    if (values.length === 0) {
+        return EMPTY_FROZEN_ARRAY;
+    }
     const copy: number[] = [];
     for (const value of values) {
         if (!Number.isInteger(value) || value < 0 || value >= leafCount) {
@@ -150,11 +193,31 @@ function freezeIds(values: readonly number[], leafCount: number, label: string):
         }
         copy.push(value);
     }
-    return freezeImmutableArray(copy);
+    return Object.freeze(copy);
 }
 
 export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
+    return createNodeFactoryInternal(table, false);
+}
+
+/** Parser-only factory; deliberately not re-exported from the syntax facade. */
+export function createParserNodeFactory(table: StructuralTokenTable): NodeFactory {
+    return createNodeFactoryInternal(table, true);
+}
+
+function createNodeFactoryInternal(
+    table: StructuralTokenTable,
+    grantCanonicalProgramProvenance: boolean
+): NodeFactory {
     const leafCount = table.leafCount();
+    const trustedRangeToSpan = canonicalRangeToSpan(table);
+    const canonicalLeaves = grantCanonicalProgramProvenance
+        ? canonicalStructuralTokenTableLeaves(table)
+        : null;
+    if (grantCanonicalProgramProvenance && canonicalLeaves === null) {
+        throw new Error("Parser node factory requires a canonical structural token table");
+    }
+    const spanForRange = trustedRangeToSpan ?? ((range: LeafRange) => table.rangeToSpan(range));
     let nextId = 1;
     let programCreated = false;
 
@@ -162,14 +225,6 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         const id = nextId;
         nextId += 1;
         return id;
-    };
-
-    const spanFor = (range: LeafRange, allowEmpty: boolean): {
-        readonly range: LeafRange;
-        readonly span: ReturnType<StructuralTokenTable["rangeToSpan"]>;
-    } => {
-        const frozenRange = freezeRange(range, leafCount, allowEmpty);
-        return Object.freeze({ range: frozenRange, span: table.rangeToSpan(frozenRange) });
     };
 
     const factory: NodeFactory = {
@@ -194,14 +249,22 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
                 throw new Error("Node factory may create ProgramNode only once");
             }
             programCreated = true;
-            const base = spanFor(range, true);
-            return Object.freeze({
+            const leafRange = freezeRange(range, leafCount, true);
+            const span = spanForRange(leafRange);
+            const program = Object.freeze({
                 id: 0,
                 kind: "program" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 children: freezeImmutableArray(children),
             });
+            if (grantCanonicalProgramProvenance) {
+                CANONICAL_PROGRAM_PROOFS.set(
+                    program,
+                    Object.freeze({ nodeCount: nextId, leaves: canonicalLeaves! })
+                );
+            }
+            return program;
         },
 
         createStatement(range, statementKind, body): StatementNode {
@@ -219,12 +282,13 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             ) {
                 throw new Error(`Invalid ${statementKind} statement body kind: ${body.kind}`);
             }
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             return Object.freeze({
                 id: allocateId(),
                 kind: "statement" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 statementKind,
                 bodyChildId: body === null ? null : body.id,
                 children: body === null ? freezeImmutableArray([]) : freezeImmutableArray([body]),
@@ -232,12 +296,13 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         },
 
         createQuery(range, queryKind, setOperatorLeafIds, children): QueryNode {
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             return Object.freeze({
                 id: allocateId(),
                 kind: "query" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 queryKind,
                 setOperatorLeafIds: freezeIds(
                     setOperatorLeafIds,
@@ -249,7 +314,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         },
 
         createCte(range, nameLeafRange, columnList, query): CteNode {
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             const children: SyntaxNode[] = [];
             if (columnList !== null) {
                 children.push(columnList);
@@ -258,8 +324,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             return Object.freeze({
                 id: allocateId(),
                 kind: "cte" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 nameLeafRange: freezeRange(nameLeafRange, leafCount, false),
                 queryChildId: query.id,
                 columnListChildId: columnList === null ? null : columnList.id,
@@ -268,12 +334,13 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         },
 
         createClause(range, clauseKind, headLeafRange, bodyLeafRange, children): ClauseNode {
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             return Object.freeze({
                 id: allocateId(),
                 kind: "clause" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 clauseKind,
                 headLeafRange: freezeRange(headLeafRange, leafCount, true),
                 bodyLeafRange: freezeRange(bodyLeafRange, leafCount, true),
@@ -282,7 +349,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         },
 
         createRelation(range, relationKind, alias, body, children): RelationNode {
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             if (body !== null) {
                 let occurrences = 0;
                 for (const child of children) {
@@ -299,8 +367,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             return Object.freeze({
                 id: allocateId(),
                 kind: "relation" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 relationKind,
                 alias: freezeAlias(alias, leafCount),
                 bodyChildId: body === null ? null : body.id,
@@ -309,12 +377,13 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         },
 
         createList(range, listRole, separatorLeafIds, children): ListNode {
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             return Object.freeze({
                 id: allocateId(),
                 kind: "list" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 listRole,
                 separatorLeafIds: freezeIds(separatorLeafIds, leafCount, "separator"),
                 children: freezeImmutableArray(children),
@@ -322,12 +391,13 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         },
 
         createListItem(range, itemRole, alias, modifierLeafIds, value): ListItemNode {
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             return Object.freeze({
                 id: allocateId(),
                 kind: "list-item" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 itemRole,
                 alias: freezeAlias(alias, leafCount),
                 modifierLeafIds: freezeIds(modifierLeafIds, leafCount, "modifier"),
@@ -337,12 +407,13 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         },
 
         createExpression(range, expressionKind, operatorLeafIds, children): ExpressionNode {
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             return Object.freeze({
                 id: allocateId(),
                 kind: "expression" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 expressionKind,
                 operatorLeafIds: freezeIds(
                     operatorLeafIds,
@@ -360,7 +431,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             if (branchKind === "else" && condition !== null) {
                 throw new Error("ELSE branch must not have a condition");
             }
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             const children: SyntaxNode[] = [];
             if (condition !== null) {
                 children.push(condition);
@@ -369,8 +441,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             return Object.freeze({
                 id: allocateId(),
                 kind: "case-branch" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 branchKind,
                 conditionChildId: condition === null ? null : condition.id,
                 valueChildId: value.id,
@@ -385,7 +457,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             order,
             frame
         ): WindowSpecNode {
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             const children: SyntaxNode[] = [];
             if (partition !== null) {
                 children.push(partition);
@@ -399,8 +472,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             return Object.freeze({
                 id: allocateId(),
                 kind: "window-spec" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 nameLeafRange:
                     nameLeafRange === null
                         ? null
@@ -421,7 +494,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             if (argumentList !== null && memberList !== null) {
                 throw new Error("Type expression cannot own argument and member lists together");
             }
-            const base = spanFor(range, false);
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             const children: SyntaxNode[] = [];
             if (argumentList !== null) {
                 children.push(argumentList);
@@ -432,8 +506,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             return Object.freeze({
                 id: allocateId(),
                 kind: "type-expression" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 typeNameLeafRange: freezeRange(typeNameLeafRange, leafCount, false),
                 argumentListChildId: argumentList === null ? null : argumentList.id,
                 memberListChildId: memberList === null ? null : memberList.id,
@@ -441,17 +515,24 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             });
         },
 
-        createOpaque(range, reasonCode, boundary): OpaqueNode {
+        createOpaque(range, reasonCode, boundary, capabilityId = null): OpaqueNode {
             if (reasonCode.length === 0) {
                 throw new Error("Opaque reasonCode must be non-empty");
             }
-            const base = spanFor(range, false);
+            if (!isCapabilityIdentity(capabilityId)) {
+                throw new Error(
+                    `Invalid opaque capability identity: ${String(capabilityId)}`
+                );
+            }
+            const leafRange = freezeRange(range, leafCount, false);
+            const span = spanForRange(leafRange);
             return Object.freeze({
                 id: allocateId(),
                 kind: "opaque" as const,
-                span: base.span,
-                leafRange: base.range,
+                span,
+                leafRange,
                 reasonCode,
+                capabilityId,
                 boundary,
             });
         },

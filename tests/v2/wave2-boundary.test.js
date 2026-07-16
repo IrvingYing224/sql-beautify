@@ -66,6 +66,23 @@ function assertAbsent(packagedFiles, label, pattern) {
     assert.deepStrictEqual(leaked, [], 'VSIX must exclude ' + label + '\n' + leaked.join('\n'));
 }
 
+function countBuildInvocations(scriptName, stack) {
+    var script = packageJson.scripts[scriptName];
+    assert.strictEqual(typeof script, 'string', 'missing npm script ' + scriptName);
+    var active = stack || [];
+    assert.strictEqual(active.indexOf(scriptName), -1,
+        'npm script cycle while expanding ' + active.concat(scriptName).join(' -> '));
+    var count = (script.match(/npm run build:v2-core\b/g) || []).length;
+    var nestedPattern = /npm run ([a-zA-Z0-9:_-]+)/g;
+    var match;
+    while ((match = nestedPattern.exec(script)) !== null) {
+        if (match[1] !== 'build:v2-core') {
+            count += countBuildInvocations(match[1], active.concat(scriptName));
+        }
+    }
+    return count;
+}
+
 // package main unchanged
 assert.strictEqual(packageJson.main, './extension.js');
 
@@ -81,6 +98,8 @@ assert.ok(packageJson.scripts['test:v2:wave2-performance']);
 assert.ok(packageJson.scripts['test:v2:expression']);
 assert.ok(packageJson.scripts['test:v2:recovery']);
 assert.ok(packageJson.scripts['test:v2:trivia']);
+assert.ok(packageJson.scripts['test:v2:analysis']);
+assert.ok(packageJson.scripts['test:v2:support-matrix']);
 assert.ok(
     packageJson.scripts['test:v2:expression'].indexOf('build:v2-core') >= 0 &&
         packageJson.scripts['test:v2:expression'].indexOf('expression-parser.test.js') >= 0,
@@ -101,6 +120,17 @@ assert.ok(
     packageJson.scripts['test:v2:trivia'].indexOf('build:v2-core') >= 0 &&
         packageJson.scripts['test:v2:trivia'].indexOf('trivia-binding.test.js') >= 0,
     'standalone trivia gate must build and run Wave 2D trivia tests'
+);
+assert.ok(
+    packageJson.scripts['test:v2:analysis'].indexOf('build:v2-core') >= 0 &&
+        packageJson.scripts['test:v2:analysis'].indexOf('analysis-index.test.js') >= 0,
+    'standalone analysis gate must build and run Wave 2E index tests'
+);
+assert.ok(
+    packageJson.scripts['test:v2:support-matrix'].indexOf('build:v2-core') >= 0 &&
+        packageJson.scripts['test:v2:support-matrix'].indexOf('v2-support-matrix.test.js') >= 0 &&
+        packageJson.scripts['test:v2:support-matrix'].indexOf('--check') >= 0,
+    'standalone support-matrix gate must build and check the generated v2 matrix'
 );
 assert.ok(
     packageJson.scripts['test:v2:wave2-foundation'].indexOf('build:v2-core') >= 0 &&
@@ -135,12 +165,20 @@ assert.ok(
     'parser-depth.test.js',
     'trivia-binding.test.js',
     'recovery-fuzz.test.js',
+    'analysis-index.test.js',
+    'v2-support-matrix.test.js',
+    'generate-v2-support-matrix.js --check',
     'wave2-corpus.test.js',
     'wave2-performance.test.js'
 ].forEach(function(required) {
     assert.ok(packageJson.scripts['test:v2:wave2'].indexOf(required) >= 0,
         'test:v2:wave2 must include ' + required);
 });
+assert.strictEqual(
+    countBuildInvocations('test:v2:wave2'),
+    1,
+    'test:v2:wave2 must build v2 core exactly once across nested npm scripts'
+);
 
 // test:verify includes each wave aggregate once
 var verify = packageJson.scripts['test:verify'];
@@ -215,7 +253,7 @@ wave2SourceDirs.forEach(function(dir) {
     });
 });
 
-// Wave 2D recovery/trivia files exist, while Wave 2E analysis indexes remain absent.
+// Wave 2 recovery, trivia, analysis, and generated-matrix files exist.
 [
     'src/core/syntax/parser.ts',
     'src/core/syntax/statement-parser.ts',
@@ -232,27 +270,37 @@ wave2SourceDirs.forEach(function(dir) {
     'src/core/syntax/recovery.ts',
     'src/core/syntax/unsupported-recognizer.ts',
     'src/core/syntax/parser-depth.ts',
-    'src/core/analysis/trivia-binding.ts'
+    'src/core/analysis/trivia-binding.ts',
+    'src/core/analysis/types.ts',
+    'src/core/analysis/structural-index.ts',
+    'src/core/analysis/analyze.ts',
+    'src/core/analysis/index.ts',
+    'tests/v2/analysis-index.test.js',
+    'tests/v2/v2-support-matrix.test.js',
+    'scripts/generate-v2-support-matrix.js',
+    'docs/technical/sql-formatter-v2-support-matrix.md'
 ].forEach(function(relativePath) {
     assert.ok(
         fs.existsSync(path.join(root, relativePath)),
-        'Wave 2D requires ' + relativePath
-    );
-});
-
-[
-    'src/core/analysis/analyze.ts',
-    'src/core/analysis/structural-index.ts'
-].forEach(function(relativePath) {
-    assert.ok(
-        !fs.existsSync(path.join(root, relativePath)),
-        'Wave 2D must not create Wave 2E file ' + relativePath
+        'Wave 2 requires ' + relativePath
     );
 });
 
 var parserSource = fs.readFileSync(path.join(root, 'src/core/syntax/parser.ts'), 'utf8');
 assert.ok(/from\s+["']\.\.\/lexer\/lossless-lexer["']/.test(parserSource),
-    'Wave 2D parser must consume the canonical lossless lexer');
+    'Wave 2 parser must consume the canonical lossless lexer');
+var analyzeSource = fs.readFileSync(path.join(root, 'src/core/analysis/analyze.ts'), 'utf8');
+assert.ok(/parseSqlArtifact/.test(analyzeSource),
+    'Wave 2E analysis must consume the retained parse artifact');
+assert.strictEqual(analyzeSource.indexOf('buildStructuralTokenTable'), -1,
+    'Wave 2E analysis must not rebuild the structural token table');
+assert.strictEqual(analyzeSource.indexOf('lexSql'), -1,
+    'Wave 2E analysis must not re-lex source');
+var syntaxFacadeSource = fs.readFileSync(path.join(root, 'src/core/syntax/index.ts'), 'utf8');
+assert.strictEqual(syntaxFacadeSource.indexOf('createNodeFactory'), -1,
+    'node factories must remain parser construction details');
+assert.strictEqual(syntaxFacadeSource.indexOf('canonicalProgramNodeCount'), -1,
+    'canonical node-count provenance must not leak through the syntax facade');
 [
     'src/core/syntax/list-parser.ts',
     'src/core/syntax/query-parser.ts',
@@ -292,7 +340,7 @@ var layoutFiles = collectFiles('src/core/layout', function(name) {
 assert.deepStrictEqual(
     layoutFiles,
     ['src/core/layout/doc.ts'],
-    'Wave 2D must not expand layout beyond doc contract'
+    'Wave 2 must not expand layout beyond doc contract'
 );
 
 // VSIX content

@@ -344,8 +344,17 @@ test('Hive template parameters', function() {
 test('named and positional parameters', function() {
     assertSingleLeaf('SELECT $1', 'postgresql', '$1', 'parameter', 'protected');
     assertSingleLeaf('SELECT :id', 'mysql', ':id', 'parameter', 'protected');
+    assertSingleLeaf('SELECT :id', 'generic', ':id', 'parameter', 'protected');
     assertSingleLeaf('SELECT @user_id', 'mysql', '@user_id', 'parameter', 'protected');
     assertSingleLeaf('SELECT ?', 'mysql', '?', 'parameter', 'protected');
+
+    ['hive', 'postgresql'].forEach(function(dialect) {
+        var output = lexSql('SELECT :id', { dialect: dialect });
+        assert.strictEqual(output.leaves.some(function(leaf) {
+            return leaf.raw === ':id' && leaf.kind === 'parameter';
+        }), false, dialect + ' must not claim non-native :id parameters');
+        assertSingleLeaf('SELECT :id', dialect, ':', 'punctuation', 'code');
+    });
 });
 
 test('parameter vs operator precedence', function() {
@@ -530,6 +539,25 @@ test('PostgreSQL ? is operator not parameter; => := # are atomic', function() {
     assertSingleLeaf('SELECT ?', 'mysql', '?', 'parameter', 'protected');
     assertSingleLeaf('SELECT ?', 'hive', '?', 'parameter', 'protected');
     assertSingleLeaf('SELECT ?', 'generic', '?', 'parameter', 'protected');
+});
+
+test('Hive STRUCT member colons stay code across trivia and quoted names', function() {
+    var source = [
+        'SELECT STRUCT<a:INT>',
+        ', STRUCT<a :INT>',
+        ', STRUCT<a: INT>',
+        ', STRUCT<a : INT>',
+        ', STRUCT<`a`:BIGINT>',
+        ', STRUCT<`a` :BIGINT>'
+    ].join('');
+    var output = lexSql(source, { dialect: 'hive' });
+    assertConservesSource(source, output);
+    assert.strictEqual(output.leaves.some(function(leaf) {
+        return leaf.kind === 'parameter' && /^:(?:INT|BIGINT)$/.test(leaf.raw);
+    }), false, 'Hive type-member colons must never become protected parameters');
+    assert.strictEqual(output.leaves.filter(function(leaf) {
+        return leaf.raw === ':' && leaf.kind === 'punctuation' && leaf.channel === 'code';
+    }).length, 6, 'every Hive STRUCT member colon must remain code punctuation');
 });
 
 // ---------------------------------------------------------------------------

@@ -12,11 +12,20 @@ var root = path.join(__dirname, '..', '..');
 var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
 var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
+var expectedTablePath = path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'syntax',
+    'token-table-expected.js'
+);
 
 assert.ok(fs.existsSync(corePath), 'build:v2-core required');
 var core = require(corePath);
 var tokenTableMod = require(tokenTablePath);
 var invariants = require(invariantsPath);
+var expectedTableMod = require(expectedTablePath);
 var MAX_BROKEN_TABLE_FAILURES = 32;
 
 function median(samples) {
@@ -93,6 +102,7 @@ for (var j = 0; j < ranges.length; j++) {
             id: bodyId,
             kind: 'opaque',
             reasonCode: 'X',
+            capabilityId: null,
             boundary: 'statement',
             leafRange: r,
             span: span
@@ -107,6 +117,37 @@ var root = {
     span: { start: 0, end: source.length },
     children: children
 };
+
+// A full CST validation owns one independent structural oracle. The nested
+// token-table contract must consume that exact oracle instead of rebuilding
+// the same O(n) facts a second time.
+var originalDeriveExpectedTable = expectedTableMod.deriveExpectedTable;
+var deriveExpectedTableCalls = 0;
+expectedTableMod.deriveExpectedTable = function() {
+    deriveExpectedTableCalls += 1;
+    return originalDeriveExpectedTable.apply(this, arguments);
+};
+var singleOracleResult;
+try {
+    singleOracleResult = invariants.validateSyntaxInvariants({
+        root: root,
+        leaves: leaves,
+        source: source,
+        tokenTable: table
+    });
+} finally {
+    expectedTableMod.deriveExpectedTable = originalDeriveExpectedTable;
+}
+assert.strictEqual(
+    singleOracleResult.ok,
+    true,
+    'single-oracle validation must pass: ' + JSON.stringify(singleOracleResult.failures.slice(0, 3))
+);
+assert.strictEqual(
+    deriveExpectedTableCalls,
+    1,
+    'one validateSyntaxInvariants call must derive the expected token table exactly once'
+);
 
 // warmup
 var warm = invariants.validateSyntaxInvariants({

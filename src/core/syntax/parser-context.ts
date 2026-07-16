@@ -1,5 +1,10 @@
 import type { Dialect } from "../config/options";
-import type { Diagnostic, RecoveryAction } from "../diagnostics/diagnostic";
+import {
+    isCapabilityIdentity,
+    type CapabilityIdentity,
+    type Diagnostic,
+    type RecoveryAction,
+} from "../diagnostics/diagnostic";
 import type { SourceLeaf } from "../lexer/token";
 import { freezeImmutableArray } from "../util/immutable-array";
 import type { LeafRange } from "./leaf-range";
@@ -29,18 +34,24 @@ export class ParserSyntaxError extends Error {
     readonly code: SyntaxDiagnosticCode;
     readonly range: LeafRange;
     readonly minimumBoundary: "local" | "statement";
+    readonly capabilityId: CapabilityIdentity;
 
     constructor(
         code: SyntaxDiagnosticCode,
         range: LeafRange,
         message: string,
-        minimumBoundary: "local" | "statement" = "local"
+        minimumBoundary: "local" | "statement" = "local",
+        capabilityId: CapabilityIdentity = null
     ) {
         super(message);
+        if (!isCapabilityIdentity(capabilityId)) {
+            throw new Error(`Invalid capability identity: ${String(capabilityId)}`);
+        }
         this.name = "ParserSyntaxError";
         this.code = code;
         this.range = Object.freeze({ start: range.start, end: range.end });
         this.minimumBoundary = minimumBoundary;
+        this.capabilityId = capabilityId;
     }
 }
 
@@ -75,8 +86,24 @@ export function firstSyntaxIndex(
     leaves: readonly SourceLeaf[],
     range: LeafRange
 ): number | null {
-    const trimmed = trimToSyntax(leaves, range);
-    return trimmed === null ? null : trimmed.start;
+    for (let index = range.start; index < range.end; index++) {
+        if (isSyntaxLeaf(leaves[index]!)) {
+            return index;
+        }
+    }
+    return null;
+}
+
+export function lastSyntaxIndex(
+    leaves: readonly SourceLeaf[],
+    range: LeafRange
+): number | null {
+    for (let index = range.end - 1; index >= range.start; index--) {
+        if (isSyntaxLeaf(leaves[index]!)) {
+            return index;
+        }
+    }
+    return null;
 }
 
 export function nextSyntaxIndex(
@@ -194,17 +221,32 @@ export function syntaxIndexesInRange(
     context: ParserContext,
     range: LeafRange
 ): readonly number[] {
-    const trimmed = trimToSyntax(context.leaves, range);
-    if (trimmed === null) {
+    const firstOrdinal = firstSyntaxOrdinalInRange(context, range);
+    if (firstOrdinal === null) {
         return freezeImmutableArray([]);
     }
-    const firstOrdinal = context.table.syntaxOrdinalOfLeaf(trimmed.start);
-    const lastOrdinal = context.table.syntaxOrdinalOfLeaf(trimmed.end - 1);
+    const lastOrdinal = lastSyntaxOrdinalInRange(context, range)!;
     const indexes: number[] = [];
     for (let ordinal = firstOrdinal; ordinal <= lastOrdinal; ordinal++) {
         indexes.push(context.table.leafIndexOfSyntaxOrdinal(ordinal));
     }
     return freezeImmutableArray(indexes);
+}
+
+export function firstSyntaxOrdinalInRange(
+    context: ParserContext,
+    range: LeafRange
+): number | null {
+    const first = firstSyntaxIndex(context.leaves, range);
+    return first === null ? null : context.table.syntaxOrdinalOfLeaf(first);
+}
+
+export function lastSyntaxOrdinalInRange(
+    context: ParserContext,
+    range: LeafRange
+): number | null {
+    const last = lastSyntaxIndex(context.leaves, range);
+    return last === null ? null : context.table.syntaxOrdinalOfLeaf(last);
 }
 
 export function baseDepth(context: ParserContext, range: LeafRange): number {
@@ -217,9 +259,19 @@ export function topLevelSyntaxIndexes(
     range: LeafRange
 ): readonly number[] {
     const depth = baseDepth(context, range);
-    return syntaxIndexesInRange(context, range).filter(
-        (index) => context.table.depthBefore(index) === depth
-    );
+    const firstOrdinal = firstSyntaxOrdinalInRange(context, range);
+    if (firstOrdinal === null) {
+        return freezeImmutableArray([]);
+    }
+    const lastOrdinal = lastSyntaxOrdinalInRange(context, range)!;
+    const indexes: number[] = [];
+    for (let ordinal = firstOrdinal; ordinal <= lastOrdinal; ordinal++) {
+        const index = context.table.leafIndexOfSyntaxOrdinal(ordinal);
+        if (context.table.depthBefore(index) === depth) {
+            indexes.push(index);
+        }
+    }
+    return freezeImmutableArray(indexes);
 }
 
 export function syntaxLeavesAreSeparated(
@@ -246,14 +298,19 @@ export function splitTopLevelByComma(
     }
     const depth = baseDepth(context, trimmed);
     const separators: number[] = [];
-    for (const index of syntaxIndexesInRange(context, trimmed)) {
-        const leaf = context.leaves[index]!;
-        if (
-            leaf.channel === "code" &&
-            leaf.raw === "," &&
-            context.table.depthBefore(index) === depth
-        ) {
-            separators.push(index);
+    const firstOrdinal = firstSyntaxOrdinalInRange(context, trimmed);
+    if (firstOrdinal !== null) {
+        const lastOrdinal = lastSyntaxOrdinalInRange(context, trimmed)!;
+        for (let ordinal = firstOrdinal; ordinal <= lastOrdinal; ordinal++) {
+            const index = context.table.leafIndexOfSyntaxOrdinal(ordinal);
+            const leaf = context.leaves[index]!;
+            if (
+                leaf.channel === "code" &&
+                leaf.raw === "," &&
+                context.table.depthBefore(index) === depth
+            ) {
+                separators.push(index);
+            }
         }
     }
 
@@ -294,12 +351,17 @@ export function addDiagnostic(
     range: LeafRange,
     message: string,
     recovery: RecoveryAction,
-    severity: Diagnostic["severity"] = "warning"
+    severity: Diagnostic["severity"] = "warning",
+    capabilityId: CapabilityIdentity = null
 ): Diagnostic {
+    if (!isCapabilityIdentity(capabilityId)) {
+        throw new Error(`Invalid capability identity: ${String(capabilityId)}`);
+    }
     const diagnostic: Diagnostic = Object.freeze({
         code,
         severity,
         message,
+        capabilityId,
         span: context.table.rangeToSpan(range),
         recovery,
     });
@@ -329,7 +391,19 @@ export function finalizeDiagnostics(values: readonly Diagnostic[]): readonly Dia
         if (left.message !== right.message) {
             return left.message < right.message ? -1 : 1;
         }
-        return left.recovery < right.recovery ? -1 : left.recovery > right.recovery ? 1 : 0;
+        if (left.recovery !== right.recovery) {
+            return left.recovery < right.recovery ? -1 : 1;
+        }
+        if (left.capabilityId === right.capabilityId) {
+            return 0;
+        }
+        if (left.capabilityId === null) {
+            return -1;
+        }
+        if (right.capabilityId === null) {
+            return 1;
+        }
+        return left.capabilityId < right.capabilityId ? -1 : 1;
     });
 
     const deduped: Diagnostic[] = [];
@@ -342,6 +416,7 @@ export function finalizeDiagnostics(values: readonly Diagnostic[]): readonly Dia
             diagnostic.code,
             diagnostic.recovery,
             diagnostic.message,
+            diagnostic.capabilityId,
         ].join("\0");
         if (key === previousKey) {
             continue;

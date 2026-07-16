@@ -160,7 +160,103 @@ function assertNoOpaque(parsed, label) {
     assert.ok(binarySlices.indexOf('a - b - c') >= 0, 'outer subtraction must consume full range');
     assert.strictEqual(nodesOf(parsed, 'expression', 'expressionKind', 'between').length, 1);
     assert.strictEqual(nodesOf(parsed, 'expression', 'expressionKind', 'is').length, 1);
-    assert.strictEqual(nodesOf(parsed, 'expression', 'expressionKind', 'unary').length, 1);
+    var not = nodesOf(parsed, 'expression', 'expressionKind', 'unary')[0];
+    assert.ok(not, 'NOT expression required');
+    assert.strictEqual(slice(source, not), 'NOT a = 1',
+        'NOT must bind less tightly than comparison');
+    assert.strictEqual(slice(source, not.children[0]), 'a = 1');
+}());
+
+(function testBooleanNotAndPostgresOtherOperatorPrecedence() {
+    ['hive', 'generic', 'postgresql', 'mysql'].forEach(function(dialectId) {
+        var source = 'SELECT NOT a = b, NOT a BETWEEN 1 AND 2';
+        var parsed = parse(source, dialectId);
+        assertNoOpaque(parsed, dialectId + ' boolean NOT precedence');
+        assert.deepStrictEqual(nodesOf(parsed, 'expression', 'expressionKind', 'unary')
+            .map(function(node) { return slice(source, node); }),
+        ['NOT a = b', 'NOT a BETWEEN 1 AND 2'],
+        dialectId + ' NOT must enclose comparison/predicate operands');
+    });
+
+    var postgresSource = "SELECT a && b = c, payload @> '{}' = true, payload ? 'id' AND flag";
+    var postgres = parse(postgresSource, 'postgresql');
+    assertNoOpaque(postgres, 'PostgreSQL other-operator precedence');
+    var binarySlices = nodesOf(postgres, 'expression', 'expressionKind', 'binary')
+        .map(function(node) { return slice(postgresSource, node); });
+    ['a && b', 'a && b = c', "payload @> '{}'", "payload @> '{}' = true",
+        "payload ? 'id'", "payload ? 'id' AND flag"].forEach(function(expected) {
+        assert.ok(binarySlices.indexOf(expected) >= 0,
+            'missing PostgreSQL precedence node ' + expected);
+    });
+
+    var postgresTierSource = [
+        'SELECT 2 * 3 ^ 4',
+        ", a + b ->> 'x' = c",
+        ', a + b || c = d',
+        ', a + b & c = d'
+    ].join('');
+    var postgresTiers = parse(postgresTierSource, 'postgresql');
+    assertNoOpaque(postgresTiers, 'PostgreSQL power/other-operator tiers');
+    var tierSlices = nodesOf(postgresTiers, 'expression', 'expressionKind', 'binary')
+        .map(function(node) { return slice(postgresTierSource, node); });
+    [
+        '3 ^ 4',
+        '2 * 3 ^ 4',
+        'a + b',
+        "a + b ->> 'x'",
+        "a + b ->> 'x' = c",
+        'a + b || c',
+        'a + b || c = d',
+        'a + b & c',
+        'a + b & c = d'
+    ].forEach(function(expected) {
+        assert.ok(tierSlices.indexOf(expected) >= 0,
+            'missing PostgreSQL tier node ' + expected);
+    });
+    assert.strictEqual(tierSlices.indexOf('2 * 3'), -1,
+        'PostgreSQL exponentiation must bind before multiplication');
+    function binaryNode(expected) {
+        return nodesOf(postgresTiers, 'expression', 'expressionKind', 'binary')
+            .find(function(node) { return slice(postgresTierSource, node) === expected; });
+    }
+    function childSlices(expected) {
+        var node = binaryNode(expected);
+        assert.ok(node, 'binary node required for topology: ' + expected);
+        return node.children.map(function(child) {
+            return slice(postgresTierSource, child);
+        });
+    }
+    assert.deepStrictEqual(childSlices('2 * 3 ^ 4'), ['2', '3 ^ 4']);
+    assert.deepStrictEqual(childSlices('3 ^ 4'), ['3', '4']);
+    assert.deepStrictEqual(childSlices("a + b ->> 'x'"), ['a + b', "'x'"]);
+    assert.deepStrictEqual(childSlices("a + b ->> 'x' = c"),
+        ["a + b ->> 'x'", 'c']);
+    assert.deepStrictEqual(childSlices('a + b || c'), ['a + b', 'c']);
+    assert.deepStrictEqual(childSlices('a + b & c'), ['a + b', 'c']);
+
+    var postgresView = dialects.getDialect('postgresql');
+    assert.ok(postgresView.getOperatorSemantics('&&', 'infix').precedence >
+        postgresView.getOperatorSemantics('=', 'infix').precedence);
+    assert.ok(postgresView.getOperatorSemantics('@>', 'infix').precedence >
+        postgresView.getOperatorSemantics('=', 'infix').precedence);
+    assert.ok(postgresView.getOperatorSemantics('^', 'infix').precedence >
+        postgresView.getOperatorSemantics('*', 'infix').precedence,
+        'PostgreSQL ^ must bind above multiplication');
+    ['->>', '||', '&', '&&', '@>'].forEach(function(operator) {
+        var precedence = postgresView.getOperatorSemantics(operator, 'infix').precedence;
+        assert.ok(precedence < postgresView.getOperatorSemantics('+', 'infix').precedence,
+            'PostgreSQL ' + operator + ' must bind below addition');
+        assert.ok(precedence > postgresView.getOperatorSemantics('=', 'infix').precedence,
+            'PostgreSQL ' + operator + ' must bind above comparison');
+    });
+    ['hive', 'generic', 'postgresql', 'mysql'].forEach(function(dialectId) {
+        var view = dialects.getDialect(dialectId);
+        var notPrecedence = view.getOperatorSemantics('not', 'prefix').precedence;
+        assert.ok(notPrecedence < view.getOperatorSemantics('=', 'infix').precedence,
+            dialectId + ' NOT must bind below comparison');
+        assert.ok(notPrecedence > view.getOperatorSemantics('and', 'infix').precedence,
+            dialectId + ' NOT must bind above AND');
+    });
 }());
 
 (function testCompoundNegativePredicates() {
@@ -249,34 +345,60 @@ function assertNoOpaque(parsed, label) {
     }), 'nested MAP type node required even when the canonical >> leaf is shared');
 }());
 
-(function testCompactHiveStructMembersUseTypeContextNotParameters() {
-    var source = 'SELECT CAST(payload AS STRUCT<a:INT,b:ARRAY<STRING>>) FROM t';
+(function testHiveStructMembersUseTypeContextAcrossColonTrivia() {
+    var source = [
+        'SELECT CAST(payload AS STRUCT<a:INT>)',
+        ', CAST(payload AS STRUCT<a :INT>)',
+        ', CAST(payload AS STRUCT<a: INT>)',
+        ', CAST(payload AS STRUCT<a : INT>)',
+        ', CAST(payload AS STRUCT<`a`:BIGINT>)',
+        ', CAST(payload AS STRUCT<`a` :BIGINT>)',
+        ', CAST(payload AS STRUCT<b:ARRAY<STRING>>)',
+        ' FROM t'
+    ].join('');
     var parsed = parse(source);
     assertNoOpaque(parsed, source);
     var members = nodesOf(parsed, 'list', 'listRole', 'type-members');
-    assert.strictEqual(members.length, 1);
-    assert.strictEqual(members[0].children.length, 2);
-    assert.deepStrictEqual(members[0].children.map(function(item) {
+    assert.strictEqual(members.length, 7);
+    assert.ok(members.every(function(memberList) {
+        return memberList.children.length === 1;
+    }), 'each STRUCT fixture must retain one member');
+    assert.deepStrictEqual(members.map(function(memberList) {
+        var item = memberList.children[0];
         return source.slice(
             parsed.result.leaves[item.alias.nameLeafRange.start].span.start,
             parsed.result.leaves[item.alias.nameLeafRange.end - 1].span.end
         );
-    }), ['a', 'b']);
+    }), ['a', 'a', 'a', 'a', '`a`', '`a`', 'b']);
+    assert.deepStrictEqual(members.map(function(memberList) {
+        var item = memberList.children[0];
+        var type = item.children[0];
+        return parsed.result.leaves[type.typeNameLeafRange.start].raw;
+    }), ['INT', 'INT', 'INT', 'INT', 'BIGINT', 'BIGINT', 'ARRAY'],
+    'member types must be code leaves, not protected :name leaves');
+    assert.strictEqual(parsed.result.leaves.some(function(leaf) {
+        return leaf.kind === 'parameter' && /^:(?:INT|BIGINT|ARRAY)$/.test(leaf.raw);
+    }), false, 'type parser must not infer substructure from protected parameter raw');
 }());
 
-(function testProtectedParameterIsOnlyATypeInProvenStructMemberContext() {
+(function testProtectedParameterRemainsOpaqueOutsideStructMemberColonBoundary() {
     var source = [
         'SELECT CAST(x AS :type)',
-        ', CAST(x AS ARRAY<:type>)',
-        ', CAST(x AS STRUCT<a:INT>)'
+        ', CAST(x AS ARRAY<:type>)'
     ].join('');
-    var parsed = parse(source);
+    var parsed = parse(source, 'generic');
     assert.deepStrictEqual(nodesOf(parsed, 'opaque').map(function(node) {
         return [node.boundary, slice(source, node)];
     }), [['type', ':type'], ['type', 'ARRAY<:type>']]);
-    assert.ok(nodesOf(parsed, 'type-expression').some(function(node) {
-        return slice(source, node) === 'STRUCT<a:INT>';
-    }), 'compact Hive STRUCT member type must remain structured');
+    var protectedTypes = parsed.result.leaves.filter(function(leaf) {
+        return leaf.kind === 'parameter' && leaf.channel === 'protected' && leaf.raw === ':type';
+    });
+    assert.strictEqual(protectedTypes.length, 2,
+        'generic named parameters must remain atomic protected leaves');
+    assert.strictEqual(nodesOf(parsed, 'type-expression').some(function(node) {
+        var raw = slice(source, node);
+        return raw === ':type' || raw === 'ARRAY<:type>';
+    }), false, 'type parser must not derive type structure from protected parameter raw');
 }());
 
 (function testSubqueryExistsAndIn() {

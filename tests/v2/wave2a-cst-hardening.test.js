@@ -85,6 +85,7 @@ function opaqueStmtTree(source, leaves, range, boundary) {
             id: 2,
             kind: 'opaque',
             reasonCode: 'SYN_UNMODELED_CONSTRUCT',
+            capabilityId: null,
             boundary: boundary || 'statement',
             leafRange: range,
             span: span
@@ -125,6 +126,7 @@ test('final A2 false split SELECT 1 fails', function() {
             id: 4,
             kind: 'opaque',
             reasonCode: 'X',
+            capabilityId: null,
             boundary: 'statement',
             leafRange: r2,
             span: spanOfLeaves(leaves, r2)
@@ -204,6 +206,7 @@ test('TREE opaque-under-expression-wrong-boundary fails', function() {
                 id: 4,
                 kind: 'opaque',
                 reasonCode: 'X',
+                capabilityId: null,
                 boundary: 'statement',
                 leafRange: range,
                 span: spanOfLeaves(leaves, range)
@@ -276,6 +279,7 @@ test('TREE Expression + opaque(expression) ok', function() {
                             id: 7,
                             kind: 'opaque',
                             reasonCode: 'X',
+                            capabilityId: null,
                             boundary: 'expression',
                             leafRange: opaqueRange,
                             span: spanOfLeaves(leaves, opaqueRange)
@@ -311,6 +315,7 @@ test('TREE list + opaque(target) fails', function() {
         id: 6,
         kind: 'opaque',
         reasonCode: 'X',
+        capabilityId: null,
         boundary: 'target',
         leafRange: itemRange,
         span: spanOfLeaves(leaves, itemRange)
@@ -865,6 +870,7 @@ test('final B5b nested Statement under Query fails', function() {
             id: 4,
             kind: 'opaque',
             reasonCode: 'X',
+            capabilityId: null,
             boundary: 'statement',
             leafRange: range,
             span: spanOfLeaves(leaves, range)
@@ -895,6 +901,146 @@ test('final B5b nested Statement under Query fails', function() {
     });
     assert.strictEqual(r.ok, false);
     assertFails('nested-stmt', r, /RELATIONSHIP|StatementNode|Program/i);
+});
+
+test('single-oracle reuse falls back for mutable leaf partitions', function() {
+    var source = 'SELECT (a) FROM t;';
+    var leaves = lex(source).leaves.map(function(leaf) {
+        return Object.assign({}, leaf, { span: Object.assign({}, leaf.span) });
+    });
+    var table = tokenTableMod.buildStructuralTokenTable(leaves, source);
+    var range = table.statementRanges()[0];
+    var opener = leaves.findIndex(function(leaf) { return leaf.raw === '('; });
+    var opaque = {
+        id: 2,
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: range,
+        span: spanOfLeaves(leaves, range)
+    };
+    Object.defineProperty(opaque, 'kind', {
+        enumerable: true,
+        get: function() {
+            leaves[opener].raw = '+';
+            return 'opaque';
+        }
+    });
+    var statement = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'opaque',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [opaque]
+    };
+    var result = invariants.validateSyntaxInvariants({
+        root: programWith([statement], leaves, source),
+        leaves: leaves,
+        source: source,
+        tokenTable: table
+    });
+    assertFails('mutable-leaf-oracle', result,
+        /DELIMITER_PAIR|DEPTH_CONSISTENCY|TOKEN_TABLE/i);
+});
+
+function twoOpaqueChildStatement(leaves, range, children, bodyChildId) {
+    return {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'opaque',
+        bodyChildId: bodyChildId,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: children
+    };
+}
+
+test('stateful child ref cannot claim multiple children', function() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var split = 1;
+    var firstRange = { start: range.start, end: split };
+    var secondRange = { start: split, end: range.end };
+    var first = {
+        id: 2,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: firstRange,
+        span: spanOfLeaves(leaves, firstRange)
+    };
+    var second = {
+        id: 3,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: secondRange,
+        span: spanOfLeaves(leaves, secondRange)
+    };
+    var reads = 0;
+    var statement = twoOpaqueChildStatement(leaves, range, [first, second], 2);
+    Object.defineProperty(statement, 'bodyChildId', {
+        enumerable: true,
+        get: function() {
+            reads += 1;
+            return reads <= 4 ? 2 : 3;
+        }
+    });
+    var result = invariants.validateSyntaxInvariants({
+        root: programWith([statement], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assertFails('stateful-ref', result, /EXTRA_CHILD|unreferenced child 3/i);
+});
+
+test('children accessor is snapshotted before post-order relationships', function() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var firstRange = { start: 0, end: 1 };
+    var secondRange = { start: 1, end: leaves.length };
+    var first = {
+        id: 2,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: firstRange,
+        span: spanOfLeaves(leaves, firstRange)
+    };
+    var second = {
+        id: 3,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: secondRange,
+        span: spanOfLeaves(leaves, secondRange)
+    };
+    var reads = 0;
+    var children = [first];
+    Object.defineProperty(children, 1, {
+        enumerable: true,
+        configurable: true,
+        get: function() {
+            reads += 1;
+            return reads === 1 ? second : first;
+        }
+    });
+    var statement = twoOpaqueChildStatement(leaves, range, children, 2);
+    var result = invariants.validateSyntaxInvariants({
+        root: programWith([statement], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(reads, 1, 'children accessor must be read once');
+    assertFails('children-snapshot', result, /EXTRA_CHILD|unreferenced child 3/i);
 });
 
 test('final positive empty + trivia Program ok', function() {

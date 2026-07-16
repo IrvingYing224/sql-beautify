@@ -127,6 +127,10 @@ function assertParserResult(testCase) {
     assert.ok(Object.isFrozen(result), testCase.id + ' ParseOutput frozen');
     assert.ok(Array.isArray(result.leaves), testCase.id + ' leaves real array');
     assert.ok(Object.isFrozen(result.leaves), testCase.id + ' leaves frozen');
+    result.leaves.forEach(function(leaf) {
+        assert.ok(Object.isFrozen(leaf), testCase.id + ' leaf record frozen');
+        assert.ok(Object.isFrozen(leaf.span), testCase.id + ' leaf span frozen');
+    });
     assert.ok(Array.isArray(result.diagnostics), testCase.id + ' diagnostics real array');
     assert.ok(Object.isFrozen(result.diagnostics), testCase.id + ' diagnostics frozen');
     assert.strictEqual(result.leaves.map(function(leaf) { return leaf.raw; }).join(''),
@@ -178,11 +182,16 @@ cases.forEach(assertParserResult);
 (function testInternalParserBackendDelegatesToCanonicalParser() {
     var input = { source: 'SELECT 1', dialect: 'hive', mode: 'document' };
     assert.strictEqual(parser.parserBackend.id, 'sql-beautify-v2');
-    assert.strictEqual(parser.parserBackend.version, '2d');
+    assert.strictEqual(parser.parserBackend.version, '2e');
     assert.ok(Object.isFrozen(parser.parserBackend));
     assert.deepStrictEqual(
         parser.parserBackend.parse(input),
         parser.parseSql(input.source, { dialect: input.dialect, mode: input.mode })
+    );
+    assert.ok(
+        factoryModule.canonicalProgramNodeCount(parser.parseSql(
+            input.source, { dialect: input.dialect, mode: input.mode }).root) > 0,
+        'canonical parser roots carry internal node-count provenance'
     );
 }());
 
@@ -205,7 +214,13 @@ cases.forEach(assertParserResult);
         return a - b;
     }), [0, 1, 2, 3, 4, 5, 6]);
     assert.strictEqual(program.id, 0);
+    assert.strictEqual(
+        factoryModule.canonicalProgramNodeCount(program),
+        null,
+        'public node factories must not grant canonical parser provenance'
+    );
     assert.deepStrictEqual(opaque.span, { start: 7, end: 8 });
+    assert.strictEqual(opaque.capabilityId, null);
     flatten(program).forEach(function(node) {
         assert.ok(Object.isFrozen(node), 'factory node frozen: ' + node.kind);
         if (Array.isArray(node.children)) {
@@ -216,8 +231,46 @@ cases.forEach(assertParserResult);
         factory.createOpaque({ start: -1, end: 1 }, 'X', 'expression');
     }, /range/i);
     assert.throws(function() {
+        factory.createOpaque(
+            { start: 2, end: 3 }, 'X', 'expression', 'QUALIFY');
+    }, /capability identity/i);
+    assert.throws(function() {
         factory.createProgram({ start: 0, end: 3 }, []);
     }, /program/i);
+}());
+
+(function testCanonicalProgramProvenanceRequiresCurrentFactoryOwnedTree() {
+    var source = 'SELECT 1';
+    var lexed = core.lexSql(source, { dialect: 'hive' });
+    var table = tokenTableModule.buildStructuralTokenTable(lexed.leaves, source);
+    var range = { start: 0, end: lexed.leaves.length };
+
+    var foreignFactory = factoryModule.createNodeFactory(table);
+    var foreignBody = foreignFactory.createOpaque(
+        range, 'SYN_UNMODELED_CONSTRUCT', 'statement');
+    var wrappingFactory = factoryModule.createNodeFactory(table);
+    var foreignStatement = wrappingFactory.createStatement(
+        range, 'opaque', foreignBody);
+    var foreignProgram = wrappingFactory.createProgram(range, [foreignStatement]);
+    assert.strictEqual(
+        factoryModule.canonicalProgramNodeCount(foreignProgram),
+        null,
+        'a public factory must not grant canonical provenance to a foreign subtree'
+    );
+
+    var rollbackFactory = factoryModule.createNodeFactory(table);
+    var checkpoint = rollbackFactory.checkpoint();
+    var staleBody = rollbackFactory.createOpaque(
+        range, 'SYN_UNMODELED_CONSTRUCT', 'statement');
+    rollbackFactory.rollback(checkpoint);
+    var staleStatement = rollbackFactory.createStatement(
+        range, 'opaque', staleBody);
+    var staleProgram = rollbackFactory.createProgram(range, [staleStatement]);
+    assert.strictEqual(
+        factoryModule.canonicalProgramNodeCount(staleProgram),
+        null,
+        'rollback-invalidated nodes must not regain canonical provenance'
+    );
 }());
 
 (function testWave2BRelationContractsFailClosed() {
@@ -470,7 +523,8 @@ cases.forEach(assertParserResult);
     var clauses = uniqueValues(flatten(result.root), 'clause', 'clauseKind');
     assert.deepStrictEqual(clauses, ['select', 'from', 'where']);
     assert.strictEqual(result.diagnostics.some(function(d) {
-        return /MATCH_RECOGNIZE|QUALIFY/.test(d.message) && d.recovery !== 'verbatim-node';
+        return (d.capabilityId === 'match-recognize' || d.capabilityId === 'qualify') &&
+            d.recovery !== 'verbatim-node';
     }), false, 'keyword-shaped identifiers/functions must not become unsupported constructs');
 }());
 

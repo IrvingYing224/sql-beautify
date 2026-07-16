@@ -287,6 +287,7 @@ test('I3 program direct opaque child fails', function() {
                 span: { start: 0, end: source.length },
                 leafRange: { start: 0, end: leaves.length },
                 reasonCode: 'X',
+                capabilityId: null,
                 boundary: 'statement'
             }]
         },
@@ -438,6 +439,7 @@ test('I3 opaque with children property fails even if empty array', function() {
         span: { start: 0, end: source.length },
         leafRange: { start: 0, end: leaves.length },
         reasonCode: 'SYN_UNMODELED_CONSTRUCT',
+        capabilityId: null,
         boundary: 'statement',
         children: []
     };
@@ -547,6 +549,7 @@ test('I4 positive tree with bodyChildId / valueChildId passes', function() {
         span: { start: 0, end: source.length },
         leafRange: { start: 0, end: leaves.length },
         reasonCode: 'SYN_UNMODELED_CONSTRUCT',
+        capabilityId: null,
         boundary: 'statement'
     };
     var stmt = {
@@ -578,6 +581,7 @@ test('I4 orphan bodyChildId fails', function() {
         span: { start: 0, end: source.length },
         leafRange: { start: 0, end: leaves.length },
         reasonCode: 'SYN_UNMODELED_CONSTRUCT',
+        capabilityId: null,
         boundary: 'statement'
     };
     var stmt = {
@@ -696,6 +700,7 @@ function validOpaqueTree(source) {
         span: { start: 0, end: source.length },
         leafRange: { start: 0, end: leaves.length },
         reasonCode: 'SYN_UNMODELED_CONSTRUCT',
+        capabilityId: null,
         boundary: 'statement'
     };
     return {
@@ -968,6 +973,7 @@ test('closure A8 opaque relation with extra structured child fails', function() 
         span: { start: 0, end: leaves[mid - 1].span.end },
         leafRange: { start: 0, end: mid },
         reasonCode: 'X',
+        capabilityId: null,
         boundary: 'relation'
     };
     var extra = {

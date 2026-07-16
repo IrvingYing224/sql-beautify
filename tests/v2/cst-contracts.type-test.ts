@@ -42,6 +42,7 @@ const opaque: OpaqueNode = {
     span: { start: 0, end: 6 },
     leafRange: { start: 0, end: 1 },
     reasonCode: "SYN_UNMODELED_CONSTRUCT",
+    capabilityId: null,
     boundary: "statement",
 };
 
@@ -51,6 +52,7 @@ const opaqueWithChildren: OpaqueNode = {
     span: { start: 0, end: 6 },
     leafRange: { start: 0, end: 1 },
     reasonCode: "SYN_UNMODELED_CONSTRUCT",
+    capabilityId: null,
     boundary: "statement",
     // @ts-expect-error OpaqueNode must not declare children
     children: [],

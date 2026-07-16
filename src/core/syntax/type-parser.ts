@@ -31,15 +31,11 @@ export type ParsedTypePrefix = Readonly<{
     endLeafIndex: number;
 }>;
 
-function isTypeNameLeaf(
-    leaf: SourceLeaf,
-    allowCompactStructParameter: boolean
-): boolean {
+function isTypeNameLeaf(leaf: SourceLeaf): boolean {
     return (
         leaf.kind === "identifier" ||
         leaf.kind === "keyword" ||
-        leaf.kind === "quoted-identifier" ||
-        (allowCompactStructParameter && leaf.kind === "parameter")
+        leaf.kind === "quoted-identifier"
     );
 }
 
@@ -182,8 +178,7 @@ class TypeParser {
 
     private parseTypeAt(
         start: number,
-        nestingDepth: number,
-        allowCompactStructParameter: boolean = false
+        nestingDepth: number
     ): ParsedType {
         const anchor = this.tokens[start]?.leafIndex ?? this.tokens[this.tokens.length - 1]!.leafIndex;
         assertParserDepth({ start: anchor, end: anchor + 1 }, nestingDepth);
@@ -194,7 +189,7 @@ class TypeParser {
         if (
             name === undefined ||
             nameLeaf === undefined ||
-            !isTypeNameLeaf(nameLeaf, allowCompactStructParameter)
+            !isTypeNameLeaf(nameLeaf)
         ) {
             const anchor = name?.leafIndex ?? this.tokens[this.tokens.length - 1]!.leafIndex;
             throw new ParserSyntaxError(
@@ -308,25 +303,17 @@ class TypeParser {
         while (position < this.tokens.length && this.tokens[position]!.raw !== ">") {
             const itemStart = position;
             let alias: AliasInfo | null = null;
-            let allowCompactStructParameter = false;
             if (members) {
                 const memberName = this.tokens[position];
                 const memberLeaf = memberName === undefined
                     ? undefined
                     : this.context.leaves[memberName.leafIndex];
                 const colon = this.tokens[position + 1];
-                const colonLeaf = colon === undefined
-                    ? undefined
-                    : this.context.leaves[colon.leafIndex];
-                const compactStructParameter =
-                    this.context.dialect === "hive" &&
-                    colonLeaf?.kind === "parameter" &&
-                    colonLeaf.raw.startsWith(":");
                 if (
                     memberName === undefined ||
                     memberLeaf === undefined ||
                     !isAliasNameLeaf(memberLeaf) ||
-                    (colon?.raw !== ":" && !compactStructParameter)
+                    colon?.raw !== ":"
                 ) {
                     const anchor = memberName?.leafIndex ?? nameRange.start;
                     throw new ParserSyntaxError(
@@ -342,19 +329,7 @@ class TypeParser {
                         end: memberName.leafIndex + 1,
                     }),
                 });
-                if (colon?.raw === ":") {
-                    position += 2;
-                } else {
-                    // Hive's canonical lexer intentionally keeps :name as one
-                    // protected parameter leaf. In STRUCT member context the
-                    // whole leaf is a safe atomic type spelling; do not scan or
-                    // split its raw content.
-                    // Move to the protected leaf and let parseTypeAt keep it as
-                    // the atomic type-name spelling. A following <...> remains
-                    // ordinary code leaves and can still be structured.
-                    position += 1;
-                    allowCompactStructParameter = true;
-                }
+                position += 2;
             }
 
             const nestedAnchor = this.tokens[position]?.leafIndex ?? nameRange.start;
@@ -366,8 +341,7 @@ class TypeParser {
                         end: nestedAnchor + 1,
                     },
                     nestingDepth
-                ),
-                allowCompactStructParameter
+                )
             );
             position = parsed.next;
             const itemRange = rangeFromTokens(this.tokens, itemStart, position);

@@ -15,17 +15,11 @@ import {
 export type ExpectedIssue = { code: string; leafIndex: number };
 
 export type ExpectedTable = {
-    syntaxIndexes: number[];
-    codeIndexes: number[];
-    prevSyntax: Array<number | null>;
-    nextSyntax: Array<number | null>;
-    syntaxOrdinal: Array<number | null>;
-    prevCode: Array<number | null>;
-    nextCode: Array<number | null>;
-    codeOrdinal: Array<number | null>;
-    depthBefore: number[];
-    depthAfter: number[];
-    match: Array<number | null>;
+    syntaxIndexes: Uint32Array;
+    codeIndexes: Uint32Array;
+    depthBefore: Uint32Array;
+    depthAfter: Uint32Array;
+    match: Int32Array;
     delimiterIssues: ExpectedIssue[];
     statementRanges: LeafRange[];
     boundariesReliable: boolean;
@@ -37,51 +31,28 @@ export type ExpectedTable = {
  */
 export function deriveExpectedTable(leaves: readonly SourceLeaf[]): ExpectedTable {
     const n = leaves.length;
-    const syntaxIndexes: number[] = [];
-    const codeIndexes: number[] = [];
-    const prevSyntax: Array<number | null> = new Array(n);
-    const nextSyntax: Array<number | null> = new Array(n);
-    const syntaxOrdinal: Array<number | null> = new Array(n);
-    const prevCode: Array<number | null> = new Array(n);
-    const nextCode: Array<number | null> = new Array(n);
-    const codeOrdinal: Array<number | null> = new Array(n);
-    const depthBefore: number[] = new Array(n);
-    const depthAfter: number[] = new Array(n);
-    const match: Array<number | null> = new Array(n);
+    const syntaxIndexStorage = new Uint32Array(n);
+    const codeIndexStorage = new Uint32Array(n);
+    const depthBefore = new Uint32Array(n);
+    const depthAfter = new Uint32Array(n);
+    const match = new Int32Array(n);
+    match.fill(-1);
 
-    let lastSyntax: number | null = null;
-    let lastCode: number | null = null;
+    let syntaxCount = 0;
+    let codeCount = 0;
     for (let i = 0; i < n; i++) {
-        prevSyntax[i] = null;
-        nextSyntax[i] = null;
-        syntaxOrdinal[i] = null;
-        prevCode[i] = null;
-        nextCode[i] = null;
-        codeOrdinal[i] = null;
-        depthBefore[i] = 0;
-        depthAfter[i] = 0;
-        match[i] = null;
-
         const leaf = leaves[i]!;
         if (isSyntaxChannel(leaf.channel)) {
-            syntaxOrdinal[i] = syntaxIndexes.length;
-            syntaxIndexes.push(i);
-            prevSyntax[i] = lastSyntax;
-            if (lastSyntax !== null) {
-                nextSyntax[lastSyntax] = i;
-            }
-            lastSyntax = i;
+            syntaxIndexStorage[syntaxCount] = i;
+            syntaxCount += 1;
         }
         if (isStructuralCodeLeaf(leaf)) {
-            codeOrdinal[i] = codeIndexes.length;
-            codeIndexes.push(i);
-            prevCode[i] = lastCode;
-            if (lastCode !== null) {
-                nextCode[lastCode] = i;
-            }
-            lastCode = i;
+            codeIndexStorage[codeCount] = i;
+            codeCount += 1;
         }
     }
+    const syntaxIndexes = syntaxIndexStorage.subarray(0, syntaxCount);
+    const codeIndexes = codeIndexStorage.subarray(0, codeCount);
 
     type StackEntry = { index: number; expectedCloser: string };
     const stack: StackEntry[] = [];
@@ -206,12 +177,6 @@ export function deriveExpectedTable(leaves: readonly SourceLeaf[]): ExpectedTabl
     return {
         syntaxIndexes,
         codeIndexes,
-        prevSyntax,
-        nextSyntax,
-        syntaxOrdinal,
-        prevCode,
-        nextCode,
-        codeOrdinal,
         depthBefore,
         depthAfter,
         match,

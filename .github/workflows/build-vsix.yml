@@ -22,6 +22,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # Wave 2 performance tests execute the committed 2B parser baseline
+          # beside the current build, so the anchor commit must be available.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v5

@@ -8,14 +8,17 @@ var root = path.join(__dirname, '..', '..');
 var parserPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js');
 var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
+var analysisPath = path.join(root, '.tmp', 'v2-core', 'core', 'analysis', 'index.js');
 
 assert.ok(fs.existsSync(parserPath), 'Wave 2D parser build is required');
 assert.ok(fs.existsSync(invariantsPath), 'Wave 2D invariant build is required');
 assert.ok(fs.existsSync(tokenTablePath), 'Wave 2D token table build is required');
+assert.ok(fs.existsSync(analysisPath), 'Wave 2E analysis build is required');
 
 var parser = require(parserPath);
 var invariants = require(invariantsPath);
 var tokenTable = require(tokenTablePath);
+var analysis = require(analysisPath);
 
 var DIALECTS = Object.freeze(['hive', 'generic', 'postgresql', 'mysql']);
 var FUZZ_SEED = 0x2d202607;
@@ -190,9 +193,17 @@ function compareDiagnostics(left, right) {
     if (SEVERITY_RANK[left.severity] !== SEVERITY_RANK[right.severity]) {
         return SEVERITY_RANK[left.severity] - SEVERITY_RANK[right.severity];
     }
+    var capabilityOrder = left.capabilityId === right.capabilityId
+        ? 0
+        : left.capabilityId === null
+            ? -1
+            : right.capabilityId === null
+                ? 1
+                : compareText(left.capabilityId, right.capabilityId);
     return compareText(left.code, right.code) ||
         compareText(left.message, right.message) ||
-        compareText(left.recovery, right.recovery);
+        compareText(left.recovery, right.recovery) ||
+        capabilityOrder;
 }
 
 function diagnosticKey(diagnostic) {
@@ -202,7 +213,8 @@ function diagnosticKey(diagnostic) {
         diagnostic.severity,
         diagnostic.code,
         diagnostic.message,
-        diagnostic.recovery
+        diagnostic.recovery,
+        diagnostic.capabilityId
     ]);
 }
 
@@ -221,6 +233,10 @@ function assertDiagnostics(label, source, diagnostics) {
         assert.ok(diagnostic.code.length > 0, label + ' diagnostic code is non-empty');
         assert.strictEqual(typeof diagnostic.message, 'string', label + ' diagnostic message type');
         assert.ok(diagnostic.message.length > 0, label + ' diagnostic message is non-empty');
+        assert.ok(diagnostic.capabilityId === null ||
+            (typeof diagnostic.capabilityId === 'string' &&
+                /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(diagnostic.capabilityId)),
+        label + ' diagnostic capability identity is canonical');
         assert.ok([
             'none', 'verbatim-node', 'preserve-statement', 'preserve-target'
         ].indexOf(diagnostic.recovery) >= 0, label + ' diagnostic recovery is known');
@@ -266,6 +282,7 @@ function assertOpaqueReconstruction(label, source, result, nodes) {
             label + ' opaque node must reconstruct exactly from its leaves');
         assert.ok(result.diagnostics.some(function(diagnostic) {
             return diagnostic.code === node.reasonCode &&
+                diagnostic.capabilityId === node.capabilityId &&
                 diagnostic.span.start === node.span.start &&
                 diagnostic.span.end === node.span.end;
         }), label + ' opaque node must have a matching diagnostic');
@@ -307,6 +324,19 @@ function verifyCase(source, dialect, caseIndex) {
         label + ' node count must be O(code leaves): ' +
         nodes.length + ' > ' + nodeLimit);
     assertOpaqueReconstruction(label, source, result, nodes);
+
+    var analyzed = analysis.analyzeSql(source, options);
+    var analyzedAgain = analysis.analyzeSql(source, options);
+    assert.strictEqual(analyzed.status, 'analyzed', label + ' analysis status');
+    assert.deepStrictEqual(analyzed.root, result.root, label + ' analysis/parser CST agreement');
+    assert.deepStrictEqual(analyzed.leaves, result.leaves,
+        label + ' analysis/parser leaf agreement');
+    assert.deepStrictEqual(analyzed.diagnostics, result.diagnostics,
+        label + ' analysis/parser diagnostic agreement');
+    assert.deepStrictEqual(analyzedAgain.index.snapshot(), analyzed.index.snapshot(),
+        label + ' repeated analysis index determinism');
+    assert.strictEqual(analyzed.leaves.map(function(leaf) { return leaf.raw; }).join(''),
+        source, label + ' analysis source conservation');
 }
 
 var corpus = buildCorpus();
@@ -316,7 +346,7 @@ var parseCount = 0;
 DIALECTS.forEach(function(dialect) {
     corpus.forEach(function(source, index) {
         verifyCase(source, dialect, index);
-        parseCount += 2;
+        parseCount += 4;
     });
 });
 

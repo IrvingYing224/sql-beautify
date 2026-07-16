@@ -24,20 +24,12 @@ export interface LexOutput {
     readonly diagnostics: readonly Diagnostic[];
 }
 
-interface MutableLeaf {
-    id: number;
-    kind: TokenKind;
-    channel: TokenChannel;
-    raw: string;
-    span: { start: number; end: number };
-}
-
 interface ScannerState {
     source: string;
     length: number;
     cursor: number;
     nextId: number;
-    leaves: MutableLeaf[];
+    leaves: SourceLeaf[];
     diagnostics: Diagnostic[];
     profile: ReturnType<typeof getLexicalProfile>;
 }
@@ -58,7 +50,17 @@ const CHANNEL_BY_KIND: Record<TokenKind, TokenChannel> = {
     newline: "trivia",
 };
 
-const PUNCTUATION = new Set([",", ";", "(", ")", "[", "]", "{", "}", "."]);
+const PUNCTUATION = new Set([",", ";", "(", ")", "[", "]", "{", "}", ".", ":"]);
+
+interface ImmutableSourceLeafPartitionProof {
+    readonly source: string;
+    readonly dialect: Dialect;
+}
+
+const IMMUTABLE_SOURCE_LEAF_PARTITIONS = new WeakMap<
+    readonly SourceLeaf[],
+    ImmutableSourceLeafPartitionProof
+>();
 
 const CANONICAL_DIALECTS: ReadonlySet<string> = new Set([
     "hive",
@@ -116,15 +118,60 @@ function emitLeaf(
         throw new Error("Lexer refused to emit an empty leaf");
     }
     const raw = state.source.slice(start, end);
-    state.leaves.push({
+    const leaf: SourceLeaf = Object.freeze({
         id: state.nextId,
         kind,
         channel: CHANNEL_BY_KIND[kind],
         raw,
-        span: { start, end },
+        span: Object.freeze({ start, end }),
     });
+    state.leaves.push(leaf);
     state.nextId += 1;
     state.cursor = end;
+}
+
+function freezeSourceLeafPartition(
+    values: SourceLeaf[],
+    source: string,
+    dialect: Dialect
+): readonly SourceLeaf[] {
+    const partition = Object.freeze(values);
+    IMMUTABLE_SOURCE_LEAF_PARTITIONS.set(
+        partition,
+        Object.freeze({ source, dialect })
+    );
+    return partition;
+}
+
+/** Internal proof that lexer-created leaf records and their partition cannot mutate. */
+export function isImmutableSourceLeafPartition(
+    value: unknown
+): value is readonly SourceLeaf[] {
+    return (
+        Array.isArray(value) &&
+        IMMUTABLE_SOURCE_LEAF_PARTITIONS.has(value)
+    );
+}
+
+/** Internal proof that a canonical immutable leaf partition came from this exact source. */
+export function isImmutableSourceLeafPartitionForSource(
+    value: unknown,
+    source: string
+): boolean {
+    return (
+        Array.isArray(value) &&
+        IMMUTABLE_SOURCE_LEAF_PARTITIONS.get(value)?.source === source
+    );
+}
+
+/** Internal provenance for the dialect that produced a canonical partition. */
+export function canonicalSourceLeafPartitionDialect(
+    value: unknown
+): Dialect | null {
+    if (!Array.isArray(value)) {
+        return null;
+    }
+    return IMMUTABLE_SOURCE_LEAF_PARTITIONS.get(value)?.dialect ?? null;
 }
 
 function emitDiagnostic(
@@ -134,13 +181,14 @@ function emitDiagnostic(
     start: number,
     end: number
 ): void {
-    state.diagnostics.push({
+    state.diagnostics.push(Object.freeze({
         code,
         severity: "error",
         message,
-        span: { start, end },
+        capabilityId: null,
+        span: Object.freeze({ start, end }),
         recovery: "preserve-target",
-    });
+    }));
 }
 
 function charAt(state: ScannerState, index: number): string {
@@ -612,6 +660,18 @@ function scanOperator(state: ScannerState): boolean {
     return false;
 }
 
+function hasColonParameterLeftBoundary(state: ScannerState): boolean {
+    const previous = state.leaves[state.leaves.length - 1];
+    if (previous === undefined || previous.span.end !== state.cursor) {
+        return true;
+    }
+    return (
+        previous.kind !== "identifier" &&
+        previous.kind !== "keyword" &&
+        previous.kind !== "quoted-identifier"
+    );
+}
+
 function scanNamedParameter(state: ScannerState): boolean {
     const ch = charAt(state, state.cursor);
 
@@ -627,7 +687,11 @@ function scanNamedParameter(state: ScannerState): boolean {
         }
     }
 
-    if (state.profile.parameters.has(":id") && ch === ":") {
+    if (
+        state.profile.parameters.has(":id") &&
+        ch === ":" &&
+        hasColonParameterLeftBoundary(state)
+    ) {
         const next = charAt(state, state.cursor + 1);
         if (isIdentifierStart(next)) {
             let end = state.cursor + 2;
@@ -737,7 +801,10 @@ export function lexSql(source: string, options?: LexOptions): LexOutput {
     const dialect = resolveDialect(options?.dialect);
 
     if (source.length === 0) {
-        return { leaves: [], diagnostics: [] };
+        return {
+            leaves: freezeSourceLeafPartition([], source, dialect),
+            diagnostics: [],
+        };
     }
 
     const state: ScannerState = {
@@ -755,7 +822,7 @@ export function lexSql(source: string, options?: LexOptions): LexOutput {
     }
 
     return {
-        leaves: state.leaves,
+        leaves: freezeSourceLeafPartition(state.leaves, source, dialect),
         diagnostics: state.diagnostics,
     };
 }

@@ -1,5 +1,6 @@
 import type {
     AliasInfo,
+    AnalysisOutput,
     CanonicalFormatOptions,
     Diagnostic,
     FormatResult,
@@ -13,6 +14,7 @@ import type {
     SourceLeaf,
     SourceSpan,
     StructuredSyntaxKind,
+    StructuralIndex,
     SyntaxNode,
 } from "../../src/core/index";
 import { lexSql } from "../../src/core/index";
@@ -32,6 +34,7 @@ const opaqueNode: OpaqueNode = {
     span,
     leafRange,
     reasonCode: "UNMODELED_CONSTRUCT",
+    capabilityId: null,
     boundary: "statement",
 };
 const root: ProgramNode = {
@@ -52,6 +55,26 @@ const root: ProgramNode = {
     ],
 };
 const diagnostic: Diagnostic = {
+    code: "UNMODELED_CONSTRUCT",
+    severity: "warning",
+    message: "The construct is preserved verbatim.",
+    capabilityId: null,
+    span,
+    recovery: "verbatim-node",
+};
+
+// @ts-expect-error capability identity is a required field, even when absent.
+const opaqueWithoutCapabilityId: OpaqueNode = {
+    id: 3,
+    kind: "opaque",
+    span,
+    leafRange,
+    reasonCode: "UNMODELED_CONSTRUCT",
+    boundary: "statement",
+};
+
+// @ts-expect-error capability identity is a required field, even when absent.
+const diagnosticWithoutCapabilityId: Diagnostic = {
     code: "UNMODELED_CONSTRUCT",
     severity: "warning",
     message: "The construct is preserved verbatim.",
@@ -107,6 +130,13 @@ const result: FormatResult = {
         entries: [{ source: span, output: span }],
     },
 };
+const failedAnalysis: AnalysisOutput = {
+    status: "failed",
+    root,
+    leaves: [leaf],
+    diagnostics: [diagnostic],
+    index: null,
+};
 
 function statusLabel(value: FormatResult): string {
     switch (value.status) {
@@ -145,6 +175,17 @@ function syntaxKindLabel(node: SyntaxNode): string {
     }
 }
 
+function analysisStatusLabel(value: AnalysisOutput): string {
+    if (value.status === "failed") {
+        const failedIndex: null = value.index;
+        void failedIndex;
+    } else {
+        const trustedIndex: StructuralIndex = value.index;
+        void trustedIndex;
+    }
+    return value.status;
+}
+
 const defaultLexOptions: LexOptions = {};
 const hiveLexOptions: LexOptions = { dialect: "hive" };
 const postgresLexOptions: LexOptions = { dialect: "postgresql" };
@@ -181,6 +222,7 @@ void doc;
 void options;
 void statusLabel(result);
 void syntaxKindLabel(root);
+void analysisStatusLabel(failedAnalysis);
 void defaultLexOptions;
 void postgresLexOptions;
 void mysqlLexOptions;

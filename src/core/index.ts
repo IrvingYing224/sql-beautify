@@ -2,7 +2,12 @@ export type { SourceSpan } from "./source/source-span";
 export type { SourceLeaf, TokenChannel, TokenKind } from "./lexer/token";
 export type { LexOptions, LexOutput } from "./lexer/lossless-lexer";
 export { lexSql } from "./lexer/lossless-lexer";
-export type { Diagnostic, DiagnosticSeverity, RecoveryAction } from "./diagnostics/diagnostic";
+export type {
+    CapabilityIdentity,
+    Diagnostic,
+    DiagnosticSeverity,
+    RecoveryAction,
+} from "./diagnostics/diagnostic";
 export type {
     AliasInfo,
     CaseBranchKind,
@@ -52,3 +57,16 @@ export type {
     UnsupportedSyntaxPolicy,
 } from "./config/options";
 export type { FormatResult, FormatStatus, SourceMap, SourceMapEntry } from "./api/format-result";
+export type {
+    AnalysisOutput,
+    AnalysisStatus,
+    CommentBinding,
+    FailedAnalysisOutput,
+    IndexedAnalysisOutput,
+    OffsetLeafLocation,
+    SeparatorOwnership,
+    SourcePosition,
+    StructuralIndex,
+    StructuralIndexSnapshot,
+    TriviaPlacement,
+} from "./analysis/types";

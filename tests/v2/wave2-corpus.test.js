@@ -5,7 +5,7 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
-var parser = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js'));
+var analysis = require(path.join(root, '.tmp', 'v2-core', 'core', 'analysis', 'index.js'));
 var tokenTable = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js'));
 var invariants = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js'));
 var evaluationCases = require('../fixtures/v2-parser-evaluation-cases');
@@ -26,6 +26,9 @@ function flatten(rootNode) {
 }
 
 function validateResult(label, source, dialect, result) {
+    assert.strictEqual(result.status, 'analyzed',
+        label + ' must build a trusted analysis index without fallback');
+    assert.ok(result.index && Object.isFrozen(result.index), label + ' frozen index');
     assert.strictEqual(result.leaves.map(function(leaf) { return leaf.raw; }).join(''),
         source, label + ' source conservation');
     assert.strictEqual(result.root.id, 0, label + ' root id');
@@ -51,19 +54,43 @@ function validateResult(label, source, dialect, result) {
     nodes.filter(function(node) { return node.kind === 'opaque'; }).forEach(function(node) {
         assert.ok(result.diagnostics.some(function(diagnostic) {
             return diagnostic.code === node.reasonCode &&
+                diagnostic.capabilityId === node.capabilityId &&
                 diagnostic.span.start === node.span.start &&
                 diagnostic.span.end === node.span.end;
         }), label + ' opaque node requires exact matching diagnostic');
+        assert.deepStrictEqual(
+            result.index.capabilityForOpaque(node.id),
+            node.capabilityId === null ? null : result.index.capability(node.capabilityId),
+            label + ' opaque capability index'
+        );
     });
 
-    var second = parser.parseSql(source, { dialect: dialect, mode: 'document' });
-    assert.deepStrictEqual(second, result, label + ' deterministic parse');
+    var commentCount = result.leaves.filter(function(leaf) {
+        return leaf.kind === 'line-comment' || leaf.kind === 'block-comment';
+    }).length;
+    assert.strictEqual(result.index.commentBindings().length, commentCount,
+        label + ' every comment has one analysis binding');
+    result.index.lists().forEach(function(list) {
+        list.separatorLeafIds.forEach(function(separatorLeafId) {
+            assert.ok(result.index.separatorOwner(separatorLeafId),
+                label + ' every list separator has one owner');
+        });
+    });
+
+    var second = analysis.analyzeSql(source, { dialect: dialect, mode: 'document' });
+    assert.strictEqual(second.status, result.status, label + ' deterministic status');
+    assert.deepStrictEqual(second.root, result.root, label + ' deterministic CST');
+    assert.deepStrictEqual(second.leaves, result.leaves, label + ' deterministic leaves');
+    assert.deepStrictEqual(second.diagnostics, result.diagnostics,
+        label + ' deterministic diagnostics');
+    assert.deepStrictEqual(second.index.snapshot(), result.index.snapshot(),
+        label + ' deterministic structural index');
 }
 
 assert.strictEqual(evaluationCases.length, 16, 'Wave 0 corpus size is a fixed Wave 2 input');
 
 evaluationCases.forEach(function(testCase) {
-    var result = parser.parseSql(testCase.source, {
+    var result = analysis.analyzeSql(testCase.source, {
         dialect: testCase.dialect,
         mode: 'document'
     });
@@ -86,15 +113,24 @@ evaluationCases.forEach(function(testCase) {
             testCase.id + ' must not expose a partial trusted query tree');
         assert.ok(recoveries.indexOf('preserve-target') >= 0,
             testCase.id + ' must preserve the complete target');
+        assert.ok(result.diagnostics.every(function(diagnostic) {
+            return diagnostic.capabilityId === null;
+        }), testCase.id + ' must not invent a capability identity');
     } else if (testCase.id === 'hive-complex-type-ddl') {
         assert.deepStrictEqual(statementKinds, ['opaque']);
         assert.ok(recoveries.indexOf('verbatim-node') >= 0,
             testCase.id + ' must follow the registry verbatim capability state');
+        assert.ok(result.diagnostics.some(function(diagnostic) {
+            return diagnostic.capabilityId === 'hive-ddl';
+        }), testCase.id + ' must expose hive-ddl identity');
         assert.strictEqual(recoveries.indexOf('preserve-statement'), -1);
     } else if (testCase.id === 'match-recognize-construct') {
         assert.deepStrictEqual(statementKinds, ['opaque']);
         assert.ok(recoveries.indexOf('preserve-statement') >= 0,
             testCase.id + ' remains statement-level opaque in the current parser');
+        assert.ok(result.diagnostics.some(function(diagnostic) {
+            return diagnostic.capabilityId === 'match-recognize';
+        }), testCase.id + ' must expose match-recognize identity');
     } else {
         assert.ok(statementKinds.every(function(kind) {
             return kind === 'query' || kind === 'insert-query';
@@ -118,7 +154,7 @@ evaluationCases.forEach(function(testCase) {
         'public',
         fileName
     ), 'utf8');
-    var result = parser.parseSql(source, { dialect: 'hive', mode: 'document' });
+    var result = analysis.analyzeSql(source, { dialect: 'hive', mode: 'document' });
     validateResult('production/' + fileName, source, 'hive', result);
     assert.ok(result.root.children.length > 0, fileName + ' must contain statements');
     assert.ok(result.root.children.every(function(statement) {

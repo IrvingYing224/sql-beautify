@@ -42,6 +42,7 @@ function makeOpaque(id, start, end, leafStart, leafEnd, boundary) {
         span: { start: start, end: end },
         leafRange: { start: leafStart, end: leafEnd },
         reasonCode: 'SYN_UNMODELED_CONSTRUCT',
+        capabilityId: null,
         boundary: boundary || 'statement'
     };
 }
@@ -102,6 +103,44 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     });
     assert.strictEqual(result.ok, true, JSON.stringify(result.failures));
     console.log('  ok - full opaque tree');
+})();
+
+(function testCanonicalLeafPartitionStillRejectsMismatchedSource() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var root = parser.parseSql(source, { dialect: 'hive', mode: 'document' }).root;
+    var result = invariants.validateSyntaxInvariants({
+        root: root,
+        leaves: leaves,
+        source: 'SELECT 2'
+    });
+    assert.strictEqual(result.ok, false);
+    assert.ok(result.failures.some(function(failure) {
+        return failure.code === 'INV_LEAF_PARTITION';
+    }));
+    console.log('  ok - canonical leaf partition remains bound to exact source');
+})();
+
+(function testCanonicalProgramRejectsForeignLeafPartition() {
+    var delimiterArtifact = parser.parseSqlArtifact('SELECT (a)', {
+        dialect: 'hive',
+        mode: 'document'
+    });
+    var commaArtifact = parser.parseSqlArtifact('SELECT a,b', {
+        dialect: 'hive',
+        mode: 'document'
+    });
+    var result = invariants.validateSyntaxInvariants({
+        root: delimiterArtifact.output.root,
+        leaves: commaArtifact.output.leaves,
+        source: commaArtifact.source,
+        tokenTable: commaArtifact.tokenTable
+    });
+    assert.strictEqual(result.ok, false);
+    assert.ok(result.failures.some(function(failure) {
+        return failure.code === 'INV_LEAF_PARTITION';
+    }), JSON.stringify(result.failures));
+    console.log('  ok - canonical program remains bound to exact leaf partition');
 })();
 
 (function testTargetOpaqueMustBeTheUniqueFullProgramFallback() {
@@ -386,6 +425,38 @@ function makeStatement(id, start, end, leafStart, leafEnd, bodyChildId, children
     });
     assert.strictEqual(result.ok, false);
     console.log('  ok - opaque children fail-closed');
+})();
+
+(function testOpaqueCapabilityIdentityShape() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    [undefined, 'QUALIFY'].forEach(function(capabilityId) {
+        var opaque = makeOpaque(2, 0, source.length, 0, leaves.length);
+        if (capabilityId === undefined) {
+            delete opaque.capabilityId;
+        } else {
+            opaque.capabilityId = capabilityId;
+        }
+        var root = {
+            id: 0,
+            kind: 'program',
+            span: { start: 0, end: source.length },
+            leafRange: { start: 0, end: leaves.length },
+            children: [makeStatement(
+                1, 0, source.length, 0, leaves.length, 2, [opaque]
+            )]
+        };
+        var result = invariants.validateSyntaxInvariants({
+            root: root,
+            leaves: leaves,
+            source: source
+        });
+        assert.strictEqual(result.ok, false);
+        assert.ok(result.failures.some(function(failure) {
+            return /opaque capabilityId/.test(failure.message);
+        }));
+    });
+    console.log('  ok - opaque capability identity shape fail-closed');
 })();
 
 // ---------------------------------------------------------------------------

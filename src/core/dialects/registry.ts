@@ -47,7 +47,11 @@ const PRECEDENCE = Object.freeze({
     assignment: 5,
     or: 10,
     and: 20,
+    not: 25,
     predicate: 30,
+    // PostgreSQL assigns every non-special symbolic operator one shared tier:
+    // below + / - and above comparison/predicate operators.
+    otherOperator: 35,
     bitOr: 40,
     bitXor: 45,
     bitAnd: 50,
@@ -55,6 +59,7 @@ const PRECEDENCE = Object.freeze({
     additive: 60,
     access: 65,
     multiplicative: 70,
+    power: 75,
     prefix: 80,
     postfix: 90,
 });
@@ -111,14 +116,21 @@ const SHARED_SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableAr
     symbol(">=", "infix", PRECEDENCE.predicate, "none"),
     symbol("<>", "infix", PRECEDENCE.predicate, "none"),
     symbol("!=", "infix", PRECEDENCE.predicate, "none"),
-    symbol("&&", "infix", PRECEDENCE.and, "left"),
-    symbol("|", "infix", PRECEDENCE.bitOr, "left"),
-    symbol("^", "infix", PRECEDENCE.bitXor, "left"),
-    symbol("&", "infix", PRECEDENCE.bitAnd, "left"),
-    symbol("<<", "infix", PRECEDENCE.shift, "left"),
-    symbol(">>", "infix", PRECEDENCE.shift, "left"),
     symbol("!", "prefix", PRECEDENCE.prefix, "right"),
     symbol("~", "prefix", PRECEDENCE.prefix, "right"),
+]);
+
+const NON_POSTGRES_BITWISE_SYMBOL_OPERATORS: readonly OperatorDefinition[] =
+    freezeImmutableArray([
+        symbol("|", "infix", PRECEDENCE.bitOr, "left"),
+        symbol("^", "infix", PRECEDENCE.bitXor, "left"),
+        symbol("&", "infix", PRECEDENCE.bitAnd, "left"),
+        symbol("<<", "infix", PRECEDENCE.shift, "left"),
+        symbol(">>", "infix", PRECEDENCE.shift, "left"),
+    ]);
+
+const LOGICAL_AND_SYMBOL_OPERATOR: readonly OperatorDefinition[] = freezeImmutableArray([
+    symbol("&&", "infix", PRECEDENCE.and, "left"),
 ]);
 
 /**
@@ -126,7 +138,7 @@ const SHARED_SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableAr
  * Validated via lexical keyword membership, not operator token view.
  */
 const SHARED_WORD_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
-    wordOperator("not", "prefix", "keyword", ["not"], PRECEDENCE.prefix, "right"),
+    wordOperator("not", "prefix", "keyword", ["not"], PRECEDENCE.not, "right"),
     wordOperator("or", "infix", "keyword", ["or"], PRECEDENCE.or, "left"),
     wordOperator("and", "infix", "keyword", ["and"], PRECEDENCE.and, "left"),
     wordOperator("like", "infix", "keyword", ["like"], PRECEDENCE.predicate, "none"),
@@ -165,26 +177,33 @@ const CONCAT_SYMBOL_OPERATOR: readonly OperatorDefinition[] = freezeImmutableArr
 ]);
 
 const POSTGRES_SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
-    symbol("->", "infix", PRECEDENCE.access, "left"),
-    symbol("->>", "infix", PRECEDENCE.access, "left"),
-    symbol("#", "infix", PRECEDENCE.access, "left"),
-    symbol("#>", "infix", PRECEDENCE.access, "left"),
-    symbol("#>>", "infix", PRECEDENCE.access, "left"),
-    symbol("@>", "infix", PRECEDENCE.predicate, "none"),
-    symbol("<@", "infix", PRECEDENCE.predicate, "none"),
-    symbol("?", "infix", PRECEDENCE.predicate, "none"),
-    symbol("?|", "infix", PRECEDENCE.predicate, "none"),
-    symbol("?&", "infix", PRECEDENCE.predicate, "none"),
-    symbol("@?", "infix", PRECEDENCE.predicate, "none"),
-    symbol("@@", "infix", PRECEDENCE.predicate, "none"),
-    symbol("~~", "infix", PRECEDENCE.predicate, "none"),
-    symbol("!~~", "infix", PRECEDENCE.predicate, "none"),
-    symbol("~~*", "infix", PRECEDENCE.predicate, "none"),
-    symbol("!~~*", "infix", PRECEDENCE.predicate, "none"),
-    symbol("~", "infix", PRECEDENCE.predicate, "none"),
-    symbol("~*", "infix", PRECEDENCE.predicate, "none"),
-    symbol("!~", "infix", PRECEDENCE.predicate, "none"),
-    symbol("!~*", "infix", PRECEDENCE.predicate, "none"),
+    symbol("^", "infix", PRECEDENCE.power, "left"),
+    symbol("|", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("&", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("<<", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol(">>", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("||", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("&&", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("->", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("->>", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("#", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("#>", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("#>>", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("@>", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("<@", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("?", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("?|", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("?&", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("@?", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("@@", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("~~", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("!~~", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("~~*", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("!~~*", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("~", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("~*", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("!~", "infix", PRECEDENCE.otherOperator, "left"),
+    symbol("!~*", "infix", PRECEDENCE.otherOperator, "left"),
     symbol("::", "postfix", PRECEDENCE.postfix, "left"),
 ]);
 
@@ -420,8 +439,12 @@ function buildOperatorList(dialect: Dialect): readonly OperatorSemantics[] {
 
     const definitions = [
         ...SHARED_SYMBOL_OPERATORS,
+        ...(dialect === "postgresql" ? [] : NON_POSTGRES_BITWISE_SYMBOL_OPERATORS),
+        ...(dialect === "postgresql" ? [] : LOGICAL_AND_SYMBOL_OPERATOR),
         ...SHARED_WORD_OPERATORS,
-        ...(dialect === "mysql" ? [] : CONCAT_SYMBOL_OPERATOR),
+        ...(dialect === "mysql" || dialect === "postgresql"
+            ? []
+            : CONCAT_SYMBOL_OPERATOR),
         ...(dialect === "hive" ? HIVE_WORD_OPERATORS : []),
         ...(dialect === "mysql" ? MYSQL_WORD_OPERATORS : []),
         ...(dialect === "postgresql" ? POSTGRES_WORD_OPERATORS : []),

@@ -74,6 +74,26 @@ const IMPLICIT_ALIAS_PREDECESSOR_BLOCKERS = Object.freeze([
     "when",
 ]);
 
+const EMPTY_MODIFIER_WORDS: readonly string[] = Object.freeze([]);
+
+function normalizeModifierWords(
+    words: readonly string[] | undefined
+): readonly string[] {
+    if (words === undefined || words.length === 0) {
+        return EMPTY_MODIFIER_WORDS;
+    }
+    let normalized = true;
+    for (const word of words) {
+        if (word !== word.toLowerCase()) {
+            normalized = false;
+            break;
+        }
+    }
+    return normalized && Object.isFrozen(words)
+        ? words
+        : Object.freeze(Array.from(words, (word) => word.toLowerCase()));
+}
+
 function canBeImplicitAlias(context: ParserContext, leafIndex: number): boolean {
     const leaf = context.leaves[leafIndex]!;
     if (!isAliasNameLeaf(leaf)) {
@@ -88,15 +108,13 @@ function canBeImplicitAlias(context: ParserContext, leafIndex: number): boolean 
 function parseItemFacts(
     context: ParserContext,
     range: LeafRange,
-    options: OpaqueListOptions
+    options: OpaqueListOptions,
+    modifierWords: readonly string[]
 ): {
     readonly valueRange: LeafRange;
     readonly alias: AliasInfo | null;
     readonly modifierLeafIds: readonly number[];
 } {
-    const modifierWords = new Set(
-        (options.modifierWords ?? []).map((word) => word.toLowerCase())
-    );
     let valueEnd = range.end;
     const modifiers: number[] = [];
     let indexes = topLevelSyntaxIndexes(context, range);
@@ -106,7 +124,7 @@ function parseItemFacts(
         const leaf = context.leaves[last]!;
         if (
             leaf.channel !== "code" ||
-            !modifierWords.has(context.table.normalizedWord(last)) ||
+            !modifierWords.includes(context.table.normalizedWord(last)) ||
             isDottedNamePart(context, last, range.start, range.end)
         ) {
             break;
@@ -230,10 +248,16 @@ export function parseList(
         );
     }
     const split = splitTopLevelByComma(context, trimmed);
+    const modifierWords = normalizeModifierWords(options.modifierWords);
     const items = split.ranges.map((itemRange) => {
         const itemCheckpoint = createParserCheckpoint(context);
         try {
-            let facts = parseItemFacts(context, itemRange, options);
+            let facts = parseItemFacts(
+                context,
+                itemRange,
+                options,
+                modifierWords
+            );
             if (options.requireSingleName === true) {
                 const nameIndexes = topLevelSyntaxIndexes(context, facts.valueRange);
                 if (
@@ -258,7 +282,8 @@ export function parseList(
                 facts = parseItemFacts(
                     context,
                     itemRange,
-                    Object.freeze({ ...options, allowAlias: false })
+                    Object.freeze({ ...options, allowAlias: false }),
+                    modifierWords
                 );
                 value = parseValue(context, facts.valueRange);
             }

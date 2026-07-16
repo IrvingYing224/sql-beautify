@@ -64,6 +64,7 @@ function assertOpaqueDiagnostics(parsed, source) {
     opaqueNodes(parsed).forEach(function(node) {
         assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
             return diagnostic.code === node.reasonCode &&
+                diagnostic.capabilityId === node.capabilityId &&
                 diagnostic.span.start === node.span.start &&
                 diagnostic.span.end === node.span.end;
         }), 'opaque node requires matching diagnostic: ' + slice(source, node));
@@ -122,6 +123,12 @@ function assertOpaqueDiagnostics(parsed, source) {
         assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
             return diagnostic.recovery === 'preserve-target';
         }));
+        assert.ok(parsed.result.diagnostics.every(function(diagnostic) {
+            return diagnostic.capabilityId === null;
+        }), 'lexical/malformed target recovery must not invent capability identity');
+        assert.ok(opaqueNodes(parsed).every(function(node) {
+            return node.capabilityId === null;
+        }), 'lexical/malformed target opaque must not invent capability identity');
         assertOpaqueDiagnostics(parsed, source);
     });
 }());
@@ -138,7 +145,8 @@ function assertOpaqueDiagnostics(parsed, source) {
             severity[left.severity] - severity[right.severity] ||
             left.code.localeCompare(right.code) ||
             left.message.localeCompare(right.message) ||
-            left.recovery.localeCompare(right.recovery);
+            left.recovery.localeCompare(right.recovery) ||
+            String(left.capabilityId).localeCompare(String(right.capabilityId));
     }
     for (var i = 1; i < first.length; i++) {
         assert.ok(compare(first[i - 1], first[i]) <= 0, 'diagnostics complete total order');
@@ -152,13 +160,20 @@ function assertOpaqueDiagnostics(parsed, source) {
         code: 'SYN_UNEXPECTED_TOKEN',
         severity: 'warning',
         message: 'same',
+        capabilityId: null,
         span: { start: 2, end: 3 },
         recovery: 'verbatim-node'
     };
     var nearDuplicate = Object.assign({}, duplicate, { message: 'same but distinct' });
+    var capabilityDistinct = Object.assign({}, duplicate, { capabilityId: 'qualify' });
     assert.deepStrictEqual(
-        parserContext.finalizeDiagnostics([duplicate, nearDuplicate, duplicate]),
-        [duplicate, nearDuplicate],
+        parserContext.finalizeDiagnostics([
+            duplicate,
+            nearDuplicate,
+            capabilityDistinct,
+            duplicate
+        ]),
+        [duplicate, capabilityDistinct, nearDuplicate],
         'only exact duplicate diagnostic keys may collapse'
     );
 }());
@@ -182,14 +197,19 @@ function assertOpaqueDiagnostics(parsed, source) {
     [
         [
             'SELECT * FROM t MATCH_RECOGNIZE (PATTERN (A) DEFINE A AS k > 0)',
-            'MATCH_RECOGNIZE'
+            'MATCH_RECOGNIZE',
+            'match-recognize'
         ],
-        ['SELECT * FROM t PIVOT (sum(x) FOR k IN (1))', 'PIVOT'],
-        ['SELECT * FROM t UNPIVOT (v FOR k IN (a, b))', 'UNPIVOT'],
-        ['SELECT * FROM t UNPIVOT INCLUDE NULLS (v FOR k IN (a, b))', 'UNPIVOT'],
-        ['SELECT * FROM t UNPIVOT EXCLUDE NULLS (v FOR k IN (a, b))', 'UNPIVOT'],
-        ['SELECT a FROM t QUALIFY row_number() OVER() = 1', 'QUALIFY'],
-        ['MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET x = 1', 'MERGE']
+        ['SELECT * FROM t PIVOT (sum(x) FOR k IN (1))', 'PIVOT', 'pivot'],
+        ['SELECT * FROM t UNPIVOT (v FOR k IN (a, b))', 'UNPIVOT', 'unpivot'],
+        ['SELECT * FROM t UNPIVOT INCLUDE NULLS (v FOR k IN (a, b))', 'UNPIVOT', 'unpivot'],
+        ['SELECT * FROM t UNPIVOT EXCLUDE NULLS (v FOR k IN (a, b))', 'UNPIVOT', 'unpivot'],
+        ['SELECT a FROM t QUALIFY row_number() OVER() = 1', 'QUALIFY', 'qualify'],
+        [
+            'MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET x = 1',
+            'MERGE',
+            'merge'
+        ]
     ].forEach(function(entry) {
         var source = entry[0];
         var parsed = parse(source);
@@ -199,6 +219,13 @@ function assertOpaqueDiagnostics(parsed, source) {
         assert.deepStrictEqual(opaqueNodes(parsed).map(function(node) {
             return node.boundary;
         }), ['statement']);
+        assert.deepStrictEqual(opaqueNodes(parsed).map(function(node) {
+            return node.capabilityId;
+        }), [entry[2]], entry[1] + ' opaque capability identity');
+        assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
+            return diagnostic.recovery === 'preserve-statement' &&
+                diagnostic.capabilityId === entry[2];
+        }), entry[1] + ' structured capability diagnostic');
         assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
             return diagnostic.recovery === 'preserve-statement' &&
                 diagnostic.message.toUpperCase().indexOf(entry[1]) >= 0;
@@ -278,7 +305,7 @@ function assertOpaqueDiagnostics(parsed, source) {
             }), ['opaque'], dialect + ' existing relation alias: ' + source);
             assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
                 return diagnostic.recovery === 'preserve-statement' &&
-                    /QUALIFY/.test(diagnostic.message);
+                    diagnostic.capabilityId === 'qualify';
             }), dialect + ' must retain the QUALIFY capability diagnostic: ' + source);
             assertOpaqueDiagnostics(parsed, source);
         });
@@ -296,7 +323,7 @@ function assertOpaqueDiagnostics(parsed, source) {
         }), ['query'], source);
         assert.strictEqual(parsed.result.diagnostics.some(function(diagnostic) {
             return diagnostic.recovery === 'preserve-statement' &&
-                /QUALIFY/.test(diagnostic.message);
+                diagnostic.capabilityId === 'qualify';
         }), false, 'unproven malformed relation prefix must avoid a false QUALIFY claim');
     });
 }());
@@ -328,7 +355,7 @@ function assertOpaqueDiagnostics(parsed, source) {
             }), ['opaque'], dialect + ' continuation-shaped QUALIFY body: ' + source);
             assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
                 return diagnostic.recovery === 'preserve-statement' &&
-                    /QUALIFY/.test(diagnostic.message);
+                    diagnostic.capabilityId === 'qualify';
             }), dialect + ' must retain QUALIFY identity: ' + source);
             assertOpaqueDiagnostics(parsed, source);
         });
@@ -353,7 +380,7 @@ function assertOpaqueDiagnostics(parsed, source) {
             }), ['opaque'], dialect + ' continuation-shaped QUALIFY body: ' + source);
             assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
                 return diagnostic.recovery === 'preserve-statement' &&
-                    /QUALIFY/.test(diagnostic.message);
+                    diagnostic.capabilityId === 'qualify';
             }), dialect + ' must retain QUALIFY identity: ' + source);
             assertOpaqueDiagnostics(parsed, source);
         });
@@ -367,7 +394,7 @@ function assertOpaqueDiagnostics(parsed, source) {
         }), ['opaque'], dialect + ' subscript QUALIFY body');
         assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
             return diagnostic.recovery === 'preserve-statement' &&
-                /QUALIFY/.test(diagnostic.message);
+                diagnostic.capabilityId === 'qualify';
         }), dialect + ' subscript QUALIFY identity');
     });
     var mysqlSubscript = parse(subscript, undefined, 'mysql');
@@ -376,7 +403,7 @@ function assertOpaqueDiagnostics(parsed, source) {
     }), ['query']);
     assert.strictEqual(mysqlSubscript.result.diagnostics.some(function(diagnostic) {
         return diagnostic.recovery === 'preserve-statement' &&
-            /QUALIFY/.test(diagnostic.message);
+            diagnostic.capabilityId === 'qualify';
     }), false, 'MySQL must not claim QUALIFY when its suffix expression is unproven');
 
     var quotedTable = 'SELECT * FROM "on" QUALIFY flag';
@@ -386,7 +413,7 @@ function assertOpaqueDiagnostics(parsed, source) {
     }), ['opaque']);
     assert.ok(quotedParsed.result.diagnostics.some(function(diagnostic) {
         return diagnostic.recovery === 'preserve-statement' &&
-            /QUALIFY/.test(diagnostic.message);
+            diagnostic.capabilityId === 'qualify';
     }), 'quoted keyword-shaped table must not hide QUALIFY');
     assertOpaqueDiagnostics(quotedParsed, quotedTable);
 }());
@@ -430,7 +457,7 @@ function assertOpaqueDiagnostics(parsed, source) {
     }), ['opaque']);
     assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
         return diagnostic.recovery === 'preserve-statement' &&
-            /QUALIFY/.test(diagnostic.message);
+            diagnostic.capabilityId === 'qualify';
     }), 'LATERAL VIEW output commas must not hide a real QUALIFY clause');
     assertOpaqueDiagnostics(parsed, source);
 }());
@@ -449,7 +476,7 @@ function assertOpaqueDiagnostics(parsed, source) {
         assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
             return diagnostic.code === 'SYN_UNSUPPORTED_STATEMENT' &&
                 diagnostic.recovery === 'preserve-statement' &&
-                /merge/i.test(diagnostic.message);
+                diagnostic.capabilityId === 'merge';
         }), dialect + ' WITH MERGE capability diagnostic');
     });
 }());
@@ -477,7 +504,7 @@ function assertOpaqueDiagnostics(parsed, source) {
     }), ['opaque']);
     assert.ok(nestedUnsupported.result.diagnostics.some(function(diagnostic) {
         return diagnostic.recovery === 'preserve-statement' &&
-            /QUALIFY/.test(diagnostic.message);
+            diagnostic.capabilityId === 'qualify';
     }));
 }());
 
@@ -551,7 +578,7 @@ function assertOpaqueDiagnostics(parsed, source) {
     }), ['opaque']);
     assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
         return diagnostic.recovery === 'preserve-statement' &&
-            /QUALIFY/.test(diagnostic.message);
+            diagnostic.capabilityId === 'qualify';
     }), 'real QUALIFY must remain visible after sixteen legal relation aliases');
 
     var onIdentifiers = 'SELECT * FROM base';
@@ -595,10 +622,17 @@ function assertOpaqueDiagnostics(parsed, source) {
         assert.deepStrictEqual(opaqueNodes(parsed).map(function(node) {
             return [node.boundary, slice(source, node)];
         }), [['statement', ' ' + ddl + ';']]);
+        assert.deepStrictEqual(opaqueNodes(parsed).map(function(node) {
+            return node.capabilityId;
+        }), ['hive-ddl']);
+        assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
+            return diagnostic.recovery === 'verbatim-node' &&
+                diagnostic.capabilityId === 'hive-ddl';
+        }), 'registry verbatim structured identity must own ' + ddl);
         assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
             return diagnostic.recovery === 'verbatim-node' &&
                 diagnostic.message.indexOf('hive-ddl') >= 0;
-        }), 'registry verbatim capability must own ' + ddl);
+        }), 'registry verbatim UX message must mention hive-ddl for ' + ddl);
         assert.strictEqual(parsed.result.diagnostics.some(function(diagnostic) {
             return diagnostic.recovery === 'preserve-statement' ||
                 diagnostic.recovery === 'preserve-target';

@@ -1,3 +1,4 @@
+import { isImmutableSourceLeafPartitionForSource } from "../lexer/lossless-lexer";
 import type { SourceLeaf } from "../lexer/token";
 import type { SourceSpan } from "../source/source-span";
 import { freezeImmutableArray } from "../util/immutable-array";
@@ -68,6 +69,59 @@ const CLOSERS: Readonly<Record<string, string>> = Object.freeze({
     "]": "[",
 });
 
+interface CanonicalStructuralTokenTableProof {
+    readonly leaves: readonly SourceLeaf[];
+    readonly canonicalSourcePartition: boolean;
+    readonly rangeToSpan: (range: LeafRange) => SourceSpan;
+}
+
+const CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS = new WeakMap<
+    object,
+    CanonicalStructuralTokenTableProof
+>();
+const NO_INDEX = -1;
+
+/** Internal proof that the table owns immutable facts from the canonical builder. */
+export function isCanonicalStructuralTokenTable(
+    value: unknown
+): value is StructuralTokenTable {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.has(value)
+    );
+}
+
+/** Internal proof that a canonical table was built over this exact leaf partition. */
+export function isCanonicalStructuralTokenTableForLeaves(
+    value: unknown,
+    leaves: readonly SourceLeaf[]
+): value is StructuralTokenTable {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+    const proof = CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.get(value);
+    return proof?.leaves === leaves && proof.canonicalSourcePartition;
+}
+
+/** Internal provenance lookup for the exact leaf partition owned by a table. */
+export function canonicalStructuralTokenTableLeaves(
+    value: unknown
+): readonly SourceLeaf[] | null {
+    if (typeof value !== "object" || value === null) {
+        return null;
+    }
+    const proof = CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.get(value);
+    return proof?.canonicalSourcePartition === true ? proof.leaves : null;
+}
+
+/** Internal node-factory seam for ranges already validated by freezeRange(). */
+export function canonicalRangeToSpan(
+    table: StructuralTokenTable
+): ((range: LeafRange) => SourceSpan) | null {
+    return CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.get(table)?.rangeToSpan ?? null;
+}
+
 function isSyntaxLeaf(leaf: SourceLeaf): boolean {
     return leaf.channel === "code" || leaf.channel === "protected";
 }
@@ -80,74 +134,54 @@ export function buildStructuralTokenTable(
     leaves: readonly SourceLeaf[],
     source: string
 ): StructuralTokenTable {
+    const canonicalSourcePartition =
+        isImmutableSourceLeafPartitionForSource(leaves, source);
     const n = leaves.length;
 
-    const syntaxLeafIndexes: number[] = [];
-    const codeLeafIndexes: number[] = [];
-    const previousSyntax: Array<number | null> = new Array(n);
-    const nextSyntax: Array<number | null> = new Array(n);
-    const syntaxOrdinal: Array<number | null> = new Array(n);
-    const previousCode: Array<number | null> = new Array(n);
-    const nextCode: Array<number | null> = new Array(n);
-    const codeOrdinal: Array<number | null> = new Array(n);
-    const depthBeforeArr: number[] = new Array(n);
-    const depthAfterArr: number[] = new Array(n);
-    const match: Array<number | null> = new Array(n);
+    const syntaxIndexStorage = new Uint32Array(n);
+    const codeIndexStorage = new Uint32Array(n);
+    const syntaxOrdinal = new Int32Array(n);
+    const codeOrdinal = new Int32Array(n);
+    const depthBeforeArr = new Uint32Array(n);
+    const depthAfterArr = new Uint32Array(n);
+    const match = new Int32Array(n);
+    syntaxOrdinal.fill(NO_INDEX);
+    codeOrdinal.fill(NO_INDEX);
+    match.fill(NO_INDEX);
     const issues: StructuralIssue[] = [];
 
-    // Pass 1: syntax + structural code adjacency (O(n))
-    let lastSyntax: number | null = null;
-    let lastCode: number | null = null;
-    for (let i = 0; i < n; i++) {
-        previousSyntax[i] = null;
-        nextSyntax[i] = null;
-        syntaxOrdinal[i] = null;
-        previousCode[i] = null;
-        nextCode[i] = null;
-        codeOrdinal[i] = null;
-        depthBeforeArr[i] = 0;
-        depthAfterArr[i] = 0;
-        match[i] = null;
+    // One bounded pass derives ordinals, delimiter facts, and reliable
+    // statement boundaries from the same immutable leaf stream.
+    let syntaxCount = 0;
+    let codeCount = 0;
+    type StackEntry = { index: number; expectedCloser: string; openRaw: string };
+    const stack: StackEntry[] = [];
+    const statementRanges: LeafRange[] = [];
+    let depth = 0;
+    let unreliable = false;
+    let firstDelimiterIssueAt = Number.POSITIVE_INFINITY;
+    let unreliableBoundaryLeafIndex: number | null = null;
+    let statementSplittingStopped = false;
+    let stmtStart = 0;
 
+    for (let i = 0; i < n; i++) {
         const leaf = leaves[i];
         if (!leaf) {
             continue;
         }
-
         if (isSyntaxLeaf(leaf)) {
-            syntaxOrdinal[i] = syntaxLeafIndexes.length;
-            syntaxLeafIndexes.push(i);
-            previousSyntax[i] = lastSyntax;
-            if (lastSyntax !== null) {
-                nextSyntax[lastSyntax] = i;
-            }
-            lastSyntax = i;
+            syntaxOrdinal[i] = syntaxCount;
+            syntaxIndexStorage[syntaxCount] = i;
+            syntaxCount += 1;
         }
-
-        if (isStructuralCodeLeaf(leaf)) {
-            codeOrdinal[i] = codeLeafIndexes.length;
-            codeLeafIndexes.push(i);
-            previousCode[i] = lastCode;
-            if (lastCode !== null) {
-                nextCode[lastCode] = i;
-            }
-            lastCode = i;
-        }
-    }
-
-    // Pass 2: delimiter depth / matching on structural code leaves only (O(n))
-    type StackEntry = { index: number; expectedCloser: string; openRaw: string };
-    const stack: StackEntry[] = [];
-    let depth = 0;
-    let unreliable = false;
-
-    for (let i = 0; i < n; i++) {
-        const leaf = leaves[i];
-        if (!leaf || !isStructuralCodeLeaf(leaf)) {
+        if (!isStructuralCodeLeaf(leaf)) {
             depthBeforeArr[i] = depth;
             depthAfterArr[i] = depth;
             continue;
         }
+        codeOrdinal[i] = codeCount;
+        codeIndexStorage[codeCount] = i;
+        codeCount += 1;
 
         depthBeforeArr[i] = depth;
         const raw = leaf.raw;
@@ -156,10 +190,7 @@ export function buildStructuralTokenTable(
             stack.push({ index: i, expectedCloser: OPENERS[raw]!, openRaw: raw });
             depth += 1;
             depthAfterArr[i] = depth;
-            continue;
-        }
-
-        if (CLOSERS[raw] !== undefined) {
+        } else if (CLOSERS[raw] !== undefined) {
             if (stack.length === 0) {
                 issues.push(
                     Object.freeze({
@@ -169,33 +200,49 @@ export function buildStructuralTokenTable(
                     })
                 );
                 unreliable = true;
+                firstDelimiterIssueAt = Math.min(firstDelimiterIssueAt, i);
                 depthAfterArr[i] = depth;
-                continue;
+            } else {
+                const top = stack[stack.length - 1]!;
+                if (top.expectedCloser !== raw) {
+                    issues.push(
+                        Object.freeze({
+                            code: "STRUCT_MIXED_DELIMITER" as const,
+                            leafIndex: i,
+                            message: `Mixed delimiter: expected ${top.expectedCloser} for ${top.openRaw}, found ${raw} at leaf ${i}`,
+                        })
+                    );
+                    unreliable = true;
+                    firstDelimiterIssueAt = Math.min(firstDelimiterIssueAt, i);
+                    stack.pop();
+                    depth = Math.max(0, depth - 1);
+                    depthAfterArr[i] = depth;
+                } else {
+                    stack.pop();
+                    depth = Math.max(0, depth - 1);
+                    match[top.index] = i;
+                    match[i] = top.index;
+                    depthAfterArr[i] = depth;
+                }
             }
-            const top = stack[stack.length - 1]!;
-            if (top.expectedCloser !== raw) {
-                issues.push(
-                    Object.freeze({
-                        code: "STRUCT_MIXED_DELIMITER" as const,
-                        leafIndex: i,
-                        message: `Mixed delimiter: expected ${top.expectedCloser} for ${top.openRaw}, found ${raw} at leaf ${i}`,
-                    })
-                );
-                unreliable = true;
-                stack.pop();
-                depth = Math.max(0, depth - 1);
-                depthAfterArr[i] = depth;
-                continue;
-            }
-            stack.pop();
-            depth = Math.max(0, depth - 1);
-            match[top.index] = i;
-            match[i] = top.index;
+        } else {
             depthAfterArr[i] = depth;
-            continue;
         }
 
-        depthAfterArr[i] = depth;
+        if (
+            !statementSplittingStopped &&
+            raw === ";" &&
+            depthBeforeArr[i] === 0 &&
+            depthAfterArr[i] === 0
+        ) {
+            if (firstDelimiterIssueAt < i) {
+                unreliableBoundaryLeafIndex = i;
+                statementSplittingStopped = true;
+            } else {
+                statementRanges.push(Object.freeze({ start: stmtStart, end: i + 1 }));
+                stmtStart = i + 1;
+            }
+        }
     }
 
     while (stack.length > 0) {
@@ -208,63 +255,26 @@ export function buildStructuralTokenTable(
             })
         );
         unreliable = true;
+        firstDelimiterIssueAt = Math.min(firstDelimiterIssueAt, open.index);
     }
 
-    // Pass 3: statement segmentation on depth-0 structural code semicolons (O(n))
-    const statementRanges: LeafRange[] = [];
-    let firstDelimiterIssueAt = Number.POSITIVE_INFINITY;
-    for (const issue of issues) {
-        if (
-            issue.code === "STRUCT_UNMATCHED_OPENER" ||
-            issue.code === "STRUCT_UNMATCHED_CLOSER" ||
-            issue.code === "STRUCT_MIXED_DELIMITER"
-        ) {
-            if (issue.leafIndex < firstDelimiterIssueAt) {
-                firstDelimiterIssueAt = issue.leafIndex;
-            }
-        }
+    if (
+        stmtStart < n &&
+        syntaxCount > 0 &&
+        syntaxIndexStorage[syntaxCount - 1]! >= stmtStart
+    ) {
+        statementRanges.push(Object.freeze({ start: stmtStart, end: n }));
     }
 
-    let stmtStart = 0;
-
-    if (n > 0) {
-        for (let i = 0; i < n; i++) {
-            const leaf = leaves[i];
-            if (!leaf || !isStructuralCodeLeaf(leaf)) {
-                continue;
-            }
-            if (leaf.raw !== ";" || depthBeforeArr[i] !== 0 || depthAfterArr[i] !== 0) {
-                continue;
-            }
-            if (firstDelimiterIssueAt < i) {
-                issues.push(
-                    Object.freeze({
-                        code: "STRUCT_UNRELIABLE_STATEMENT_BOUNDARY" as const,
-                        leafIndex: i,
-                        message:
-                            "Statement boundary is unreliable; subsequent top-level splits are not trusted",
-                    })
-                );
-                break;
-            }
-            statementRanges.push(Object.freeze({ start: stmtStart, end: i + 1 }));
-            stmtStart = i + 1;
-        }
-
-        // Trailing remainder: present if any syntax (non-trivia) content remains.
-        if (stmtStart < n) {
-            let hasSyntax = false;
-            for (let i = stmtStart; i < n; i++) {
-                const leaf = leaves[i];
-                if (leaf && isSyntaxLeaf(leaf)) {
-                    hasSyntax = true;
-                    break;
-                }
-            }
-            if (hasSyntax) {
-                statementRanges.push(Object.freeze({ start: stmtStart, end: n }));
-            }
-        }
+    if (unreliableBoundaryLeafIndex !== null) {
+        issues.push(
+            Object.freeze({
+                code: "STRUCT_UNRELIABLE_STATEMENT_BOUNDARY" as const,
+                leafIndex: unreliableBoundaryLeafIndex,
+                message:
+                    "Statement boundary is unreliable; subsequent top-level splits are not trusted",
+            })
+        );
     }
 
     const boundariesReliable = !unreliable;
@@ -290,12 +300,10 @@ export function buildStructuralTokenTable(
     }
 
     // Cached immutable snapshots (real Arrays)
-    const frozenIssues = freezeImmutableArray(
-        issues.map((x) => Object.freeze({ ...x }))
-    );
-    const frozenRanges = freezeImmutableArray(
-        statementRanges.map((x) => Object.freeze({ start: x.start, end: x.end }))
-    );
+    const frozenIssues = freezeImmutableArray(issues);
+    const frozenRanges = freezeImmutableArray(statementRanges);
+    const syntaxIndexByOrdinal = syntaxIndexStorage.subarray(0, syntaxCount);
+    const codeIndexByOrdinal = codeIndexStorage.subarray(0, codeCount);
 
     function assertLeafIndex(leafIndex: number): void {
         if (!Number.isInteger(leafIndex) || leafIndex < 0 || leafIndex >= n) {
@@ -323,25 +331,49 @@ export function buildStructuralTokenTable(
         }
     }
 
+    const rangeToSpanUnchecked = (range: LeafRange): SourceSpan => {
+        if (range.start === range.end) {
+            if (n === 0 || range.start === 0) {
+                return Object.freeze({ start: 0, end: 0 });
+            }
+            if (range.start === n) {
+                return Object.freeze({ start: source.length, end: source.length });
+            }
+            const leaf = leaves[range.start];
+            const offset = leaf?.span.start ?? source.length;
+            return Object.freeze({ start: offset, end: offset });
+        }
+        const first = leaves[range.start]!;
+        const last = leaves[range.end - 1]!;
+        if (range.end === range.start + 1 && Object.isFrozen(first.span)) {
+            return first.span;
+        }
+        return Object.freeze({ start: first.span.start, end: last.span.end });
+    };
+
     const table: StructuralTokenTable = Object.freeze({
         leafCount(): number {
             return n;
         },
         syntaxLeafCount(): number {
-            return syntaxLeafIndexes.length;
+            return syntaxIndexByOrdinal.length;
         },
         previousSyntaxLeafIndex(leafIndex: number): number | null {
             assertSyntaxLeaf(leafIndex);
-            return previousSyntax[leafIndex] ?? null;
+            const ordinal = syntaxOrdinal[leafIndex]!;
+            return ordinal === 0 ? null : syntaxIndexByOrdinal[ordinal - 1]!;
         },
         nextSyntaxLeafIndex(leafIndex: number): number | null {
             assertSyntaxLeaf(leafIndex);
-            return nextSyntax[leafIndex] ?? null;
+            const ordinal = syntaxOrdinal[leafIndex]! + 1;
+            return ordinal >= syntaxIndexByOrdinal.length
+                ? null
+                : syntaxIndexByOrdinal[ordinal]!;
         },
         syntaxOrdinalOfLeaf(leafIndex: number): number {
             assertSyntaxLeaf(leafIndex);
             const ord = syntaxOrdinal[leafIndex];
-            if (ord === null || ord === undefined) {
+            if (ord === undefined || ord === NO_INDEX) {
                 throw new Error(`No syntax ordinal for leaf ${leafIndex}`);
             }
             return ord;
@@ -350,29 +382,33 @@ export function buildStructuralTokenTable(
             if (
                 !Number.isInteger(ordinal) ||
                 ordinal < 0 ||
-                ordinal >= syntaxLeafIndexes.length
+                ordinal >= syntaxIndexByOrdinal.length
             ) {
                 throw new Error(
-                    `Syntax ordinal out of range: ${ordinal} (syntaxLeafCount=${syntaxLeafIndexes.length})`
+                    `Syntax ordinal out of range: ${ordinal} (syntaxLeafCount=${syntaxIndexByOrdinal.length})`
                 );
             }
-            return syntaxLeafIndexes[ordinal]!;
+            return syntaxIndexByOrdinal[ordinal]!;
         },
         codeLeafCount(): number {
-            return codeLeafIndexes.length;
+            return codeIndexByOrdinal.length;
         },
         previousCodeLeafIndex(leafIndex: number): number | null {
             assertStructuralCodeLeaf(leafIndex);
-            return previousCode[leafIndex] ?? null;
+            const ordinal = codeOrdinal[leafIndex]!;
+            return ordinal === 0 ? null : codeIndexByOrdinal[ordinal - 1]!;
         },
         nextCodeLeafIndex(leafIndex: number): number | null {
             assertStructuralCodeLeaf(leafIndex);
-            return nextCode[leafIndex] ?? null;
+            const ordinal = codeOrdinal[leafIndex]! + 1;
+            return ordinal >= codeIndexByOrdinal.length
+                ? null
+                : codeIndexByOrdinal[ordinal]!;
         },
         codeOrdinalOfLeaf(leafIndex: number): number {
             assertStructuralCodeLeaf(leafIndex);
             const ord = codeOrdinal[leafIndex];
-            if (ord === null || ord === undefined) {
+            if (ord === undefined || ord === NO_INDEX) {
                 throw new Error(`No code ordinal for leaf ${leafIndex}`);
             }
             return ord;
@@ -381,13 +417,13 @@ export function buildStructuralTokenTable(
             if (
                 !Number.isInteger(ordinal) ||
                 ordinal < 0 ||
-                ordinal >= codeLeafIndexes.length
+                ordinal >= codeIndexByOrdinal.length
             ) {
                 throw new Error(
-                    `Code ordinal out of range: ${ordinal} (codeLeafCount=${codeLeafIndexes.length})`
+                    `Code ordinal out of range: ${ordinal} (codeLeafCount=${codeIndexByOrdinal.length})`
                 );
             }
-            return codeLeafIndexes[ordinal]!;
+            return codeIndexByOrdinal[ordinal]!;
         },
         depthBefore(leafIndex: number): number {
             assertLeafIndex(leafIndex);
@@ -399,7 +435,8 @@ export function buildStructuralTokenTable(
         },
         matchingDelimiterIndex(leafIndex: number): number | null {
             assertLeafIndex(leafIndex);
-            return match[leafIndex] ?? null;
+            const value = match[leafIndex]!;
+            return value === NO_INDEX ? null : value;
         },
         statementRanges(): readonly LeafRange[] {
             return frozenRanges;
@@ -423,28 +460,7 @@ export function buildStructuralTokenTable(
                     `Invalid leaf range: [${range && range.start}, ${range && range.end}) leafCount=${n}`
                 );
             }
-            if (range.start === range.end) {
-                if (n === 0) {
-                    return Object.freeze({ start: 0, end: 0 });
-                }
-                if (range.start === 0) {
-                    return Object.freeze({ start: 0, end: 0 });
-                }
-                if (range.start === n) {
-                    return Object.freeze({ start: source.length, end: source.length });
-                }
-                const leaf = leaves[range.start];
-                if (!leaf) {
-                    return Object.freeze({ start: source.length, end: source.length });
-                }
-                return Object.freeze({ start: leaf.span.start, end: leaf.span.start });
-            }
-            const first = leaves[range.start];
-            const last = leaves[range.end - 1];
-            if (!first || !last) {
-                throw new Error(`Leaf range out of bounds: [${range.start}, ${range.end})`);
-            }
-            return Object.freeze({ start: first.span.start, end: last.span.end });
+            return rangeToSpanUnchecked(range);
         },
         normalizedWord(leafIndex: number): string {
             assertStructuralCodeLeaf(leafIndex);
@@ -459,5 +475,13 @@ export function buildStructuralTokenTable(
         },
     });
 
+    CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.set(
+        table,
+        Object.freeze({
+            leaves,
+            canonicalSourcePartition,
+            rangeToSpan: rangeToSpanUnchecked,
+        })
+    );
     return table;
 }

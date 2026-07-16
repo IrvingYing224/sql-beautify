@@ -4,7 +4,10 @@ import type {
     UnsupportedSyntaxContext,
     UnsupportedSyntaxSignature,
 } from "../dialects/types";
-import { freezeImmutableArray } from "../util/immutable-array";
+import {
+    EMPTY_FROZEN_ARRAY,
+    freezeImmutableArray,
+} from "../util/immutable-array";
 import type { LeafRange } from "./leaf-range";
 import {
     ParserSyntaxError,
@@ -21,13 +24,89 @@ export interface UnsupportedConstructMatch {
     readonly range: LeafRange;
 }
 
-function signaturesFor(
+type UnsupportedSignatureView = Readonly<{
+    signatures: readonly UnsupportedSyntaxSignature[];
+    byFirstWord: Readonly<Record<string, readonly UnsupportedSyntaxSignature[]>>;
+}>;
+
+const UNSUPPORTED_SIGNATURE_CACHE: Partial<
+    Record<
+        ParserContext["dialect"],
+        Partial<Record<UnsupportedSyntaxContext, UnsupportedSignatureView>>
+    >
+> = Object.create(null) as Partial<
+    Record<
+        ParserContext["dialect"],
+        Partial<Record<UnsupportedSyntaxContext, UnsupportedSignatureView>>
+    >
+>;
+
+function signatureViewFor(
     context: ParserContext,
     syntaxContext: UnsupportedSyntaxContext
-): readonly UnsupportedSyntaxSignature[] {
-    return getDialect(context.dialect)
+): UnsupportedSignatureView {
+    let dialectCache = UNSUPPORTED_SIGNATURE_CACHE[context.dialect];
+    if (dialectCache === undefined) {
+        dialectCache = Object.create(null) as Partial<
+            Record<UnsupportedSyntaxContext, UnsupportedSignatureView>
+        >;
+        UNSUPPORTED_SIGNATURE_CACHE[context.dialect] = dialectCache;
+    }
+    const cached = dialectCache[syntaxContext];
+    if (cached !== undefined) {
+        return cached;
+    }
+    const signatures = freezeImmutableArray(
+        getDialect(context.dialect)
         .listUnsupportedSyntax()
-        .filter((signature) => signature.context === syntaxContext);
+            .filter((signature) => signature.context === syntaxContext)
+    );
+    const mutableByFirstWord = Object.create(null) as Record<
+        string,
+        UnsupportedSyntaxSignature[]
+    >;
+    for (const signature of signatures) {
+        const firstWord = signature.words[0];
+        if (firstWord === undefined) {
+            continue;
+        }
+        const candidates = mutableByFirstWord[firstWord];
+        if (candidates === undefined) {
+            mutableByFirstWord[firstWord] = [signature];
+        } else {
+            candidates.push(signature);
+        }
+    }
+    const byFirstWord = Object.create(null) as Record<
+        string,
+        readonly UnsupportedSyntaxSignature[]
+    >;
+    for (const firstWord of Object.keys(mutableByFirstWord)) {
+        byFirstWord[firstWord] = freezeImmutableArray(
+            mutableByFirstWord[firstWord]!
+        );
+    }
+    const view = Object.freeze({
+        signatures,
+        byFirstWord: Object.freeze(byFirstWord),
+    });
+    dialectCache[syntaxContext] = view;
+    return view;
+}
+
+function candidateSignaturesAt(
+    context: ParserContext,
+    index: number,
+    view: UnsupportedSignatureView
+): readonly UnsupportedSyntaxSignature[] {
+    const leaf = context.leaves[index];
+    if (leaf?.channel !== "code") {
+        return EMPTY_FROZEN_ARRAY;
+    }
+    return (
+        view.byFirstWord[context.table.normalizedWord(index)] ??
+        EMPTY_FROZEN_ARRAY
+    );
 }
 
 function matchAt(
@@ -96,7 +175,8 @@ export function classifyUnsupportedStatementStart(
     context: ParserContext,
     range: LeafRange
 ): UnsupportedConstructMatch | null {
-    for (const signature of signaturesFor(context, "statement-start")) {
+    const view = signatureViewFor(context, "statement-start");
+    for (const signature of candidateSignaturesAt(context, range.start, view)) {
         const match = matchAt(context, range, range.start, signature);
         if (match !== null) {
             return match;
@@ -110,9 +190,13 @@ export function rejectUnsupportedRelationConstructs(
     range: LeafRange,
     indexes: readonly number[]
 ): void {
-    const signatures = signaturesFor(context, "relation-suffix");
+    const view = signatureViewFor(context, "relation-suffix");
     for (let position = 1; position < indexes.length; position++) {
         const index = indexes[position]!;
+        const signatures = candidateSignaturesAt(context, index, view);
+        if (signatures.length === 0) {
+            continue;
+        }
         if (isDottedNamePart(context, index, range.start, range.end)) {
             continue;
         }
@@ -151,7 +235,8 @@ export function rejectUnsupportedRelationConstructs(
                 "SYN_UNMODELED_CONSTRUCT",
                 { start: index, end: range.end },
                 `${context.dialect} relation construct ${signature.words.join(" ").toUpperCase()} is recognized but not structured`,
-                "statement"
+                "statement",
+                signature.capabilityId
             );
         }
     }
@@ -159,11 +244,16 @@ export function rejectUnsupportedRelationConstructs(
 
 export function findUnsupportedQueryClauseCandidates(
     context: ParserContext,
-    range: LeafRange
+    range: LeafRange,
+    topLevelIndexes: readonly number[] = topLevelSyntaxIndexes(context, range)
 ): readonly UnsupportedConstructMatch[] {
-    const signatures = signaturesFor(context, "query-clause");
+    const view = signatureViewFor(context, "query-clause");
     const matches: UnsupportedConstructMatch[] = [];
-    for (const index of topLevelSyntaxIndexes(context, range)) {
+    for (const index of topLevelIndexes) {
+        const signatures = candidateSignaturesAt(context, index, view);
+        if (signatures.length === 0) {
+            continue;
+        }
         if (isDottedNamePart(context, index, range.start, range.end)) {
             continue;
         }

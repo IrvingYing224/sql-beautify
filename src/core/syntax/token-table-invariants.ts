@@ -1,5 +1,4 @@
 import type { SourceLeaf } from "../lexer/token";
-import type { SourceSpan } from "../source/source-span";
 import type { LeafRange } from "./leaf-range";
 import type {
     InvariantFailure,
@@ -16,10 +15,10 @@ import {
     isSourceSpan,
     isStructuralCodeLeaf,
     leavesEqual,
-    rangeToSpan,
     resultOf,
 } from "./invariant-shared";
 import { deriveExpectedTable } from "./token-table-expected";
+import type { ExpectedTable } from "./token-table-expected";
 import type { StructuralTokenTable } from "./token-table";
 
 const REQUIRED_METHODS = [
@@ -74,6 +73,35 @@ export function validateTokenTableInvariants(
     table: StructuralTokenTable | null | undefined,
     leaves: readonly SourceLeaf[]
 ): InvariantResult {
+    return validateTokenTableInvariantsInternal(table, leaves);
+}
+
+/**
+ * Internal CST-validation seam. The caller owns an independently derived
+ * oracle for these exact leaves, so rebuilding it here would duplicate the
+ * same O(n) proof. This helper is deliberately not re-exported by invariants.ts;
+ * arbitrary callers continue to use validateTokenTableInvariants above.
+ */
+export function validateTokenTableInvariantsFromExpected(
+    table: StructuralTokenTable | null | undefined,
+    leaves: readonly SourceLeaf[],
+    expected: ExpectedTable,
+    sourceLength: number
+): InvariantResult {
+    return validateTokenTableInvariantsInternal(
+        table,
+        leaves,
+        expected,
+        sourceLength
+    );
+}
+
+function validateTokenTableInvariantsInternal(
+    table: StructuralTokenTable | null | undefined,
+    leaves: readonly SourceLeaf[],
+    expectedOverride?: ExpectedTable,
+    sourceLengthOverride?: number
+): InvariantResult {
     const context = createValidationContext();
 
     try {
@@ -105,12 +133,21 @@ export function validateTokenTableInvariants(
             return resultOf(context.failures);
         }
 
-        const expected = deriveExpectedTable(leaves);
+        const expected = expectedOverride ?? deriveExpectedTable(leaves);
         const n = leaves.length;
-        // Reconstruct source once for rangeToSpan checks (O(n)).
-        let source = "";
-        for (let i = 0; i < n; i++) {
-            source += leaves[i]!.raw;
+        let sourceLength = sourceLengthOverride;
+        if (sourceLength === undefined) {
+            sourceLength = 0;
+            for (let i = 0; i < n; i++) {
+                sourceLength += leaves[i]!.raw.length;
+            }
+        } else if (!isFiniteNonNegInt(sourceLength)) {
+            recordFailure(
+                context,
+                "INV_TOKEN_TABLE",
+                "sourceLength must be a non-negative integer"
+            );
+            return resultOf(context.failures);
         }
 
         const t = table as StructuralTokenTable;
@@ -120,7 +157,7 @@ export function validateTokenTableInvariants(
             validateExpectedNonNegInt(
                 context,
                 "leafCount",
-                "leafCount",
+                undefined,
                 value,
                 n,
                 "INV_TOKEN_TABLE"
@@ -132,7 +169,7 @@ export function validateTokenTableInvariants(
             validateExpectedNonNegInt(
                 context,
                 "syntaxLeafCount",
-                "syntaxLeafCount",
+                undefined,
                 value,
                 expected.syntaxIndexes.length,
                 "INV_ORDINAL"
@@ -144,7 +181,7 @@ export function validateTokenTableInvariants(
             validateExpectedNonNegInt(
                 context,
                 "codeLeafCount",
-                "codeLeafCount",
+                undefined,
                 value,
                 expected.codeIndexes.length,
                 "INV_ORDINAL"
@@ -190,7 +227,7 @@ export function validateTokenTableInvariants(
                         !validateExpectedNonNegInt(
                             context,
                             "leafIndexOfSyntaxOrdinal",
-                            "leafIndexOfSyntaxOrdinal(" + ord + ")",
+                            ord,
                             value,
                             expIdx,
                             "INV_ORDINAL"
@@ -216,7 +253,7 @@ export function validateTokenTableInvariants(
                         !validateExpectedNonNegInt(
                             context,
                             "syntaxOrdinalOfLeaf",
-                            "syntaxOrdinalOfLeaf(" + idx + ")",
+                            idx,
                             value,
                             ord,
                             "INV_ORDINAL"
@@ -243,7 +280,7 @@ export function validateTokenTableInvariants(
                         !validateExpectedNonNegInt(
                             context,
                             "leafIndexOfCodeOrdinal",
-                            "leafIndexOfCodeOrdinal(" + ord + ")",
+                            ord,
                             value,
                             expIdx,
                             "INV_ORDINAL"
@@ -269,7 +306,7 @@ export function validateTokenTableInvariants(
                         !validateExpectedNonNegInt(
                             context,
                             "codeOrdinalOfLeaf",
-                            "codeOrdinalOfLeaf(" + idx + ")",
+                            idx,
                             value,
                             ord,
                             "INV_ORDINAL"
@@ -286,28 +323,28 @@ export function validateTokenTableInvariants(
             context,
             "previousSyntaxLeafIndex",
             expected.syntaxIndexes,
-            expected.prevSyntax,
+            -1,
             (idx) => t.previousSyntaxLeafIndex(idx)
         );
         validateAdjacencyMethod(
             context,
             "nextSyntaxLeafIndex",
             expected.syntaxIndexes,
-            expected.nextSyntax,
+            1,
             (idx) => t.nextSyntaxLeafIndex(idx)
         );
         validateAdjacencyMethod(
             context,
             "previousCodeLeafIndex",
             expected.codeIndexes,
-            expected.prevCode,
+            -1,
             (idx) => t.previousCodeLeafIndex(idx)
         );
         validateAdjacencyMethod(
             context,
             "nextCodeLeafIndex",
             expected.codeIndexes,
-            expected.nextCode,
+            1,
             (idx) => t.nextCodeLeafIndex(idx)
         );
 
@@ -320,13 +357,14 @@ export function validateTokenTableInvariants(
             () => {
                 for (let i = 0; i < n; i++) {
                     matchingIndex = i;
-                    const expMatch = expected.match[i] ?? null;
+                    const rawExpectedMatch = expected.match[i]!;
+                    const expMatch = rawExpectedMatch < 0 ? null : rawExpectedMatch;
                     const value = t.matchingDelimiterIndex(i);
                     if (
                         !validateExpectedNullableIndex(
                             context,
                             "matchingDelimiterIndex",
-                            "matchingDelimiterIndex(" + i + ")",
+                            i,
                             value,
                             expMatch,
                             "INV_DELIMITER_PAIR"
@@ -341,7 +379,7 @@ export function validateTokenTableInvariants(
                             !validateExpectedNullableIndex(
                                 context,
                                 "matchingDelimiterIndex",
-                                "matchingDelimiterIndex(" + value + ")",
+                                value,
                                 back,
                                 i,
                                 "INV_DELIMITER_PAIR"
@@ -404,58 +442,65 @@ export function validateTokenTableInvariants(
         validateStatementRangesCollection(context, t, expected.statementRanges, n);
 
         // ---- rangeToSpan: O(n) sample set (full, single, empty, statement) ----
-        let rangeLabel = "rangeToSpan";
-        runMethodValidation(context, "rangeToSpan", () => rangeLabel, () => {
-            const validateRange = (range: LeafRange, label: string): boolean => {
-                const exp = rangeToSpan(leaves, source, range);
-                if (exp === null) {
-                    return true;
-                }
-                rangeLabel = label;
-                const got = t.rangeToSpan(range);
-                return validateExpectedSpan(context, "rangeToSpan", label, got, exp);
-            };
+        // Keep only numeric call state on the healthy path. Dynamic labels and
+        // expected span objects are materialized solely when a method fails.
+        let rangeStart = 0;
+        let rangeEnd = n;
+        runMethodValidation(
+            context,
+            "rangeToSpan",
+            () => formatRangeCall(rangeStart, rangeEnd),
+            () => {
+                const validateRange = (start: number, end: number): boolean => {
+                    rangeStart = start;
+                    rangeEnd = end;
+                    let expectedStart: number;
+                    let expectedEnd: number;
+                    if (start === end) {
+                        if (n === 0 || start === 0) {
+                            expectedStart = 0;
+                        } else if (start === n) {
+                            expectedStart = sourceLength;
+                        } else {
+                            expectedStart = leaves[start]!.span.start;
+                        }
+                        expectedEnd = expectedStart;
+                    } else {
+                        expectedStart = leaves[start]!.span.start;
+                        expectedEnd = leaves[end - 1]!.span.end;
+                    }
+                    const got = t.rangeToSpan({ start, end });
+                    return validateExpectedSpan(
+                        context,
+                        got,
+                        expectedStart,
+                        expectedEnd,
+                        start,
+                        end
+                    );
+                };
 
-            if (!validateRange({ start: 0, end: n }, "rangeToSpan(full)")) {
-                return;
-            }
-            for (let i = 0; i < n; i++) {
-                if (
-                    !validateRange(
-                        { start: i, end: i + 1 },
-                        "rangeToSpan([" + i + "," + (i + 1) + "))"
-                    )
-                ) {
+                if (!validateRange(0, n)) {
                     return;
                 }
-                if (
-                    !validateRange(
-                        { start: i, end: i },
-                        "rangeToSpan([" + i + "," + i + "))"
-                    )
-                ) {
+                for (let i = 0; i < n; i++) {
+                    if (!validateRange(i, i + 1)) {
+                        return;
+                    }
+                    if (!validateRange(i, i)) {
+                        return;
+                    }
+                }
+                if (!validateRange(n, n)) {
                     return;
                 }
-            }
-            if (
-                !validateRange(
-                    { start: n, end: n },
-                    "rangeToSpan([" + n + "," + n + "))"
-                )
-            ) {
-                return;
-            }
-            for (const range of expected.statementRanges) {
-                if (
-                    !validateRange(
-                        range,
-                        "rangeToSpan(stmt [" + range.start + "," + range.end + "))"
-                    )
-                ) {
-                    return;
+                for (const range of expected.statementRanges) {
+                    if (!validateRange(range.start, range.end)) {
+                        return;
+                    }
                 }
             }
-        });
+        );
 
         // ---- normalizedWord valid-domain O(n) for code leaves ----
         let normalizedWordIndex = -1;
@@ -487,51 +532,64 @@ export function validateTokenTableInvariants(
         );
 
         // ---- codeWordsEqual: streaming linear pairs (not all O(n^2)) ----
-        let codeWordsPairLabel = "codeWordsEqual";
-        runMethodValidation(context, "codeWordsEqual", () => codeWordsPairLabel, () => {
-            const codes = expected.codeIndexes;
-            const validatePair = (a: number, b: number): boolean => {
-                codeWordsPairLabel = "codeWordsEqual(" + a + "," + b + ")";
-                const got = t.codeWordsEqual(a, b);
-                if (typeof got !== "boolean") {
-                    tripMethod(
-                        context,
-                        "codeWordsEqual",
-                        "INV_TOKEN_TABLE",
-                        codeWordsPairLabel + " must return boolean"
-                    );
-                    return false;
-                }
-                const exp =
-                    canonicalNormalizedWord(leaves[a]!) === canonicalNormalizedWord(leaves[b]!);
-                if (got !== exp) {
-                    tripMethod(
-                        context,
-                        "codeWordsEqual",
-                        "INV_TOKEN_TABLE",
-                        codeWordsPairLabel + " expected " + exp + ", got " + got
-                    );
-                    return false;
-                }
-                return true;
-            };
+        let codeWordsLeft = -1;
+        let codeWordsRight = -1;
+        runMethodValidation(
+            context,
+            "codeWordsEqual",
+            () => formatBinaryCall("codeWordsEqual", codeWordsLeft, codeWordsRight),
+            () => {
+                const codes = expected.codeIndexes;
+                const validatePair = (a: number, b: number): boolean => {
+                    codeWordsLeft = a;
+                    codeWordsRight = b;
+                    const got = t.codeWordsEqual(a, b);
+                    if (typeof got !== "boolean") {
+                        tripMethod(
+                            context,
+                            "codeWordsEqual",
+                            "INV_TOKEN_TABLE",
+                            formatBinaryCall("codeWordsEqual", a, b) +
+                                " must return boolean"
+                        );
+                        return false;
+                    }
+                    const exp =
+                        canonicalNormalizedWord(leaves[a]!) ===
+                        canonicalNormalizedWord(leaves[b]!);
+                    if (got !== exp) {
+                        tripMethod(
+                            context,
+                            "codeWordsEqual",
+                            "INV_TOKEN_TABLE",
+                            formatBinaryCall("codeWordsEqual", a, b) +
+                                " expected " + exp + ", got " + got
+                        );
+                        return false;
+                    }
+                    return true;
+                };
 
-            for (let i = 0; i < codes.length; i++) {
-                const current = codes[i]!;
-                if (!validatePair(current, current)) {
-                    return;
+                for (let i = 0; i < codes.length; i++) {
+                    const current = codes[i]!;
+                    if (!validatePair(current, current)) {
+                        return;
+                    }
+                    if (
+                        i + 1 < codes.length &&
+                        !validatePair(current, codes[i + 1]!)
+                    ) {
+                        return;
+                    }
                 }
-                if (i + 1 < codes.length && !validatePair(current, codes[i + 1]!)) {
+                if (
+                    codes.length >= 2 &&
+                    !validatePair(codes[0]!, codes[codes.length - 1]!)
+                ) {
                     return;
                 }
             }
-            if (
-                codes.length >= 2 &&
-                !validatePair(codes[0]!, codes[codes.length - 1]!)
-            ) {
-                return;
-            }
-        });
+        );
 
         // ---- Fixed O(1) representative illegal-input probes ----
         sampleIllegalInputRejections(context, t, leaves, expected, n);
@@ -618,12 +676,13 @@ function runMethodValidation(
 function validateExpectedNonNegInt(
     context: TokenValidationContext,
     method: RequiredMethodName,
-    label: string,
+    argument: number | undefined,
     value: unknown,
     expected: number,
     mismatchCode: InvariantFailureCode
 ): boolean {
     if (!isFiniteNonNegInt(value)) {
+        const label = formatUnaryCall(method, argument);
         tripMethod(
             context,
             method,
@@ -633,6 +692,7 @@ function validateExpectedNonNegInt(
         return false;
     }
     if (value !== expected) {
+        const label = formatUnaryCall(method, argument);
         tripMethod(
             context,
             method,
@@ -647,12 +707,13 @@ function validateExpectedNonNegInt(
 function validateExpectedNullableIndex(
     context: TokenValidationContext,
     method: RequiredMethodName,
-    label: string,
+    argument: number,
     value: unknown,
     expected: number | null,
     mismatchCode: InvariantFailureCode
 ): value is number | null {
     if (value !== null && !isFiniteNonNegInt(value)) {
+        const label = formatUnaryCall(method, argument);
         tripMethod(
             context,
             method,
@@ -662,6 +723,7 @@ function validateExpectedNullableIndex(
         return false;
     }
     if (value !== expected) {
+        const label = formatUnaryCall(method, argument);
         tripMethod(
             context,
             method,
@@ -673,32 +735,48 @@ function validateExpectedNullableIndex(
     return true;
 }
 
+function formatUnaryCall(
+    method: RequiredMethodName,
+    argument: number | undefined
+): string {
+    return argument === undefined ? method : method + "(" + argument + ")";
+}
+
+function formatBinaryCall(
+    method: RequiredMethodName,
+    left: number,
+    right: number
+): string {
+    return method + "(" + left + "," + right + ")";
+}
+
 function validateExpectedSpan(
     context: TokenValidationContext,
-    method: RequiredMethodName,
-    label: string,
     value: unknown,
-    expected: SourceSpan
+    expectedStart: number,
+    expectedEnd: number,
+    rangeStart: number,
+    rangeEnd: number
 ): boolean {
     if (!isSourceSpan(value)) {
         tripMethod(
             context,
-            method,
+            "rangeToSpan",
             "INV_TOKEN_TABLE",
-            label + " must return a SourceSpan"
+            formatRangeCall(rangeStart, rangeEnd) + " must return a SourceSpan"
         );
         return false;
     }
-    if (value.start !== expected.start || value.end !== expected.end) {
+    if (value.start !== expectedStart || value.end !== expectedEnd) {
         tripMethod(
             context,
-            method,
+            "rangeToSpan",
             "INV_TOKEN_TABLE",
-            label +
+            formatRangeCall(rangeStart, rangeEnd) +
                 " expected span [" +
-                expected.start +
+                expectedStart +
                 "," +
-                expected.end +
+                expectedEnd +
                 "), got [" +
                 value.start +
                 "," +
@@ -710,24 +788,33 @@ function validateExpectedSpan(
     return true;
 }
 
+function formatRangeCall(start: number, end: number): string {
+    return "rangeToSpan([" + start + "," + end + "))";
+}
+
 function validateAdjacencyMethod(
     context: TokenValidationContext,
     method: "previousSyntaxLeafIndex" | "nextSyntaxLeafIndex" | "previousCodeLeafIndex" | "nextCodeLeafIndex",
-    indexes: readonly number[],
-    expectedValues: readonly (number | null)[],
+    indexes: Uint32Array,
+    ordinalDelta: -1 | 1,
     lookup: (index: number) => number | null
 ): void {
     let currentIndex = -1;
     runMethodValidation(context, method, () => method + "(" + currentIndex + ")", () => {
-        for (const idx of indexes) {
+        for (let ordinal = 0; ordinal < indexes.length; ordinal++) {
+            const idx = indexes[ordinal]!;
             currentIndex = idx;
             const value = lookup(idx);
-            const expected = expectedValues[idx] ?? null;
+            const expectedOrdinal = ordinal + ordinalDelta;
+            const expected =
+                expectedOrdinal < 0 || expectedOrdinal >= indexes.length
+                    ? null
+                    : indexes[expectedOrdinal]!;
             if (
                 !validateExpectedNullableIndex(
                     context,
                     method,
-                    method + "(" + idx + ")",
+                    idx,
                     value,
                     expected,
                     "INV_ADJACENCY"
@@ -743,7 +830,7 @@ function validateDepthMethod(
     context: TokenValidationContext,
     method: "depthBefore" | "depthAfter",
     leafCount: number,
-    expectedValues: readonly number[],
+    expectedValues: ArrayLike<number>,
     lookup: (index: number) => number
 ): void {
     let currentIndex = -1;
@@ -755,7 +842,7 @@ function validateDepthMethod(
                 !validateExpectedNonNegInt(
                     context,
                     method,
-                    method + "(" + i + ")",
+                    i,
                     value,
                     expectedValues[i]!,
                     "INV_DEPTH_CONSISTENCY"

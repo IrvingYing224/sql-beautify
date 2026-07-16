@@ -342,7 +342,10 @@ const HIVE_PROFILE: LexicalProfile = Object.freeze({
     dollarStrings: false,
     backslashStringEscapes: true,
     templateParameters: true,
-    parameters: freezeParameters(["${}", "?", ":id"]),
+    // Hive-native substitution is `${...}` and prepared statements use `?`.
+    // Do not claim `:id`: it conflicts with STRUCT<name : type> regardless of
+    // whether trivia appears around the member colon.
+    parameters: freezeParameters(["${}", "?"]),
     prefixedLiterals: freezePrefixed(["X", "B"]),
     keywords: freezeKeywords([
         "LATERAL",
@@ -408,8 +411,9 @@ const POSTGRES_PROFILE: LexicalProfile = Object.freeze({
     dollarStrings: true,
     backslashStringEscapes: false,
     templateParameters: false,
-    // PostgreSQL `?` is a JSON/existence operator, not a positional placeholder.
-    parameters: freezeParameters(["$n", ":id"]),
+    // PostgreSQL uses `$n`; `?` is a JSON/existence operator and `:id` is not
+    // server syntax (callers that need client-side named binds use generic).
+    parameters: freezeParameters(["$n"]),
     prefixedLiterals: freezePrefixed(["E", "U&", "X", "B"]),
     keywords: freezeKeywords([
         "RETURNING",

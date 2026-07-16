@@ -1,6 +1,15 @@
+import { isCapabilityIdentity } from "../diagnostics/diagnostic";
+import {
+    isImmutableSourceLeafPartition,
+    isImmutableSourceLeafPartitionForSource,
+} from "../lexer/lossless-lexer";
 import type { SourceLeaf, TokenKind } from "../lexer/token";
 import type { LeafRange } from "./leaf-range";
 import type { OpaqueBoundary, StatementKind } from "./node";
+import {
+    canonicalProgramNodeCount,
+    canonicalProgramNodeCountForLeaves,
+} from "./node-factory";
 import { validateContainerRelationships } from "./cst-container-invariants";
 import type {
     InvariantFailure,
@@ -31,19 +40,25 @@ import {
     isObject,
     isSourceSpan,
     isSyntaxChannel,
-    rangeToSpan,
     rangesOverlap,
     resultOf,
 } from "./invariant-shared";
 import { deriveExpectedTable } from "./token-table-expected";
 import type { StructuralTokenTable } from "./token-table";
-import { validateTokenTableInvariants } from "./token-table-invariants";
+import {
+    validateTokenTableInvariants,
+    validateTokenTableInvariantsFromExpected,
+} from "./token-table-invariants";
 
 function validateLeafPartition(
     leaves: unknown,
     source: unknown,
     failures: InvariantFailure[]
-): { leaves: SourceLeaf[]; source: string } | null {
+): {
+    leaves: SourceLeaf[];
+    source: string;
+    immutableLeafPartition: boolean;
+} | null {
     if (typeof source !== "string") {
         fail(
             failures,
@@ -61,7 +76,19 @@ function validateLeafPartition(
         if (source.length !== 0) {
             fail(failures, "INV_LEAF_PARTITION", "empty leaves require empty source");
         }
-        return { leaves: leaves as SourceLeaf[], source };
+        return {
+            leaves: leaves as SourceLeaf[],
+            source,
+            immutableLeafPartition: isImmutableSourceLeafPartition(leaves),
+        };
+    }
+
+    if (isImmutableSourceLeafPartitionForSource(leaves, source)) {
+        return {
+            leaves: leaves as SourceLeaf[],
+            source,
+            immutableLeafPartition: true,
+        };
     }
 
     let reconstructed = "";
@@ -150,7 +177,11 @@ function validateLeafPartition(
             "leaves.map(raw).join('') must equal source"
         );
     }
-    return { leaves: leaves as SourceLeaf[], source };
+    return {
+        leaves: leaves as SourceLeaf[],
+        source,
+        immutableLeafPartition: isImmutableSourceLeafPartition(leaves),
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -425,8 +456,48 @@ function validateAlias(
     }
 }
 
+const EMPTY_CHILDREN_RAW: readonly unknown[] = Object.freeze([]);
+
+type ChildrenSnapshotState = {
+    dense: boolean;
+    stableFrozenData: boolean;
+};
+
+function snapshotChildren(
+    raw: Record<string, unknown>,
+    state: ChildrenSnapshotState
+): readonly unknown[] {
+    if (raw.kind === "opaque") {
+        state.dense = true;
+        state.stableFrozenData = true;
+        return EMPTY_CHILDREN_RAW;
+    }
+    const binding = raw.children;
+    if (!Array.isArray(binding)) {
+        state.dense = false;
+        state.stableFrozenData = false;
+        return EMPTY_CHILDREN_RAW;
+    }
+    let dense = true;
+    let stableFrozenData = Object.isFrozen(binding);
+    for (let index = 0; index < binding.length; index++) {
+        const descriptor = Object.getOwnPropertyDescriptor(binding, index);
+        if (descriptor === undefined) {
+            dense = false;
+            stableFrozenData = false;
+        } else if (!("value" in descriptor)) {
+            stableFrozenData = false;
+        }
+    }
+    state.dense = dense;
+    state.stableFrozenData = dense && stableFrozenData;
+    return dense ? binding : EMPTY_CHILDREN_RAW;
+}
+
 function validateNodeShape(
     raw: Record<string, unknown>,
+    childrenRaw: readonly unknown[],
+    childrenDense: boolean,
     leaves: readonly SourceLeaf[],
     failures: InvariantFailure[]
 ): void {
@@ -480,7 +551,7 @@ function validateNodeShape(
 
     switch (raw.kind) {
         case "program": {
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", "program children must be a dense array", nodeId);
             }
             break;
@@ -495,7 +566,7 @@ function validateNodeShape(
             if (raw.bodyChildId !== null && !isFiniteNonNegInt(raw.bodyChildId)) {
                 fail(failures, "INV_SHAPE", `bodyChildId invalid on node ${nodeId}`, nodeId);
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `statement children must be array on node ${nodeId}`, nodeId);
             }
             // empty statements: body null + empty children (enforced in relationships too)
@@ -508,7 +579,7 @@ function validateNodeShape(
                         nodeId
                     );
                 }
-                if (isDenseArray(raw.children) && raw.children.length !== 0) {
+                if (childrenDense && childrenRaw.length !== 0) {
                     fail(
                         failures,
                         "INV_RELATIONSHIP",
@@ -531,7 +602,7 @@ function validateNodeShape(
                 leafRange,
                 leavesLen
             );
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `query children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -544,7 +615,7 @@ function validateNodeShape(
             if (raw.columnListChildId !== null && !isFiniteNonNegInt(raw.columnListChildId)) {
                 fail(failures, "INV_SHAPE", `cte columnListChildId invalid on node ${nodeId}`, nodeId);
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `cte children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -566,7 +637,7 @@ function validateNodeShape(
                     );
                 }
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `clause children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -579,7 +650,7 @@ function validateNodeShape(
             if (raw.bodyChildId !== null && !isFiniteNonNegInt(raw.bodyChildId)) {
                 fail(failures, "INV_SHAPE", `relation bodyChildId invalid on node ${nodeId}`, nodeId);
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `relation children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -600,7 +671,7 @@ function validateNodeShape(
                     leavesLen
                 );
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `list children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -621,7 +692,7 @@ function validateNodeShape(
             if (!isFiniteNonNegInt(raw.valueChildId)) {
                 fail(failures, "INV_SHAPE", `list-item valueChildId required on node ${nodeId}`, nodeId);
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `list-item children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -640,7 +711,7 @@ function validateNodeShape(
                 leafRange,
                 leaves
             );
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `expression children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -664,7 +735,7 @@ function validateNodeShape(
             if (!isFiniteNonNegInt(raw.valueChildId)) {
                 fail(failures, "INV_SHAPE", `valueChildId required on case-branch ${nodeId}`, nodeId);
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `case-branch children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -686,7 +757,7 @@ function validateNodeShape(
                     fail(failures, "INV_SHAPE", `${field} invalid on node ${nodeId}`, nodeId);
                 }
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(failures, "INV_SHAPE", `window-spec children must be array on node ${nodeId}`, nodeId);
             }
             break;
@@ -706,7 +777,7 @@ function validateNodeShape(
                     fail(failures, "INV_SHAPE", `${field} invalid on node ${nodeId}`, nodeId);
                 }
             }
-            if (!isDenseArray(raw.children)) {
+            if (!childrenDense) {
                 fail(
                     failures,
                     "INV_SHAPE",
@@ -722,6 +793,14 @@ function validateNodeShape(
                     failures,
                     "INV_SHAPE",
                     `opaque reasonCode must be non-empty string on node ${nodeId}`,
+                    nodeId
+                );
+            }
+            if (!isCapabilityIdentity(raw.capabilityId)) {
+                fail(
+                    failures,
+                    "INV_SHAPE",
+                    `opaque capabilityId must be null or kebab-case on node ${nodeId}`,
                     nodeId
                 );
             }
@@ -837,7 +916,7 @@ function validateEmptyStatementContent(
 
 function enforceRelationships(
     raw: Record<string, unknown>,
-    directChildren: Record<string, unknown>[],
+    directChildren: readonly Record<string, unknown>[],
     leaves: readonly SourceLeaf[],
     failures: InvariantFailure[]
 ): void {
@@ -851,12 +930,9 @@ function enforceRelationships(
     }
     const nodeId = raw.id;
     validateEmptyStatementContent(raw, leaves, failures);
-    const byId = new Map<number, Record<string, unknown>>();
+    const refs = contract.refs ?? [];
     const allowedChildKinds = resolveChildKinds(contract, raw);
     for (const child of directChildren) {
-        if (isFiniteNonNegInt(child.id)) {
-            byId.set(child.id, child);
-        }
         if (allowedChildKinds !== null && typeof child.kind === "string") {
             if (allowedChildKinds.indexOf(child.kind) < 0) {
                 fail(
@@ -930,8 +1006,7 @@ function enforceRelationships(
         }
     }
 
-    const referenced = new Set<number>();
-    const refs = contract.refs ?? [];
+    let referencedChildIds: number[] | null = null;
     for (const spec of refs) {
         const value = raw[spec.field];
         const required = resolveRequired(spec, raw);
@@ -956,7 +1031,13 @@ function enforceRelationships(
             );
             continue;
         }
-        const child = byId.get(value);
+        let child: Record<string, unknown> | undefined;
+        for (const candidate of directChildren) {
+            if (candidate.id === value) {
+                child = candidate;
+                break;
+            }
+        }
         if (!child) {
             fail(
                 failures,
@@ -966,7 +1047,11 @@ function enforceRelationships(
             );
             continue;
         }
-        referenced.add(value);
+        if (referencedChildIds === null) {
+            referencedChildIds = [value];
+        } else {
+            referencedChildIds.push(value);
+        }
         const allowed = resolveAllowedKinds(spec, raw);
         if (typeof child.kind === "string" && allowed.indexOf(child.kind) < 0) {
             fail(
@@ -1018,7 +1103,19 @@ function enforceRelationships(
     // Unreferenced children policy
     if (rejectsUnreferencedChildren(contract, raw)) {
         for (const child of directChildren) {
-            if (isFiniteNonNegInt(child.id) && !referenced.has(child.id)) {
+            if (!isFiniteNonNegInt(child.id)) {
+                continue;
+            }
+            let referenced = false;
+            if (referencedChildIds !== null) {
+                for (const referencedId of referencedChildIds) {
+                    if (referencedId === child.id) {
+                        referenced = true;
+                        break;
+                    }
+                }
+            }
+            if (!referenced) {
                 fail(
                     failures,
                     "INV_EXTRA_CHILD",
@@ -1035,13 +1132,6 @@ function enforceRelationships(
 // ---------------------------------------------------------------------------
 // Tree walk
 // ---------------------------------------------------------------------------
-
-function getChildrenRaw(raw: Record<string, unknown>): unknown[] {
-    if (raw.kind === "opaque") {
-        return [];
-    }
-    return isDenseArray(raw.children) ? raw.children : [];
-}
 
 /**
  * Validate foundation CST invariants with full runtime shape + relationship
@@ -1060,7 +1150,7 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
         if (!partition) {
             return resultOf(failures);
         }
-        const { leaves, source } = partition;
+        const { leaves, source, immutableLeafPartition } = partition;
 
         if (!isObject(input.root)) {
             fail(failures, "INV_MALFORMED_NODE", "root is missing required node fields");
@@ -1068,7 +1158,18 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
         }
 
         const root = input.root;
-        validateNodeShape(root, leaves, failures);
+        const rootChildrenState: ChildrenSnapshotState = {
+            dense: false,
+            stableFrozenData: false,
+        };
+        const rootChildren = snapshotChildren(root, rootChildrenState);
+        validateNodeShape(
+            root,
+            rootChildren,
+            rootChildrenState.dense,
+            leaves,
+            failures
+        );
 
         if (root.kind !== "program") {
             fail(
@@ -1093,116 +1194,109 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
 
         // Program direct Statement children must match expected statement ranges
         // 1:1 in count, order, and exact leafRange (fail-closed coverage).
-        if (root.kind === "program" && isDenseArray(root.children)) {
+        if (root.kind === "program" && rootChildrenState.dense) {
             validateProgramStatementCoverage(
-                root.children,
+                rootChildren as unknown[],
                 expectedStatementRanges,
                 leaves,
                 failures
             );
         }
 
-        const seenIds = new Set<number>();
-        const seenObjects = new WeakSet<object>();
-        const allNodes: Record<string, unknown>[] = [];
+        const canonicalNodeCount = canonicalProgramNodeCountForLeaves(root, leaves);
+        if (
+            canonicalNodeCount === null &&
+            canonicalProgramNodeCount(root) !== null
+        ) {
+            fail(
+                failures,
+                "INV_LEAF_PARTITION",
+                "Canonical ProgramNode belongs to a different leaf partition"
+            );
+        }
+        const seenIdBitmap =
+            canonicalNodeCount === null ? null : new Uint8Array(canonicalNodeCount);
+        const seenIds = seenIdBitmap === null ? new Set<number>() : null;
+        const seenObjects = seenIdBitmap === null ? new WeakSet<object>() : null;
+        const childSnapshotState: ChildrenSnapshotState = {
+            dense: false,
+            stableFrozenData: false,
+        };
+        let validIdOccurrenceCount = 0;
+        let maximumSeenId = -1;
 
-        type VisitFrame =
-            | {
-                  readonly stage: "enter";
-                  readonly raw: unknown;
-                  readonly parent: Record<string, unknown> | null;
-              }
-            | {
-                  readonly stage: "children";
-                  readonly raw: Record<string, unknown>;
-                  readonly childrenRaw: unknown[];
-                  readonly childObjects: Record<string, unknown>[];
-                  index: number;
-              };
-        const visitStack: VisitFrame[] = [
-            { stage: "enter", raw: root, parent: null },
-        ];
+        type VisitFrame = {
+            raw: Record<string, unknown>;
+            childrenRaw: readonly unknown[];
+            childObjects: Record<string, unknown>[] | null;
+            previousChildObject: Record<string, unknown> | null;
+            index: number;
+        };
+        const visitStack: VisitFrame[] = [];
+        const freeVisitFrames: VisitFrame[] = [];
 
-        while (visitStack.length > 0) {
-            const frame = visitStack.pop()!;
-            if (frame.stage === "children") {
-                if (frame.index >= frame.childrenRaw.length) {
-                    // Relationship contracts run post-order, after every child visit.
-                    enforceRelationships(
-                        frame.raw,
-                        frame.childObjects,
-                        leaves,
-                        failures
-                    );
-                    continue;
-                }
-                const childIndex = frame.index;
-                frame.index += 1;
-                visitStack.push(frame);
-                const child = frame.childrenRaw[childIndex];
-                if (!isObject(child)) {
-                    fail(
-                        failures,
-                        "INV_MALFORMED_NODE",
-                        `Malformed child at index ${childIndex} of node ${String(frame.raw.id)}`,
-                        isFiniteNonNegInt(frame.raw.id) ? frame.raw.id : undefined
-                    );
-                    continue;
-                }
-                const previous = frame.childObjects[frame.childObjects.length - 1];
-                if (
-                    previous !== undefined &&
-                    isLeafRange(previous.leafRange) &&
-                    isLeafRange(child.leafRange) &&
-                    isSourceSpan(previous.span) &&
-                    isSourceSpan(child.span) &&
-                    (child.leafRange.start < previous.leafRange.end ||
-                        child.span.start < previous.span.end)
-                ) {
-                    if (rangesOverlap(previous.leafRange, child.leafRange)) {
-                        fail(
-                            failures,
-                            "INV_SIBLING_OVERLAP",
-                            `Sibling overlap between ${String(previous.id)} and ${String(child.id)}`,
-                            isFiniteNonNegInt(child.id) ? child.id : undefined
-                        );
-                    } else {
-                        fail(
-                            failures,
-                            "INV_CHILDREN_ORDER",
-                            `Children out of source order under ${String(frame.raw.id)}`,
-                            isFiniteNonNegInt(child.id) ? child.id : undefined
-                        );
-                    }
-                }
-                frame.childObjects.push(child);
-                visitStack.push({ stage: "enter", raw: child, parent: frame.raw });
-                continue;
-            }
-
-            const raw = frame.raw;
+        const enterNode = (
+            rawValue: unknown,
+            parent: Record<string, unknown> | null,
+            childrenRawOverride?: readonly unknown[],
+            childrenDenseOverride?: boolean,
+            childrenStableOverride?: boolean
+        ): void => {
+            const raw = rawValue;
             if (!isObject(raw)) {
                 fail(failures, "INV_MALFORMED_NODE", "child is not an object");
-                continue;
+                return;
             }
-            if (seenObjects.has(raw)) {
+            if (seenObjects?.has(raw)) {
                 fail(
                     failures,
                     "INV_SHARED_CHILD",
                     `Shared child or cycle detected at node id ${String(raw.id)}`,
                     isFiniteNonNegInt(raw.id) ? raw.id : undefined
                 );
-                continue;
+                return;
             }
-            seenObjects.add(raw);
-            validateNodeShape(raw, leaves, failures);
-            allNodes.push(raw);
+            seenObjects?.add(raw);
+            let childrenRaw = childrenRawOverride;
+            let childrenDense = childrenDenseOverride;
+            let childrenStable = childrenStableOverride;
+            if (
+                childrenRaw === undefined ||
+                childrenDense === undefined ||
+                childrenStable === undefined
+            ) {
+                childrenRaw = snapshotChildren(raw, childSnapshotState);
+                childrenDense = childSnapshotState.dense;
+                childrenStable = childSnapshotState.stableFrozenData;
+            }
+            validateNodeShape(raw, childrenRaw, childrenDense, leaves, failures);
 
             if (isFiniteNonNegInt(raw.id)) {
-                if (seenIds.has(raw.id)) {
-                    fail(failures, "INV_ID_UNIQUE", `Duplicate node id ${raw.id}`, raw.id);
+                validIdOccurrenceCount += 1;
+                if (raw.id > maximumSeenId) {
+                    maximumSeenId = raw.id;
                 }
-                seenIds.add(raw.id);
+                const duplicateId =
+                    seenIdBitmap === null
+                        ? seenIds!.has(raw.id)
+                        : raw.id >= seenIdBitmap.length || seenIdBitmap[raw.id] !== 0;
+                if (duplicateId) {
+                    fail(failures, "INV_ID_UNIQUE", `Duplicate node id ${raw.id}`, raw.id);
+                    if (seenIdBitmap !== null) {
+                        fail(
+                            failures,
+                            "INV_SHARED_CHILD",
+                            `Shared child or cycle detected at node id ${raw.id}`,
+                            raw.id
+                        );
+                        return;
+                    }
+                }
+                if (seenIdBitmap === null) {
+                    seenIds!.add(raw.id);
+                } else if (raw.id < seenIdBitmap.length) {
+                    seenIdBitmap[raw.id] = 1;
+                }
             }
 
             if (isLeafRange(raw.leafRange) && isSourceSpan(raw.span)) {
@@ -1218,11 +1312,26 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                         isFiniteNonNegInt(raw.id) ? raw.id : undefined
                     );
                 } else {
-                    const expected = rangeToSpan(leaves, source, raw.leafRange);
+                    const rangeStart = raw.leafRange.start;
+                    const rangeEnd = raw.leafRange.end;
+                    let expectedStart: number;
+                    let expectedEnd: number;
+                    if (rangeStart === rangeEnd) {
+                        if (leaves.length === 0 || rangeStart === 0) {
+                            expectedStart = 0;
+                        } else if (rangeStart === leaves.length) {
+                            expectedStart = source.length;
+                        } else {
+                            expectedStart = leaves[rangeStart]!.span.start;
+                        }
+                        expectedEnd = expectedStart;
+                    } else {
+                        expectedStart = leaves[rangeStart]!.span.start;
+                        expectedEnd = leaves[rangeEnd - 1]!.span.end;
+                    }
                     if (
-                        !expected ||
-                        raw.span.start !== expected.start ||
-                        raw.span.end !== expected.end
+                        raw.span.start !== expectedStart ||
+                        raw.span.end !== expectedEnd
                     ) {
                         fail(
                             failures,
@@ -1234,7 +1343,6 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 }
             }
 
-            const parent = frame.parent;
             if (
                 parent &&
                 isSourceSpan(parent.span) &&
@@ -1254,13 +1362,97 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                 );
             }
 
-            visitStack.push({
-                stage: "children",
-                raw,
-                childrenRaw: getChildrenRaw(raw),
-                childObjects: [],
-                index: 0,
-            });
+            const recycledFrame = freeVisitFrames.pop();
+            if (recycledFrame === undefined) {
+                visitStack.push({
+                    raw,
+                    childrenRaw,
+                    childObjects: childrenStable ? null : [],
+                    previousChildObject: null,
+                    index: 0,
+                });
+            } else {
+                recycledFrame.raw = raw;
+                recycledFrame.childrenRaw = childrenRaw;
+                recycledFrame.childObjects = childrenStable
+                    ? null
+                    : [];
+                recycledFrame.previousChildObject = null;
+                recycledFrame.index = 0;
+                visitStack.push(recycledFrame);
+            }
+        };
+
+        enterNode(
+            root,
+            null,
+            rootChildren,
+            rootChildrenState.dense,
+            rootChildrenState.stableFrozenData
+        );
+        while (visitStack.length > 0) {
+            const frame = visitStack[visitStack.length - 1]!;
+            if (frame.index >= frame.childrenRaw.length) {
+                visitStack.pop();
+                // Relationship contracts run post-order, after every child visit.
+                enforceRelationships(
+                    frame.raw,
+                    frame.childObjects ??
+                        (frame.childrenRaw as readonly Record<string, unknown>[]),
+                    leaves,
+                    failures
+                );
+                freeVisitFrames.push(frame);
+                continue;
+            }
+            const childIndex = frame.index;
+            frame.index += 1;
+            const child = frame.childrenRaw[childIndex];
+            if (!isObject(child)) {
+                if (frame.childObjects === null) {
+                    frame.childObjects = frame.childrenRaw
+                        .slice(0, childIndex)
+                        .filter(isObject);
+                }
+                fail(
+                    failures,
+                    "INV_MALFORMED_NODE",
+                    `Malformed child at index ${childIndex} of node ${String(frame.raw.id)}`,
+                    isFiniteNonNegInt(frame.raw.id) ? frame.raw.id : undefined
+                );
+                continue;
+            }
+            const previous = frame.previousChildObject;
+            if (
+                previous !== null &&
+                isLeafRange(previous.leafRange) &&
+                isLeafRange(child.leafRange) &&
+                isSourceSpan(previous.span) &&
+                isSourceSpan(child.span) &&
+                (child.leafRange.start < previous.leafRange.end ||
+                    child.span.start < previous.span.end)
+            ) {
+                if (rangesOverlap(previous.leafRange, child.leafRange)) {
+                    fail(
+                        failures,
+                        "INV_SIBLING_OVERLAP",
+                        `Sibling overlap between ${String(previous.id)} and ${String(child.id)}`,
+                        isFiniteNonNegInt(child.id) ? child.id : undefined
+                    );
+                } else {
+                    fail(
+                        failures,
+                        "INV_CHILDREN_ORDER",
+                        `Children out of source order under ${String(frame.raw.id)}`,
+                        isFiniteNonNegInt(child.id) ? child.id : undefined
+                    );
+                }
+            }
+            if (frame.childObjects !== null) {
+                frame.childObjects.push(child);
+            }
+            frame.previousChildObject = child;
+            enterNode(child, frame.raw);
         }
 
         // Root coverage
@@ -1292,18 +1484,26 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
             }
         }
 
-        // Contiguous ids 0..n-1
-        if (allNodes.length > 0) {
-            const ids = allNodes
-                .map((n) => n.id)
-                .filter((id): id is number => isFiniteNonNegInt(id))
-                .sort((a, b) => a - b);
-            for (let i = 0; i < ids.length; i++) {
-                if (ids[i] !== i) {
+        // Contiguous ids 0..n-1. The healthy path is O(1) after traversal;
+        // scan the Set only after evidence already proves a gap/duplicate.
+        if (
+            validIdOccurrenceCount > 0 &&
+            ((seenIds !== null && seenIds.size !== validIdOccurrenceCount) ||
+                (seenIdBitmap !== null &&
+                    canonicalNodeCount !== validIdOccurrenceCount) ||
+                maximumSeenId !== validIdOccurrenceCount - 1)
+        ) {
+            for (let expectedId = 0; expectedId < validIdOccurrenceCount; expectedId++) {
+                const present =
+                    seenIdBitmap === null
+                        ? seenIds!.has(expectedId)
+                        : expectedId < seenIdBitmap.length &&
+                          seenIdBitmap[expectedId] !== 0;
+                if (!present) {
                     fail(
                         failures,
                         "INV_ID_CONTIGUOUS",
-                        `Node ids must be unique and contiguous from 0; missing or gap at ${i}`
+                        `Node ids must be unique and contiguous from 0; missing or gap at ${expectedId}`
                     );
                     break;
                 }
@@ -1312,10 +1512,17 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
 
         // tokenTable: undefined / absent → skip; explicit null/false/0/object → validate fail-closed
         if (Object.prototype.hasOwnProperty.call(input, "tokenTable") && input.tokenTable !== undefined) {
-            const tableResult = validateTokenTableInvariants(
-                input.tokenTable as StructuralTokenTable | null,
-                leaves
-            );
+            const tableResult = immutableLeafPartition
+                ? validateTokenTableInvariantsFromExpected(
+                      input.tokenTable as StructuralTokenTable | null,
+                      leaves,
+                      expectedTable,
+                      source.length
+                  )
+                : validateTokenTableInvariants(
+                      input.tokenTable as StructuralTokenTable | null,
+                      leaves
+                  );
             for (const f of tableResult.failures) {
                 failures.push(f);
             }

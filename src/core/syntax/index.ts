@@ -45,8 +45,6 @@ export type {
 export { buildStructuralTokenTable } from "./token-table";
 export type { TokenCursor } from "./cursor";
 export { createTokenCursor } from "./cursor";
-export type { NodeFactory } from "./node-factory";
-export { createNodeFactory } from "./node-factory";
 export type {
     ExpressionQueryParser,
     ExpressionValueNode,
