@@ -66,14 +66,12 @@ function expectedFacts() {
     var dialects = registry.listDialects().slice().sort();
     var capabilities = new Set();
     var states = new Map();
+    var formattedPairs = [];
     dialects.forEach(function(dialect) {
         registry.getDialect(dialect).listCapabilities().forEach(function(capability) {
-            assert.notStrictEqual(
-                capability.state,
-                'formatted',
-                'Wave 2 registry must never declare formatted capability: ' +
-                    dialect + '/' + capability.id
-            );
+            if (capability.state === 'formatted') {
+                formattedPairs.push(dialect + '/' + capability.id);
+            }
             capabilities.add(capability.id);
             states.set(dialect + '\0' + capability.id, capability.state);
         });
@@ -81,7 +79,8 @@ function expectedFacts() {
     return {
         dialects: dialects,
         capabilities: Array.from(capabilities).sort(),
-        states: states
+        states: states,
+        formattedPairs: formattedPairs.sort()
     };
 }
 
@@ -99,6 +98,11 @@ function expectedFacts() {
     assert.deepStrictEqual(parsed.rows.map(function(row) {
         return row.capability;
     }), facts.capabilities, 'matrix capability rows must be the sorted registry union');
+    assert.deepStrictEqual(
+        facts.formattedPairs,
+        ['hive/select-without-from'],
+        'Wave 3B matrix must expose exactly one proven formatted capability'
+    );
 
     parsed.rows.forEach(function(row) {
         row.states.forEach(function(state, dialectIndex) {
@@ -111,8 +115,9 @@ function expectedFacts() {
             );
         });
     });
-    assert.strictEqual(/\bformatted\b/.test(document), false,
-        'Wave 2 generated document must not claim formatted capability');
+    assert.strictEqual(parsed.rows.filter(function(row) {
+        return row.states.some(function(state) { return state === 'formatted'; });
+    }).length, 1, 'matrix must contain one formatted capability row');
 }());
 
 function createIsolatedGeneratorRoot() {

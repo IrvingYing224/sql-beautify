@@ -609,7 +609,7 @@ function directBuild(built, root) {
         opaqueBuilt.result.root,
         opaque.id,
         function(node) {
-            return Object.assign({}, node, { capabilityId: 'select-without-from' });
+            return Object.assign({}, node, { capabilityId: 'from' });
         }
     );
     assert.throws(function() {

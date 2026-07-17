@@ -216,26 +216,36 @@ const MYSQL_SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArr
     symbol("||", "infix", PRECEDENCE.or, "left"),
 ]);
 
-const HIVE_QUERY_STRUCTURED: readonly string[] = freezeImmutableArray([
-    "multi-statement",
-    "with-cte",
-    "select-without-from",
-    "from",
-    "join",
-    "subquery",
-    "table-function",
-    "lateral-view",
-    "where",
-    "group-by",
-    "having",
-    "window",
-    "order-by",
-    "cluster-by",
-    "distribute-by",
-    "sort-by",
-    "limit",
-    "set-operations",
-    "insert-overwrite-partition-select",
+type HiveQueryCapability = Readonly<{
+    id: string;
+    state: "structured" | "formatted";
+}>;
+
+const HIVE_QUERY_CAPABILITIES: readonly HiveQueryCapability[] = freezeImmutableArray([
+    ...[
+        "multi-statement",
+        "with-cte",
+        "from",
+        "join",
+        "subquery",
+        "table-function",
+        "lateral-view",
+        "where",
+        "group-by",
+        "having",
+        "window",
+        "order-by",
+        "cluster-by",
+        "distribute-by",
+        "sort-by",
+        "limit",
+        "set-operations",
+        "insert-overwrite-partition-select",
+    ].map((id): HiveQueryCapability => Object.freeze({
+        id,
+        state: "structured",
+    })),
+    Object.freeze({ id: "select-without-from", state: "formatted" as const }),
 ]);
 
 const HIVE_EXPRESSION_STRUCTURED: readonly string[] = freezeImmutableArray([
@@ -760,10 +770,7 @@ function buildRegistry(): DialectCapabilityRegistry {
             buildCapabilityList(
                 [],
                 freezeImmutableArray([
-                    ...HIVE_QUERY_STRUCTURED.map((id) => Object.freeze({
-                        id,
-                        state: "structured" as const,
-                    })),
+                    ...HIVE_QUERY_CAPABILITIES,
                     ...HIVE_EXPRESSION_STRUCTURED.map((id) => Object.freeze({
                         id,
                         state: "structured" as const,

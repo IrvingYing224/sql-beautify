@@ -95,6 +95,25 @@ export type {
 } from "./layout/invariants";
 export type { LayoutResourceBudget } from "./layout/resource-budget";
 export type {
+    LayoutGapAction,
+    LayoutGapDecision,
+    LayoutPlan,
+    LayoutPlanBuilder,
+    LayoutPlanFailure,
+    LayoutPlanFailureCode,
+    LayoutPlanResult,
+    LayoutPlanStatistics,
+    LayoutPlanSuccess,
+    PlannedLeafEmission,
+} from "./layout/plan";
+export type {
+    LayoutCompileFailure,
+    LayoutCompileFailureCode,
+    LayoutCompileResult,
+    LayoutCompileStatistics,
+    LayoutCompileSuccess,
+} from "./layout/compiler";
+export type {
     DominatingVerbatimClaim,
     DominatingVerbatimClaims,
 } from "./layout/verbatim-claims";
@@ -114,7 +133,36 @@ export type {
     ResolveFormatOptionsResult,
     ResolvedFormatOptions,
 } from "./config/resolve-options";
-export type { FormatResult, FormatStatus, SourceMap, SourceMapEntry } from "./api/format-result";
+export type {
+    FormatResult,
+    FormatStatus,
+    FailedFormatResult,
+    FormattedFormatResult,
+    OriginalTextFormatResult,
+    PreservedFormatResult,
+    SafeFormatResult,
+    SourceMap,
+    SourceMapEntry,
+    UnchangedFormatResult,
+} from "./api/format-result";
+export type {
+    FormatPipelineRun,
+    FormatPipelineStatistics,
+} from "./api/format";
+export type { DisplayTextMeasurement } from "./renderer/display-width";
+export type {
+    FlatLayoutSummary,
+    LayoutMetrics,
+    LayoutMetricsFailure,
+    LayoutMetricsFailureCode,
+    LayoutMetricsResult,
+    LayoutMetricsSuccess,
+    RenderFailure,
+    RenderFailureCode,
+    RenderResult,
+    RenderStatistics,
+    RenderSuccess,
+} from "./renderer/types";
 export type {
     AnalysisArtifact,
     AnalysisArtifactBase,

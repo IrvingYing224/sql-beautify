@@ -330,7 +330,7 @@ function fullCanonicalRoot(factory) {
     for (var index = 0; index <= suffixLimit; index++) {
         comments.push('/* suffix-' + index + ' */');
     }
-    var analysis = analyze('SELECT 1 ' + comments.join(' '));
+    var analysis = analyze('SELECT 1 FROM t ' + comments.join(' '));
     var commentLeafIds = analysis.leaves.filter(function(leaf) {
         return leaf.kind === 'block-comment';
     }).map(function(leaf) {
@@ -657,7 +657,7 @@ function fullCanonicalRoot(factory) {
     for (var index = 0; index < 1200; index++) {
         columns.push('c' + index);
     }
-    var analysis = analyze('SELECT ' + columns.join(', '));
+    var analysis = analyze('SELECT ' + columns.join(', ') + ' FROM t');
     var factory = factoryApi.createLayoutDocFactory(analysis);
     assert.strictEqual(factory.verbatimClaims.length, 1);
     var claim = factory.verbatimClaims[0];
@@ -720,7 +720,7 @@ function fullCanonicalRoot(factory) {
 })();
 
 (function testCoverageOrderAndFlatSafetyFailClosed() {
-    var analysis = analyze('SELECT 1;');
+    var analysis = analyze('SELECT 1 FROM t;');
     var options = canonicalOptions();
 
     var missingFactory = factoryApi.createLayoutDocFactory(analysis);
@@ -770,7 +770,7 @@ function fullCanonicalRoot(factory) {
         return failure.code === 'LAYOUT_FLAT_MULTILINE';
     }));
 
-    var commentSource = '-- leading\nSELECT 1';
+    var commentSource = '-- leading\nSELECT 1 FROM t';
     var commentAnalysis = analyze(commentSource);
     var commentLeaf = commentAnalysis.leaves.find(function(leaf) {
         return leaf.kind === 'line-comment';

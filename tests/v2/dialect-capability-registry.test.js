@@ -28,7 +28,6 @@ var CAPABILITY_STATES = {
 var HIVE_STRUCTURED_QUERY_CONSTRUCTS = [
     'multi-statement',
     'with-cte',
-    'select-without-from',
     'from',
     'join',
     'subquery',
@@ -65,6 +64,7 @@ var HIVE_PRESERVATION_CAPABILITIES = {
     'qualify': 'diagnostic',
     'unpivot': 'diagnostic'
 };
+var formattedPairs = [];
 
 /**
  * Real frozen arrays may still expose push/splice as functions that throw.
@@ -213,11 +213,9 @@ CANONICAL.forEach(function(dialectId) {
         assert.ok(typeof entry.id === 'string' && entry.id.length > 0, 'capability id required');
         assert.ok(/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.id), 'capability id must be kebab-case: ' + entry.id);
         assert.ok(CAPABILITY_STATES[entry.state], 'unknown capability state: ' + entry.state);
-        assert.notStrictEqual(
-            entry.state,
-            'formatted',
-            'Wave 2A must not declare formatted capability: ' + dialectId + '/' + entry.id
-        );
+        if (entry.state === 'formatted') {
+            formattedPairs.push(dialectId + '/' + entry.id);
+        }
     });
 
     // Operator semantics: multi-fixity; symbol keys in lexical view
@@ -335,12 +333,23 @@ CANONICAL.forEach(function(dialectId) {
     });
 });
 
+assert.deepStrictEqual(
+    formattedPairs.sort(),
+    ['hive/select-without-from'],
+    'Wave 3B must expose exactly one proven formatted capability'
+);
+
 assert.ok(dialects.getDialect('hive').listJoinSyntax().some(function(join) {
     return join.id === 'left-anti-join' && join.words.join(' ') === 'left anti join';
 }), 'Hive registry must own LEFT ANTI JOIN syntax');
 
 // Wave 2C structures Hive statement/query/clause and expression boundaries.
 var hive = dialects.getDialect('hive');
+assert.strictEqual(
+    hive.getCapability('select-without-from').state,
+    'formatted',
+    'Hive no-FROM SELECT must transition only after Wave 3B behavior evidence'
+);
 HIVE_STRUCTURED_QUERY_CONSTRUCTS.forEach(function(id) {
     var entry = hive.getCapability(id);
     assert.ok(entry, 'Hive must declare capability ' + id);

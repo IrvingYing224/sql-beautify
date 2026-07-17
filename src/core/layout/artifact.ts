@@ -11,6 +11,7 @@ import type { LayoutDoc } from "./doc";
 import {
     validateLayoutDoc,
 } from "./invariants";
+import type { LayoutResourceBudget } from "./resource-budget";
 import type {
     LayoutInvariantFailure,
     LayoutInvariantSuccess,
@@ -50,6 +51,7 @@ interface CanonicalLayoutArtifactProof {
     readonly analysis: AnalyzedArtifact;
     readonly root: LayoutDoc;
     readonly options: CanonicalFormatOptions;
+    readonly budget: LayoutResourceBudget;
 }
 
 const CANONICAL_LAYOUT_ARTIFACT_PROOFS =
@@ -155,9 +157,20 @@ export function createLayoutArtifact(
             analysis: analysisValue,
             root: rootValue as LayoutDoc,
             options: optionsValue,
+            budget: invariant.budget,
         })
     );
     return Object.freeze({ ok: true, artifact, invariant });
+}
+
+/** Renderer-only access to the exact budget accepted by artifact validation. */
+export function canonicalLayoutResourceBudget(
+    value: unknown
+): LayoutResourceBudget | null {
+    if (typeof value !== "object" || value === null) {
+        return null;
+    }
+    return CANONICAL_LAYOUT_ARTIFACT_PROOFS.get(value)?.budget ?? null;
 }
 
 /** Exact identity proof consumed by the renderer boundary in Wave 3B. */

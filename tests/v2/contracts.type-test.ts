@@ -4,19 +4,23 @@ import type {
     CanonicalFormatOptions,
     Diagnostic,
     FailedAnalysisArtifact,
+    FailedFormatResult,
     FormatResult,
+    FormattedFormatResult,
     LayoutDoc,
     LeafRange,
     LexOptions,
     LexOutput,
     OpaqueNode,
     ParserBackend,
+    PreservedFormatResult,
     ProgramNode,
     SourceLeaf,
     SourceSpan,
     StructuredSyntaxKind,
     StructuralIndex,
     SyntaxNode,
+    UnchangedFormatResult,
 } from "../../src/core/index";
 import { lexSql } from "../../src/core/index";
 
@@ -136,9 +140,51 @@ const result: FormatResult = {
     status: "preserved",
     text: "SELECT",
     diagnostics: [diagnostic],
+};
+const safeResult: FormatResult = {
+    status: "unchanged",
+    text: "SELECT",
+    diagnostics: [diagnostic],
     sourceMap: {
         entries: [{ source: span, output: span }],
     },
+};
+const formattedResult: Extract<FormatResult, { status: "formatted" }> = {
+    status: "formatted",
+    text: "SELECT",
+    diagnostics: [],
+    sourceMap: { entries: [] },
+};
+const unchangedResult: Extract<FormatResult, { status: "unchanged" }> = {
+    status: "unchanged",
+    text: "SELECT",
+    diagnostics: [],
+    sourceMap: { entries: [] },
+};
+const preservedResult: Extract<FormatResult, { status: "preserved" }> = {
+    status: "preserved",
+    text: "SELECT",
+    diagnostics: [],
+};
+const failedResult: Extract<FormatResult, { status: "failed" }> = {
+    status: "failed",
+    text: "SELECT",
+    diagnostics: [],
+};
+const formattedMember: FormattedFormatResult = formattedResult;
+const unchangedMember: UnchangedFormatResult = unchangedResult;
+const preservedMember: PreservedFormatResult = preservedResult;
+const failedMember: FailedFormatResult = failedResult;
+void formattedMember;
+void unchangedMember;
+void preservedMember;
+void failedMember;
+// @ts-expect-error preserved/failed results must never expose a partial source map
+const invalidPreservedMap: FormatResult = {
+    status: "preserved",
+    text: "SELECT",
+    diagnostics: [diagnostic],
+    sourceMap: { entries: [] },
 };
 const failedAnalysis: FailedAnalysisArtifact = {
     status: "failed",
@@ -159,7 +205,7 @@ function statusLabel(value: FormatResult): string {
         case "failed":
             return value.status;
         default: {
-            const exhaustive: never = value.status;
+            const exhaustive: never = value;
             return exhaustive;
         }
     }
@@ -234,6 +280,8 @@ void backend;
 void doc;
 void options;
 void statusLabel(result);
+void statusLabel(safeResult);
+void invalidPreservedMap;
 void syntaxKindLabel(root);
 void analysisStatusLabel(failedAnalysis);
 void defaultLexOptions;
