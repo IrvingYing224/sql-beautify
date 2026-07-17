@@ -162,6 +162,22 @@ function assertOperatorClosure(artifact) {
         ['LEFT', 'OUTER', 'JOIN']
     );
 
+    var lateralArtifact = analyze(
+        'SELECT * FROM t LATERAL VIEW EXPLODE(xs) e AS x'
+    );
+    var lateral = nodesOf(
+        lateralArtifact,
+        'relation',
+        'relationKind',
+        'lateral-view'
+    )[0];
+    assertMarkerSequence(
+        lateralArtifact,
+        lateral,
+        'lateral-view-output-as',
+        ['AS']
+    );
+
     var typeArtifact = analyze(
         'SELECT CAST(x AS STRUCT<a:INT,b:ARRAY<STRING>>)'
     );

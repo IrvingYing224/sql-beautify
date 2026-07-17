@@ -1217,6 +1217,7 @@ function parseLateralView(
     const trailing = trimToSyntax(context.leaves, { start: close + 1, end: range.end });
     let relationAlias: AliasInfo | null = null;
     let outputStart: number | null = null;
+    let outputAsLeafId: number | null = null;
     let functionRelationEnd = close + 1;
     if (trailing !== null) {
         const trailingIndexes = topLevelSyntaxIndexes(context, trailing);
@@ -1244,7 +1245,8 @@ function parseLateralView(
             position < trailingIndexes.length &&
             isCodeWord(context, trailingIndexes[position]!, "as")
         ) {
-            outputStart = nextSyntaxIndex(context, trailingIndexes[position]!, range.end);
+            outputAsLeafId = trailingIndexes[position]!;
+            outputStart = nextSyntaxIndex(context, outputAsLeafId, range.end);
         } else if (position < trailingIndexes.length) {
             throw new ParserSyntaxError(
                 "SYN_UNEXPECTED_TOKEN",
@@ -1253,7 +1255,11 @@ function parseLateralView(
             );
         }
     }
-    if (relationAlias === null || outputStart === null) {
+    if (
+        relationAlias === null ||
+        outputAsLeafId === null ||
+        outputStart === null
+    ) {
         throw new ParserSyntaxError(
             "SYN_INCOMPLETE_CLAUSE",
             range,
@@ -1309,7 +1315,12 @@ function parseLateralView(
         null,
         tableFunction,
         relationChildren,
-        relationFacts(null, "lateral-view", null)
+        relationFacts(
+            null,
+            "lateral-view",
+            null,
+            syntaxMarkers([outputAsLeafId], "lateral-view-output-as")
+        )
     );
     return context.factory.createClause(
         range,

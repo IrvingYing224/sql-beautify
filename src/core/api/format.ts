@@ -15,6 +15,7 @@ import type { LayoutPlan } from "../layout/plan";
 import { buildLayoutPlan } from "../layout/policy";
 import { applyKeywordCase } from "../renderer/keyword-case";
 import { renderLayoutArtifact } from "../renderer/render";
+import type { RenderStatistics } from "../renderer/types";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type { ParseMode } from "../syntax/parser-backend";
 
@@ -29,12 +30,66 @@ export interface FormatPipelineStatistics {
     readonly leafEmissionCount: number;
     readonly directLookupCount: number;
     readonly docNodeCount: number;
+    readonly scopeActionCount: number;
+    readonly scopeActionVisitCount: number;
+    readonly policyNodeVisitCount: number;
+    readonly policyLeafVisitCount: number;
+    readonly policyDirectLookupCount: number;
+    readonly metricsDocVisitCount: number;
+    readonly metricsSummaryLookupCount: number;
+    readonly renderDocVisitCount: number;
+    readonly renderMetricsLookupCount: number;
+    readonly equivalenceInputCodeUnits: number;
+    readonly equivalenceDiagnosticVisitCount: number;
+    readonly equivalenceSourceLeafVisitCount: number;
+    readonly equivalenceOutputLeafVisitCount: number;
+    readonly equivalenceComparisonCount: number;
+    readonly equivalenceDirectLookupCount: number;
 }
 
 export interface FormatPipelineRun {
     readonly result: FormatResult;
     readonly statistics: FormatPipelineStatistics;
 }
+
+interface TokenEquivalenceStatistics {
+    readonly inputCodeUnits: number;
+    readonly diagnosticVisitCount: number;
+    readonly sourceLeafVisitCount: number;
+    readonly outputLeafVisitCount: number;
+    readonly comparisonCount: number;
+    readonly directLookupCount: number;
+}
+
+interface TokenEquivalenceCheck {
+    readonly equivalent: boolean;
+    readonly statistics: TokenEquivalenceStatistics;
+}
+
+interface FormatClosureStatistics {
+    readonly metricsDocVisitCount: number;
+    readonly metricsSummaryLookupCount: number;
+    readonly renderDocVisitCount: number;
+    readonly renderMetricsLookupCount: number;
+    readonly equivalence: TokenEquivalenceStatistics;
+}
+
+const ZERO_EQUIVALENCE_STATISTICS: TokenEquivalenceStatistics = Object.freeze({
+    inputCodeUnits: 0,
+    diagnosticVisitCount: 0,
+    sourceLeafVisitCount: 0,
+    outputLeafVisitCount: 0,
+    comparisonCount: 0,
+    directLookupCount: 0,
+});
+
+const ZERO_CLOSURE_STATISTICS: FormatClosureStatistics = Object.freeze({
+    metricsDocVisitCount: 0,
+    metricsSummaryLookupCount: 0,
+    renderDocVisitCount: 0,
+    renderMetricsLookupCount: 0,
+    equivalence: ZERO_EQUIVALENCE_STATISTICS,
+});
 
 function spanForSource(source: string) {
     return Object.freeze({ start: 0, end: source.length });
@@ -108,7 +163,13 @@ function statistics(
     leafVisitCount = 0,
     leafEmissionCount = 0,
     directLookupCount = 0,
-    docNodeCount = 0
+    docNodeCount = 0,
+    scopeActionCount = 0,
+    scopeActionVisitCount = 0,
+    policyNodeVisitCount = 0,
+    policyLeafVisitCount = 0,
+    policyDirectLookupCount = 0,
+    closure: FormatClosureStatistics = ZERO_CLOSURE_STATISTICS
 ): FormatPipelineStatistics {
     return Object.freeze({
         sourceCodeUnits,
@@ -121,6 +182,24 @@ function statistics(
         leafEmissionCount,
         directLookupCount,
         docNodeCount,
+        scopeActionCount,
+        scopeActionVisitCount,
+        policyNodeVisitCount,
+        policyLeafVisitCount,
+        policyDirectLookupCount,
+        metricsDocVisitCount: closure.metricsDocVisitCount,
+        metricsSummaryLookupCount: closure.metricsSummaryLookupCount,
+        renderDocVisitCount: closure.renderDocVisitCount,
+        renderMetricsLookupCount: closure.renderMetricsLookupCount,
+        equivalenceInputCodeUnits: closure.equivalence.inputCodeUnits,
+        equivalenceDiagnosticVisitCount:
+            closure.equivalence.diagnosticVisitCount,
+        equivalenceSourceLeafVisitCount:
+            closure.equivalence.sourceLeafVisitCount,
+        equivalenceOutputLeafVisitCount:
+            closure.equivalence.outputLeafVisitCount,
+        equivalenceComparisonCount: closure.equivalence.comparisonCount,
+        equivalenceDirectLookupCount: closure.equivalence.directLookupCount,
     });
 }
 
@@ -131,12 +210,34 @@ function run(
     return Object.freeze({ result, statistics: value });
 }
 
-function significantLeaves(
-    leaves: readonly SourceLeaf[]
-): readonly SourceLeaf[] {
-    return leaves.filter(
-        (leaf) => leaf.kind !== "whitespace" && leaf.kind !== "newline"
-    );
+function closureStatistics(
+    rendered: RenderStatistics,
+    equivalence: TokenEquivalenceStatistics = ZERO_EQUIVALENCE_STATISTICS
+): FormatClosureStatistics {
+    return Object.freeze({
+        metricsDocVisitCount: rendered.metricsDocVisitCount,
+        metricsSummaryLookupCount: rendered.metricsSummaryLookupCount,
+        renderDocVisitCount: rendered.docVisitCount,
+        renderMetricsLookupCount: rendered.metricsLookupCount,
+        equivalence,
+    });
+}
+
+function tokenEquivalenceCheck(
+    equivalent: boolean,
+    statistics: {
+        inputCodeUnits: number;
+        diagnosticVisitCount: number;
+        sourceLeafVisitCount: number;
+        outputLeafVisitCount: number;
+        comparisonCount: number;
+        directLookupCount: number;
+    }
+): TokenEquivalenceCheck {
+    return Object.freeze({
+        equivalent,
+        statistics: Object.freeze({ ...statistics }),
+    });
 }
 
 function tokenEquivalent(
@@ -144,28 +245,61 @@ function tokenEquivalent(
     output: string,
     keywordCase: "upper" | "lower",
     plan: LayoutPlan
-): boolean {
+): TokenEquivalenceCheck {
+    const statistics = {
+        inputCodeUnits: output.length,
+        diagnosticVisitCount: 0,
+        sourceLeafVisitCount: 0,
+        outputLeafVisitCount: 0,
+        comparisonCount: 0,
+        directLookupCount: 0,
+    };
     const lexed = lexSql(output, { dialect: analysis.dialect });
-    if (lexed.diagnostics.some((value) => value.severity === "error")) {
-        return false;
+    for (const value of lexed.diagnostics) {
+        statistics.diagnosticVisitCount += 1;
+        if (value.severity === "error") {
+            return tokenEquivalenceCheck(false, statistics);
+        }
     }
-    const before = significantLeaves(analysis.leaves);
-    const after = significantLeaves(lexed.leaves);
-    if (before.length !== after.length) {
-        return false;
-    }
-    for (let index = 0; index < before.length; index++) {
-        const sourceLeaf = before[index]!;
-        const outputLeaf = after[index]!;
+    let sourceIndex = 0;
+    let outputIndex = 0;
+    while (true) {
+        let sourceLeaf: SourceLeaf | null = null;
+        while (sourceIndex < analysis.leaves.length) {
+            const candidate = analysis.leaves[sourceIndex++]!;
+            statistics.sourceLeafVisitCount += 1;
+            if (candidate.kind !== "whitespace" && candidate.kind !== "newline") {
+                sourceLeaf = candidate;
+                break;
+            }
+        }
+        let outputLeaf: SourceLeaf | null = null;
+        while (outputIndex < lexed.leaves.length) {
+            const candidate = lexed.leaves[outputIndex++]!;
+            statistics.outputLeafVisitCount += 1;
+            if (candidate.kind !== "whitespace" && candidate.kind !== "newline") {
+                outputLeaf = candidate;
+                break;
+            }
+        }
+        if (sourceLeaf === null || outputLeaf === null) {
+            return tokenEquivalenceCheck(
+                sourceLeaf === null && outputLeaf === null,
+                statistics
+            );
+        }
+        statistics.comparisonCount += 1;
         if (
             sourceLeaf.kind !== outputLeaf.kind ||
             sourceLeaf.channel !== outputLeaf.channel
         ) {
-            return false;
+            return tokenEquivalenceCheck(false, statistics);
         }
+        statistics.directLookupCount += 1;
         const plannedTransform =
             plan.leafEmissions[sourceLeaf.id] === "keyword-case";
         if (plannedTransform) {
+            statistics.directLookupCount += 1;
             const syntax = analysis.index.leafContext(sourceLeaf.id).syntax;
             if (
                 sourceLeaf.channel !== "code" ||
@@ -173,17 +307,16 @@ function tokenEquivalent(
                 syntax.keywordCaseEligible !== true ||
                 !isKeywordCaseRole(syntax.syntaxRole)
             ) {
-                return false;
+                return tokenEquivalenceCheck(false, statistics);
             }
         }
         const expected = plannedTransform
             ? applyKeywordCase(sourceLeaf.raw, keywordCase)
             : sourceLeaf.raw;
         if (expected === null || outputLeaf.raw !== expected) {
-            return false;
+            return tokenEquivalenceCheck(false, statistics);
         }
     }
-    return true;
 }
 
 function validMode(value: unknown): value is ParseMode {
@@ -315,18 +448,28 @@ export function formatSqlWithStatistics(
                     syntaxNodeCount,
                     planned.plan.statistics.actionCount,
                     planned.plan.budget.maxPlanActions,
-                    planned.plan.statistics.leafVisitCount,
+                    planned.plan.statistics.leafVisitCount +
+                        planned.plan.statistics.policyLeafVisitCount,
                     0,
-                    planned.plan.statistics.directLookupCount
+                    planned.plan.statistics.directLookupCount +
+                        planned.plan.statistics.policyDirectLookupCount,
+                    0,
+                    planned.plan.statistics.scopeActionCount,
+                    0,
+                    planned.plan.statistics.policyNodeVisitCount,
+                    planned.plan.statistics.policyLeafVisitCount,
+                    planned.plan.statistics.policyDirectLookupCount
                 )
             );
         }
         const rendered = renderLayoutArtifact(compiled.artifact);
         const leafVisitCount =
             planned.plan.statistics.leafVisitCount +
+            planned.plan.statistics.policyLeafVisitCount +
             compiled.statistics.leafVisitCount;
         const directLookupCount =
             planned.plan.statistics.directLookupCount +
+            planned.plan.statistics.policyDirectLookupCount +
             compiled.statistics.directLookupCount;
         if (!rendered.ok) {
             const value = diagnostic(source, rendered.code, rendered.message);
@@ -345,16 +488,36 @@ export function formatSqlWithStatistics(
                     planned.plan.budget.maxPlanActions,
                     leafVisitCount,
                     compiled.statistics.leafEmissionCount,
-                    directLookupCount
+                    directLookupCount,
+                    0,
+                    planned.plan.statistics.scopeActionCount,
+                    compiled.statistics.scopeActionVisitCount,
+                    planned.plan.statistics.policyNodeVisitCount,
+                    planned.plan.statistics.policyLeafVisitCount,
+                    planned.plan.statistics.policyDirectLookupCount
                 )
             );
         }
-        if (!tokenEquivalent(
+        const equivalence = tokenEquivalent(
             analysis,
             rendered.text,
             options.keywordCase,
             planned.plan
-        )) {
+        );
+        const completedClosure = closureStatistics(
+            rendered.statistics,
+            equivalence.statistics
+        );
+        const completedLeafVisitCount =
+            leafVisitCount +
+            equivalence.statistics.sourceLeafVisitCount +
+            equivalence.statistics.outputLeafVisitCount;
+        const completedDirectLookupCount =
+            directLookupCount +
+            rendered.statistics.metricsSummaryLookupCount +
+            rendered.statistics.metricsLookupCount +
+            equivalence.statistics.directLookupCount;
+        if (!equivalence.equivalent) {
             const value = diagnostic(
                 source,
                 "FMT_TOKEN_EQUIVALENCE",
@@ -373,10 +536,16 @@ export function formatSqlWithStatistics(
                     syntaxNodeCount,
                     planned.plan.statistics.actionCount,
                     planned.plan.budget.maxPlanActions,
-                    leafVisitCount,
+                    completedLeafVisitCount,
                     compiled.statistics.leafEmissionCount,
-                    directLookupCount,
-                    rendered.statistics.docVisitCount
+                    completedDirectLookupCount,
+                    rendered.statistics.docVisitCount,
+                    planned.plan.statistics.scopeActionCount,
+                    compiled.statistics.scopeActionVisitCount,
+                    planned.plan.statistics.policyNodeVisitCount,
+                    planned.plan.statistics.policyLeafVisitCount,
+                    planned.plan.statistics.policyDirectLookupCount,
+                    completedClosure
                 )
             );
         }
@@ -395,10 +564,16 @@ export function formatSqlWithStatistics(
                 syntaxNodeCount,
                 planned.plan.statistics.actionCount,
                 planned.plan.budget.maxPlanActions,
-                leafVisitCount,
+                completedLeafVisitCount,
                 compiled.statistics.leafEmissionCount,
-                directLookupCount,
-                rendered.statistics.docVisitCount
+                completedDirectLookupCount,
+                rendered.statistics.docVisitCount,
+                planned.plan.statistics.scopeActionCount,
+                compiled.statistics.scopeActionVisitCount,
+                planned.plan.statistics.policyNodeVisitCount,
+                planned.plan.statistics.policyLeafVisitCount,
+                planned.plan.statistics.policyDirectLookupCount,
+                completedClosure
             )
         );
     } catch {

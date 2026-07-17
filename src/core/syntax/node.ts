@@ -30,6 +30,7 @@ export type SyntaxMarkerId =
     | "statement-terminator"
     | "cte-as"
     | "alias-as"
+    | "lateral-view-output-as"
     | "join-head"
     | "set-operator"
     | "case:start"

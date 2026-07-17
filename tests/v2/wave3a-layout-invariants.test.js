@@ -125,8 +125,9 @@ function fullCanonicalRoot(factory) {
     ['select', 'AS', 'FROM'].forEach(function(raw) {
         var id = leafId(raw);
         assert.strictEqual(analysis.index.leafContext(id).syntax.keywordCaseEligible, true);
-        assert.strictEqual(factory.leaf(id, 'keyword-case'), null,
-            'unformatted query authority must dominate otherwise eligible keywords');
+        var doc = factory.leaf(id, 'keyword-case');
+        assert.ok(doc, 'formatted Hive query keyword must accept contextual proof');
+        assert.strictEqual(doc.transform, 'keyword-case');
     });
     assert.strictEqual(factory.leaf(leafId('window'), 'keyword-case'), null,
         'keyword-shaped select item is an identifier');
@@ -134,6 +135,11 @@ function fullCanonicalRoot(factory) {
         'keyword-shaped alias is not syntax');
     assert.strictEqual(factory.leaf(leafId('group'), 'keyword-case'), null,
         'keyword-shaped relation name is not syntax');
+
+    var generic = analyze('select 1', 'generic');
+    var genericFactory = factoryApi.createLayoutDocFactory(generic);
+    assert.strictEqual(genericFactory.leaf(0, 'keyword-case'), null,
+        'unformatted dialect query must still dominate eligible keywords');
 })();
 
 (function testProtectedAndCommentLeavesCannotTransform() {
@@ -172,20 +178,21 @@ function fullCanonicalRoot(factory) {
 })();
 
 (function testNodeAndOperatorVerbatimHandlesAreExact() {
-    var hive = analyze('SELECT a FROM t');
+    var hive = analyze('SELECT f(1)');
     var hiveFactory = factoryApi.createLayoutDocFactory(hive);
-    var query = hive.index.queries().filter(function(node) {
-        return node.queryKind === 'select' && node.capabilityId === 'from';
+    var functionCall = hive.index.nodes().filter(function(node) {
+        return node.kind === 'expression' &&
+            node.expressionKind === 'function-call';
     })[0];
-    assert.ok(query);
-    var queryDoc = hiveFactory.verbatim(query.id, {
+    assert.ok(functionCall);
+    var queryDoc = hiveFactory.verbatim(functionCall.id, {
         kind: 'node-capability',
-        capabilityId: 'from'
+        capabilityId: 'function-call'
     });
     assert.ok(queryDoc);
-    assert.strictEqual(queryDoc.leafRange, query.leafRange,
+    assert.strictEqual(queryDoc.leafRange, functionCall.leafRange,
         'verbatim range must be the exact owner range object');
-    assert.strictEqual(hiveFactory.verbatim(query.id, {
+    assert.strictEqual(hiveFactory.verbatim(functionCall.id, {
         kind: 'node-capability',
         capabilityId: 'select-without-from'
     }), null, 'wrong capability trigger must fail');
@@ -255,8 +262,7 @@ function fullCanonicalRoot(factory) {
         "const factoryApi = require('./.tmp/v2-core/core/layout/doc-factory.js');",
         "[",
         "  { dialect: 'hive', source: 'SELECT (SELECT 1)', kind: 'expression', subtypeKey: 'expressionKind', subtype: 'subquery', capabilityId: 'subquery-expression' },",
-        "  { dialect: 'hive', source: 'SELECT * FROM (SELECT 1)', kind: 'relation', subtypeKey: 'relationKind', subtype: 'subquery', capabilityId: 'subquery' },",
-        "  { dialect: 'hive', source: 'SELECT * FROM explode(arr)', kind: 'relation', subtypeKey: 'relationKind', subtype: 'table-function', capabilityId: 'table-function' },",
+        "  { dialect: 'hive', source: 'SELECT * FROM explode(arr)', kind: 'expression', subtypeKey: 'expressionKind', subtype: 'function-call', capabilityId: 'function-call' },",
         "  { dialect: 'postgresql', source: 'SELECT 1::int', kind: 'expression', subtypeKey: 'expressionKind', subtype: 'cast', capabilityId: 'cast-type' }",
         "].forEach(function(testCase) {",
         "  const artifact = analysis.analyzeSql(testCase.source, { dialect: testCase.dialect, mode: 'document' });",
@@ -330,7 +336,10 @@ function fullCanonicalRoot(factory) {
     for (var index = 0; index <= suffixLimit; index++) {
         comments.push('/* suffix-' + index + ' */');
     }
-    var analysis = analyze('SELECT 1 FROM t ' + comments.join(' '));
+    var analysis = analyze(
+        'SELECT 1 FROM t ' + comments.join(' '),
+        'generic'
+    );
     var commentLeafIds = analysis.leaves.filter(function(leaf) {
         return leaf.kind === 'block-comment';
     }).map(function(leaf) {
@@ -657,7 +666,10 @@ function fullCanonicalRoot(factory) {
     for (var index = 0; index < 1200; index++) {
         columns.push('c' + index);
     }
-    var analysis = analyze('SELECT ' + columns.join(', ') + ' FROM t');
+    var analysis = analyze(
+        'SELECT ' + columns.join(', ') + ' FROM t',
+        'generic'
+    );
     var factory = factoryApi.createLayoutDocFactory(analysis);
     assert.strictEqual(factory.verbatimClaims.length, 1);
     var claim = factory.verbatimClaims[0];
@@ -720,8 +732,8 @@ function fullCanonicalRoot(factory) {
 })();
 
 (function testCoverageOrderAndFlatSafetyFailClosed() {
-    var analysis = analyze('SELECT 1 FROM t;');
-    var options = canonicalOptions();
+    var analysis = analyze('SELECT 1 FROM t;', 'generic');
+    var options = canonicalOptions('generic');
 
     var missingFactory = factoryApi.createLayoutDocFactory(analysis);
     var onlyClaim = missingFactory.verbatimClaims[0];
@@ -771,7 +783,7 @@ function fullCanonicalRoot(factory) {
     }));
 
     var commentSource = '-- leading\nSELECT 1 FROM t';
-    var commentAnalysis = analyze(commentSource);
+    var commentAnalysis = analyze(commentSource, 'generic');
     var commentLeaf = commentAnalysis.leaves.find(function(leaf) {
         return leaf.kind === 'line-comment';
     });

@@ -408,12 +408,33 @@ function assertFrozenSourceMap(sourceMap) {
     });
     var metrics = metricsApi.measureLayoutArtifact(artifact);
     assert.strictEqual(metrics.ok, true);
+    assert.strictEqual(Object.isFrozen(metrics.metrics.statistics), true);
     var rendered = renderApi.renderLayoutArtifact(artifact);
     assert.strictEqual(rendered.ok, true);
     assert.strictEqual(rendered.text, source);
     assert.strictEqual(
         rendered.statistics.docVisitCount,
         metrics.metrics.docNodeCount
+    );
+    assert.strictEqual(
+        metrics.metrics.statistics.docVisitCount,
+        metrics.metrics.docNodeCount * 2
+    );
+    assert.strictEqual(
+        metrics.metrics.statistics.summaryLookupCount,
+        metrics.metrics.docNodeCount
+    );
+    assert.strictEqual(
+        rendered.statistics.metricsDocVisitCount,
+        metrics.metrics.statistics.docVisitCount
+    );
+    assert.strictEqual(
+        rendered.statistics.metricsSummaryLookupCount,
+        metrics.metrics.statistics.summaryLookupCount
+    );
+    assert.ok(
+        rendered.statistics.metricsLookupCount <=
+            rendered.statistics.docVisitCount
     );
 })();
 

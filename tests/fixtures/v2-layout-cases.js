@@ -58,11 +58,11 @@ module.exports = Object.freeze([
         status: 'unchanged'
     },
     {
-        id: 'hive-from-remains-verbatim',
+        id: 'hive-from-query-layout',
         source: 'select    a from t',
         options: { dialect: 'hive', keywordCase: 'upper' },
-        expected: 'select    a from t',
-        status: 'unchanged'
+        expected: 'SELECT\n      a\nFROM t',
+        status: 'formatted'
     }
 ].map(function(testCase) {
     return Object.freeze({

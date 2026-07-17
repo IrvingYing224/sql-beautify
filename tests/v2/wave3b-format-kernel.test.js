@@ -123,17 +123,23 @@ function assertSafeOriginal(result, source, expectedStatus) {
     assert.strictEqual(conflicted.code, 'LAYOUT_PLAN_CONFLICT');
     assert.strictEqual(conflicted.plan, undefined);
 
-    var fromArtifact = analyze('select a FROM t', 'hive');
-    assert.strictEqual(fromArtifact.status, 'analyzed');
-    var fromBuilder = planApi.createLayoutPlanBuilder(
-        fromArtifact,
+    var claimedArtifact = analyze('select f(1)', 'hive');
+    assert.strictEqual(claimedArtifact.status, 'analyzed');
+    var claimedBuilder = planApi.createLayoutPlanBuilder(
+        claimedArtifact,
         options({ dialect: 'hive' })
     );
-    assert.ok(fromBuilder);
-    var fromQueryId = fromArtifact.index.queries()[0].id;
-    assert.strictEqual(fromBuilder.setKeywordCase(fromQueryId, 0), false,
-        'dominating unformatted query must reject descendant actions');
-    var dominated = fromBuilder.finish();
+    assert.ok(claimedBuilder);
+    var claimedQueryId = claimedArtifact.index.queries()[0].id;
+    var functionLeafId = claimedArtifact.leaves.find(function(leaf) {
+        return leaf.raw === 'f';
+    }).id;
+    assert.strictEqual(
+        claimedBuilder.setKeywordCase(claimedQueryId, functionLeafId),
+        false,
+        'dominating unformatted expression must reject descendant actions'
+    );
+    var dominated = claimedBuilder.finish();
     assert.strictEqual(dominated.ok, false);
     assert.strictEqual(dominated.code, 'LAYOUT_PLAN_DOMINATED');
 })();
@@ -335,8 +341,10 @@ function assertSafeOriginal(result, source, expectedStatus) {
     ['document', 'statement', 'fragment'].forEach(function(mode) {
         var without = formatApi.formatSql('select  1', { dialect: 'hive' }, mode);
         var withLf = formatApi.formatSql('select  1\n', { dialect: 'hive' }, mode);
-        assert.strictEqual(without.text, 'SELECT 1', mode + ' without final LF');
-        assert.strictEqual(withLf.text, 'SELECT 1\n', mode + ' with final LF');
+        assert.strictEqual(without.text, 'SELECT 1',
+            mode + ' without final LF');
+        assert.strictEqual(withLf.text, 'SELECT 1\n',
+            mode + ' with final LF');
 
         var eofComment = formatApi.formatSql(
             'select  1 -- keep EOF',
@@ -349,7 +357,7 @@ function assertSafeOriginal(result, source, expectedStatus) {
     });
 })();
 
-(function testUnformattedDialectsAndAuthoritiesRemainIdentity() {
+(function testUnformattedDialectsRemainIdentityAndHiveQueriesUseWave3C() {
     ['generic', 'postgresql', 'mysql'].forEach(function(dialect) {
         var result = formatApi.formatSql('select    1', {
             dialect: dialect,
@@ -363,8 +371,8 @@ function assertSafeOriginal(result, source, expectedStatus) {
         dialect: 'hive',
         keywordCase: 'upper'
     });
-    assert.strictEqual(from.status, 'unchanged');
-    assert.strictEqual(from.text, 'select    a from t');
+    assert.strictEqual(from.status, 'formatted');
+    assert.strictEqual(from.text, 'SELECT\n      a\nFROM t');
 
     [
         '(select     1)',
@@ -373,8 +381,10 @@ function assertSafeOriginal(result, source, expectedStatus) {
         'select  1;\nselect  2'
     ].forEach(function(source) {
         var wrapped = formatApi.formatSql(source, { dialect: 'hive' });
-        assert.strictEqual(wrapped.status, 'unchanged', source);
-        assert.strictEqual(wrapped.text, source, source);
+        assert.strictEqual(wrapped.status, 'formatted', source);
+        var repeated = formatApi.formatSql(wrapped.text, { dialect: 'hive' });
+        assert.strictEqual(repeated.status, 'unchanged', source);
+        assert.strictEqual(repeated.text, wrapped.text, source);
     });
 
     var unformattedChild = formatApi.formatSql('select     f(  1 )', {
@@ -439,10 +449,14 @@ function assertSafeOriginal(result, source, expectedStatus) {
     assert.strictEqual(run.result.status, 'formatted');
     assert.strictEqual(Object.isFrozen(run), true);
     assert.strictEqual(Object.isFrozen(run.statistics), true);
-    assert.ok(run.statistics.leafVisitCount <= run.statistics.leafCount * 6 + 32);
+    var inputUnits = run.statistics.leafCount + run.statistics.syntaxNodeCount;
+    assert.ok(run.statistics.leafVisitCount <= inputUnits * 8 + 64);
     assert.ok(run.statistics.leafEmissionCount <= run.statistics.leafCount + 1);
-    assert.ok(run.statistics.directLookupCount <= run.statistics.leafCount * 8 + 64);
+    assert.ok(run.statistics.directLookupCount <= inputUnits * 12 + 128);
     assert.ok(run.statistics.planActionCount <= run.statistics.maxPlanActions);
+    assert.ok(run.statistics.policyNodeVisitCount <= inputUnits * 4 + 64);
+    assert.ok(run.statistics.policyLeafVisitCount <= inputUnits * 4 + 64);
+    assert.ok(run.statistics.policyDirectLookupCount <= inputUnits * 8 + 128);
 })();
 
 console.log('v2 Wave 3B format kernel tests passed');

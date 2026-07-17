@@ -34,6 +34,7 @@ const NON_CLAUSE_MARKER_IDS: Readonly<Record<NonClauseSyntaxMarkerId, true>> =
         "statement-terminator": true,
         "cte-as": true,
         "alias-as": true,
+        "lateral-view-output-as": true,
         "join-head": true,
         "set-operator": true,
         "case:start": true,
@@ -65,6 +66,7 @@ const NON_CLAUSE_MARKER_IDS: Readonly<Record<NonClauseSyntaxMarkerId, true>> =
 const GRAMMAR_KEYWORD_MARKER_IDS: ReadonlySet<string> = new Set([
     "cte-as",
     "alias-as",
+    "lateral-view-output-as",
     "join-head",
     "set-operator",
     "case:start",

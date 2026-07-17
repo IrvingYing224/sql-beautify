@@ -104,6 +104,9 @@ export type {
     LayoutPlanResult,
     LayoutPlanStatistics,
     LayoutPlanSuccess,
+    LayoutPolicyStatistics,
+    LayoutScopeAction,
+    LayoutScopeDecision,
     PlannedLeafEmission,
 } from "./layout/plan";
 export type {
@@ -156,6 +159,7 @@ export type {
     LayoutMetricsFailure,
     LayoutMetricsFailureCode,
     LayoutMetricsResult,
+    LayoutMetricsStatistics,
     LayoutMetricsSuccess,
     RenderFailure,
     RenderFailureCode,

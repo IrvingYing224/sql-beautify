@@ -102,6 +102,10 @@ if (process.argv[2] === '--worker') {
     var reports = statementReports.concat(formattedReports);
 
     reports.forEach(function(report) {
+        var inputUnits = Math.max(
+            1,
+            report.statistics.leafCount + report.statistics.syntaxNodeCount
+        );
         assert.strictEqual(
             report.status,
             report.caseKind === 'statements' ? 'unchanged' : 'formatted'
@@ -109,10 +113,10 @@ if (process.argv[2] === '--worker') {
         if (report.caseKind === 'statements') {
             assert.strictEqual(report.sourceCodeUnits, report.outputCodeUnits);
         } else {
-            assert.strictEqual(report.sourceCodeUnits - report.outputCodeUnits, 1,
-                'formatted list changes only the redundant SELECT-head space');
+            assert.ok(report.outputCodeUnits > report.sourceCodeUnits,
+                'query-level multiline layout must add bounded indentation');
             assert.ok(report.statistics.docNodeCount <=
-                report.statistics.leafCount + 2,
+                report.statistics.leafCount * 2 + 8,
             'formatted per-leaf document count must stay linear');
         }
         assert.strictEqual(report.statistics.sourceCodeUnits, report.sourceCodeUnits);
@@ -121,14 +125,83 @@ if (process.argv[2] === '--worker') {
             report.caseKind + '/' + report.itemCount + ' exceeded the disaster gate');
         assert.ok(report.statistics.planActionCount <= report.statistics.maxPlanActions);
         assert.ok(report.statistics.leafVisitCount <=
-            report.statistics.leafCount * 4 + 32,
+            inputUnits * 8 + 64,
         'leaf visits must stay linear for ' + report.caseKind + '/' + report.itemCount);
         assert.ok(report.statistics.leafEmissionCount <=
             report.statistics.leafCount + 1,
         'leaf emissions must stay linear for ' + report.caseKind + '/' + report.itemCount);
         assert.ok(report.statistics.directLookupCount <=
-            report.statistics.leafCount * 4 + 8,
+            inputUnits * 12 + 128,
         'direct lookups must stay linear for ' + report.caseKind + '/' + report.itemCount);
+        assert.ok(report.statistics.policyNodeVisitCount <= inputUnits * 4 + 64,
+            'policy node visits must stay linear for ' +
+                report.caseKind + '/' + report.itemCount);
+        assert.ok(report.statistics.policyLeafVisitCount <= inputUnits * 4 + 64,
+            'policy leaf visits must stay linear for ' +
+                report.caseKind + '/' + report.itemCount);
+        assert.ok(report.statistics.policyDirectLookupCount <= inputUnits * 8 + 128,
+            'policy direct lookups must stay linear for ' +
+                report.caseKind + '/' + report.itemCount);
+        assert.strictEqual(
+            report.statistics.metricsDocVisitCount,
+            report.statistics.renderDocVisitCount * 2,
+            'metrics must enter and exit every document node exactly once for ' +
+                report.caseKind + '/' + report.itemCount
+        );
+        assert.strictEqual(
+            report.statistics.metricsSummaryLookupCount,
+            report.statistics.renderDocVisitCount,
+            'metrics must resolve every canonical document summary once for ' +
+                report.caseKind + '/' + report.itemCount
+        );
+        assert.strictEqual(
+            report.statistics.renderDocVisitCount,
+            report.statistics.docNodeCount,
+            'renderer document visits must match the reported document count for ' +
+                report.caseKind + '/' + report.itemCount
+        );
+        assert.ok(
+            report.statistics.renderMetricsLookupCount <=
+                report.statistics.renderDocVisitCount,
+            'renderer metrics lookups must stay linear for ' +
+                report.caseKind + '/' + report.itemCount
+        );
+        assert.strictEqual(
+            report.statistics.equivalenceInputCodeUnits,
+            report.outputCodeUnits,
+            'token-equivalence must lex exactly the rendered output for ' +
+                report.caseKind + '/' + report.itemCount
+        );
+        assert.strictEqual(
+            report.statistics.equivalenceSourceLeafVisitCount,
+            report.statistics.leafCount,
+            'token-equivalence must visit every source leaf once for ' +
+                report.caseKind + '/' + report.itemCount
+        );
+        assert.ok(
+            report.statistics.equivalenceOutputLeafVisitCount <=
+                report.statistics.leafCount +
+                    report.statistics.planActionCount + 1,
+            'token-equivalence output leaf visits must stay linear for ' +
+                report.caseKind + '/' + report.itemCount
+        );
+        assert.ok(report.statistics.equivalenceComparisonCount > 0 &&
+            report.statistics.equivalenceComparisonCount <=
+                report.statistics.leafCount,
+        'token-equivalence comparisons must stay linear for ' +
+            report.caseKind + '/' + report.itemCount);
+        assert.ok(report.statistics.equivalenceDirectLookupCount >=
+            report.statistics.equivalenceComparisonCount &&
+            report.statistics.equivalenceDirectLookupCount <=
+                report.statistics.equivalenceComparisonCount * 2,
+        'token-equivalence lookups must stay bounded per comparison for ' +
+            report.caseKind + '/' + report.itemCount);
+        assert.strictEqual(
+            report.statistics.scopeActionVisitCount,
+            report.statistics.scopeActionCount * 2,
+            'every scope start/end must be visited exactly once for ' +
+                report.caseKind + '/' + report.itemCount
+        );
         assert.ok(report.maxRssKb > 0 && report.maxRssKb < 2 * 1024 * 1024,
             'isolated maxRssKb must stay below the 2 GiB disaster gate');
     });

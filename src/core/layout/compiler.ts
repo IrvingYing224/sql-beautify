@@ -2,7 +2,7 @@ import type { LayoutArtifact } from "./artifact";
 import { createLayoutArtifact } from "./artifact";
 import type { LayoutDoc } from "./doc";
 import { createLayoutDocFactory } from "./doc-factory";
-import type { LayoutPlan } from "./plan";
+import type { LayoutPlan, LayoutScopeAction } from "./plan";
 import { isCanonicalLayoutPlan } from "./plan";
 
 export type LayoutCompileFailureCode =
@@ -18,6 +18,7 @@ export interface LayoutCompileStatistics {
     readonly leafEmissionCount: number;
     readonly directLookupCount: number;
     readonly docPartCount: number;
+    readonly scopeActionVisitCount: number;
 }
 
 export interface LayoutCompileFailure {
@@ -34,6 +35,11 @@ export interface LayoutCompileSuccess {
 
 export type LayoutCompileResult = LayoutCompileSuccess | LayoutCompileFailure;
 
+interface CompileFrame {
+    readonly action: LayoutScopeAction | null;
+    readonly parts: LayoutDoc[];
+}
+
 function failure(
     code: LayoutCompileFailureCode,
     message: string
@@ -49,14 +55,77 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
             "Layout compiler could not create an analysis-scoped factory"
         );
     }
-    const parts: LayoutDoc[] = [];
+    const frames: CompileFrame[] = [{ action: null, parts: [] }];
     let leafVisitCount = 0;
     let leafEmissionCount = 0;
     let directLookupCount = 0;
+    let scopeActionVisitCount = 0;
     let cursor = 0;
     let boundaryPending = true;
+    let docPartCount = 0;
+    const hasScopes = plan.statistics.scopeActionCount > 0;
     try {
+        const appendDoc = (doc: LayoutDoc): void => {
+            frames[frames.length - 1]!.parts.push(doc);
+            docPartCount += 1;
+        };
+        const closeScope = (action: LayoutScopeAction): LayoutCompileFailure | null => {
+            const frame = frames[frames.length - 1];
+            if (frame === undefined || frame.action?.id !== action.id) {
+                return failure(
+                    "LAYOUT_COMPILE_ACTION",
+                    `Scope ${action.id} does not close in nesting order`
+                );
+            }
+            const content = factory.concat(frame.parts);
+            if (content === null) {
+                return failure(
+                    "LAYOUT_COMPILE_DOC",
+                    `Scope ${action.id} content could not be assembled`
+                );
+            }
+            const wrapped = action.decision.kind === "indent"
+                ? factory.indent(action.decision.levels, content)
+                : action.decision.kind === "align"
+                  ? factory.align(action.decision.columns, content)
+                  : action.decision.kind === "auto-group"
+                    ? factory.autoGroup(
+                          action.decision.maxFlatWidth,
+                          content
+                      )
+                    : factory.group(action.decision.mode, content);
+            if (wrapped === null) {
+                return failure(
+                    "LAYOUT_COMPILE_DOC",
+                    `Scope ${action.id} wrapper could not be compiled`
+                );
+            }
+            frames.pop();
+            appendDoc(wrapped);
+            return null;
+        };
+
         while (cursor <= plan.analysis.leaves.length) {
+            if (boundaryPending && hasScopes) {
+                directLookupCount += 2;
+                const endingScopes = plan.scopeEnds[cursor];
+                if (endingScopes !== null && endingScopes !== undefined) {
+                    for (const scope of endingScopes) {
+                        scopeActionVisitCount += 1;
+                        const closed = closeScope(scope);
+                        if (closed !== null) {
+                            return closed;
+                        }
+                    }
+                }
+                const startingScopes = plan.scopeStarts[cursor];
+                if (startingScopes !== null && startingScopes !== undefined) {
+                    for (const scope of startingScopes) {
+                        scopeActionVisitCount += 1;
+                        frames.push({ action: scope, parts: [] });
+                    }
+                }
+            }
             directLookupCount += 1;
             const gap = boundaryPending ? plan.gapActions[cursor] : null;
             if (gap !== null && gap !== undefined) {
@@ -81,7 +150,7 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                         `Gap action at leaf ${cursor} could not create a document node`
                     );
                 }
-                parts.push(doc);
+                appendDoc(doc);
                 leafVisitCount += gap.endLeafId - cursor;
                 if (gap.endLeafId > cursor) {
                     cursor = gap.endLeafId;
@@ -123,7 +192,7 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                         `Verbatim owner ${claim.ownerNodeId} could not be compiled`
                     );
                 }
-                parts.push(doc);
+                appendDoc(doc);
                 leafVisitCount += claim.leafRange.end - cursor;
                 leafEmissionCount += 1;
                 cursor = claim.leafRange.end;
@@ -140,19 +209,34 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                     `Leaf ${cursor} could not be compiled as ${mode}`
                 );
             }
-            parts.push(doc);
+            appendDoc(doc);
             leafVisitCount += 1;
             leafEmissionCount += 1;
             cursor += 1;
             boundaryPending = true;
         }
-        if (parts.length > plan.budget.maxDocNodes) {
+        if (
+            scopeActionVisitCount !==
+            plan.statistics.scopeActionCount * 2
+        ) {
+            return failure(
+                "LAYOUT_COMPILE_ACTION",
+                "Layout compiler did not visit every scope start and end exactly once"
+            );
+        }
+        if (frames.length !== 1) {
+            return failure(
+                "LAYOUT_COMPILE_ACTION",
+                "Layout compiler finished with unclosed scopes"
+            );
+        }
+        if (docPartCount > plan.budget.maxDocNodes) {
             return failure(
                 "LAYOUT_COMPILE_RESOURCE",
                 "Layout compiler exceeded the document-node budget"
             );
         }
-        const root = factory.concat(parts);
+        const root = factory.concat(frames[0]!.parts);
         if (root === null) {
             return failure(
                 "LAYOUT_COMPILE_DOC",
@@ -165,16 +249,21 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
             plan.options
         );
         if (!created.ok) {
+            const detail = created.invariantFailures[0];
             return failure(
                 "LAYOUT_COMPILE_ARTIFACT",
-                `${created.code}: ${created.message}`
+                `${created.code}: ${created.message}` +
+                    (detail === undefined
+                        ? ""
+                        : ` (${detail.code}: ${detail.message})`)
             );
         }
         const statistics = Object.freeze({
             leafVisitCount,
             leafEmissionCount,
             directLookupCount,
-            docPartCount: parts.length,
+            docPartCount,
+            scopeActionVisitCount,
         });
         return Object.freeze({
             ok: true,

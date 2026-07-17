@@ -166,6 +166,7 @@ function renderCanonical(
     let displayColumn = 0;
     let needsLinePrefix = false;
     let docVisitCount = 0;
+    let metricsLookupCount = 0;
     let sourceEmissionCount = 0;
 
     const assertOutputCapacity = (amount: number): void => {
@@ -514,6 +515,7 @@ function renderCanonical(
                     if (frame.mode === "flat") {
                         mode = "flat";
                     } else if (doc.mode === "auto") {
+                        metricsLookupCount += 1;
                         const summary = metrics.summaryOf(doc.content);
                         mode =
                             summary !== null &&
@@ -572,6 +574,10 @@ function renderCanonical(
         const sourceMap = freezeSourceMap(mapEntries);
         const statistics = Object.freeze({
             docVisitCount,
+            metricsDocVisitCount: metrics.statistics.docVisitCount,
+            metricsSummaryLookupCount:
+                metrics.statistics.summaryLookupCount,
+            metricsLookupCount,
             sourceEmissionCount,
             chunkCount: chunks.length,
             sourceMapEntryCount: sourceMap.entries.length,

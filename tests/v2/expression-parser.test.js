@@ -616,7 +616,7 @@ function assertNoOpaque(parsed, label) {
         }), dialectId + ' table function relation must be structured');
         assert.strictEqual(
             dialects.getDialect(dialectId).getCapability('table-function').state,
-            'structured',
+            dialectId === 'hive' ? 'formatted' : 'structured',
             dialectId + ' table-function capability'
         );
     });

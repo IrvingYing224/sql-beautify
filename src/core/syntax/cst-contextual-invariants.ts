@@ -1898,6 +1898,7 @@ function validateRequiredMarkerClosure(
                 : null;
             if (
                 raw.relationKind !== "join" &&
+                raw.relationKind !== "lateral-view" &&
                 !isFiniteNonNegInt(keywordLeafId)
             ) {
                 return;
@@ -2798,6 +2799,47 @@ function validateRequiredMarkerClosure(
                     nodeId
                 );
             }
+        }
+    }
+    if (
+        nodeKind === "relation" &&
+        raw.relationKind === "lateral-view" &&
+        isLeafRange(raw.leafRange)
+    ) {
+        let ordinal = 0;
+        for (
+            let leafId = raw.leafRange.start;
+            leafId < raw.leafRange.end && leafId < leaves.length;
+            leafId++
+        ) {
+            if (leafIdInAnyChild(leafId, directChildren)) {
+                continue;
+            }
+            const leaf = leaves[leafId]!;
+            if (leaf.channel !== "code" || leaf.raw.toLowerCase() !== "as") {
+                continue;
+            }
+            requireExactSyntaxMarker(
+                markers,
+                leafId,
+                "lateral-view-output-as",
+                ordinal,
+                "syntax-keyword",
+                true,
+                nodeId,
+                "LATERAL VIEW output AS",
+                failures
+            );
+            ordinal += 1;
+            expectedMarkerCount += 1;
+        }
+        if (ordinal !== 1) {
+            fail(
+                failures,
+                "INV_RELATIONSHIP",
+                `lateral-view relation ${nodeId} must contain one direct output AS marker`,
+                nodeId
+            );
         }
     }
     if (nodeKind === "relation") {

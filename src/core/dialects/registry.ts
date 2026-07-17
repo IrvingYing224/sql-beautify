@@ -243,7 +243,7 @@ const HIVE_QUERY_CAPABILITIES: readonly HiveQueryCapability[] = freezeImmutableA
         "insert-overwrite-partition-select",
     ].map((id): HiveQueryCapability => Object.freeze({
         id,
-        state: "structured",
+        state: "formatted",
     })),
     Object.freeze({ id: "select-without-from", state: "formatted" as const }),
 ]);

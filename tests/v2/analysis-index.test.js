@@ -605,7 +605,7 @@ function directBuild(built, root) {
         });
     }, /missing required capabilityId/i);
 
-    var structuredCapabilityRoot = replaceNode(
+    var nonPreservationCapabilityRoot = replaceNode(
         opaqueBuilt.result.root,
         opaque.id,
         function(node) {
@@ -614,13 +614,13 @@ function directBuild(built, root) {
     );
     assert.throws(function() {
         analysis.buildStructuralIndex({
-            root: structuredCapabilityRoot,
+            root: nonPreservationCapabilityRoot,
             leaves: opaqueBuilt.result.leaves,
             tokenTable: opaqueBuilt.table,
             dialect: 'hive',
             diagnostics: opaqueBuilt.result.diagnostics
         });
-    }, /non-preservation state structured/i);
+    }, /non-preservation state formatted/i);
 
     var mismatchedDiagnostics = opaqueBuilt.result.diagnostics.map(function(diagnostic) {
         return Object.freeze(Object.assign({}, diagnostic, {

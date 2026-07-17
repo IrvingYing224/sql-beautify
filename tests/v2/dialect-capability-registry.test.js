@@ -25,7 +25,7 @@ var CAPABILITY_STATES = {
     diagnostic: true
 };
 
-var HIVE_STRUCTURED_QUERY_CONSTRUCTS = [
+var HIVE_FORMATTED_QUERY_CONSTRUCTS = [
     'multi-statement',
     'with-cte',
     'from',
@@ -335,8 +335,10 @@ CANONICAL.forEach(function(dialectId) {
 
 assert.deepStrictEqual(
     formattedPairs.sort(),
-    ['hive/select-without-from'],
-    'Wave 3B must expose exactly one proven formatted capability'
+    HIVE_FORMATTED_QUERY_CONSTRUCTS.concat(['select-without-from'])
+        .map(function(id) { return 'hive/' + id; })
+        .sort(),
+    'Wave 3C must expose the exact proven Hive query capability manifest'
 );
 
 assert.ok(dialects.getDialect('hive').listJoinSyntax().some(function(join) {
@@ -350,13 +352,13 @@ assert.strictEqual(
     'formatted',
     'Hive no-FROM SELECT must transition only after Wave 3B behavior evidence'
 );
-HIVE_STRUCTURED_QUERY_CONSTRUCTS.forEach(function(id) {
+HIVE_FORMATTED_QUERY_CONSTRUCTS.forEach(function(id) {
     var entry = hive.getCapability(id);
     assert.ok(entry, 'Hive must declare capability ' + id);
     assert.strictEqual(
         entry.state,
-        'structured',
-        'Hive ' + id + ' must be structured in Wave 2B'
+        'formatted',
+        'Hive ' + id + ' must be formatted after Wave 3C behavior evidence'
     );
 });
 

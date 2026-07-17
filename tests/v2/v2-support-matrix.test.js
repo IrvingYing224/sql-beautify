@@ -100,8 +100,28 @@ function expectedFacts() {
     }), facts.capabilities, 'matrix capability rows must be the sorted registry union');
     assert.deepStrictEqual(
         facts.formattedPairs,
-        ['hive/select-without-from'],
-        'Wave 3B matrix must expose exactly one proven formatted capability'
+        [
+            'cluster-by',
+            'distribute-by',
+            'from',
+            'group-by',
+            'having',
+            'insert-overwrite-partition-select',
+            'join',
+            'lateral-view',
+            'limit',
+            'multi-statement',
+            'order-by',
+            'select-without-from',
+            'set-operations',
+            'sort-by',
+            'subquery',
+            'table-function',
+            'where',
+            'window',
+            'with-cte'
+        ].map(function(id) { return 'hive/' + id; }).sort(),
+        'Wave 3C matrix must expose the exact proven Hive query manifest'
     );
 
     parsed.rows.forEach(function(row) {
@@ -117,7 +137,7 @@ function expectedFacts() {
     });
     assert.strictEqual(parsed.rows.filter(function(row) {
         return row.states.some(function(state) { return state === 'formatted'; });
-    }).length, 1, 'matrix must contain one formatted capability row');
+    }).length, 19, 'matrix must contain nineteen formatted capability rows');
 }());
 
 function createIsolatedGeneratorRoot() {

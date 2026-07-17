@@ -15,7 +15,13 @@ export interface FlatLayoutSummary {
 export interface LayoutMetrics {
     readonly summary: FlatLayoutSummary;
     readonly docNodeCount: number;
+    readonly statistics: LayoutMetricsStatistics;
     summaryOf(doc: LayoutDoc): FlatLayoutSummary | null;
+}
+
+export interface LayoutMetricsStatistics {
+    readonly docVisitCount: number;
+    readonly summaryLookupCount: number;
 }
 
 export type LayoutMetricsFailureCode =
@@ -49,6 +55,9 @@ export type RenderFailureCode =
 
 export interface RenderStatistics {
     readonly docVisitCount: number;
+    readonly metricsDocVisitCount: number;
+    readonly metricsSummaryLookupCount: number;
+    readonly metricsLookupCount: number;
     readonly sourceEmissionCount: number;
     readonly chunkCount: number;
     readonly sourceMapEntryCount: number;
