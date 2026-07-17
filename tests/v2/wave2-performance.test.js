@@ -20,6 +20,8 @@ var SCALE_COUNTS = Object.freeze([100, 800, 1200]);
 var SCALE_RATIO_GATE = 12;
 var WAVE2B_BASELINE_COMMIT = '67de251db4e66c167d2988ff4b971a24bb56aaec';
 var WAVE2B_RELATIVE_GATE = 1.2;
+var WAVE2B_RELATIVE_FLOOR_MS = 50;
+var WAVE2B_LOW_BASELINE_NOISE_MS = 10;
 var RELATIVE_PROCESS_ROUNDS = 3;
 var RELATIVE_WORKER_SAMPLE_COUNT = 5;
 var RELATIVE_WORKER_WARMUP_ROUNDS = 2;
@@ -106,12 +108,17 @@ function median(values) {
 }
 
 function passesWave2bRelativeGate(currentMedianMs, baselineMedianMs) {
-    var ratio = currentMedianMs / baselineMedianMs;
-    return (
-        baselineMedianMs > 0 &&
-        Number.isFinite(ratio) &&
-        ratio <= WAVE2B_RELATIVE_GATE
-    );
+    if (!Number.isFinite(currentMedianMs) ||
+        !Number.isFinite(baselineMedianMs) ||
+        currentMedianMs <= 0 || baselineMedianMs <= 0) {
+        return false;
+    }
+    return currentMedianMs /
+        Math.max(baselineMedianMs, WAVE2B_RELATIVE_FLOOR_MS) <=
+            WAVE2B_RELATIVE_GATE &&
+        (baselineMedianMs >= WAVE2B_RELATIVE_FLOOR_MS ||
+            currentMedianMs - baselineMedianMs <=
+                WAVE2B_LOW_BASELINE_NOISE_MS);
 }
 
 function runRequired(command, args, options, label) {
@@ -544,6 +551,8 @@ var performanceReport = {
     wave2bRelativeBaseline: {
         commit: WAVE2B_BASELINE_COMMIT,
         currentToBaselineGate: WAVE2B_RELATIVE_GATE,
+        relativeFloorMs: WAVE2B_RELATIVE_FLOOR_MS,
+        lowBaselineNoiseMs: WAVE2B_LOW_BASELINE_NOISE_MS,
         processRounds: RELATIVE_PROCESS_ROUNDS,
         workerWarmupRounds: RELATIVE_WORKER_WARMUP_ROUNDS,
         workerSampleRounds: RELATIVE_WORKER_SAMPLE_COUNT,
@@ -607,7 +616,8 @@ relativeParserScales.forEach(function(item) {
     assert.ok(
         passesWave2bRelativeGate(item.current.medianMs, item.baseline.medianMs),
         item.statementCount + ' parser regression versus committed Wave 2B baseline exceeded ' +
-            WAVE2B_RELATIVE_GATE + 'x: ' + item.currentToBaseline +
+            WAVE2B_RELATIVE_GATE + 'x / low-baseline +' +
+            WAVE2B_LOW_BASELINE_NOISE_MS + 'ms gate: ' + item.currentToBaseline +
             ' (baseline=' + item.baseline.medianMs + 'ms, current=' +
             item.current.medianMs + 'ms)'
     );
@@ -617,6 +627,18 @@ assert.strictEqual(
     false,
     'relative baseline gate must reject a synthetic 2x slowdown'
 );
+assert.strictEqual(passesWave2bRelativeGate(39, 30), true,
+    'low baseline must allow at most the bounded absolute noise budget');
+assert.strictEqual(passesWave2bRelativeGate(40.01, 30), false,
+    'low baseline must reject work beyond the absolute noise budget');
+assert.strictEqual(passesWave2bRelativeGate(120, 100), true,
+    'normal baselines must retain the exact 1.2x gate');
+assert.strictEqual(passesWave2bRelativeGate(120.01, 100), false,
+    'normal baselines must reject values above the exact 1.2x gate');
+[NaN, 0, -1, Infinity].forEach(function(value) {
+    assert.strictEqual(passesWave2bRelativeGate(value, 100), false);
+    assert.strictEqual(passesWave2bRelativeGate(100, value), false);
+});
 assert.ok(Number.isFinite(aliasRatio400) && aliasRatio400 <= ALIAS_RATIO_400_GATE,
     '400/100 alias-list scale ratio exceeded ' + ALIAS_RATIO_400_GATE + 'x: ' +
         aliasRatio400);
