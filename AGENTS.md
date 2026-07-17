@@ -24,6 +24,8 @@ SQL / Hive SQL 格式化核心已经重构为 `core / adapters / experimental` �
 ## 提交与 Pull Request 指南
 近期提交历史使用简短的约定式消息，例如 `feat: ...`、`fix: ...` 和 `chore: ...`。每个提交应聚焦于单一改动。Pull Request 应说明受影响的 SQL 模式，列出自动化验证命令，并在格式化输出发生变化时提供前后对比示例。不要提交 `.vsix` 制品；发布包通过 GitHub Actions 构建并上传到 GitHub Releases。
 
+实现完成并通过与风险相称的自动化验证后，主代理可以自主更新必要文档并创建聚焦的本地提交，无需等待用户逐次测试或明确确认。若验证失败、证据不足、存在未解决的 Critical / Important finding，或用户明确要求暂不提交，则不得提交。该授权不自动扩展到合并、推送、发布、改写历史或其他外部状态变更；这些操作仍按用户当前授权执行。
+
 ## 经验规则：发布 VSIX 必须对应当前版本和 SHA
 - 触发信号：准备发布扩展、生成 Release 包或更新 `.vsix` 内容时。
 - 根因 / 约束：发布包必须对应当前提交和当前 `package.json` 版本；复用旧 artifact 或旧 Release 会发布过期代码；本地 `.vsix` 可用于预检，但制品不应提交。
