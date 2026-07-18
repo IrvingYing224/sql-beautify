@@ -8,13 +8,13 @@ It is independent from the maintained 1.x formatter support matrix. `—` means 
 
 | Capability | `generic` | `hive` | `mysql` | `postgresql` |
 | --- | --- | --- | --- | --- |
-| `case-expression` | `structured` | `structured` | `structured` | `structured` |
-| `cast-type` | `structured` | `structured` | `structured` | `structured` |
+| `case-expression` | `structured` | `formatted` | `structured` | `structured` |
+| `cast-type` | `structured` | `formatted` | `structured` | `structured` |
 | `cluster-by` | — | `formatted` | — | — |
-| `collection-expression` | — | `structured` | — | — |
+| `collection-expression` | — | `formatted` | — | — |
 | `distribute-by` | — | `formatted` | — | — |
 | `from` | `structured` | `formatted` | `structured` | `structured` |
-| `function-call` | `structured` | `structured` | `structured` | `structured` |
+| `function-call` | `structured` | `formatted` | `structured` | `structured` |
 | `generic-array-subset` | `structured` | — | — | — |
 | `group-by` | `structured` | `formatted` | `structured` | `structured` |
 | `having` | `structured` | `formatted` | `structured` | `structured` |
@@ -39,11 +39,11 @@ It is independent from the maintained 1.x formatter support matrix. `—` means 
 | `set-operations` | `structured` | `formatted` | `structured` | `structured` |
 | `sort-by` | — | `formatted` | — | — |
 | `subquery` | `structured` | `formatted` | `structured` | `structured` |
-| `subquery-expression` | `structured` | `structured` | `structured` | `structured` |
+| `subquery-expression` | `structured` | `formatted` | `structured` | `structured` |
 | `table-function` | `structured` | `formatted` | `structured` | `structured` |
 | `template-parameter` | — | `structured` | — | — |
 | `unpivot` | `diagnostic` | `diagnostic` | `diagnostic` | `diagnostic` |
 | `where` | `structured` | `formatted` | `structured` | `structured` |
 | `window` | `structured` | `formatted` | `structured` | `structured` |
-| `window-expression` | `structured` | `structured` | `structured` | `structured` |
+| `window-expression` | `structured` | `formatted` | `structured` | `structured` |
 | `with-cte` | `structured` | `formatted` | `structured` | `structured` |

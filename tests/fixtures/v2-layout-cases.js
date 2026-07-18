@@ -30,10 +30,10 @@ module.exports = Object.freeze([
         status: 'formatted'
     },
     {
-        id: 'hive-unformatted-function-child',
+        id: 'hive-formatted-function-child',
         source: 'select     f(  1 )',
         options: { dialect: 'hive', keywordCase: 'upper' },
-        expected: 'SELECT f(  1 )',
+        expected: 'SELECT f(1)',
         status: 'formatted'
     },
     {

@@ -248,13 +248,16 @@ const HIVE_QUERY_CAPABILITIES: readonly HiveQueryCapability[] = freezeImmutableA
     Object.freeze({ id: "select-without-from", state: "formatted" as const }),
 ]);
 
-const HIVE_EXPRESSION_STRUCTURED: readonly string[] = freezeImmutableArray([
+const HIVE_EXPRESSION_FORMATTED: readonly string[] = freezeImmutableArray([
     "case-expression",
     "function-call",
     "collection-expression",
     "cast-type",
     "subquery-expression",
     "window-expression",
+]);
+
+const HIVE_EXPRESSION_STRUCTURED: readonly string[] = freezeImmutableArray([
     "template-parameter",
 ]);
 
@@ -534,6 +537,9 @@ function operatorFormatClass(item: OperatorDefinition): OperatorFormatClass {
     if (item.fixity === "postfix") {
         return word ? "postfix-word" : "postfix-symbol";
     }
+    if (item.key === "and" || item.key === "or") {
+        return "infix-word-continuation";
+    }
     return word ? "infix-word" : "infix-symbol";
 }
 
@@ -704,6 +710,7 @@ function createDialectView(
             (op.formatClass !== "prefix-word" &&
                 op.formatClass !== "prefix-symbol" &&
                 op.formatClass !== "infix-word" &&
+                op.formatClass !== "infix-word-continuation" &&
                 op.formatClass !== "infix-symbol" &&
                 op.formatClass !== "postfix-word" &&
                 op.formatClass !== "postfix-symbol" &&
@@ -771,6 +778,10 @@ function buildRegistry(): DialectCapabilityRegistry {
                 [],
                 freezeImmutableArray([
                     ...HIVE_QUERY_CAPABILITIES,
+                    ...HIVE_EXPRESSION_FORMATTED.map((id) => Object.freeze({
+                        id,
+                        state: "formatted" as const,
+                    })),
                     ...HIVE_EXPRESSION_STRUCTURED.map((id) => Object.freeze({
                         id,
                         state: "structured" as const,

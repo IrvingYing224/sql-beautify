@@ -49,7 +49,44 @@ export interface QueryLayoutContext {
     readonly authorityByNodeId: Int32Array;
     readonly canonicalGapEnds: Int32Array;
     readonly scopeDeltas: Int32Array;
+    readonly commentPrefix: Int32Array;
+    readonly verbatimPrefix: Int32Array;
     readonly statistics: MutableQueryPolicyStatistics;
+}
+
+function buildRangePrefixes(
+    leafCount: number,
+    commentLeafIds: readonly number[],
+    claims: DominatingVerbatimClaims
+): Readonly<{
+    commentPrefix: Int32Array;
+    verbatimPrefix: Int32Array;
+}> | null {
+    const commentMarks = new Int32Array(leafCount + 1);
+    const verbatimDeltas = new Int32Array(leafCount + 1);
+    for (const leafId of commentLeafIds) {
+        if (!Number.isSafeInteger(leafId) || leafId < 0 || leafId >= leafCount) {
+            return null;
+        }
+        commentMarks[leafId + 1] = commentMarks[leafId + 1]! + 1;
+    }
+    for (const claim of claims.claims) {
+        verbatimDeltas[claim.leafRange.start] =
+            verbatimDeltas[claim.leafRange.start]! + 1;
+        verbatimDeltas[claim.leafRange.end] =
+            verbatimDeltas[claim.leafRange.end]! - 1;
+    }
+    const commentPrefix = new Int32Array(leafCount + 1);
+    const verbatimPrefix = new Int32Array(leafCount + 1);
+    let activeClaims = 0;
+    for (let boundary = 1; boundary <= leafCount; boundary++) {
+        commentPrefix[boundary] =
+            commentPrefix[boundary - 1]! + commentMarks[boundary]!;
+        activeClaims += verbatimDeltas[boundary - 1]!;
+        verbatimPrefix[boundary] =
+            verbatimPrefix[boundary - 1]! + (activeClaims > 0 ? 1 : 0);
+    }
+    return Object.freeze({ commentPrefix, verbatimPrefix });
 }
 
 function buildAuthorityProjection(
@@ -116,6 +153,17 @@ export function createQueryLayoutContext(
     if (authorityByNodeId === null) {
         return null;
     }
+    const bindings = artifact.index.commentBindings();
+    const prefixes = buildRangePrefixes(
+        leaves.length,
+        bindings.map((binding) => binding.commentLeafId),
+        claims
+    );
+    statistics.directLookupCount += bindings.length + 1;
+    statistics.leafVisitCount += leaves.length;
+    if (prefixes === null) {
+        return null;
+    }
     const analysis: LayoutAnalysisView = Object.freeze({
         leafCount: leaves.length,
         root: artifact.root,
@@ -167,8 +215,47 @@ export function createQueryLayoutContext(
         authorityByNodeId,
         canonicalGapEnds: new Int32Array(leaves.length + 1).fill(-1),
         scopeDeltas: new Int32Array(leaves.length + 1),
+        commentPrefix: prefixes.commentPrefix,
+        verbatimPrefix: prefixes.verbatimPrefix,
         statistics,
     });
+}
+
+function rangeCount(
+    prefix: Int32Array,
+    startLeafId: number,
+    endLeafId: number
+): number | null {
+    if (
+        !Number.isSafeInteger(startLeafId) ||
+        !Number.isSafeInteger(endLeafId) ||
+        startLeafId < 0 ||
+        endLeafId < startLeafId ||
+        endLeafId >= prefix.length
+    ) {
+        return null;
+    }
+    return prefix[endLeafId]! - prefix[startLeafId]!;
+}
+
+export function rangeHasComment(
+    context: QueryLayoutContext,
+    startLeafId: number,
+    endLeafId: number
+): boolean | null {
+    context.statistics.directLookupCount += 2;
+    const count = rangeCount(context.commentPrefix, startLeafId, endLeafId);
+    return count === null ? null : count > 0;
+}
+
+export function rangeHasVerbatimClaim(
+    context: QueryLayoutContext,
+    startLeafId: number,
+    endLeafId: number
+): boolean | null {
+    context.statistics.directLookupCount += 2;
+    const count = rangeCount(context.verbatimPrefix, startLeafId, endLeafId);
+    return count === null ? null : count > 0;
 }
 
 export function authorityForNode(

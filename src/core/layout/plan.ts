@@ -27,6 +27,10 @@ export type LayoutGapDecision =
       }
     | {
           readonly kind: "hard-line";
+      }
+    | {
+          readonly kind: "soft-line";
+          readonly flat: "empty" | "space";
       };
 
 export interface LayoutGapAction {
@@ -218,6 +222,25 @@ function snapshotGapDecision(
                 ? Object.freeze({ kind: kindDescriptor.value })
                 : null;
         }
+        if (kindDescriptor.value === "soft-line") {
+            const keys = Reflect.ownKeys(value);
+            const flatDescriptor = Object.getOwnPropertyDescriptor(value, "flat");
+            if (
+                keys.length !== 2 ||
+                !keys.includes("kind") ||
+                !keys.includes("flat") ||
+                flatDescriptor === undefined ||
+                !("value" in flatDescriptor) ||
+                (flatDescriptor.value !== "empty" &&
+                    flatDescriptor.value !== "space")
+            ) {
+                return null;
+            }
+            return Object.freeze({
+                kind: "soft-line",
+                flat: flatDescriptor.value,
+            });
+        }
         if (kindDescriptor.value !== "space") {
             return null;
         }
@@ -251,11 +274,16 @@ function decisionsEqual(
     left: LayoutGapDecision,
     right: LayoutGapDecision
 ): boolean {
-    return (
-        left.kind === right.kind &&
-        (left.kind !== "space" ||
-            (right.kind === "space" && left.columns === right.columns))
-    );
+    if (left.kind !== right.kind) {
+        return false;
+    }
+    if (left.kind === "space") {
+        return right.kind === "space" && left.columns === right.columns;
+    }
+    if (left.kind === "soft-line") {
+        return right.kind === "soft-line" && left.flat === right.flat;
+    }
+    return true;
 }
 
 function snapshotScopeDecision(

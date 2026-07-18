@@ -46,15 +46,16 @@ var HIVE_FORMATTED_QUERY_CONSTRUCTS = [
     'insert-overwrite-partition-select'
 ];
 
-var HIVE_STRUCTURED_EXPRESSION_CONSTRUCTS = [
+var HIVE_FORMATTED_EXPRESSION_CONSTRUCTS = [
     'case-expression',
     'function-call',
     'collection-expression',
     'cast-type',
     'subquery-expression',
-    'window-expression',
-    'template-parameter'
+    'window-expression'
 ];
+
+var HIVE_STRUCTURED_EXPRESSION_CONSTRUCTS = ['template-parameter'];
 
 var HIVE_PRESERVATION_CAPABILITIES = {
     'hive-ddl': 'verbatim',
@@ -240,6 +241,7 @@ CANONICAL.forEach(function(dialectId) {
         );
         assert.ok(
             /^(?:prefix|infix|postfix)-(?:word|symbol)$/.test(op.formatClass) ||
+                op.formatClass === 'infix-word-continuation' ||
                 op.formatClass === 'attached',
             'format class required for ' + op.id
         );
@@ -335,10 +337,11 @@ CANONICAL.forEach(function(dialectId) {
 
 assert.deepStrictEqual(
     formattedPairs.sort(),
-    HIVE_FORMATTED_QUERY_CONSTRUCTS.concat(['select-without-from'])
+    HIVE_FORMATTED_QUERY_CONSTRUCTS
+        .concat(HIVE_FORMATTED_EXPRESSION_CONSTRUCTS, ['select-without-from'])
         .map(function(id) { return 'hive/' + id; })
         .sort(),
-    'Wave 3C must expose the exact proven Hive query capability manifest'
+    'Wave 3D must expose the exact proven Hive query/expression capability manifest'
 );
 
 assert.ok(dialects.getDialect('hive').listJoinSyntax().some(function(join) {
@@ -362,13 +365,23 @@ HIVE_FORMATTED_QUERY_CONSTRUCTS.forEach(function(id) {
     );
 });
 
+HIVE_FORMATTED_EXPRESSION_CONSTRUCTS.forEach(function(id) {
+    var entry = hive.getCapability(id);
+    assert.ok(entry, 'Hive must declare expression capability ' + id);
+    assert.strictEqual(
+        entry.state,
+        'formatted',
+        'Hive expression ' + id + ' must be formatted after Wave 3D behavior evidence'
+    );
+});
+
 HIVE_STRUCTURED_EXPRESSION_CONSTRUCTS.forEach(function(id) {
     var entry = hive.getCapability(id);
     assert.ok(entry, 'Hive must declare expression capability ' + id);
     assert.strictEqual(
         entry.state,
         'structured',
-        'Hive expression ' + id + ' must be structured in Wave 2C'
+        'Hive expression ' + id + ' remains byte-preserved structured evidence'
     );
 });
 

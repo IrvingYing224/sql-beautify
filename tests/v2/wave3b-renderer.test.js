@@ -292,6 +292,43 @@ function assertFrozenSourceMap(sourceMap) {
         'pending line suffixes must flush FIFO');
 })();
 
+(function testGeneratedHorizontalWhitespaceFlushesPendingSuffixesFirst() {
+    function suffixBefore(kind) {
+        var source = kind === 'line-comment'
+            ? 'SELECT 1--a\n+2'
+            : 'SELECT 1/*a*/+2';
+        return artifactFrom(source, undefined, function(factory, analysis) {
+            var comment = analysis.leaves.find(function(leaf) {
+                return leaf.kind === kind;
+            });
+            assert.ok(comment, kind + ' fixture comment');
+            var between = kind === 'line-comment'
+                ? factory.space(1)
+                : factory.padToColumn(16);
+            return factory.concat([
+                codeLeaf(factory, analysis, 'SELECT'),
+                factory.space(1),
+                codeLeaf(factory, analysis, '1'),
+                factory.lineSuffix(comment.id, null),
+                between,
+                codeLeaf(factory, analysis, '+'),
+                factory.space(1),
+                codeLeaf(factory, analysis, '2')
+            ]);
+        });
+    }
+
+    var block = renderApi.renderLayoutArtifact(suffixBefore('block-comment'));
+    assert.strictEqual(block.ok, true);
+    assert.strictEqual(block.text, 'SELECT 1/*a*/   + 2',
+        'pad must flush a pending block suffix before generated whitespace');
+
+    var line = renderApi.renderLayoutArtifact(suffixBefore('line-comment'));
+    assert.strictEqual(line.ok, true);
+    assert.strictEqual(line.text, 'SELECT 1--a\n + 2',
+        'space after a line suffix must force a physical line break first');
+})();
+
 (function testNestedIndentAlignPadAndSuffixShareDisplayContext() {
     function nested(indentStyle) {
         return artifactFrom('SELECT 1/*a*/', { indentStyle: indentStyle },

@@ -5,8 +5,8 @@ import type {
     LayoutPolicyStatistics,
 } from "./plan";
 import { createLayoutPlanBuilder } from "./plan";
+import { applyHiveLayout } from "./hive-policy";
 import { createQueryLayoutContext } from "./query-layout-context";
-import { applyHiveQueryLayout } from "./query-policy";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
 
 function failure(message: string): LayoutPlanFailure {
@@ -71,7 +71,7 @@ export function buildLayoutPlan(
         if (context === null) {
             return failure("Layout policy could not derive query authority");
         }
-        const applied = applyHiveQueryLayout(context);
+        const applied = applyHiveLayout(context);
         return finalizeLayoutPolicyApplication(builder, applied);
     } catch {
         return failure("Layout policy inspection failed");

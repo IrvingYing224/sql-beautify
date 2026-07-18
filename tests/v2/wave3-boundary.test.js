@@ -358,11 +358,33 @@ assert.deepStrictEqual(
     queryPolicyManifest.slice().sort(),
     'every query-*-policy module must be reviewed and declared explicitly'
 );
+var expressionPolicyManifest = [
+    'src/core/layout/expression-policy.ts',
+    'src/core/layout/expression-case-policy.ts',
+    'src/core/layout/expression-container-policy.ts',
+    'src/core/layout/expression-operator-policy.ts'
+];
+var expressionPolicyFiles = collectFiles('src/core/layout').filter(function(relativePath) {
+    return /^src\/core\/layout\/expression-(?:.*-)?policy\.ts$/.test(relativePath);
+});
+assert.deepStrictEqual(
+    expressionPolicyFiles,
+    expressionPolicyManifest.slice().sort(),
+    'every expression-*-policy module must be reviewed and declared explicitly'
+);
+var hivePolicyManifest = [
+    'src/core/layout/hive-policy.ts',
+    'src/core/layout/keyword-policy.ts'
+];
+var narrowPolicyFiles = queryPolicyFiles.concat(
+    expressionPolicyFiles,
+    hivePolicyManifest
+).sort();
 var queryLayoutBoundaryFiles = [
     'src/core/layout/query-layout-context.ts'
-].concat(queryPolicyManifest);
+].concat(narrowPolicyFiles);
 var policyRawGuardFiles = new Set(
-    ['src/core/layout/policy.ts'].concat(queryPolicyFiles)
+    ['src/core/layout/policy.ts'].concat(narrowPolicyFiles)
 );
 var failClosedModuleRequestFiles = new Set(
     ['src/core/layout/policy.ts'].concat(queryLayoutBoundaryFiles)
@@ -387,6 +409,12 @@ var wave3BoundaryManifest = [
     'src/core/layout/plan.ts',
     'src/core/layout/compiler.ts',
     'src/core/layout/policy.ts',
+    'src/core/layout/expression-policy.ts',
+    'src/core/layout/expression-case-policy.ts',
+    'src/core/layout/expression-container-policy.ts',
+    'src/core/layout/expression-operator-policy.ts',
+    'src/core/layout/hive-policy.ts',
+    'src/core/layout/keyword-policy.ts',
     'src/core/source/source-map.ts',
     'src/core/renderer/unicode-width-data.ts',
     'src/core/renderer/display-width.ts',
@@ -407,6 +435,9 @@ var wave3BoundaryManifest = [
     'tests/v2/wave3c-hive-query-layout.test.js',
     'tests/v2/wave3c-resource-closure.test.js',
     'tests/fixtures/v2-wave3c-hive-query-cases.js',
+    'tests/v2/wave3d-expression-layout.test.js',
+    'tests/v2/wave3d-resource-closure.test.js',
+    'tests/fixtures/v2-wave3d-expression-cases.js',
     'tests/v2/wave3-performance.test.js',
     'tests/v2/wave3-performance-relative.test.js',
     'tests/fixtures/v2-layout-cases.js'
@@ -452,6 +483,8 @@ assert.strictEqual(countBuildInvocations('test:v2:wave3'), 1,
     'wave3c-plan-scopes.test.js',
     'wave3c-hive-query-layout.test.js',
     'wave3c-resource-closure.test.js',
+    'wave3d-expression-layout.test.js',
+    'wave3d-resource-closure.test.js',
     'wave3-performance.test.js',
     'wave3-performance-relative.test.js',
     'dialect-capability-registry.test.js',
@@ -526,7 +559,7 @@ collectFiles('src/core/layout').filter(function(file) {
     if (policyRawGuardFiles.has(relativePath)) {
         assertNoPolicyRawOrSourceAccess(relativePath, source);
     }
-    if (queryPolicyFiles.indexOf(relativePath) >= 0) {
+    if (narrowPolicyFiles.indexOf(relativePath) >= 0) {
         assertPolicyUsesNarrowContext(relativePath, source);
     }
 });

@@ -106,14 +106,13 @@ function options() {
 })();
 
 (function testScopeCannotCutAtomicClaimOrHideInsideReplacedGap() {
-    var analysis = analyze('select f(1)+2');
+    var analysis = analyze('select f(a => b)+2');
     var queryId = analysis.index.queries()[0].id;
-    var functionLeafId = analysis.leaves.filter(function(leaf) {
-        return leaf.raw === 'f';
-    })[0].id;
-    var claim = claimsApi.dominatingVerbatimClaims(analysis)
-        .claimForLeaf(functionLeafId);
+    var claims = claimsApi.dominatingVerbatimClaims(analysis);
+    var claim = claims && claims.claims[0];
     assert.ok(claim);
+    assert.ok(claim.leafRange.end - claim.leafRange.start > 1,
+        'atomic opaque claim must span enough leaves to test a partial cut');
     var cutBuilder = planApi.createLayoutPlanBuilder(analysis, options());
     assert.strictEqual(cutBuilder.wrapRange(
         queryId,
@@ -203,10 +202,10 @@ function options() {
 })();
 
 (function testCompleteVerbatimClaimCanBeWrappedWithoutDuplicateEmission() {
-    var analysis = analyze('select f(1)');
+    var analysis = analyze('select ${hiveconf:value}');
     var queryId = analysis.index.queries()[0].id;
     var functionLeafId = analysis.leaves.find(function(leaf) {
-        return leaf.raw === 'f';
+        return leaf.raw === '${hiveconf:value}';
     }).id;
     var claim = claimsApi.dominatingVerbatimClaims(analysis)
         .claimForLeaf(functionLeafId);

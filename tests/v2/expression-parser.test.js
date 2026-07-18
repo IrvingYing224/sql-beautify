@@ -950,11 +950,15 @@ function assertNoOpaque(parsed, label) {
         'collection-expression',
         'cast-type',
         'subquery-expression',
-        'window-expression',
-        'template-parameter'
+        'window-expression'
     ].forEach(function(id) {
-        assert.strictEqual(hive.getCapability(id).state, 'structured', id);
+        assert.strictEqual(hive.getCapability(id).state, 'formatted', id);
     });
+    assert.strictEqual(
+        hive.getCapability('template-parameter').state,
+        'structured',
+        'template parameter bytes remain protected rather than behavior-formatted'
+    );
     assert.strictEqual(
         dialects.getDialect('postgresql').getCapability('postgres-json-operators').state,
         'structured'

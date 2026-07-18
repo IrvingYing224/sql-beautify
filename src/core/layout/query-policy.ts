@@ -1,14 +1,11 @@
-import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type {
     ClauseNode,
     CteNode,
     QueryNode,
     SyntaxNode,
 } from "../syntax/node";
-import type { LayoutPolicyStatistics } from "./plan";
 import {
     authorityForNode,
-    queryPolicyStatistics,
     wrapLayoutRange,
 } from "./query-layout-context";
 import type { QueryLayoutContext } from "./query-layout-context";
@@ -25,7 +22,6 @@ import {
 } from "./query-list-policy";
 import { formatRelation } from "./query-relation-policy";
 import {
-    canonicalizeScopedAuthorityLineBreaks,
     EMPTY,
     HARD_LINE,
     replaceStructuralGap,
@@ -336,57 +332,26 @@ function formatStatements(context: QueryLayoutContext): boolean {
     return true;
 }
 
-function formatKeywordCase(context: QueryLayoutContext): boolean {
-    for (let leafId = 0; leafId < context.analysis.leafCount; leafId++) {
-        context.statistics.leafVisitCount += 1;
-        if (context.claims.claimForLeaf(leafId) !== null) {
-            context.statistics.directLookupCount += 1;
-            continue;
-        }
-        context.statistics.directLookupCount += 1;
-        const syntax = context.analysis.index.leafContext(leafId).syntax;
-        context.statistics.directLookupCount += 1;
-        if (
-            syntax === null ||
-            syntax.keywordCaseEligible !== true ||
-            !isKeywordCaseRole(syntax.syntaxRole)
-        ) {
-            continue;
-        }
-        const authorityNodeId = authorityForNode(
-            context,
-            syntax.directOwnerNodeId
-        );
-        if (
-            authorityNodeId !== null &&
-            !context.plan.setKeywordCase(authorityNodeId, leafId)
-        ) {
-            return false;
-        }
-    }
-    return true;
-}
-
 /** Applies the complete Wave 3C Hive query/layout policy from typed CST facts. */
 export function applyHiveQueryLayout(
     context: QueryLayoutContext
-): LayoutPolicyStatistics | null {
+): boolean {
     if (!formatStatements(context)) {
-        return null;
+        return false;
     }
     for (const node of context.analysis.index.nodes()) {
         context.statistics.nodeVisitCount += 1;
         if (node.kind === "query" && !formatQuery(context, node)) {
-            return null;
+            return false;
         }
         if (node.kind === "clause" && !formatClause(context, node)) {
-            return null;
+            return false;
         }
         if (node.kind === "cte" && !formatCte(context, node)) {
-            return null;
+            return false;
         }
         if (node.kind === "relation" && !formatRelation(context, node)) {
-            return null;
+            return false;
         }
         if (
             node.kind === "list" &&
@@ -398,20 +363,14 @@ export function applyHiveQueryLayout(
                 node.listRole === "sort-by-items") &&
             !formatQueryList(context, node)
         ) {
-            return null;
+            return false;
         }
         if (
             node.kind === "list-item" &&
             !formatListItemAlias(context, node)
         ) {
-            return null;
+            return false;
         }
     }
-    if (!canonicalizeScopedAuthorityLineBreaks(context)) {
-        return null;
-    }
-    if (!formatKeywordCase(context)) {
-        return null;
-    }
-    return queryPolicyStatistics(context);
+    return true;
 }

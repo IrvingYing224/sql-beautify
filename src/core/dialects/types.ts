@@ -14,6 +14,7 @@ export type OperatorFormatClass =
     | "prefix-word"
     | "prefix-symbol"
     | "infix-word"
+    | "infix-word-continuation"
     | "infix-symbol"
     | "postfix-word"
     | "postfix-symbol"

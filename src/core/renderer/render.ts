@@ -339,6 +339,12 @@ function renderCanonical(
         columns: number,
         frame: Pick<DocFrame, "indentLevels" | "alignColumns">
     ): void => {
+        if (suffixes.length > 0) {
+            const hadLineComment = flushSuffixes();
+            if (hadLineComment) {
+                appendGenerated("\n", 0, true);
+            }
+        }
         if (needsLinePrefix) {
             emitLinePrefix(frame);
         }
@@ -351,6 +357,12 @@ function renderCanonical(
         targetColumn: number,
         frame: Pick<DocFrame, "indentLevels" | "alignColumns">
     ): void => {
+        if (suffixes.length > 0) {
+            const hadLineComment = flushSuffixes();
+            if (hadLineComment) {
+                appendGenerated("\n", 0, true);
+            }
+        }
         if (needsLinePrefix) {
             emitLinePrefix(frame);
         }

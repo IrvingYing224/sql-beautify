@@ -178,21 +178,21 @@ function fullCanonicalRoot(factory) {
 })();
 
 (function testNodeAndOperatorVerbatimHandlesAreExact() {
-    var hive = analyze('SELECT f(1)');
+    var hive = analyze('SELECT ${hiveconf:value}');
     var hiveFactory = factoryApi.createLayoutDocFactory(hive);
-    var functionCall = hive.index.nodes().filter(function(node) {
+    var templateParameter = hive.index.nodes().filter(function(node) {
         return node.kind === 'expression' &&
-            node.expressionKind === 'function-call';
+            node.capabilityId === 'template-parameter';
     })[0];
-    assert.ok(functionCall);
-    var queryDoc = hiveFactory.verbatim(functionCall.id, {
+    assert.ok(templateParameter);
+    var queryDoc = hiveFactory.verbatim(templateParameter.id, {
         kind: 'node-capability',
-        capabilityId: 'function-call'
+        capabilityId: 'template-parameter'
     });
     assert.ok(queryDoc);
-    assert.strictEqual(queryDoc.leafRange, functionCall.leafRange,
+    assert.strictEqual(queryDoc.leafRange, templateParameter.leafRange,
         'verbatim range must be the exact owner range object');
-    assert.strictEqual(hiveFactory.verbatim(functionCall.id, {
+    assert.strictEqual(hiveFactory.verbatim(templateParameter.id, {
         kind: 'node-capability',
         capabilityId: 'select-without-from'
     }), null, 'wrong capability trigger must fail');
@@ -239,16 +239,22 @@ function fullCanonicalRoot(factory) {
         "  ['hive', new Set(['select-without-from', 'from'])],",
         "  ['postgresql', new Set(['select-without-from'])]",
         "]);",
+        "const demotions = new Map([",
+        "  ['hive', new Set(['subquery-expression', 'function-call'])]",
+        "]);",
         "const wrapped = new Map();",
         "registry.getDialect = function(id) {",
         "  if (!promotions.has(id)) return originalGetDialect(id);",
         "  if (wrapped.has(id)) return wrapped.get(id);",
         "  const view = originalGetDialect(id);",
         "  const promoted = promotions.get(id);",
+        "  const demoted = demotions.get(id) || new Set();",
         "  const capabilities = Object.freeze(view.listCapabilities().map(function(entry) {",
         "    return promoted.has(entry.id)",
         "      ? Object.freeze({ id: entry.id, state: 'formatted' })",
-        "      : entry;",
+        "      : demoted.has(entry.id)",
+        "        ? Object.freeze({ id: entry.id, state: 'structured' })",
+        "        : entry;",
         "  }));",
         "  const byId = new Map(capabilities.map(function(entry) { return [entry.id, entry]; }));",
         "  const replacement = Object.create(view);",

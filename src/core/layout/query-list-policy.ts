@@ -486,6 +486,9 @@ export function formatListItemAlias(
     context: QueryLayoutContext,
     item: ListItemNode
 ): boolean {
+    if (item.alias === null || item.itemRole === "type-member") {
+        return true;
+    }
     const authorityNodeId = authorityForNode(context, item.id);
     if (authorityNodeId === null) {
         return true;

@@ -123,7 +123,7 @@ function assertSafeOriginal(result, source, expectedStatus) {
     assert.strictEqual(conflicted.code, 'LAYOUT_PLAN_CONFLICT');
     assert.strictEqual(conflicted.plan, undefined);
 
-    var claimedArtifact = analyze('select f(1)', 'hive');
+    var claimedArtifact = analyze('select ${hiveconf:value}', 'hive');
     assert.strictEqual(claimedArtifact.status, 'analyzed');
     var claimedBuilder = planApi.createLayoutPlanBuilder(
         claimedArtifact,
@@ -132,7 +132,7 @@ function assertSafeOriginal(result, source, expectedStatus) {
     assert.ok(claimedBuilder);
     var claimedQueryId = claimedArtifact.index.queries()[0].id;
     var functionLeafId = claimedArtifact.leaves.find(function(leaf) {
-        return leaf.raw === 'f';
+        return leaf.raw === '${hiveconf:value}';
     }).id;
     assert.strictEqual(
         claimedBuilder.setKeywordCase(claimedQueryId, functionLeafId),
@@ -179,7 +179,7 @@ function assertSafeOriginal(result, source, expectedStatus) {
         'select 1 + 2'
     );
 
-    var aroundClaim = analyze('select f(1)+2', 'hive');
+    var aroundClaim = analyze('select ${hiveconf:value}+2', 'hive');
     assert.strictEqual(aroundClaim.status, 'analyzed');
     var aroundQueryId = aroundClaim.index.queries()[0].id;
     var aroundBuilder = planApi.createLayoutPlanBuilder(
@@ -187,7 +187,7 @@ function assertSafeOriginal(result, source, expectedStatus) {
         options({ dialect: 'hive' })
     );
     var functionStart = aroundClaim.leaves.filter(function(leaf) {
-        return leaf.raw === 'f';
+        return leaf.raw === '${hiveconf:value}';
     })[0].id;
     var afterFunction = aroundClaim.leaves.filter(function(leaf) {
         return leaf.raw === '+';
@@ -210,7 +210,7 @@ function assertSafeOriginal(result, source, expectedStatus) {
     assert.strictEqual(aroundCompiled.ok, true);
     assert.strictEqual(
         renderApi.renderLayoutArtifact(aroundCompiled.artifact).text,
-        'select  f(1) +2',
+        'select  ${hiveconf:value} +2',
         'actions on both sides of a verbatim claim must be emitted'
     );
 
@@ -387,12 +387,12 @@ function assertSafeOriginal(result, source, expectedStatus) {
         assert.strictEqual(repeated.text, wrapped.text, source);
     });
 
-    var unformattedChild = formatApi.formatSql('select     f(  1 )', {
+    var formattedChild = formatApi.formatSql('select     f(  1 )', {
         dialect: 'hive'
     });
-    assert.strictEqual(unformattedChild.status, 'formatted');
-    assert.strictEqual(unformattedChild.text, 'SELECT f(  1 )',
-        'function-call child must remain exact inside formatted query authority');
+    assert.strictEqual(formattedChild.status, 'formatted');
+    assert.strictEqual(formattedChild.text, 'SELECT f(1)',
+        'function-call child must use Wave 3D delimiter spacing');
 })();
 
 (function testPreservedAndFailedNeverLeakPartialOutput() {

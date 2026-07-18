@@ -267,11 +267,14 @@ function commentEvidenceMatchesCapability(
         caseExpression.text,
         [
             'SELECT',
-            "      case when a=1 then 'FROM' else 'x' end AS c",
+            '      CASE',
+            "          WHEN a = 1 THEN 'FROM'",
+            "          ELSE 'x'",
+            '      END AS c',
             '    , b',
             'FROM t'
         ].join('\n'),
-        'unformatted CASE bytes stay exact while the owning query list breaks'
+        'formatted CASE uses the shared expression policy inside a query list'
     );
     assert.strictEqual(
         formatApi.formatSql(caseExpression.text, {
@@ -282,22 +285,31 @@ function commentEvidenceMatchesCapability(
     );
 })();
 
-(function testFormattedDescendantsCannotEscapeDominatingVerbatimClaims() {
+(function testWave3DSubqueryExpressionsUseStructuredQueryLayout() {
     [
         {
             id: 'scalar-subquery-expression',
             source: 'select (select 1) as x from t',
-            expected: 'SELECT\n      (select 1) AS x\nFROM t'
+            expected: 'SELECT\n      (\n          SELECT 1\n      ) AS x\nFROM t'
         },
         {
             id: 'exists-subquery-expression',
             source: 'select exists(select 1) from t',
-            expected: 'SELECT\n      EXISTS(select 1)\nFROM t'
+            expected: 'SELECT\n      EXISTS (\n          SELECT 1\n      )\nFROM t'
         },
         {
             id: 'in-subquery-expression',
             source: 'select a from t where a in (select b from u)',
-            expected: 'SELECT\n      a\nFROM t\nWHERE a IN (select b from u)'
+            expected: [
+                'SELECT',
+                '      a',
+                'FROM t',
+                'WHERE a IN (',
+                '    SELECT',
+                '          b',
+                '    FROM u',
+                ')'
+            ].join('\n')
         }
     ].forEach(function(testCase) {
         var first = formatApi.formatSql(testCase.source, { dialect: 'hive' });
@@ -366,7 +378,7 @@ function commentEvidenceMatchesCapability(
             source: 'insert overwrite table t partition(/*x*/ds=1,hr) select a from s',
             expected: [
                 'INSERT OVERWRITE TABLE t',
-                'PARTITION (/*x*/ds=1, hr)',
+                'PARTITION (/*x*/ds = 1, hr)',
                 'SELECT',
                 '      a',
                 'FROM s'
@@ -418,7 +430,7 @@ function commentEvidenceMatchesCapability(
                 'JOIN',
                 '    -- relation',
                 '    u',
-                '    ON t.id=u.id'
+                '    ON t.id = u.id'
             ].join('\n')
         }
     ].forEach(function(testCase) {
@@ -444,17 +456,17 @@ function commentEvidenceMatchesCapability(
         {
             id: 'intrinsic-expression-line-break',
             source: 'select a\n + b from t',
-            expected: 'SELECT\n      a\n      + b\nFROM t'
+            expected: 'SELECT\n      a + b\nFROM t'
         },
         {
             id: 'intrinsic-expression-comment-line-break',
             source: 'select q -- member\n . a from t',
-            expected: 'SELECT\n      q -- member\n      . a\nFROM t'
+            expected: 'SELECT\n      q -- member\n      .a\nFROM t'
         },
         {
             id: 'intrinsic-expression-crlf',
             source: 'select a\r\n + b from t',
-            expected: 'SELECT\n      a\n      + b\nFROM t'
+            expected: 'SELECT\n      a + b\nFROM t'
         },
         {
             id: 'named-window-member-comment-line-break',
@@ -464,8 +476,7 @@ function commentEvidenceMatchesCapability(
                 '      a',
                 'FROM t',
                 'WINDOW',
-                '      w AS (PARTITION',
-                '      -- member',
+                '      w AS (PARTITION -- member',
                 '      BY a)'
             ].join('\n')
         }
@@ -495,8 +506,7 @@ function commentEvidenceMatchesCapability(
                 '      *',
                 'FROM a',
                 'JOIN b',
-                '    ON a.id',
-                '    = b.id'
+                '    ON a.id = b.id'
             ].join('\n')
         },
         {
@@ -519,8 +529,7 @@ function commentEvidenceMatchesCapability(
                 '      *',
                 'FROM a',
                 'JOIN b',
-                '    ON a.id',
-                '    = b.id'
+                '    ON a.id = b.id'
             ].join('\n')
         },
         {
@@ -533,8 +542,7 @@ function commentEvidenceMatchesCapability(
                 '    SELECT',
                 '          a',
                 '    FROM t',
-                '    WHERE a',
-                '    =1',
+                '    WHERE a = 1',
                 ') q'
             ].join('\n')
         },
@@ -547,8 +555,7 @@ function commentEvidenceMatchesCapability(
                 '          SELECT',
                 '                a',
                 '          FROM t',
-                '          WHERE a',
-                '          =1',
+                '          WHERE a = 1',
                 '      )',
                 'SELECT',
                 '      *',

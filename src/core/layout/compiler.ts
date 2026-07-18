@@ -143,7 +143,9 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                     ? factory.space(gap.decision.columns)
                     : gap.decision.kind === "hard-line"
                       ? factory.hardLine()
-                      : factory.empty();
+                      : gap.decision.kind === "soft-line"
+                        ? factory.softLine(gap.decision.flat)
+                        : factory.empty();
                 if (doc === null) {
                     return failure(
                         "LAYOUT_COMPILE_DOC",

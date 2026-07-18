@@ -101,9 +101,13 @@ function expectedFacts() {
     assert.deepStrictEqual(
         facts.formattedPairs,
         [
+            'case-expression',
+            'cast-type',
             'cluster-by',
+            'collection-expression',
             'distribute-by',
             'from',
+            'function-call',
             'group-by',
             'having',
             'insert-overwrite-partition-select',
@@ -116,12 +120,14 @@ function expectedFacts() {
             'set-operations',
             'sort-by',
             'subquery',
+            'subquery-expression',
             'table-function',
             'where',
             'window',
+            'window-expression',
             'with-cte'
         ].map(function(id) { return 'hive/' + id; }).sort(),
-        'Wave 3C matrix must expose the exact proven Hive query manifest'
+        'Wave 3D matrix must expose the exact proven Hive query/expression manifest'
     );
 
     parsed.rows.forEach(function(row) {
@@ -137,7 +143,7 @@ function expectedFacts() {
     });
     assert.strictEqual(parsed.rows.filter(function(row) {
         return row.states.some(function(state) { return state === 'formatted'; });
-    }).length, 19, 'matrix must contain nineteen formatted capability rows');
+    }).length, 25, 'matrix must contain twenty-five formatted capability rows');
 }());
 
 function createIsolatedGeneratorRoot() {

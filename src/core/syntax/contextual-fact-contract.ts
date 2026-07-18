@@ -125,6 +125,7 @@ const OPERATOR_FORMAT_CLASSES: ReadonlySet<string> =
         "prefix-word",
         "prefix-symbol",
         "infix-word",
+        "infix-word-continuation",
         "infix-symbol",
         "postfix-word",
         "postfix-symbol",

@@ -8,6 +8,10 @@ import type {
 export const HARD_LINE = Object.freeze({ kind: "hard-line" as const });
 export const EMPTY = Object.freeze({ kind: "empty" as const });
 export const SPACE = Object.freeze({ kind: "space" as const, columns: 1 });
+export const SOFT_LINE_SPACE = Object.freeze({
+    kind: "soft-line" as const,
+    flat: "space" as const,
+});
 
 export function isLayoutTrivia(
     analysis: LayoutAnalysisView,
