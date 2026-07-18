@@ -30,6 +30,38 @@ var dialectRegistryPath = path.join(
     'dialects',
     'registry.js'
 );
+var contextualInvariantsPath = path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'syntax',
+    'cst-contextual-invariants.js'
+);
+var dialectContextPath = path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'syntax',
+    'cst-dialect-context.js'
+);
+var contextualInvariantContextPath = path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'syntax',
+    'cst-contextual-invariant-context.js'
+);
+var contextualFactInvariantsPath = path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'syntax',
+    'cst-contextual-fact-invariants.js'
+);
 
 assert.ok(fs.existsSync(parserPath), 'build:v2-core required');
 assert.ok(fs.existsSync(invariantsPath), 'invariants module must exist');
@@ -40,6 +72,10 @@ var parser = require(parserPath);
 var invariants = require(invariantsPath);
 var nodeFactory = require(nodeFactoryPath);
 var dialectRegistry = require(dialectRegistryPath);
+var contextualInvariants = require(contextualInvariantsPath);
+var dialectContextApi = require(dialectContextPath);
+var contextualInvariantContextApi = require(contextualInvariantContextPath);
+var contextualFactInvariants = require(contextualFactInvariantsPath);
 
 function parse(source, dialect) {
     return parser.parseSqlArtifact(source, {
@@ -115,6 +151,128 @@ function assertRejected(label, artifact, replacementRoot, messagePattern) {
         );
     }
 }
+
+(function contextualKindSnapshotPreservesTheBaselineReadSequence() {
+    var events = [];
+    var range = { start: 0, end: 0 };
+    var raw = {
+        id: 0,
+        syntaxMarkers: Object.freeze([])
+    };
+    Object.defineProperty(raw, 'kind', {
+        enumerable: true,
+        get: function() {
+            events.push('kind');
+            return 'program';
+        }
+    });
+    Object.defineProperty(raw, 'leafRange', {
+        enumerable: true,
+        get: function() {
+            events.push('leafRange');
+            return range;
+        }
+    });
+    ['capabilityId', 'formatRole'].forEach(function(field) {
+        Object.defineProperty(raw, field, {
+            enumerable: true,
+            get: function() {
+                throw new Error(field + ' accessor must not execute');
+            }
+        });
+    });
+    contextualInvariants.validateContextualNodeFacts(
+        raw,
+        [],
+        [],
+        [],
+        dialectContextApi.getCstDialectInvariantContext('hive'),
+        false
+    );
+    assert.deepStrictEqual(
+        events,
+        ['kind', 'kind', 'leafRange', 'leafRange', 'kind'],
+        'contextual split must retain guard, nodeKind snapshot, owner range, then marker reads'
+    );
+}());
+
+(function emptyContextualFactsReuseOneFrozenIdentity() {
+    function contextFor(artifact, node) {
+        var context = contextualInvariantContextApi.createContextualInvariantContext(
+            node,
+            node.children,
+            artifact.output.leaves,
+            [],
+            dialectContextApi.getCstDialectInvariantContext('hive'),
+            true
+        );
+        assert.ok(context);
+        return context;
+    }
+    var emptyArtifact = parse('SELECT 1');
+    var emptyContext = contextFor(emptyArtifact, emptyArtifact.output.root);
+    var first = contextualFactInvariants.validateContextualFactShape(emptyContext);
+    var second = contextualFactInvariants.validateContextualFactShape(emptyContext);
+    assert.strictEqual(first, second,
+        'empty contextual facts must reuse one canonical identity');
+    assert.strictEqual(Object.isFrozen(first), true,
+        'empty contextual fact identity must be frozen');
+    assert.deepStrictEqual(
+        [first.nameClaims.length, first.separatorLeafIds.length,
+            first.operatorLeafIds.length],
+        [0, 0, 0]
+    );
+
+    var listArtifact = parse('SELECT a,b');
+    var list = find(listArtifact.output.root, function(node) {
+        return node.kind === 'list' && node.separatorLeafIds.length > 0;
+    });
+    var listFacts = contextualFactInvariants.validateContextualFactShape(
+        contextFor(listArtifact, list)
+    );
+    assert.notStrictEqual(listFacts, first,
+        'non-empty separator facts must not reuse the empty identity');
+    assert.strictEqual(listFacts.separatorLeafIds.length, 1,
+        'non-empty separator facts must remain complete');
+}());
+
+(function contextualScratchIsLocalAndReusedAcrossNodes() {
+    var artifact = parse('SELECT a,b');
+    var dialectContext = dialectContextApi.getCstDialectInvariantContext('hive');
+    var failures = [];
+    var scratch = contextualInvariantContextApi.createContextualInvariantScratch(
+        artifact.output.leaves,
+        failures,
+        dialectContext
+    );
+    var rootContext = contextualInvariantContextApi.createContextualInvariantContext(
+        artifact.output.root,
+        artifact.output.root.children,
+        artifact.output.leaves,
+        failures,
+        dialectContext,
+        true,
+        scratch
+    );
+    var statement = artifact.output.root.children[0];
+    var statementContext = contextualInvariantContextApi.createContextualInvariantContext(
+        statement,
+        statement.children,
+        artifact.output.leaves,
+        failures,
+        dialectContext,
+        true,
+        scratch
+    );
+    assert.strictEqual(rootContext, scratch,
+        'first node must use the validation-local contextual scratch');
+    assert.strictEqual(statementContext, scratch,
+        'subsequent nodes must reuse the same contextual scratch');
+    assert.strictEqual(statementContext.raw, statement,
+        'contextual scratch must expose only the current node');
+    assert.strictEqual(statementContext.nodeKind, 'statement');
+    assert.deepStrictEqual(failures, []);
+}());
 
 (function canonicalFactsPass() {
     [

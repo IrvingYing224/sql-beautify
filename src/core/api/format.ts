@@ -538,16 +538,16 @@ export function formatSqlWithStatistics(
                 );
             }
             if (alignmentPlan.targets.length > 0) {
-                const alignedPlanned = buildLayoutPlan(
+                planned = buildLayoutPlan(
                     analysis,
                     options,
                     alignmentPlan
                 );
-                if (!alignedPlanned.ok) {
+                if (!planned.ok) {
                     const value = diagnostic(
                         source,
-                        alignedPlanned.code,
-                        alignedPlanned.message
+                        planned.code,
+                        planned.message
                     );
                     return run(
                         originalResult(
@@ -558,12 +558,12 @@ export function formatSqlWithStatistics(
                         statistics(source.length)
                     );
                 }
-                const alignedCompiled = compileLayoutPlan(alignedPlanned.plan);
-                if (!alignedCompiled.ok) {
+                compiled = compileLayoutPlan(planned.plan);
+                if (!compiled.ok) {
                     const value = diagnostic(
                         source,
-                        alignedCompiled.code,
-                        alignedCompiled.message
+                        compiled.code,
+                        compiled.message
                     );
                     return run(
                         originalResult(
@@ -574,14 +574,12 @@ export function formatSqlWithStatistics(
                         statistics(source.length)
                     );
                 }
-                const alignedRendered = renderLayoutArtifact(
-                    alignedCompiled.artifact
-                );
-                if (!alignedRendered.ok) {
+                rendered = renderLayoutArtifact(compiled.artifact);
+                if (!rendered.ok) {
                     const value = diagnostic(
                         source,
-                        alignedRendered.code,
-                        alignedRendered.message
+                        rendered.code,
+                        rendered.message
                     );
                     return run(
                         originalResult(
@@ -592,9 +590,6 @@ export function formatSqlWithStatistics(
                         statistics(source.length)
                     );
                 }
-                planned = alignedPlanned;
-                compiled = alignedCompiled;
-                rendered = alignedRendered;
                 leafVisitCount =
                     planned.plan.statistics.leafVisitCount +
                     planned.plan.statistics.policyLeafVisitCount +

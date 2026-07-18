@@ -13,6 +13,10 @@ import {
     canonicalProgramValidationProofForLeaves,
 } from "./node-factory";
 import { validateContainerRelationships } from "./cst-container-invariants";
+import {
+    createContextualInvariantScratch,
+    type ContextualInvariantScratch,
+} from "./cst-contextual-invariant-context";
 import { validateContextualNodeFacts } from "./cst-contextual-invariants";
 import {
     getCstDialectInvariantContext,
@@ -1031,7 +1035,8 @@ function enforceRelationships(
     leaves: readonly SourceLeaf[],
     failures: InvariantFailure[],
     dialectContext: CstDialectInvariantContext,
-    trustedCanonicalShape: boolean
+    trustedCanonicalShape: boolean,
+    contextualScratch: ContextualInvariantScratch
 ): void {
     if (typeof raw.kind !== "string" || !isFiniteNonNegInt(raw.id)) {
         return;
@@ -1245,7 +1250,8 @@ function enforceRelationships(
         leaves,
         failures,
         dialectContext,
-        trustedCanonicalShape
+        trustedCanonicalShape,
+        contextualScratch
     );
     validateContainerRelationships(
         raw,
@@ -1282,6 +1288,11 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
             return resultOf(failures);
         }
         const { leaves, source, immutableLeafPartition } = partition;
+        const contextualScratch = createContextualInvariantScratch(
+            leaves,
+            failures,
+            dialectContext
+        );
 
         if (!isObject(input.root)) {
             fail(failures, "INV_MALFORMED_NODE", "root is missing required node fields");
@@ -1590,7 +1601,8 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                     leaves,
                     failures,
                     dialectContext,
-                    frame.trustedCanonicalShape
+                    frame.trustedCanonicalShape,
+                    contextualScratch
                 );
                 freeVisitFrames.push(frame);
                 continue;

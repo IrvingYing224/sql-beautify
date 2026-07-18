@@ -33,8 +33,8 @@ function bindingRows(analysis) {
     });
 }
 
-function protectedRows(source) {
-    return lexerApi.lexSql(source, { dialect: 'hive' }).leaves.filter(function(leaf) {
+function protectedRows(source, dialect) {
+    return lexerApi.lexSql(source, { dialect: dialect || 'hive' }).leaves.filter(function(leaf) {
         return leaf.channel === 'protected' ||
             leaf.kind === 'line-comment' ||
             leaf.kind === 'block-comment';
@@ -126,5 +126,38 @@ function protectedRows(source) {
     assert.strictEqual(second.status, 'unchanged', testCase.id + ' repeat');
     assert.strictEqual(second.text, first.text, testCase.id + ' idempotency');
 });
+
+(function testVerbatimClaimTerminatesTriviaFallbackScan() {
+    var source = 'SeLeCt\t"Mixed Name"  as x, /* keep */\t:value  as y ' +
+        'FrOm\tt where a=1 and b>2';
+    var options = {
+        dialect: 'postgresql',
+        keywordCase: 'upper',
+        commaStyle: 'trailing',
+        indentStyle: 'space',
+        caseLayout: 'compactShort',
+        caseWhenThenWrapLength: 62,
+        maxAlignWidth: 73,
+        unsupportedSyntaxPolicy: 'warn'
+    };
+    var first = formatApi.formatSql(source, options);
+    assert.strictEqual(first.status, 'formatted');
+    assert.strictEqual(first.text, [
+        'SELECT',
+        '    "Mixed Name" AS x, /* keep */',
+        '    :value AS y',
+        'FROM t',
+        'WHERE a = 1',
+        '    AND b > 2'
+    ].join('\n'));
+    assert.deepStrictEqual(
+        protectedRows(first.text, 'postgresql'),
+        protectedRows(source, 'postgresql'),
+        'verbatim boundary comment/protected bytes'
+    );
+    var second = formatApi.formatSql(first.text, options);
+    assert.strictEqual(second.status, 'unchanged');
+    assert.strictEqual(second.text, first.text);
+})();
 
 console.log('v2 Wave 3E trivia layout tests passed');

@@ -107,7 +107,11 @@ function median(values) {
     return sorted[Math.floor(sorted.length / 2)];
 }
 
-function passesWave2bRelativeGate(currentMedianMs, baselineMedianMs) {
+function passesWave2bRelativeGate(
+    currentMedianMs,
+    baselineMedianMs,
+    pairedDeltaMedianMs
+) {
     if (!Number.isFinite(currentMedianMs) ||
         !Number.isFinite(baselineMedianMs) ||
         currentMedianMs <= 0 || baselineMedianMs <= 0) {
@@ -117,7 +121,9 @@ function passesWave2bRelativeGate(currentMedianMs, baselineMedianMs) {
         Math.max(baselineMedianMs, WAVE2B_RELATIVE_FLOOR_MS) <=
             WAVE2B_RELATIVE_GATE &&
         (baselineMedianMs >= WAVE2B_RELATIVE_FLOOR_MS ||
-            currentMedianMs - baselineMedianMs <=
+            (Number.isFinite(pairedDeltaMedianMs)
+                ? pairedDeltaMedianMs
+                : currentMedianMs - baselineMedianMs) <=
                 WAVE2B_LOW_BASELINE_NOISE_MS);
 }
 
@@ -449,11 +455,16 @@ function measureRelativeParserScales(baselineCoreRoot) {
         }
         var baseline = summarizeScaleRuns(baselineRuns);
         var current = summarizeScaleRuns(currentRuns);
+        var pairedDeltasMs = Object.freeze(currentRuns.map(function(run, index) {
+            return run.medianMs - baselineRuns[index].medianMs;
+        }));
         return Object.freeze({
             statementCount: statementCount,
             baseline: baseline,
             current: current,
-            currentToBaseline: current.medianMs / baseline.medianMs
+            currentToBaseline: current.medianMs / baseline.medianMs,
+            pairedDeltasMs: pairedDeltasMs,
+            pairedDeltaMedianMs: median(pairedDeltasMs)
         });
     }));
 }
@@ -564,7 +575,9 @@ var performanceReport = {
                 currentMedianMs: Number(item.current.medianMs.toFixed(2)),
                 currentToBaseline: Number(item.currentToBaseline.toFixed(3)),
                 baselineProcessMediansMs: item.baseline.processMediansMs,
-                currentProcessMediansMs: item.current.processMediansMs
+                currentProcessMediansMs: item.current.processMediansMs,
+                pairedDeltasMs: item.pairedDeltasMs,
+                pairedDeltaMedianMs: Number(item.pairedDeltaMedianMs.toFixed(3))
             };
         })
     },
@@ -614,12 +627,17 @@ assert.ok(Number.isFinite(ratio1200) && ratio1200 <= SCALE_RATIO_GATE,
     '1200/100 parser scale ratio exceeded ' + SCALE_RATIO_GATE + 'x: ' + ratio1200);
 relativeParserScales.forEach(function(item) {
     assert.ok(
-        passesWave2bRelativeGate(item.current.medianMs, item.baseline.medianMs),
+        passesWave2bRelativeGate(
+            item.current.medianMs,
+            item.baseline.medianMs,
+            item.pairedDeltaMedianMs
+        ),
         item.statementCount + ' parser regression versus committed Wave 2B baseline exceeded ' +
             WAVE2B_RELATIVE_GATE + 'x / low-baseline +' +
             WAVE2B_LOW_BASELINE_NOISE_MS + 'ms gate: ' + item.currentToBaseline +
             ' (baseline=' + item.baseline.medianMs + 'ms, current=' +
-            item.current.medianMs + 'ms)'
+            item.current.medianMs + 'ms, pairedDelta=' +
+            item.pairedDeltaMedianMs + 'ms)'
     );
 });
 assert.strictEqual(
@@ -631,6 +649,12 @@ assert.strictEqual(passesWave2bRelativeGate(39, 30), true,
     'low baseline must allow at most the bounded absolute noise budget');
 assert.strictEqual(passesWave2bRelativeGate(40.01, 30), false,
     'low baseline must reject work beyond the absolute noise budget');
+assert.strictEqual(passesWave2bRelativeGate(40.5, 30, 9), true,
+    'low baseline must use the paired process delta for scheduler noise');
+assert.strictEqual(passesWave2bRelativeGate(39, 30, 10.01), false,
+    'paired low-baseline delta must retain the exact absolute noise budget');
+assert.strictEqual(passesWave2bRelativeGate(60.01, 30, 0), false,
+    'paired low-baseline noise must not bypass the exact 1.2x ratio gate');
 assert.strictEqual(passesWave2bRelativeGate(120, 100), true,
     'normal baselines must retain the exact 1.2x gate');
 assert.strictEqual(passesWave2bRelativeGate(120.01, 100), false,

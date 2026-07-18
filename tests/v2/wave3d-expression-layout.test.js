@@ -6,6 +6,7 @@ var formatApi = require('../../.tmp/v2-core/core/api/format.js');
 var lexerApi = require('../../.tmp/v2-core/core/lexer/lossless-lexer.js');
 var claimsApi = require('../../.tmp/v2-core/core/layout/verbatim-claims.js');
 var cases = require('../fixtures/v2-wave3d-expression-cases.js');
+var closureCases = require('../fixtures/v2-wave3-corpus-cases.js');
 
 var EXPECTED_FORMATTED_EXPRESSION_CAPABILITIES = Object.freeze([
     'case-expression',
@@ -33,6 +34,12 @@ function protectedRows(leaves) {
     }).map(function(leaf) {
         return [leaf.kind, leaf.channel, leaf.raw];
     });
+}
+
+function closureCase(id) {
+    var value = closureCases.find(function(testCase) { return testCase.id === id; });
+    assert.ok(value, 'missing shared Wave 3 corpus case ' + id);
+    return value;
 }
 
 (function testExpressionGoldensCapabilityAuthorityAndConservation() {
@@ -156,12 +163,8 @@ function protectedRows(leaves) {
 })();
 
 (function testUnknownExpressionRecoveryStaysMinimalInsideFormattedOwners() {
-    var source = "select case when a=1 then f(a => b) else 'y' end";
-    var result = formatApi.formatSql(source, {
-        dialect: 'hive',
-        caseLayout: 'compactShort',
-        caseWhenThenWrapLength: 200
-    });
+    var testCase = closureCase('unknown-expression-local-recovery');
+    var result = formatApi.formatSql(testCase.source, testCase.options);
     assert.strictEqual(result.status, 'formatted');
     assert.strictEqual(result.text, [
         'SELECT CASE',
@@ -201,14 +204,14 @@ function protectedRows(leaves) {
 })();
 
 (function testTemplateParameterStaysStructuredAndByteExact() {
-    var source = 'select ${hiveconf:value}+1 from t';
-    var analysis = analyze(source);
+    var testCase = closureCase('structured-template-parameter');
+    var analysis = analyze(testCase.source);
     var template = analysis.index.nodes().find(function(node) {
         return node.capabilityId === 'template-parameter';
     });
     assert.ok(template);
     assert.strictEqual(analysis.index.capabilityForNode(template.id).state, 'structured');
-    var result = formatApi.formatSql(source, { dialect: 'hive' });
+    var result = formatApi.formatSql(testCase.source, testCase.options);
     assert.strictEqual(result.status, 'formatted');
     assert.strictEqual(result.text, [
         'SELECT',

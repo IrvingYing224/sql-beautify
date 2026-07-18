@@ -329,6 +329,16 @@ export function applyTriviaLayout(context: QueryLayoutContext): boolean {
     for (let leafId = 0; leafId < context.analysis.leafCount; leafId++) {
         activeScopeCount += context.scopeDeltas[leafId]!;
         context.statistics.leafVisitCount += 1;
+        const claim = context.claims.claimForLeaf(leafId);
+        context.statistics.directLookupCount += 1;
+        if (claim !== null) {
+            if (claim.leafRange.start === leafId) {
+                previousSyntaxEnd = claim.leafRange.end;
+                previousAuthorityNodeId = null;
+                requiresHardLine = false;
+            }
+            continue;
+        }
         const kind = context.analysis.leafKind(leafId);
         if (kind === null) {
             return false;

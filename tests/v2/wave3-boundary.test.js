@@ -138,6 +138,148 @@ function moduleRequests(relativePath, source, failClosed) {
     return requests;
 }
 
+function hasModifier(node, kind) {
+    return !!node.modifiers && node.modifiers.some(function(modifier) {
+        return modifier.kind === kind;
+    });
+}
+
+function bindingNames(name, output) {
+    if (ts.isIdentifier(name)) {
+        output.push(name.text);
+        return;
+    }
+    name.elements.forEach(function(element) {
+        if (!ts.isOmittedExpression(element)) {
+            bindingNames(element.name, output);
+        }
+    });
+}
+
+function runtimeExportNames(relativePath, source) {
+    var sourceFile = parseTypeScript(relativePath, source);
+    var names = [];
+    sourceFile.statements.forEach(function(statement) {
+        if (ts.isExportAssignment(statement)) {
+            names.push(statement.isExportEquals ? 'export=' : 'default');
+            return;
+        }
+        if (ts.isExportDeclaration(statement)) {
+            if (statement.isTypeOnly) {
+                return;
+            }
+            if (!statement.exportClause) {
+                names.push('*');
+                return;
+            }
+            if (ts.isNamespaceExport(statement.exportClause)) {
+                names.push(statement.exportClause.name.text);
+                return;
+            }
+            statement.exportClause.elements.forEach(function(element) {
+                if (!element.isTypeOnly) {
+                    names.push(element.name.text);
+                }
+            });
+            return;
+        }
+        if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+            return;
+        }
+        if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) {
+            return;
+        }
+        if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) {
+            names.push('default');
+            return;
+        }
+        if (ts.isVariableStatement(statement)) {
+            statement.declarationList.declarations.forEach(function(declaration) {
+                bindingNames(declaration.name, names);
+            });
+            return;
+        }
+        if (statement.name && ts.isIdentifier(statement.name)) {
+            names.push(statement.name.text);
+            return;
+        }
+        names.push('<anonymous-runtime-export>');
+    });
+    return names.sort();
+}
+
+function assertContextualInvariantEntryIsOrchestrator(relativePath, source) {
+    var sourceFile = parseTypeScript(relativePath, source);
+    var entry = sourceFile.statements.find(function(statement) {
+        return ts.isFunctionDeclaration(statement) &&
+            statement.name &&
+            statement.name.text === 'validateContextualNodeFacts';
+    });
+    assert.ok(entry && entry.body, relativePath + ' must define its entry function');
+    assert.strictEqual(entry.asteriskToken, undefined,
+        relativePath + ' entry must not be a generator');
+    assert.strictEqual(hasModifier(entry, ts.SyntaxKind.AsyncKeyword), false,
+        relativePath + ' entry must not be async');
+    assert.ok(entry.type && entry.type.kind === ts.SyntaxKind.VoidKeyword,
+        relativePath + ' entry must retain an explicit void return type');
+    function callShape(value) {
+        assert.ok(value && ts.isCallExpression(value),
+            relativePath + ' entry step must be a direct call');
+        assert.ok(ts.isIdentifier(value.expression),
+            relativePath + ' entry calls must target focused validators');
+        return [value.expression.text, value.arguments.map(function(argument) {
+            assert.ok(ts.isIdentifier(argument),
+                relativePath + ' entry call arguments must be direct identifiers');
+            return argument.text;
+        })];
+    }
+    function variableCall(statement, name) {
+        assert.ok(ts.isVariableStatement(statement),
+            relativePath + ' entry must declare ' + name);
+        assert.strictEqual(statement.declarationList.declarations.length, 1);
+        var declaration = statement.declarationList.declarations[0];
+        assert.ok(ts.isIdentifier(declaration.name));
+        assert.strictEqual(declaration.name.text, name);
+        return callShape(declaration.initializer);
+    }
+    function expressionCall(statement) {
+        assert.ok(ts.isExpressionStatement(statement),
+            relativePath + ' validator step must be an expression statement');
+        return callShape(statement.expression);
+    }
+    assert.strictEqual(entry.body.statements.length, 5,
+        relativePath + ' entry must contain exactly five orchestration steps');
+    assert.deepStrictEqual(variableCall(entry.body.statements[0], 'context'), [
+        'createContextualInvariantContext',
+        ['raw', 'directChildren', 'leaves', 'failures', 'dialectContext',
+            'trustedCanonicalShape', 'scratch']
+    ]);
+    var guard = entry.body.statements[1];
+    assert.ok(ts.isIfStatement(guard) && !guard.elseStatement,
+        relativePath + ' entry must contain only the null-context guard');
+    assert.ok(ts.isBinaryExpression(guard.expression));
+    assert.strictEqual(guard.expression.operatorToken.kind,
+        ts.SyntaxKind.EqualsEqualsEqualsToken);
+    assert.ok(ts.isIdentifier(guard.expression.left));
+    assert.strictEqual(guard.expression.left.text, 'context');
+    assert.strictEqual(guard.expression.right.kind, ts.SyntaxKind.NullKeyword);
+    assert.ok(ts.isBlock(guard.thenStatement));
+    assert.strictEqual(guard.thenStatement.statements.length, 1);
+    var guardReturn = guard.thenStatement.statements[0];
+    assert.ok(ts.isReturnStatement(guardReturn));
+    assert.strictEqual(guardReturn.expression, undefined,
+        relativePath + ' null-context guard must use a bare return');
+    assert.deepStrictEqual(expressionCall(entry.body.statements[2]), [
+        'validateCapabilityAllowlist', ['context']
+    ]);
+    assert.deepStrictEqual(variableCall(entry.body.statements[3], 'facts'), [
+        'validateContextualFactShape', ['context']
+    ]);
+    assert.deepStrictEqual(expressionCall(entry.body.statements[4]), [
+        'validateExactMarkerClosure', ['context', 'facts']
+    ]);
+}
+
 function assertNoRawGrammarOrSourceSlice(relativePath, source) {
     var sourceFile = parseTypeScript(relativePath, source);
     function visit(node) {
@@ -397,8 +539,13 @@ var wave3BoundaryManifest = [
     'src/core/config/resolve-options.ts',
     'src/core/dialects/capability-state.ts',
     'src/core/syntax/contextual-fact-contract.ts',
+    'src/core/syntax/cst-capability-allowlist-invariants.ts',
+    'src/core/syntax/cst-contextual-fact-invariants.ts',
+    'src/core/syntax/cst-contextual-invariant-context.ts',
+    'src/core/syntax/cst-contextual-invariant-support.ts',
     'src/core/syntax/cst-contextual-invariants.ts',
     'src/core/syntax/cst-dialect-context.ts',
+    'src/core/syntax/cst-marker-closure-invariants.ts',
     'src/core/syntax/primitive-capability.ts',
     'src/core/layout/doc.ts',
     'src/core/layout/doc-factory.ts',
@@ -439,10 +586,13 @@ var wave3BoundaryManifest = [
     'tests/v2/wave3d-expression-layout.test.js',
     'tests/v2/wave3d-resource-closure.test.js',
     'tests/fixtures/v2-wave3d-expression-cases.js',
+    'tests/fixtures/v2-wave3-corpus-cases.js',
     'tests/v2/wave3e-trivia-layout.test.js',
     'tests/v2/wave3e-alignment-options.test.js',
     'tests/v2/wave3e-dialect-layout.test.js',
     'tests/v2/wave3e-option-matrix.test.js',
+    'tests/v2/wave3-properties.test.js',
+    'tests/v2/wave3-alignment-performance.test.js',
     'tests/v2/wave3-performance.test.js',
     'tests/v2/wave3-performance-relative.test.js',
     'tests/fixtures/v2-layout-cases.js'
@@ -451,6 +601,168 @@ var wave3BoundaryManifest = [
 wave3BoundaryManifest.forEach(function(relativePath) {
     assert.ok(fs.existsSync(path.join(root, relativePath)),
         'Wave 3A requires ' + relativePath);
+});
+
+var contextualInvariantManifest = [
+    'src/core/syntax/cst-capability-allowlist-invariants.ts',
+    'src/core/syntax/cst-contextual-fact-invariants.ts',
+    'src/core/syntax/cst-contextual-invariant-context.ts',
+    'src/core/syntax/cst-contextual-invariant-support.ts',
+    'src/core/syntax/cst-contextual-invariants.ts',
+    'src/core/syntax/cst-marker-closure-invariants.ts'
+].sort();
+var contextualInvariantFiles = collectFiles('src/core/syntax').filter(function(file) {
+    return /^src\/core\/syntax\/cst-(?:contextual(?:-|$)|capability-allowlist-|marker-closure-)/
+        .test(file);
+});
+assert.deepStrictEqual(
+    contextualInvariantFiles,
+    contextualInvariantManifest,
+    'every contextual invariant module must be explicitly reviewed and declared'
+);
+
+var contextualInternalRequests = Object.freeze({
+    'src/core/syntax/cst-contextual-invariants.ts': Object.freeze([
+        './cst-capability-allowlist-invariants',
+        './cst-contextual-fact-invariants',
+        './cst-contextual-invariant-context',
+        './cst-marker-closure-invariants'
+    ]),
+    'src/core/syntax/cst-contextual-invariant-context.ts': Object.freeze([]),
+    'src/core/syntax/cst-contextual-invariant-support.ts': Object.freeze([]),
+    'src/core/syntax/cst-capability-allowlist-invariants.ts': Object.freeze([
+        './cst-contextual-invariant-context',
+        './cst-contextual-invariant-support'
+    ]),
+    'src/core/syntax/cst-contextual-fact-invariants.ts': Object.freeze([
+        './cst-contextual-invariant-context',
+        './cst-contextual-invariant-support'
+    ]),
+    'src/core/syntax/cst-marker-closure-invariants.ts': Object.freeze([
+        './cst-contextual-invariant-context',
+        './cst-contextual-invariant-support'
+    ])
+});
+var forbiddenContextualBehavior = [
+    'LayoutDoc',
+    'LayoutPlan',
+    'RenderSuccess',
+    'QueryLayoutContext',
+    'measureDisplayText',
+    'keywordCase',
+    'commaStyle',
+    'indentStyle',
+    'caseLayout',
+    'maxAlignWidth',
+    'maxLineLength',
+    'unsupportedSyntaxPolicy'
+];
+contextualInvariantManifest.forEach(function(relativePath) {
+    var source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    var internalRequests = moduleRequests(relativePath, source, true)
+        .filter(function(request) {
+            return request.indexOf('./cst-contextual-') === 0 ||
+                request.indexOf('./cst-capability-allowlist-') === 0 ||
+                request.indexOf('./cst-marker-closure-') === 0;
+        }).sort();
+    assert.deepStrictEqual(
+        internalRequests,
+        contextualInternalRequests[relativePath].slice().sort(),
+        relativePath + ' must follow the acyclic contextual invariant dependency graph'
+    );
+    moduleRequests(relativePath, source, true).forEach(function(request) {
+        assert.strictEqual(
+            /(?:^|\/)(?:layout|renderer)(?:\/|$)/.test(request),
+            false,
+            relativePath + ' must not depend on downstream ' + request
+        );
+    });
+    forbiddenContextualBehavior.forEach(function(identifier) {
+        assert.strictEqual(
+            new RegExp('\\b' + identifier + '\\b').test(source),
+            false,
+            relativePath + ' must not contain layout, renderer or option behavior ' +
+                identifier
+        );
+    });
+});
+
+var contextualEntryPath = 'src/core/syntax/cst-contextual-invariants.ts';
+var contextualEntrySource = fs.readFileSync(
+    path.join(root, contextualEntryPath),
+    'utf8'
+);
+assert.deepStrictEqual(
+    runtimeExportNames(contextualEntryPath, contextualEntrySource),
+    ['validateContextualNodeFacts'],
+    'contextual invariant entry must expose only its stable public validator'
+);
+assertContextualInvariantEntryIsOrchestrator(
+    contextualEntryPath,
+    contextualEntrySource
+);
+[
+    'export const extraRuntime = 1;',
+    'export class ExtraRuntime {}',
+    'const hiddenRuntime = 1; export { hiddenRuntime };',
+    'export default 1;',
+    "export * from './cst-contextual-invariant-context';"
+].forEach(function(extraExport) {
+    assert.notDeepStrictEqual(
+        runtimeExportNames(
+            contextualEntryPath,
+            contextualEntrySource + '\n' + extraExport
+        ),
+        ['validateContextualNodeFacts'],
+        'runtime export probe must detect ' + extraExport
+    );
+});
+var contextualFastPathProbe = contextualEntrySource.replace(
+    'if (context === null) {',
+    'if (context === null || raw.kind === "expression") {'
+);
+assert.notStrictEqual(contextualFastPathProbe, contextualEntrySource,
+    'orchestrator fast-path probe must alter the entry guard');
+assert.throws(function() {
+    assertContextualInvariantEntryIsOrchestrator(
+        contextualEntryPath,
+        contextualFastPathProbe
+    );
+}, 'entry boundary must reject raw-dependent fast paths');
+var contextualReturnExpressionProbe = contextualEntrySource.replace(
+    '        return;',
+    '        return validateContextualNodeFacts(raw, directChildren, leaves, ' +
+        'failures, dialectContext, trustedCanonicalShape);'
+);
+assert.notStrictEqual(contextualReturnExpressionProbe, contextualEntrySource,
+    'orchestrator return-expression probe must alter the bare return');
+assert.throws(function() {
+    assertContextualInvariantEntryIsOrchestrator(
+        contextualEntryPath,
+        contextualReturnExpressionProbe
+    );
+}, 'entry boundary must reject return-expression fast paths');
+
+collectFiles('src/core/syntax').filter(function(file) {
+    return /\.ts$/.test(file) && contextualInvariantManifest.indexOf(file) < 0;
+}).forEach(function(relativePath) {
+    var source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    var contextualRequests = moduleRequests(relativePath, source, false)
+        .filter(function(request) {
+            return request.indexOf('./cst-contextual-') === 0 ||
+                request.indexOf('./cst-capability-allowlist-') === 0 ||
+                request.indexOf('./cst-marker-closure-') === 0;
+        });
+    assert.deepStrictEqual(
+        contextualRequests,
+        relativePath === 'src/core/syntax/cst-invariants.ts'
+            ? [
+                './cst-contextual-invariant-context',
+                './cst-contextual-invariants'
+            ]
+            : [],
+        relativePath + ' must not bypass the contextual invariant orchestrator'
+    );
 });
 [
     'src/core/layout/query-layout-context.ts',
@@ -494,6 +806,8 @@ assert.strictEqual(countBuildInvocations('test:v2:wave3'), 1,
     'wave3e-alignment-options.test.js',
     'wave3e-dialect-layout.test.js',
     'wave3e-option-matrix.test.js',
+    'wave3-properties.test.js',
+    'wave3-alignment-performance.test.js',
     'wave3-performance.test.js',
     'wave3-performance-relative.test.js',
     'dialect-capability-registry.test.js',
@@ -703,5 +1017,8 @@ assert.ok(packagedFiles.indexOf('vkbeautify.js') >= 0);
         return pattern.test(file);
     }), []);
 });
+assert.deepStrictEqual(packagedFiles.filter(function(file) {
+    return /\.ts$/.test(file);
+}), [], 'VSIX must not contain any TypeScript source');
 
 console.log('v2 Wave 3 boundary tests passed');
