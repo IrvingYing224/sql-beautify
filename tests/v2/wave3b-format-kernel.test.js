@@ -357,14 +357,22 @@ function assertSafeOriginal(result, source, expectedStatus) {
     });
 })();
 
-(function testUnformattedDialectsRemainIdentityAndHiveQueriesUseWave3C() {
+(function testSharedDialectsUseProvenLayoutAndHiveQueriesUseWave3C() {
     ['generic', 'postgresql', 'mysql'].forEach(function(dialect) {
         var result = formatApi.formatSql('select    1', {
             dialect: dialect,
             keywordCase: 'upper'
         });
-        assert.strictEqual(result.status, 'unchanged', dialect);
-        assert.strictEqual(result.text, 'select    1', dialect);
+        assert.strictEqual(result.status, 'formatted', dialect);
+        assert.strictEqual(result.text, 'SELECT 1', dialect);
+        assert.strictEqual(
+            formatApi.formatSql(result.text, {
+                dialect: dialect,
+                keywordCase: 'upper'
+            }).status,
+            'unchanged',
+            dialect + ' idempotency'
+        );
     });
 
     var from = formatApi.formatSql('select    a from t', {

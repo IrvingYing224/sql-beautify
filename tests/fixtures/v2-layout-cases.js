@@ -51,11 +51,11 @@ module.exports = Object.freeze([
         status: 'formatted'
     },
     {
-        id: 'generic-no-from-remains-verbatim',
+        id: 'generic-no-from-shared-layout',
         source: 'select    1',
         options: { dialect: 'generic', keywordCase: 'upper' },
-        expected: 'select    1',
-        status: 'unchanged'
+        expected: 'SELECT 1',
+        status: 'formatted'
     },
     {
         id: 'hive-from-query-layout',

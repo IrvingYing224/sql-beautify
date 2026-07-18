@@ -129,6 +129,11 @@ export interface StructuralIndex {
     depthAfter(leafId: number): number;
 
     lineStarts(): readonly number[];
+    /** Counts source blank physical lines strictly between two leaf boundaries. */
+    blankLineCountBetween(
+        startLeafBoundary: number,
+        endLeafBoundary: number
+    ): number;
     leafPosition(leafId: number): SourcePosition;
     leafContainsLineBreak(leafId: number): boolean;
     leafStartsWithLineBreak(leafId: number): boolean;

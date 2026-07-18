@@ -73,6 +73,8 @@ src/core/layout/invariants.ts      # doc ownership/coverage/resource validation
 src/core/layout/plan.ts            # direct-address LayoutPlan and conflict rules
 src/core/layout/compiler.ts        # monotonic gap cursor compiler
 src/core/layout/policy.ts          # registry-gated policy orchestration
+src/core/layout/alignment-policy.ts # renderer-column alignment proof
+src/core/layout/dialect-policy.ts   # shared registry-gated transaction
 src/core/layout/query-policy.ts
 src/core/layout/expression-policy.ts
 src/core/layout/trivia-policy.ts
@@ -98,7 +100,10 @@ tests/v2/wave3b-renderer.test.js
 tests/v2/wave3b-format-kernel.test.js
 tests/v2/wave3c-hive-query-layout.test.js
 tests/v2/wave3d-expression-layout.test.js
-tests/v2/wave3e-trivia-dialect-options.test.js
+tests/v2/wave3e-trivia-layout.test.js
+tests/v2/wave3e-alignment-options.test.js
+tests/v2/wave3e-dialect-layout.test.js
+tests/v2/wave3e-option-matrix.test.js
 tests/v2/wave3-properties.test.js
 tests/v2/wave3-performance.test.js
 tests/v2/wave3-boundary.test.js

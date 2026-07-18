@@ -19,7 +19,7 @@ import {
     isLayoutTrivia,
     replaceStructuralGap,
     SPACE,
-} from "./query-trivia-policy";
+} from "./trivia-policy";
 
 const INDENT = Object.freeze({ kind: "indent" as const, levels: 1 });
 const CONTENT_ALIGN = Object.freeze({ kind: "align" as const, columns: 2 });

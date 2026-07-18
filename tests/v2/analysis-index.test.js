@@ -358,6 +358,46 @@ function directBuild(built, root) {
     }, /range/i);
 }());
 
+(function testBlankLineFactsExcludeCommentRawAndWorkWithoutComments() {
+    var plain = build('SELECT a\n\n\nFROM t');
+    var plainA = plain.result.leaves.find(function(leaf) {
+        return leaf.raw === 'a';
+    });
+    var plainFrom = plain.result.leaves.find(function(leaf) {
+        return leaf.raw.toLowerCase() === 'from';
+    });
+    assert.ok(plainA && plainFrom);
+    assert.strictEqual(
+        plain.index.blankLineCountBetween(plainA.id + 1, plainFrom.id),
+        2,
+        'line facts must exist even when the source has no comments'
+    );
+
+    var withComment = build('SELECT a /* x\n\n y */\n\nFROM t');
+    var commentA = withComment.result.leaves.find(function(leaf) {
+        return leaf.raw === 'a';
+    });
+    var commentFrom = withComment.result.leaves.find(function(leaf) {
+        return leaf.raw.toLowerCase() === 'from';
+    });
+    assert.ok(commentA && commentFrom);
+    assert.strictEqual(
+        withComment.index.blankLineCountBetween(
+            commentA.id + 1,
+            commentFrom.id
+        ),
+        1,
+        'line breaks inside comment raw must not invent source blank lines'
+    );
+    assert.throws(function() {
+        plain.index.blankLineCountBetween(-1, 0);
+    }, /boundary range/i);
+    assert.throws(function() {
+        plain.index.blankLineCountBetween(plain.result.leaves.length + 1,
+            plain.result.leaves.length + 1);
+    }, /boundary range/i);
+}());
+
 (function testEmptySourceContract() {
     var built = build('');
     assert.deepStrictEqual(built.index.nodes(), [built.result.root]);

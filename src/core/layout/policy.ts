@@ -5,7 +5,8 @@ import type {
     LayoutPolicyStatistics,
 } from "./plan";
 import { createLayoutPlanBuilder } from "./plan";
-import { applyHiveLayout } from "./hive-policy";
+import { applyDialectLayout } from "./dialect-policy";
+import type { LayoutAlignmentPlan } from "./alignment-policy";
 import { createQueryLayoutContext } from "./query-layout-context";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
 
@@ -46,32 +47,34 @@ export function buildIdentityLayoutPlan(
 }
 
 /**
- * Wave 3 policy dispatch. Non-Hive dialects remain identity until Wave 3E;
- * Hive query behavior is delegated to the typed Wave 3C policy.
+ * Wave 3 policy dispatch. Registry state and dominating claims gate the proven
+ * subset for each dialect before the shared typed policy can register actions.
  */
 export function buildLayoutPlan(
     analysisValue: unknown,
-    optionsValue: unknown
+    optionsValue: unknown,
+    alignmentPlan: LayoutAlignmentPlan | null = null
 ): LayoutPlanResult {
     const builder = createLayoutPlanBuilder(analysisValue, optionsValue);
     if (builder === null) {
         return failure("Layout policy requires canonical analysis and options");
     }
     const analysis = builder.analysis;
-    if (analysis.dialect !== "hive") {
-        return builder.finish();
-    }
     const claims = dominatingVerbatimClaims(analysis);
     if (claims === null) {
         return failure("Layout policy could not derive dominating ranges");
     }
 
     try {
-        const context = createQueryLayoutContext(builder, claims);
+        const context = createQueryLayoutContext(
+            builder,
+            claims,
+            alignmentPlan
+        );
         if (context === null) {
             return failure("Layout policy could not derive query authority");
         }
-        const applied = applyHiveLayout(context);
+        const applied = applyDialectLayout(context);
         return finalizeLayoutPolicyApplication(builder, applied);
     } catch {
         return failure("Layout policy inspection failed");

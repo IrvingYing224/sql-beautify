@@ -145,6 +145,8 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                       ? factory.hardLine()
                       : gap.decision.kind === "soft-line"
                         ? factory.softLine(gap.decision.flat)
+                        : gap.decision.kind === "pad-to-column"
+                          ? factory.padToColumn(gap.decision.targetColumn)
                         : factory.empty();
                 if (doc === null) {
                     return failure(

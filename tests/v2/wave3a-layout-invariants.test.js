@@ -138,8 +138,20 @@ function fullCanonicalRoot(factory) {
 
     var generic = analyze('select 1', 'generic');
     var genericFactory = factoryApi.createLayoutDocFactory(generic);
-    assert.strictEqual(genericFactory.leaf(0, 'keyword-case'), null,
-        'unformatted dialect query must still dominate eligible keywords');
+    assert.ok(genericFactory.leaf(0, 'keyword-case'),
+        'Wave 3E shared generic query must accept contextual keyword proof');
+
+    var genericArray = analyze('select ARRAY[1]', 'generic');
+    var genericArrayFactory = factoryApi.createLayoutDocFactory(genericArray);
+    var arrayLeaf = genericArray.leaves.find(function(leaf) {
+        return leaf.raw.toLowerCase() === 'array';
+    });
+    assert.ok(arrayLeaf);
+    assert.strictEqual(
+        genericArrayFactory.leaf(arrayLeaf.id, 'keyword-case'),
+        null,
+        'structured-only generic ARRAY subset must still dominate its keywords'
+    );
 })();
 
 (function testProtectedAndCommentLeavesCannotTransform() {
@@ -213,16 +225,16 @@ function fullCanonicalRoot(factory) {
         });
     });
     assert.ok(occurrence && owner);
-    assert.strictEqual(postgresFactory.verbatim(owner.id, {
+    assert.ok(postgresFactory.verbatim(owner.id, {
         kind: 'operator-capability',
         capabilityId: occurrence.capabilityId,
         operatorId: occurrence.operatorId
-    }), null, 'outer unformatted query claim must dominate nested operator claim');
+    }), 'structured PG operator must retain an exact owner claim');
     assert.ok(postgresFactory.verbatimClaims.some(function(claim) {
-        return claim.ownerNodeId !== owner.id &&
-            claim.leafRange.start <= owner.leafRange.start &&
-            claim.leafRange.end >= owner.leafRange.end;
-    }));
+        return claim.ownerNodeId === owner.id &&
+            claim.leafRange.start === owner.leafRange.start &&
+            claim.leafRange.end === owner.leafRange.end;
+    }), 'PG operator claim must not widen to the formatted query');
     assert.strictEqual(postgresFactory.verbatim(owner.id, {
         kind: 'operator-capability',
         capabilityId: occurrence.capabilityId,
@@ -353,19 +365,31 @@ function fullCanonicalRoot(factory) {
     });
     assert.strictEqual(commentLeafIds.length, suffixLimit + 1);
 
+    function suffixParts(factory, breakAfterSuffix) {
+        var optionalTriviaIds = analysis.leaves.filter(function(leaf) {
+            return leaf.kind === 'whitespace' || leaf.kind === 'newline';
+        }).map(function(leaf) {
+            return leaf.id;
+        });
+        var parts = canonicalCoverageDocs(
+            factory,
+            commentLeafIds.concat(optionalTriviaIds)
+        );
+        commentLeafIds.forEach(function(commentLeafId) {
+            parts.push(factory.lineSuffix(commentLeafId, null));
+            if (breakAfterSuffix) {
+                parts.push(factory.hardLine());
+            }
+        });
+        return parts;
+    }
+
     var overflowingFactory = factoryApi.createLayoutDocFactory(analysis);
     assert.strictEqual(
         overflowingFactory.budget.maxPendingLineSuffixes,
         suffixLimit
     );
-    var overflowingClaim = overflowingFactory.verbatimClaims[0];
-    var overflowingParts = [overflowingFactory.verbatim(
-        overflowingClaim.ownerNodeId,
-        overflowingClaim.trigger
-    )];
-    commentLeafIds.forEach(function(commentLeafId) {
-        overflowingParts.push(overflowingFactory.lineSuffix(commentLeafId, null));
-    });
+    var overflowingParts = suffixParts(overflowingFactory, false);
     var overflowingRoot = overflowingFactory.concat(overflowingParts);
     var overflowing = invariantApi.validateLayoutDoc(analysis, overflowingRoot);
     assert.strictEqual(overflowing.ok, false);
@@ -375,15 +399,7 @@ function fullCanonicalRoot(factory) {
     }));
 
     var boundedFactory = factoryApi.createLayoutDocFactory(analysis);
-    var boundedClaim = boundedFactory.verbatimClaims[0];
-    var boundedParts = [boundedFactory.verbatim(
-        boundedClaim.ownerNodeId,
-        boundedClaim.trigger
-    )];
-    commentLeafIds.forEach(function(commentLeafId) {
-        boundedParts.push(boundedFactory.lineSuffix(commentLeafId, null));
-        boundedParts.push(boundedFactory.hardLine());
-    });
+    var boundedParts = suffixParts(boundedFactory, true);
     var boundedRoot = boundedFactory.concat(boundedParts);
     var bounded = invariantApi.validateLayoutDoc(analysis, boundedRoot);
     assert.strictEqual(
@@ -673,7 +689,7 @@ function fullCanonicalRoot(factory) {
         columns.push('c' + index);
     }
     var analysis = analyze(
-        'SELECT ' + columns.join(', ') + ' FROM t',
+        'SELECT ' + columns.join(', ') + ' FROM t QUALIFY c0 = 1',
         'generic'
     );
     var factory = factoryApi.createLayoutDocFactory(analysis);
@@ -742,8 +758,8 @@ function fullCanonicalRoot(factory) {
     var options = canonicalOptions('generic');
 
     var missingFactory = factoryApi.createLayoutDocFactory(analysis);
-    var onlyClaim = missingFactory.verbatimClaims[0];
-    var missing = missingFactory.verbatim(onlyClaim.ownerNodeId, onlyClaim.trigger);
+    var missing = missingFactory.leaf(0, 'raw');
+    assert.ok(missing);
     var missingResult = artifactApi.createLayoutArtifact(
         analysis,
         missing,
@@ -794,16 +810,20 @@ function fullCanonicalRoot(factory) {
         return leaf.kind === 'line-comment';
     });
     assert.ok(commentLeaf);
+    var optionalCommentTrivia = commentAnalysis.leaves.filter(function(leaf) {
+        return leaf.id !== commentLeaf.id &&
+            (leaf.kind === 'whitespace' || leaf.kind === 'newline');
+    }).map(function(leaf) {
+        return leaf.id;
+    });
 
     var sameFlatFactory = factoryApi.createLayoutDocFactory(commentAnalysis);
-    var sameFlatClaim = sameFlatFactory.verbatimClaims[0];
     var sameFlatParts = [
-        sameFlatFactory.leaf(commentLeaf.id, 'raw'),
-        sameFlatFactory.verbatim(
-            sameFlatClaim.ownerNodeId,
-            sameFlatClaim.trigger
-        )
-    ];
+        sameFlatFactory.leaf(commentLeaf.id, 'raw')
+    ].concat(canonicalCoverageDocs(
+        sameFlatFactory,
+        [commentLeaf.id].concat(optionalCommentTrivia)
+    ));
     var sameFlatContent = sameFlatFactory.concat(sameFlatParts);
     var sameFlatRoot = sameFlatFactory.group('flat', sameFlatContent);
     var sameFlatResult = invariantApi.validateLayoutDoc(
@@ -817,13 +837,14 @@ function fullCanonicalRoot(factory) {
     }), 'one flat scope cannot omit the newline after a raw line comment');
 
     var boundaryFlatFactory = factoryApi.createLayoutDocFactory(commentAnalysis);
-    var boundaryFlatClaim = boundaryFlatFactory.verbatimClaims[0];
     var boundaryComment = boundaryFlatFactory.leaf(commentLeaf.id, 'raw');
-    var boundaryVerbatim = boundaryFlatFactory.verbatim(
-        boundaryFlatClaim.ownerNodeId,
-        boundaryFlatClaim.trigger
+    var boundaryContent = boundaryFlatFactory.concat(
+        canonicalCoverageDocs(
+            boundaryFlatFactory,
+            [commentLeaf.id].concat(optionalCommentTrivia)
+        )
     );
-    var boundaryFlat = boundaryFlatFactory.group('flat', boundaryVerbatim);
+    var boundaryFlat = boundaryFlatFactory.group('flat', boundaryContent);
     var boundaryRoot = boundaryFlatFactory.concat([
         boundaryComment,
         boundaryFlat

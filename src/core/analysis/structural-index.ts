@@ -1078,7 +1078,7 @@ export function buildStructuralIndex(
     const contextualFactsByLeaf: ContextualLeafFacts[] = new Array(leafCount);
     const commentLeafIndexes: number[] = [];
     const lineStarts: number[] = [0];
-    const lineHasContent: boolean[] = hasCommentTrivia ? [false] : [];
+    const lineHasContent: boolean[] = [false];
     const pendingComments: number[] = [];
     const activeByDepth: Array<TraversalMeta | undefined> = [];
     const activeOpaqueByDepth: Array<TraversalMeta | undefined> = [];
@@ -1223,7 +1223,7 @@ export function buildStructuralIndex(
 
         startLineByLeaf[leafIndex] = currentLine;
         const content = leaf.kind !== "whitespace" && leaf.kind !== "newline";
-        if (hasCommentTrivia && content && leaf.raw.length > 0) {
+        if (content && leaf.raw.length > 0) {
             lineHasContent[currentLine] = true;
         }
         const containsLineBreak =
@@ -1246,11 +1246,8 @@ export function buildStructuralIndex(
                     code === 13 && leaf.raw.charCodeAt(relativeOffset + 1) === 10 ? 2 : 1;
                 currentLine += 1;
                 lineStarts.push(leaf.span.start + relativeOffset + width);
-                if (hasCommentTrivia) {
-                    lineHasContent[currentLine] = false;
-                }
+                lineHasContent[currentLine] = false;
                 if (
-                    hasCommentTrivia &&
                     content &&
                     relativeOffset + width < leaf.raw.length
                 ) {
@@ -1282,16 +1279,17 @@ export function buildStructuralIndex(
         );
     }
 
+    const blankLinePrefix: number[] = [0];
+    for (let lineIndex = 0; lineIndex < lineHasContent.length; lineIndex++) {
+        blankLinePrefix.push(
+            blankLinePrefix[lineIndex]! +
+                (lineHasContent[lineIndex] === true ? 0 : 1)
+        );
+    }
+    const frozenBlankLinePrefix = Object.freeze(blankLinePrefix);
     const frozenStartLineByLeaf = startLineByLeaf;
     let bindings: readonly CommentBinding[] = EMPTY_BINDINGS;
     if (commentLeafIndexes.length > 0) {
-        const blankLinePrefix: number[] = [0];
-        for (let lineIndex = 0; lineIndex < lineHasContent.length; lineIndex++) {
-            blankLinePrefix.push(
-                blankLinePrefix[lineIndex]! +
-                    (lineHasContent[lineIndex] === true ? 0 : 1)
-            );
-        }
         const ownerIds = (
             values: readonly (TraversalMeta | undefined)[]
         ): readonly (number | null)[] =>
@@ -1311,7 +1309,7 @@ export function buildStructuralIndex(
             nextSyntaxByLeaf: freezeSparseNullableIds(nextSyntaxByLeaf, leafCount),
             startLineByLeaf: frozenStartLineByLeaf,
             endLineByLeaf: Object.freeze(endLineByLeaf),
-            blankLinePrefix: Object.freeze(blankLinePrefix),
+            blankLinePrefix: frozenBlankLinePrefix,
             deepestContainerNodeIdByLeaf: freezeSparseNullableIds(
                 deepestContainerNodeIdByLeaf,
                 leafCount
@@ -1591,6 +1589,33 @@ export function buildStructuralIndex(
         },
         lineStarts(): readonly number[] {
             return frozenLineStarts;
+        },
+        blankLineCountBetween(
+            startLeafBoundary: number,
+            endLeafBoundary: number
+        ): number {
+            if (
+                !Number.isSafeInteger(startLeafBoundary) ||
+                !Number.isSafeInteger(endLeafBoundary) ||
+                startLeafBoundary < 0 ||
+                endLeafBoundary < startLeafBoundary ||
+                endLeafBoundary > leafCount
+            ) {
+                throw new Error(
+                    `Leaf boundary range out of bounds: [${String(startLeafBoundary)}, ${String(endLeafBoundary)})`
+                );
+            }
+            const startLine = startLeafBoundary === leafCount
+                ? currentLine
+                : frozenStartLineByLeaf[startLeafBoundary]!;
+            const endLine = endLeafBoundary === leafCount
+                ? currentLine
+                : frozenStartLineByLeaf[endLeafBoundary]!;
+            if (endLine <= startLine + 1) {
+                return 0;
+            }
+            return frozenBlankLinePrefix[endLine]! -
+                frozenBlankLinePrefix[startLine + 1]!;
         },
         leafPosition(leafId: number): SourcePosition {
             const leaf = assertLeafId(leafId);

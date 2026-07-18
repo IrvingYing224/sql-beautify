@@ -31,6 +31,10 @@ export type LayoutGapDecision =
     | {
           readonly kind: "soft-line";
           readonly flat: "empty" | "space";
+      }
+    | {
+          readonly kind: "pad-to-column";
+          readonly targetColumn: number;
       };
 
 export interface LayoutGapAction {
@@ -241,6 +245,29 @@ function snapshotGapDecision(
                 flat: flatDescriptor.value,
             });
         }
+        if (kindDescriptor.value === "pad-to-column") {
+            const keys = Reflect.ownKeys(value);
+            const targetDescriptor = Object.getOwnPropertyDescriptor(
+                value,
+                "targetColumn"
+            );
+            if (
+                keys.length !== 2 ||
+                !keys.includes("kind") ||
+                !keys.includes("targetColumn") ||
+                targetDescriptor === undefined ||
+                !("value" in targetDescriptor) ||
+                !Number.isSafeInteger(targetDescriptor.value) ||
+                targetDescriptor.value <= 0 ||
+                targetDescriptor.value > maximumColumns
+            ) {
+                return null;
+            }
+            return Object.freeze({
+                kind: "pad-to-column",
+                targetColumn: targetDescriptor.value as number,
+            });
+        }
         if (kindDescriptor.value !== "space") {
             return null;
         }
@@ -282,6 +309,10 @@ function decisionsEqual(
     }
     if (left.kind === "soft-line") {
         return right.kind === "soft-line" && left.flat === right.flat;
+    }
+    if (left.kind === "pad-to-column") {
+        return right.kind === "pad-to-column" &&
+            left.targetColumn === right.targetColumn;
     }
     return true;
 }

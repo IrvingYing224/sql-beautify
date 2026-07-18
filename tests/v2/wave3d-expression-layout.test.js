@@ -178,12 +178,25 @@ function protectedRows(leaves) {
 
 (function testUnformattedDialectSpecificOperatorsRemainAtomic() {
     [
-        ['postgresql', "select payload->>'x' from t"],
-        ['mysql', "select payload->>'$.x' from t"]
+        [
+            'postgresql',
+            "select payload->>'x' from t",
+            ["SELECT", "      payload->>'x'", "FROM t"].join('\n')
+        ],
+        [
+            'mysql',
+            "select payload->>'$.x' from t",
+            ["SELECT", "      payload->>'$.x'", "FROM t"].join('\n')
+        ]
     ].forEach(function(row) {
         var result = formatApi.formatSql(row[1], { dialect: row[0] });
-        assert.strictEqual(result.status, 'unchanged', row[0]);
-        assert.strictEqual(result.text, row[1], row[0] + ' source');
+        assert.strictEqual(result.status, 'formatted', row[0]);
+        assert.strictEqual(result.text, row[2], row[0] + ' atomic operator');
+        assert.strictEqual(
+            formatApi.formatSql(result.text, { dialect: row[0] }).status,
+            'unchanged',
+            row[0] + ' idempotency'
+        );
     });
 })();
 

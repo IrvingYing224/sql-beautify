@@ -57,6 +57,28 @@ var HIVE_FORMATTED_EXPRESSION_CONSTRUCTS = [
 
 var HIVE_STRUCTURED_EXPRESSION_CONSTRUCTS = ['template-parameter'];
 
+var SHARED_FORMATTED_CONSTRUCTS = [
+    'multi-statement',
+    'with-cte',
+    'select-without-from',
+    'from',
+    'join',
+    'subquery',
+    'table-function',
+    'where',
+    'group-by',
+    'having',
+    'window',
+    'order-by',
+    'limit',
+    'set-operations',
+    'case-expression',
+    'function-call',
+    'cast-type',
+    'subquery-expression',
+    'window-expression'
+];
+
 var HIVE_PRESERVATION_CAPABILITIES = {
     'hive-ddl': 'verbatim',
     'merge': 'diagnostic',
@@ -340,8 +362,13 @@ assert.deepStrictEqual(
     HIVE_FORMATTED_QUERY_CONSTRUCTS
         .concat(HIVE_FORMATTED_EXPRESSION_CONSTRUCTS, ['select-without-from'])
         .map(function(id) { return 'hive/' + id; })
+        .concat(['generic', 'postgresql', 'mysql'].reduce(function(values, dialect) {
+            return values.concat(SHARED_FORMATTED_CONSTRUCTS.map(function(id) {
+                return dialect + '/' + id;
+            }));
+        }, []))
         .sort(),
-    'Wave 3D must expose the exact proven Hive query/expression capability manifest'
+    'Wave 3E must expose only the proven Hive and shared dialect manifests'
 );
 
 assert.ok(dialects.getDialect('hive').listJoinSyntax().some(function(join) {

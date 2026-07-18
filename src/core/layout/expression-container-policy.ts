@@ -6,14 +6,21 @@ import type {
     TypeExpressionNode,
     WindowSpecNode,
 } from "../syntax/node";
-import { authorityForNode } from "./query-layout-context";
+import {
+    authorityForNode,
+    rangeHasComment,
+    wrapLayoutRange,
+} from "./query-layout-context";
 import type { QueryLayoutContext } from "./query-layout-context";
 import { formatFlatList } from "./query-list-policy";
 import {
     EMPTY,
+    HARD_LINE,
     replaceStructuralGap,
     SPACE,
-} from "./query-trivia-policy";
+} from "./trivia-policy";
+
+const INDENT = Object.freeze({ kind: "indent" as const, levels: 1 });
 
 interface DirectAnchor {
     readonly start: number;
@@ -103,6 +110,27 @@ function normalizeDelimitedInterior(
     closeLeafId: number,
     extraRanges: readonly DirectAnchor[] = []
 ): boolean {
+    const hasComment = rangeHasComment(
+        context,
+        openLeafId + 1,
+        closeLeafId
+    );
+    if (hasComment === null) {
+        return false;
+    }
+    let multiline = false;
+    if (hasComment) {
+        try {
+            context.statistics.directLookupCount += 1;
+            multiline = context.analysis.index.rangeContainsLineBreak({
+                start: openLeafId + 1,
+                end: closeLeafId,
+            });
+        } catch {
+            return false;
+        }
+    }
+    const boundaryDecision = multiline ? HARD_LINE : EMPTY;
     const children = node.children.filter(
         (child) =>
             child.leafRange.start > openLeafId &&
@@ -132,16 +160,16 @@ function normalizeDelimitedInterior(
             authorityNodeId,
             openLeafId + 1,
             closeLeafId,
-            EMPTY
+            boundaryDecision
         );
     }
-    return (
+    const normalized =
         replaceStructuralGap(
             context,
             authorityNodeId,
             openLeafId + 1,
             anchors[0]!.start,
-            EMPTY
+            boundaryDecision
         ) &&
         normalizeSequence(context, authorityNodeId, anchors) &&
         replaceStructuralGap(
@@ -149,9 +177,17 @@ function normalizeDelimitedInterior(
             authorityNodeId,
             anchors[anchors.length - 1]!.end,
             closeLeafId,
-            EMPTY
-        )
-    );
+            boundaryDecision
+        );
+    return normalized &&
+        (!multiline ||
+            wrapLayoutRange(
+                context,
+                authorityNodeId,
+                openLeafId + 1,
+                closeLeafId,
+                INDENT
+            ));
 }
 
 function formatCallLike(

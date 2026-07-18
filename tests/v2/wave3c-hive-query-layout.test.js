@@ -476,8 +476,10 @@ function commentEvidenceMatchesCapability(
                 '      a',
                 'FROM t',
                 'WINDOW',
-                '      w AS (PARTITION -- member',
-                '      BY a)'
+                '      w AS (',
+                '          PARTITION -- member',
+                '          BY a',
+                '      )'
             ].join('\n')
         }
     ].forEach(function(testCase) {

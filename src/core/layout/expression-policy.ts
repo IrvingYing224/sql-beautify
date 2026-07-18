@@ -22,7 +22,7 @@ function formatExpression(
 }
 
 /** Applies registry-backed expression behavior without reading SQL token text. */
-export function applyHiveExpressionLayout(
+export function applyExpressionLayout(
     context: QueryLayoutContext
 ): boolean {
     for (const node of context.analysis.index.nodes()) {

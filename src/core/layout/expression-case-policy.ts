@@ -10,7 +10,7 @@ import {
     replaceStructuralGap,
     SOFT_LINE_SPACE,
     SPACE,
-} from "./query-trivia-policy";
+} from "./trivia-policy";
 
 const INDENT = Object.freeze({ kind: "indent" as const, levels: 1 });
 

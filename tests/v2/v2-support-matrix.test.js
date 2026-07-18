@@ -100,7 +100,29 @@ function expectedFacts() {
     }), facts.capabilities, 'matrix capability rows must be the sorted registry union');
     assert.deepStrictEqual(
         facts.formattedPairs,
-        [
+        ['generic', 'mysql', 'postgresql'].reduce(function(values, dialect) {
+            return values.concat([
+                'case-expression',
+                'cast-type',
+                'from',
+                'function-call',
+                'group-by',
+                'having',
+                'join',
+                'limit',
+                'multi-statement',
+                'order-by',
+                'select-without-from',
+                'set-operations',
+                'subquery',
+                'subquery-expression',
+                'table-function',
+                'where',
+                'window',
+                'window-expression',
+                'with-cte'
+            ].map(function(id) { return dialect + '/' + id; }));
+        }, []).concat([
             'case-expression',
             'cast-type',
             'cluster-by',
@@ -126,8 +148,8 @@ function expectedFacts() {
             'window',
             'window-expression',
             'with-cte'
-        ].map(function(id) { return 'hive/' + id; }).sort(),
-        'Wave 3D matrix must expose the exact proven Hive query/expression manifest'
+        ].map(function(id) { return 'hive/' + id; })).sort(),
+        'Wave 3E matrix must expose the exact proven dialect manifests'
     );
 
     parsed.rows.forEach(function(row) {
@@ -143,7 +165,7 @@ function expectedFacts() {
     });
     assert.strictEqual(parsed.rows.filter(function(row) {
         return row.states.some(function(state) { return state === 'formatted'; });
-    }).length, 25, 'matrix must contain twenty-five formatted capability rows');
+    }).length, 25, 'matrix must contain twenty-five distinct formatted capability rows');
 }());
 
 function createIsolatedGeneratorRoot() {

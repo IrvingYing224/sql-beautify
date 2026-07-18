@@ -40,10 +40,13 @@ interface GapComment {
 }
 
 function decisionBetweenGapAnchors(
+    context: QueryLayoutContext,
+    startLeafId: number,
+    endLeafId: number,
     requested: LayoutGapDecision,
     left: GapComment | null,
     right: GapComment | null
-): LayoutGapDecision {
+): LayoutGapDecision | null {
     if (left?.kind === "line-comment") {
         return HARD_LINE;
     }
@@ -53,7 +56,74 @@ function decisionBetweenGapAnchors(
     if (right?.placement === "trailing") {
         return SPACE;
     }
+    if (
+        left?.placement === "dangling" ||
+        right?.placement === "dangling" ||
+        left?.kind === "block-comment"
+    ) {
+        try {
+            context.statistics.directLookupCount += 1;
+            if (
+                context.analysis.index.rangeContainsLineBreak({
+                    start: startLeafId,
+                    end: endLeafId,
+                })
+            ) {
+                return HARD_LINE;
+            }
+        } catch {
+            return null;
+        }
+    }
     return requested;
+}
+
+function registerTriviaGap(
+    context: QueryLayoutContext,
+    authorityNodeId: number,
+    startLeafId: number,
+    endLeafId: number,
+    decision: LayoutGapDecision
+): boolean {
+    if (startLeafId === endLeafId && decision.kind === "empty") {
+        return true;
+    }
+    const alignmentTarget = context.alignmentTargetByLeaf[endLeafId];
+    const alignedDecision: LayoutGapDecision =
+        decision.kind === "space" &&
+        alignmentTarget !== undefined &&
+        alignmentTarget > 0
+            ? Object.freeze({
+                  kind: "pad-to-column",
+                  targetColumn: alignmentTarget,
+              })
+            : decision;
+    const success = context.plan.replaceGap(
+        authorityNodeId,
+        startLeafId,
+        endLeafId,
+        alignedDecision
+    );
+    if (success) {
+        context.registeredGapEnds[startLeafId] = endLeafId;
+    }
+    return success;
+}
+
+function sourceGapHasBlankLine(
+    context: QueryLayoutContext,
+    startLeafId: number,
+    endLeafId: number
+): boolean | null {
+    try {
+        context.statistics.directLookupCount += 1;
+        return context.analysis.index.blankLineCountBetween(
+            startLeafId,
+            endLeafId
+        ) > 0;
+    } catch {
+        return null;
+    }
 }
 
 function replaceCanonicalTriviaRun(
@@ -63,14 +133,52 @@ function replaceCanonicalTriviaRun(
     endLeafId: number,
     decision: LayoutGapDecision
 ): boolean {
-    return startLeafId === endLeafId && decision.kind === "empty"
-        ? true
-        : context.plan.replaceGap(
-              authorityNodeId,
-              startLeafId,
-              endLeafId,
-              decision
-          );
+    if (decision.kind !== "hard-line") {
+        return registerTriviaGap(
+            context,
+            authorityNodeId,
+            startLeafId,
+            endLeafId,
+            decision
+        );
+    }
+    const hasBlankLine = sourceGapHasBlankLine(
+        context,
+        startLeafId,
+        endLeafId
+    );
+    if (hasBlankLine === null) {
+        return false;
+    }
+    if (!hasBlankLine) {
+        return registerTriviaGap(
+            context,
+            authorityNodeId,
+            startLeafId,
+            endLeafId,
+            decision
+        );
+    }
+    if (endLeafId - startLeafId < 2) {
+        return false;
+    }
+    const splitLeafId = endLeafId - 1;
+    return (
+        registerTriviaGap(
+            context,
+            authorityNodeId,
+            startLeafId,
+            splitLeafId,
+            HARD_LINE
+        ) &&
+        registerTriviaGap(
+            context,
+            authorityNodeId,
+            splitLeafId,
+            endLeafId,
+            HARD_LINE
+        )
+    );
 }
 
 export function commentGapRequiresHardLine(
@@ -162,13 +270,22 @@ export function replaceStructuralGap(
     let cursor = startLeafId;
     let left: GapComment | null = null;
     for (const right of comments) {
+        const gapDecision = decisionBetweenGapAnchors(
+            context,
+            cursor,
+            right.leafId,
+            decision,
+            left,
+            right
+        );
         if (
+            gapDecision === null ||
             !replaceCanonicalTriviaRun(
                 context,
                 authorityNodeId,
                 cursor,
                 right.leafId,
-                decisionBetweenGapAnchors(decision, left, right)
+                gapDecision
             )
         ) {
             return false;
@@ -176,12 +293,23 @@ export function replaceStructuralGap(
         cursor = right.leafId + 1;
         left = right;
     }
+    const finalDecision = decisionBetweenGapAnchors(
+        context,
+        cursor,
+        endLeafId,
+        decision,
+        left,
+        null
+    );
+    if (finalDecision === null) {
+        return false;
+    }
     return canonical(replaceCanonicalTriviaRun(
         context,
         authorityNodeId,
         cursor,
         endLeafId,
-        decisionBetweenGapAnchors(decision, left, null)
+        finalDecision
     ));
 }
 
@@ -190,9 +318,7 @@ export function replaceStructuralGap(
  * enclosing indent/align scope. Structural gaps already owned by a typed
  * policy action and verbatim authorities remain untouched.
  */
-export function canonicalizeScopedAuthorityLineBreaks(
-    context: QueryLayoutContext
-): boolean {
+export function applyTriviaLayout(context: QueryLayoutContext): boolean {
     if (context.statistics.scopeRangeCount === 0) {
         return true;
     }

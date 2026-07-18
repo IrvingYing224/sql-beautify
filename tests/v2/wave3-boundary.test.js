@@ -347,8 +347,7 @@ function countBuildInvocations(scriptName, stack) {
 var queryPolicyManifest = [
     'src/core/layout/query-policy.ts',
     'src/core/layout/query-list-policy.ts',
-    'src/core/layout/query-relation-policy.ts',
-    'src/core/layout/query-trivia-policy.ts'
+    'src/core/layout/query-relation-policy.ts'
 ];
 var queryPolicyFiles = collectFiles('src/core/layout').filter(function(relativePath) {
     return /^src\/core\/layout\/query-(?:.*-)?policy\.ts$/.test(relativePath);
@@ -373,8 +372,9 @@ assert.deepStrictEqual(
     'every expression-*-policy module must be reviewed and declared explicitly'
 );
 var hivePolicyManifest = [
-    'src/core/layout/hive-policy.ts',
-    'src/core/layout/keyword-policy.ts'
+    'src/core/layout/dialect-policy.ts',
+    'src/core/layout/keyword-policy.ts',
+    'src/core/layout/trivia-policy.ts'
 ];
 var narrowPolicyFiles = queryPolicyFiles.concat(
     expressionPolicyFiles,
@@ -406,6 +406,7 @@ var wave3BoundaryManifest = [
     'src/core/layout/invariants.ts',
     'src/core/layout/resource-budget.ts',
     'src/core/layout/verbatim-claims.ts',
+    'src/core/layout/alignment-policy.ts',
     'src/core/layout/plan.ts',
     'src/core/layout/compiler.ts',
     'src/core/layout/policy.ts',
@@ -413,7 +414,7 @@ var wave3BoundaryManifest = [
     'src/core/layout/expression-case-policy.ts',
     'src/core/layout/expression-container-policy.ts',
     'src/core/layout/expression-operator-policy.ts',
-    'src/core/layout/hive-policy.ts',
+    'src/core/layout/dialect-policy.ts',
     'src/core/layout/keyword-policy.ts',
     'src/core/source/source-map.ts',
     'src/core/renderer/unicode-width-data.ts',
@@ -438,6 +439,10 @@ var wave3BoundaryManifest = [
     'tests/v2/wave3d-expression-layout.test.js',
     'tests/v2/wave3d-resource-closure.test.js',
     'tests/fixtures/v2-wave3d-expression-cases.js',
+    'tests/v2/wave3e-trivia-layout.test.js',
+    'tests/v2/wave3e-alignment-options.test.js',
+    'tests/v2/wave3e-dialect-layout.test.js',
+    'tests/v2/wave3e-option-matrix.test.js',
     'tests/v2/wave3-performance.test.js',
     'tests/v2/wave3-performance-relative.test.js',
     'tests/fixtures/v2-layout-cases.js'
@@ -452,7 +457,7 @@ wave3BoundaryManifest.forEach(function(relativePath) {
     'src/core/layout/query-policy.ts',
     'src/core/layout/query-list-policy.ts',
     'src/core/layout/query-relation-policy.ts',
-    'src/core/layout/query-trivia-policy.ts'
+    'src/core/layout/trivia-policy.ts'
 ].forEach(function(relativePath) {
     assert.ok(queryLayoutBoundaryFiles.indexOf(relativePath) >= 0,
         'Wave 3C boundary manifest must include ' + relativePath);
@@ -485,6 +490,10 @@ assert.strictEqual(countBuildInvocations('test:v2:wave3'), 1,
     'wave3c-resource-closure.test.js',
     'wave3d-expression-layout.test.js',
     'wave3d-resource-closure.test.js',
+    'wave3e-trivia-layout.test.js',
+    'wave3e-alignment-options.test.js',
+    'wave3e-dialect-layout.test.js',
+    'wave3e-option-matrix.test.js',
     'wave3-performance.test.js',
     'wave3-performance-relative.test.js',
     'dialect-capability-registry.test.js',

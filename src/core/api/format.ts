@@ -11,6 +11,7 @@ import { resolveFormatOptions } from "../config/resolve-options";
 import { lexSql } from "../lexer/lossless-lexer";
 import type { SourceLeaf } from "../lexer/token";
 import { compileLayoutPlan } from "../layout/compiler";
+import { deriveLayoutAlignmentPlan } from "../layout/alignment-policy";
 import type { LayoutPlan } from "../layout/plan";
 import { buildLayoutPlan } from "../layout/policy";
 import { applyKeywordCase } from "../renderer/keyword-case";
@@ -415,7 +416,7 @@ export function formatSqlWithStatistics(
             );
         }
 
-        const planned = buildLayoutPlan(analysis, options);
+        let planned = buildLayoutPlan(analysis, options);
         if (!planned.ok) {
             const value = diagnostic(source, planned.code, planned.message);
             return run(
@@ -432,7 +433,7 @@ export function formatSqlWithStatistics(
                 )
             );
         }
-        const compiled = compileLayoutPlan(planned.plan);
+        let compiled = compileLayoutPlan(planned.plan);
         if (!compiled.ok) {
             const value = diagnostic(source, compiled.code, compiled.message);
             return run(
@@ -462,12 +463,12 @@ export function formatSqlWithStatistics(
                 )
             );
         }
-        const rendered = renderLayoutArtifact(compiled.artifact);
-        const leafVisitCount =
+        let rendered = renderLayoutArtifact(compiled.artifact);
+        let leafVisitCount =
             planned.plan.statistics.leafVisitCount +
             planned.plan.statistics.policyLeafVisitCount +
             compiled.statistics.leafVisitCount;
-        const directLookupCount =
+        let directLookupCount =
             planned.plan.statistics.directLookupCount +
             planned.plan.statistics.policyDirectLookupCount +
             compiled.statistics.directLookupCount;
@@ -497,6 +498,112 @@ export function formatSqlWithStatistics(
                     planned.plan.statistics.policyDirectLookupCount
                 )
             );
+        }
+        {
+            const alignmentPlan = deriveLayoutAlignmentPlan(
+                analysis,
+                options,
+                rendered
+            );
+            if (alignmentPlan === null) {
+                const value = diagnostic(
+                    source,
+                    "LAYOUT_ALIGNMENT_FACTS",
+                    "Layout alignment measurement failed"
+                );
+                return run(
+                    originalResult(
+                        "failed",
+                        source,
+                        frozenDiagnostics(analysis.diagnostics, value)
+                    ),
+                    statistics(
+                        source.length,
+                        source.length,
+                        leafCount,
+                        syntaxNodeCount,
+                        planned.plan.statistics.actionCount,
+                        planned.plan.budget.maxPlanActions,
+                        leafVisitCount,
+                        compiled.statistics.leafEmissionCount,
+                        directLookupCount,
+                        rendered.statistics.docVisitCount,
+                        planned.plan.statistics.scopeActionCount,
+                        compiled.statistics.scopeActionVisitCount,
+                        planned.plan.statistics.policyNodeVisitCount,
+                        planned.plan.statistics.policyLeafVisitCount,
+                        planned.plan.statistics.policyDirectLookupCount,
+                        closureStatistics(rendered.statistics)
+                    )
+                );
+            }
+            if (alignmentPlan.targets.length > 0) {
+                const alignedPlanned = buildLayoutPlan(
+                    analysis,
+                    options,
+                    alignmentPlan
+                );
+                if (!alignedPlanned.ok) {
+                    const value = diagnostic(
+                        source,
+                        alignedPlanned.code,
+                        alignedPlanned.message
+                    );
+                    return run(
+                        originalResult(
+                            "failed",
+                            source,
+                            frozenDiagnostics(analysis.diagnostics, value)
+                        ),
+                        statistics(source.length)
+                    );
+                }
+                const alignedCompiled = compileLayoutPlan(alignedPlanned.plan);
+                if (!alignedCompiled.ok) {
+                    const value = diagnostic(
+                        source,
+                        alignedCompiled.code,
+                        alignedCompiled.message
+                    );
+                    return run(
+                        originalResult(
+                            "failed",
+                            source,
+                            frozenDiagnostics(analysis.diagnostics, value)
+                        ),
+                        statistics(source.length)
+                    );
+                }
+                const alignedRendered = renderLayoutArtifact(
+                    alignedCompiled.artifact
+                );
+                if (!alignedRendered.ok) {
+                    const value = diagnostic(
+                        source,
+                        alignedRendered.code,
+                        alignedRendered.message
+                    );
+                    return run(
+                        originalResult(
+                            "failed",
+                            source,
+                            frozenDiagnostics(analysis.diagnostics, value)
+                        ),
+                        statistics(source.length)
+                    );
+                }
+                planned = alignedPlanned;
+                compiled = alignedCompiled;
+                rendered = alignedRendered;
+                leafVisitCount =
+                    planned.plan.statistics.leafVisitCount +
+                    planned.plan.statistics.policyLeafVisitCount +
+                    compiled.statistics.leafVisitCount;
+                directLookupCount =
+                    planned.plan.statistics.directLookupCount +
+                    planned.plan.statistics.policyDirectLookupCount +
+                    compiled.statistics.directLookupCount;
+            }
         }
         const equivalence = tokenEquivalent(
             analysis,

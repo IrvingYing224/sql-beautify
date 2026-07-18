@@ -49,6 +49,17 @@ class RenderAbort extends Error {
     }
 }
 
+const CANONICAL_RENDER_ARTIFACTS = new WeakMap<object, LayoutArtifact>();
+
+/** Exact artifact proof for successful renderer results. */
+export function canonicalLayoutArtifactForRenderSuccess(
+    value: unknown
+): LayoutArtifact | null {
+    return typeof value === "object" && value !== null
+        ? CANONICAL_RENDER_ARTIFACTS.get(value) ?? null
+        : null;
+}
+
 function failure(code: RenderFailureCode, message: string): RenderFailure {
     return Object.freeze({ ok: false, code, message });
 }
@@ -617,7 +628,11 @@ export function renderLayoutArtifact(value: unknown): RenderResult {
         if (!measured.ok) {
             return failure("RENDER_METRICS", measured.message);
         }
-        return renderCanonical(value, measured.metrics);
+        const rendered = renderCanonical(value, measured.metrics);
+        if (rendered.ok) {
+            CANONICAL_RENDER_ARTIFACTS.set(rendered, value);
+        }
+        return rendered;
     } catch {
         return failure("RENDER_INTERNAL", "Renderer boundary inspection failed");
     }

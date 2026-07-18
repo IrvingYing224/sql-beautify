@@ -390,7 +390,7 @@ const HIVE_PRESERVATION_CAPABILITIES: readonly Readonly<{
     ...SHARED_PRESERVATION_CAPABILITIES,
 ]);
 
-const SHARED_STRUCTURED_CAPABILITIES: readonly string[] = freezeImmutableArray([
+const SHARED_FORMATTED_CAPABILITIES: readonly string[] = freezeImmutableArray([
     "multi-statement",
     "with-cte",
     "select-without-from",
@@ -820,9 +820,9 @@ function buildRegistry(): DialectCapabilityRegistry {
                 buildCapabilityList(
                     [],
                     freezeImmutableArray([
-                        ...SHARED_STRUCTURED_CAPABILITIES.map((id) => Object.freeze({
+                        ...SHARED_FORMATTED_CAPABILITIES.map((id) => Object.freeze({
                             id,
-                            state: "structured" as const,
+                            state: "formatted" as const,
                         })),
                         ...SHARED_PRESERVATION_CAPABILITIES,
                         ...extra,

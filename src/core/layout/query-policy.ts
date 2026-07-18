@@ -26,7 +26,7 @@ import {
     HARD_LINE,
     replaceStructuralGap,
     SPACE,
-} from "./query-trivia-policy";
+} from "./trivia-policy";
 
 const INDENT = Object.freeze({ kind: "indent" as const, levels: 1 });
 
@@ -333,7 +333,7 @@ function formatStatements(context: QueryLayoutContext): boolean {
 }
 
 /** Applies the complete Wave 3C Hive query/layout policy from typed CST facts. */
-export function applyHiveQueryLayout(
+export function applyQueryLayout(
     context: QueryLayoutContext
 ): boolean {
     if (!formatStatements(context)) {
