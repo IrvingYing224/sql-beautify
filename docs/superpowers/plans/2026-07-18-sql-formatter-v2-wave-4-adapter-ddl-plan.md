@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 4 Adapter 与 Experimental DDL Implementation Plan
 
 - 日期：2026-07-18
-- 状态：执行中
+- 状态：已完成，等待 Wave 5 cutover
 - 工作目录：`/Users/yingirving/Documents/sql-beautify/.worktrees/sql-formatter-v2-wave4`
 - 分支：`codex/sql-formatter-v2-wave4`
 - 基线：`0d765402fe022c84499a641d6ef020df14f17e85`
@@ -266,7 +266,7 @@ git diff --name-status -- extension.js vkbeautify.js lib package-lock.json
 git diff --check
 ```
 
-VSIX 必须保持现役 1.x allowlist；Wave 4 的 `src/**`、worker、tests、docs 不得进入当前包。
+VSIX 必须保持现役 1.x allowlist，并额外包含四个已审计的 `dist/v2-*.cjs` runtime artifact；Wave 4 的 `src/**`、worker 源码、tests、docs 不得进入当前包。
 独立 reviewer Critical/Important 清零后创建 aggregate 提交：`feat(v2): 完成Wave 4适配器与DDL`。
 
 ## 10. 完成标准
