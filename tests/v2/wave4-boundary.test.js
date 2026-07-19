@@ -6,6 +6,7 @@ var packageJson = require('../../package.json');
 
 var root = path.join(__dirname, '..', '..');
 var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
+var ddlRuntimePath = path.join(root, 'dist', 'v2-ddl.cjs');
 var bridgePath = path.join(root, 'dist', 'v2-format-bridge.cjs');
 var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
 var bridgeSourcePath = path.join(root, 'src', 'adapters', 'runtime', 'v2-format-bridge.ts');
@@ -14,12 +15,17 @@ var transactionSource = fs.readFileSync(
     path.join(root, 'src', 'adapters', 'transaction', 'prepare.ts'),
     'utf8'
 );
+var ddlTransactionSource = fs.readFileSync(
+    path.join(root, 'src', 'adapters', 'transaction', 'experimental-ddl.ts'),
+    'utf8'
+);
 var directExecutorSource = fs.readFileSync(
     path.join(root, 'src', 'adapters', 'executor', 'direct.ts'),
     'utf8'
 );
 
 assert.ok(fs.existsSync(runtimePath), 'Wave 4 must provide a production v2 runtime');
+assert.ok(fs.existsSync(ddlRuntimePath), 'Wave 4 must provide an experimental DDL runtime');
 assert.ok(fs.existsSync(bridgePath), 'Wave 4 must provide a host-neutral v2 bridge');
 assert.ok(fs.existsSync(workerPath), 'Wave 4 must provide a persistent worker runtime');
 assert.ok(fs.existsSync(bridgeSourcePath), 'v2 bridge source must live under src/adapters');
@@ -45,6 +51,8 @@ var packagedFiles = childProcess.execFileSync(
 ).split(/\r?\n/).filter(Boolean);
 assert.ok(packagedFiles.indexOf('dist/v2-core.cjs') >= 0,
     'VSIX manifest must include the v2 core runtime');
+assert.ok(packagedFiles.indexOf('dist/v2-ddl.cjs') >= 0,
+    'VSIX manifest must include the experimental DDL runtime');
 assert.ok(packagedFiles.indexOf('dist/v2-format-bridge.cjs') >= 0,
     'VSIX manifest must include the v2 adapter bridge');
 assert.ok(packagedFiles.indexOf('dist/v2-worker.cjs') >= 0,
@@ -54,6 +62,7 @@ assert.strictEqual(packagedFiles.some(function(file) {
 }), false, 'VSIX manifest must exclude temporary runtime artifacts');
 
 var runtimeSource = fs.readFileSync(runtimePath, 'utf8');
+var ddlRuntimeSource = fs.readFileSync(ddlRuntimePath, 'utf8');
 var workerSource = fs.readFileSync(workerPath, 'utf8');
 var bridgeSource = fs.readFileSync(bridgeSourcePath, 'utf8');
 assert.ok(runtimeSource.indexOf("require('typescript')") < 0, 'runtime must not require TypeScript');
@@ -61,9 +70,27 @@ assert.ok(runtimeSource.indexOf('dt-sql-parser') < 0, 'runtime must not bundle e
 assert.ok(workerSource.indexOf('dt-sql-parser') < 0, 'worker must not bundle evaluation parser');
 assert.ok(workerSource.indexOf('formatSqlWithStatistics') < 0,
     'worker entry must load the shared runtime instead of bundling formatter core');
-assert.ok(!/from\s+["'][^"']*lib\//.test(transactionSource + directExecutorSource + bridgeSource),
+assert.ok(ddlRuntimeSource.indexOf('dt-sql-parser') < 0,
+    'experimental DDL runtime must not bundle the rejected evaluation parser');
+assert.ok(ddlRuntimeSource.indexOf("require('typescript')") < 0,
+    'experimental DDL runtime must not require TypeScript');
+assert.ok(!/from\s+["'][^"']*lib\//.test(
+    transactionSource + ddlTransactionSource + directExecutorSource + bridgeSource
+),
     'v2 adapter sources must not import the 1.x CommonJS runtime');
-assert.ok(!/from\s+["']vscode["']/.test(transactionSource + directExecutorSource + bridgeSource),
+assert.ok(!/from\s+["']vscode["']/.test(
+    transactionSource + ddlTransactionSource + directExecutorSource + bridgeSource
+),
     'host-neutral transaction/executor sources must not import vscode');
+
+var experimentalSources = fs.readdirSync(path.join(root, 'src', 'experimental', 'ddl'))
+    .filter(function(file) { return file.endsWith('.ts'); })
+    .map(function(file) {
+        return fs.readFileSync(path.join(root, 'src', 'experimental', 'ddl', file), 'utf8');
+    }).join('\n');
+assert.ok(!/from\s+["'][^"']*adapters\//.test(experimentalSources),
+    'experimental DDL must not import adapter transaction or host code');
+assert.ok(!/from\s+["'][^"']*vscode["']/.test(experimentalSources),
+    'experimental DDL must remain host-neutral');
 
 console.log('wave4 boundary tests passed');

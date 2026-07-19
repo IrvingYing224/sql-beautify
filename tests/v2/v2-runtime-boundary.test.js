@@ -4,11 +4,15 @@ var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
 var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
+var ddlRuntimePath = path.join(root, 'dist', 'v2-ddl.cjs');
 var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
 assert.ok(fs.existsSync(runtimePath), 'production v2 runtime must be built before boundary tests');
+assert.ok(fs.existsSync(ddlRuntimePath),
+    'production v2 DDL runtime must be built before boundary tests');
 assert.ok(fs.existsSync(workerPath), 'production v2 worker must be built before boundary tests');
 
 var runtime = require(runtimePath);
+var ddlRuntime = require(ddlRuntimePath);
 assert.deepStrictEqual(
     Object.keys(runtime).sort(),
     ['formatSql', 'formatSqlTarget', 'lexSql'],
@@ -17,6 +21,20 @@ assert.deepStrictEqual(
 assert.strictEqual(typeof runtime.formatSql, 'function', 'production runtime must expose formatSql');
 assert.strictEqual(typeof runtime.formatSqlTarget, 'function', 'production runtime must expose adapter target API');
 assert.strictEqual(typeof runtime.lexSql, 'function', 'production runtime must expose lexSql');
+assert.deepStrictEqual(
+    Object.keys(ddlRuntime).sort(),
+    ['extractDdl', 'formatHiveDdl'],
+    'production v2 DDL runtime must expose only experimental DDL values'
+);
+assert.strictEqual(typeof ddlRuntime.formatHiveDdl, 'function');
+assert.strictEqual(typeof ddlRuntime.extractDdl, 'function');
+var bundledDdl = ddlRuntime.formatHiveDdl('create table t (a int);');
+assert.strictEqual(bundledDdl.status, 'formatted');
+assert.strictEqual(bundledDdl.text.endsWith(');\n'), true,
+    'bundled DDL runtime must retain statement terminators');
+var bundledAmbiguous = ddlRuntime.extractDdl('SELECT * AS x FROM t');
+assert.strictEqual(bundledAmbiguous.status, 'ambiguous');
+assert.strictEqual(bundledAmbiguous.text, 'SELECT * AS x FROM t');
 
 [
     'hive',

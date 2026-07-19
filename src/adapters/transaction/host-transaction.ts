@@ -1,5 +1,4 @@
 import type { FormatOptions } from "../../core/config/options";
-import { snapshotDataProperties } from "../boundary/data-snapshot";
 import type {
     CancellationToken,
     FormatTarget,
@@ -8,12 +7,13 @@ import type {
 } from "./types";
 import { observeCancellation } from "./cancellation";
 import { prepareFormatTransaction } from "./prepare";
+import {
+    sameDocument,
+    snapshotDocument,
+    type DocumentSnapshot,
+} from "./document-snapshot";
 
-export interface DocumentSnapshot {
-    readonly identity: unknown;
-    readonly source: string;
-    readonly version: number;
-}
+export type { DocumentSnapshot } from "./document-snapshot";
 
 export interface HostTransactionRequest {
     readonly document: DocumentSnapshot;
@@ -28,22 +28,6 @@ export interface HostCommit {
         result: Extract<FormatTransactionResult, { status: "ready" }>,
         expected: DocumentSnapshot
     ) => Promise<boolean>;
-}
-
-const DOCUMENT_KEYS: ReadonlySet<string> = new Set([
-    "identity",
-    "source",
-    "version",
-]);
-
-function sameDocument(
-    expected: DocumentSnapshot,
-    current: DocumentSnapshot | null
-): boolean {
-    return current !== null &&
-        current.identity === expected.identity &&
-        current.version === expected.version &&
-        current.source === expected.source;
 }
 
 function rejected(
@@ -67,33 +51,6 @@ function rejected(
             }),
         ]),
     });
-}
-
-function snapshotDocument(value: DocumentSnapshot | null): DocumentSnapshot | null {
-    try {
-        const snapshot = snapshotDataProperties(
-            value,
-            DOCUMENT_KEYS,
-            ["identity", "source", "version"]
-        );
-        if (snapshot === null) {
-            return null;
-        }
-        if (
-            typeof snapshot.source !== "string" ||
-            !Number.isSafeInteger(snapshot.version) ||
-            (snapshot.version as number) < 0
-        ) {
-            return null;
-        }
-        return Object.freeze({
-            identity: snapshot.identity,
-            source: snapshot.source,
-            version: snapshot.version as number,
-        });
-    } catch {
-        return null;
-    }
 }
 
 async function runHostTransactionInternal(

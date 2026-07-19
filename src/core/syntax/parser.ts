@@ -6,6 +6,7 @@ import { getDialect } from "../dialects/registry";
 import { freezeImmutableArray } from "../util/immutable-array";
 import { createParserNodeFactory } from "./node-factory";
 import type { ProgramNode, StatementNode, SyntaxNode } from "./node";
+import type { LeafRange } from "./leaf-range";
 import { createOpaqueWithDiagnostic } from "./recovery";
 import {
     addDiagnostic,
@@ -27,6 +28,10 @@ import { parseStatementRange } from "./statement-parser";
 import { buildStructuralTokenTable } from "./token-table";
 import type { StructuralTokenTable } from "./token-table";
 import { validateSyntaxInvariants } from "./invariants";
+import {
+    parseTypeExpressionPrefix,
+    type ParsedTypePrefix,
+} from "./type-parser";
 
 const BACKEND_ID = "sql-beautify-v2";
 const BACKEND_VERSION = "2e";
@@ -355,6 +360,33 @@ export function parseSqlArtifact(
 
 export function parseSql(source: string, options: ParseOptions = {}): ParseOutput {
     return parseSqlArtifact(source, options).output;
+}
+
+/**
+ * Runs the canonical bounded type parser over an existing parse artifact.
+ * Experimental consumers reuse this seam instead of implementing angle-depth
+ * or complex-type parsing outside the core syntax layer.
+ */
+export function parseTypePrefixFromArtifact(
+    artifact: ParseArtifact,
+    range: LeafRange,
+    nestingDepth: number = 0
+): ParsedTypePrefix {
+    if (!isCanonicalParseArtifact(artifact)) {
+        throw new TypeError("Type prefix parsing requires a canonical parse artifact");
+    }
+    const lexed: LexOutput = Object.freeze({
+        leaves: artifact.output.leaves,
+        diagnostics: artifact.output.diagnostics,
+    });
+    const context = createContext(
+        artifact.dialect,
+        artifact.mode,
+        lexed,
+        artifact.tokenTable,
+        []
+    );
+    return parseTypeExpressionPrefix(context, range, nestingDepth);
 }
 
 /**

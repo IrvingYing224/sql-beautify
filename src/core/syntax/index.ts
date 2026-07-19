@@ -46,7 +46,7 @@ export type {
     ParserBackend,
 } from "./parser-backend";
 export type { SyntaxDiagnosticCode } from "./parser-context";
-export { parseSql, parserBackend } from "./parser";
+export { parseSql, parseTypePrefixFromArtifact, parserBackend } from "./parser";
 export type {
     StructuralIssue,
     StructuralIssueCode,
@@ -55,6 +55,7 @@ export type {
 export { buildStructuralTokenTable } from "./token-table";
 export type { TokenCursor } from "./cursor";
 export { createTokenCursor } from "./cursor";
+export { splitTopLevelTypeItems } from "./type-cursor";
 export type {
     ExpressionQueryParser,
     ExpressionValueNode,
