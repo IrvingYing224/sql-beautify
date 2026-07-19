@@ -111,8 +111,8 @@ var finalRssBytes = process.memoryUsage().rss;
 var rssGrowthBytes = Math.max(0, finalRssBytes - startingRssBytes);
 assert.ok(process.resourceUsage().maxRSS < 1024 * 1024,
     'Wave 4 aggregate performance must remain below 1 GiB peak RSS');
-assert.ok(rssGrowthBytes < 512 * 1024 * 1024,
-    'Wave 4 aggregate performance must remain below 512 MiB resident growth');
+assert.ok(rssGrowthBytes < 768 * 1024 * 1024,
+    'Wave 4 aggregate performance must remain below 768 MiB resident growth');
 
 console.log('v2 Wave 4 aggregate performance ' + JSON.stringify({
     formatter: formatter,

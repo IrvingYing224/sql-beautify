@@ -2,14 +2,14 @@ var assert = require('assert');
 var configAdapter = require('../../lib/adapters/vscode-config');
 var diagnosticAdapter = require('../../lib/adapters/formatter-diagnostics');
 
-function vscodeConfig(explicitIndent) {
+function vscodeConfig(explicitIndent, indentStyle) {
     return {
         workspace: {
             getConfiguration: function() {
                 return {
                     get: function(key) {
                         var values = {
-                            keywordCase: 'upper', commaStyle: 'leading', indentStyle: 'space',
+                            keywordCase: 'upper', commaStyle: 'leading', indentStyle: indentStyle,
                             maxAlignWidth: 150, caseWhenThenWrapLength: 50,
                             caseLayout: 'expanded', dialect: 'hive',
                             unsupportedSyntaxPolicy: 'preserve'
@@ -30,20 +30,18 @@ function vscodeConfig(explicitIndent) {
 assert.strictEqual(
     configAdapter.get_sql_formatter_config(
         vscodeConfig(false),
-        { languageId: 'hive-sql', uri: {} },
-        { insertSpaces: false }
+        { languageId: 'hive-sql', uri: {} }
     ).indentStyle,
-    'tab',
-    'FormattingOptions.insertSpaces applies when indentStyle is not explicit'
+    'space',
+    'unset sqlBeautify.indentStyle uses the canonical default'
 );
 assert.strictEqual(
     configAdapter.get_sql_formatter_config(
-        vscodeConfig(true),
-        { languageId: 'hive-sql', uri: {} },
-        { insertSpaces: false }
+        vscodeConfig(true, 'tab'),
+        { languageId: 'hive-sql', uri: {} }
     ).indentStyle,
-    'space',
-    'explicit sqlBeautify.indentStyle has priority over FormattingOptions'
+    'tab',
+    'explicit sqlBeautify.indentStyle is preserved'
 );
 
 var warnings = [];
