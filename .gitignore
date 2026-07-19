@@ -20,6 +20,7 @@ pnpm-debug.log*
 # Build / package output
 *.vsix
 .vsixmanifest
+dist/
 
 # Dependencies
 node_modules/

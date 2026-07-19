@@ -772,9 +772,9 @@ test('minor unmatched closer/mixed preserve reliable prefix', function() {
     assert.ok(mr.length >= 2, 'prefix preserved after mixed delimiter, got ' + mr.length);
 });
 
-// Root runtime still lexSql only
-test('root runtime keys only lexSql', function() {
-    assert.deepStrictEqual(Object.keys(core).sort(), ['lexSql']);
+// Wave 4 root runtime exposes only approved public values.
+test('Wave 4 root runtime keys remain limited to public values', function() {
+    assert.deepStrictEqual(Object.keys(core).sort(), ['formatSql', 'lexSql']);
 });
 
 // =============================================================================

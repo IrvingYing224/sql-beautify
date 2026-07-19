@@ -210,11 +210,11 @@ assert.ok(/tests\/\*\*/.test(vscodeIgnore), '.vscodeignore must exclude tests');
 assert.ok(/docs\/\*\*/.test(vscodeIgnore), '.vscodeignore must exclude docs');
 assert.ok(/\.tmp\/\*\*/.test(vscodeIgnore), '.vscodeignore must exclude .tmp');
 
-// Root runtime keys remain only lexSql
+// Wave 4 adds the approved public formatter value and no internal helper.
 var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
 assert.ok(fs.existsSync(corePath), 'build:v2-core must produce root runtime before boundary tests');
 var core = require(corePath);
-assert.deepStrictEqual(Object.keys(core).sort(), ['lexSql']);
+assert.deepStrictEqual(Object.keys(core).sort(), ['formatSql', 'lexSql']);
 
 // syntax / dialects isolation
 var wave2SourceDirs = ['src/core/syntax', 'src/core/dialects', 'src/core/analysis'];

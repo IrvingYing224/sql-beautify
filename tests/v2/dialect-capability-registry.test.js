@@ -146,8 +146,8 @@ function collectDialectSources() {
 // ---------------------------------------------------------------------------
 assert.deepStrictEqual(
     Object.keys(core).sort(),
-    ['lexSql'],
-    'src/core/index runtime keys must remain only lexSql'
+    ['formatSql', 'lexSql'],
+    'Wave 4 root runtime keys must remain limited to formatSql and lexSql'
 );
 assert.strictEqual(typeof core.getDialectCapabilityRegistry, 'undefined');
 assert.strictEqual(typeof core.getDialect, 'undefined');

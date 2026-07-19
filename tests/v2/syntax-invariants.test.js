@@ -19,7 +19,7 @@ var tokenTableMod = require(tokenTablePath);
 var parser = require(parserPath);
 
 assert.strictEqual(typeof invariants.validateSyntaxInvariants, 'function');
-assert.deepStrictEqual(Object.keys(core).sort(), ['lexSql']);
+assert.deepStrictEqual(Object.keys(core).sort(), ['formatSql', 'lexSql']);
 
 function lex(source) {
     return core.lexSql(source);

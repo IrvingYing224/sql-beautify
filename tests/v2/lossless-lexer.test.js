@@ -659,14 +659,15 @@ test('profile lookups do not expose mutators and cannot alter lexSql', function(
     assert.ok(!profile.keywords.has('NOT_A_REAL_KEYWORD_XYZ'));
 });
 
-test('root public API only exposes lexSql value export', function() {
+test('root public API only exposes approved value exports', function() {
     var runtimeKeys = Object.keys(core).sort();
     assert.deepStrictEqual(
         runtimeKeys,
-        ['lexSql'],
-        'compiled core/index.js must only expose lexSql at runtime, got ' + runtimeKeys.join(',')
+        ['formatSql', 'lexSql'],
+        'compiled core/index.js must only expose public values at runtime, got ' + runtimeKeys.join(',')
     );
     assert.strictEqual(typeof core.lexSql, 'function');
+    assert.strictEqual(typeof core.formatSql, 'function');
     assert.strictEqual(core.getLexicalProfile, undefined);
     assert.strictEqual(core.listLexicalProfiles, undefined);
 });

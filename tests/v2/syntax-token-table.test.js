@@ -17,8 +17,8 @@ var tokenTableMod = require(tokenTablePath);
 var buildStructuralTokenTable = tokenTableMod.buildStructuralTokenTable;
 assert.strictEqual(typeof buildStructuralTokenTable, 'function');
 
-// Root must not export token table
-assert.deepStrictEqual(Object.keys(core).sort(), ['lexSql']);
+// Root must not export token table or other internal helpers.
+assert.deepStrictEqual(Object.keys(core).sort(), ['formatSql', 'lexSql']);
 
 function lex(source, dialect) {
     return core.lexSql(source, dialect ? { dialect: dialect } : undefined);

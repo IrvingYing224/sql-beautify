@@ -152,6 +152,7 @@ export type {
     FormatPipelineRun,
     FormatPipelineStatistics,
 } from "./api/format";
+export { formatSql } from "./api/public-format";
 export type { DisplayTextMeasurement } from "./renderer/display-width";
 export type {
     FlatLayoutSummary,

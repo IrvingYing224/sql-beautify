@@ -826,8 +826,8 @@ var verify = packageJson.scripts['test:verify'];
 });
 
 var core = require('../../.tmp/v2-core/core/index.js');
-assert.deepStrictEqual(Object.keys(core).sort(), ['lexSql'],
-    'Wave 3 must not expose a root runtime formatting value API');
+assert.deepStrictEqual(Object.keys(core).sort(), ['formatSql', 'lexSql'],
+    'Wave 4 production boundary may expose only lexSql and formatSql value APIs');
 
 assertInterfaceSurface(
     'src/core/layout/query-layout-context.ts',
