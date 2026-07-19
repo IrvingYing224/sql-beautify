@@ -1,6 +1,6 @@
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import type { TransactionDiagnostic } from "../transaction/types";
-import { snapshotDataProperties } from "../boundary/data-snapshot";
+import { snapshotDiagnostic } from "../boundary/format-result-snapshot";
 
 const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     CFG_OPTIONS_TYPE: "Formatter options are invalid",
@@ -21,42 +21,6 @@ const RECOVERIES: ReadonlySet<string> = new Set([
 
 function compareString(left: string, right: string): number {
     return left < right ? -1 : left > right ? 1 : 0;
-}
-
-const DIAGNOSTIC_KEYS: ReadonlySet<string> = new Set([
-    "code",
-    "severity",
-    "message",
-    "capabilityId",
-    "span",
-    "recovery",
-]);
-const SPAN_KEYS: ReadonlySet<string> = new Set(["start", "end"]);
-
-function snapshotDiagnostic(value: unknown): Diagnostic | null {
-    const raw = snapshotDataProperties(value, DIAGNOSTIC_KEYS, [
-        "code",
-        "severity",
-        "message",
-        "capabilityId",
-        "span",
-        "recovery",
-    ]);
-    if (raw === null) {
-        return null;
-    }
-    const span = snapshotDataProperties(raw.span, SPAN_KEYS, ["start", "end"]);
-    if (span === null) {
-        return null;
-    }
-    return Object.freeze({
-        code: raw.code,
-        severity: raw.severity,
-        message: raw.message,
-        capabilityId: raw.capabilityId,
-        span: Object.freeze({ start: span.start, end: span.end }),
-        recovery: raw.recovery,
-    }) as Diagnostic;
 }
 
 function safeMessage(code: string): string {

@@ -170,6 +170,36 @@ async function run() {
     assert.strictEqual(invalidContract.status, 'rejected', 'invalid executor result must fail closed');
     assert.strictEqual(invalidContract.diagnostics[0].code, 'ADAPTER_RESULT_CONTRACT');
 
+    var objectText = await transaction.prepareFormatTransaction({
+        source: 'select 1',
+        documentVersion: 51,
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
+    }, createExecutor(function() {
+        return {
+            status: 'formatted',
+            text: { length: 8 },
+            diagnostics: [],
+            sourceMap: sourceMap(8, 8)
+        };
+    }));
+    assert.strictEqual(objectText.status, 'rejected',
+        'formatted result text must be a primitive string');
+    assert.strictEqual(objectText.diagnostics[0].code, 'ADAPTER_RESULT_CONTRACT');
+    var boxedText = await transaction.prepareFormatTransaction({
+        source: 'select 1',
+        documentVersion: 52,
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
+    }, createExecutor(function() {
+        return {
+            status: 'formatted',
+            text: new String('SELECT 1'),
+            diagnostics: [],
+            sourceMap: sourceMap(8, 8)
+        };
+    }));
+    assert.strictEqual(boxedText.status, 'rejected',
+        'boxed strings must not escape the primitive result contract');
+
     var errorDiagnosticExecutor = createExecutor(function(request) {
         return {
             status: 'formatted',
