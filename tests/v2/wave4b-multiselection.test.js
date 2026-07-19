@@ -93,6 +93,22 @@ async function run() {
     });
     assert.strictEqual(rejected.diagnostics[0].code, 'ADAPTER_EDIT_REJECTED');
 
+    var nonBooleanApply = await host.runHostTransaction({
+        document: { identity: documentIdentity, source: source, version: 4 },
+        targets: [{ id: 'document', start: 0, end: source.length, mode: 'document' }]
+    }, executor(function(request) {
+        return { status: 'formatted', text: request.source.toUpperCase(), diagnostics: [],
+            sourceMap: sourceMap(request.source.length) };
+    }), {
+        currentDocument: function() {
+            return { identity: documentIdentity, source: source, version: 4 };
+        },
+        apply: async function() { return { applied: true }; }
+    });
+    assert.strictEqual(nonBooleanApply.status, 'rejected',
+        'host commit must return primitive true to be accepted');
+    assert.strictEqual(nonBooleanApply.diagnostics[0].code, 'ADAPTER_EDIT_REJECTED');
+
     var thrownCommit = await host.runHostTransaction({
         document: { identity: documentIdentity, source: source, version: 4 },
         targets: [{ id: 'document', start: 0, end: source.length, mode: 'document' }]

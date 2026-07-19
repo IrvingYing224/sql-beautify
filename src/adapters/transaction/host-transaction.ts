@@ -152,7 +152,7 @@ async function runHostTransactionInternal(
                 "Host rejected the formatting edit"
             );
         }
-        if (!applied) {
+        if (applied !== true) {
             return rejected(
                 expected.version,
                 "ADAPTER_EDIT_REJECTED",
