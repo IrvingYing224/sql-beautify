@@ -12,7 +12,8 @@ export interface CancellationObservation {
 }
 
 export function observeCancellation(
-    token: CancellationToken | undefined
+    token: CancellationToken | undefined,
+    onCancelled: (() => void) | undefined = undefined
 ): CancellationObservation {
     let cancelled = false;
     let disposed = false;
@@ -28,6 +29,11 @@ export function observeCancellation(
             } else {
                 const value = rawSubscribe.call(token, () => {
                     cancelled = true;
+                    try {
+                        onCancelled?.();
+                    } catch {
+                        return;
+                    }
                 });
                 if (typeof value !== "function") {
                     cancelled = true;

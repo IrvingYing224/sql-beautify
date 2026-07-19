@@ -4,7 +4,9 @@ var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
 var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
+var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
 assert.ok(fs.existsSync(runtimePath), 'production v2 runtime must be built before boundary tests');
+assert.ok(fs.existsSync(workerPath), 'production v2 worker must be built before boundary tests');
 
 var runtime = require(runtimePath);
 assert.deepStrictEqual(

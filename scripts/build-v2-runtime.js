@@ -9,8 +9,10 @@ var root = path.join(__dirname, '..');
 var outDir = path.join(root, 'dist');
 var coreOutFile = path.join(outDir, 'v2-core.cjs');
 var bridgeOutFile = path.join(outDir, 'v2-format-bridge.cjs');
+var workerOutFile = path.join(outDir, 'v2-worker.cjs');
 var coreTempFile = coreOutFile + '.tmp';
 var bridgeTempFile = bridgeOutFile + '.tmp';
+var workerTempFile = workerOutFile + '.tmp';
 
 function remove_files(files) {
     var firstError = null;
@@ -28,7 +30,14 @@ function remove_files(files) {
 
 try {
     fs.mkdirSync(outDir, { recursive: true });
-    remove_files([coreOutFile, bridgeOutFile, coreTempFile, bridgeTempFile]);
+    remove_files([
+        coreOutFile,
+        bridgeOutFile,
+        workerOutFile,
+        coreTempFile,
+        bridgeTempFile,
+        workerTempFile
+    ]);
 
     esbuild.buildSync({
         entryPoints: [path.join(root, 'src', 'runtime', 'index.ts')],
@@ -56,18 +65,32 @@ try {
         logLevel: 'warning'
     });
 
+    esbuild.buildSync({
+        entryPoints: [path.join(root, 'src', 'adapters', 'executor', 'worker-entry.ts')],
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',
+        target: 'node20',
+        outfile: workerTempFile,
+        sourcemap: false,
+        minify: false,
+        legalComments: 'none',
+        logLevel: 'warning'
+    });
+
     fs.renameSync(coreTempFile, coreOutFile);
     fs.renameSync(bridgeTempFile, bridgeOutFile);
+    fs.renameSync(workerTempFile, workerOutFile);
 } catch (error) {
     try {
-        remove_files([coreOutFile, bridgeOutFile]);
+        remove_files([coreOutFile, bridgeOutFile, workerOutFile]);
     } catch (cleanupError) {
         console.error(cleanupError);
     }
     throw error;
 } finally {
     try {
-        remove_files([coreTempFile, bridgeTempFile]);
+        remove_files([coreTempFile, bridgeTempFile, workerTempFile]);
     } catch (cleanupError) {
         console.error(cleanupError);
     }
@@ -75,3 +98,4 @@ try {
 
 console.log('Built v2 runtime: ' + path.relative(root, coreOutFile));
 console.log('Built v2 bridge: ' + path.relative(root, bridgeOutFile));
+console.log('Built v2 worker: ' + path.relative(root, workerOutFile));

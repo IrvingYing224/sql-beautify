@@ -7,6 +7,7 @@ var packageJson = require('../../package.json');
 var root = path.join(__dirname, '..', '..');
 var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
 var bridgePath = path.join(root, 'dist', 'v2-format-bridge.cjs');
+var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
 var bridgeSourcePath = path.join(root, 'src', 'adapters', 'runtime', 'v2-format-bridge.ts');
 var buildScript = path.join(root, 'scripts', 'build-v2-runtime.js');
 var transactionSource = fs.readFileSync(
@@ -20,6 +21,7 @@ var directExecutorSource = fs.readFileSync(
 
 assert.ok(fs.existsSync(runtimePath), 'Wave 4 must provide a production v2 runtime');
 assert.ok(fs.existsSync(bridgePath), 'Wave 4 must provide a host-neutral v2 bridge');
+assert.ok(fs.existsSync(workerPath), 'Wave 4 must provide a persistent worker runtime');
 assert.ok(fs.existsSync(bridgeSourcePath), 'v2 bridge source must live under src/adapters');
 assert.ok(!fs.existsSync(path.join(root, 'lib', 'runtime', 'v2-core.js')),
     'v2 runtime artifact must not reintroduce lib as a source/output boundary');
@@ -45,14 +47,20 @@ assert.ok(packagedFiles.indexOf('dist/v2-core.cjs') >= 0,
     'VSIX manifest must include the v2 core runtime');
 assert.ok(packagedFiles.indexOf('dist/v2-format-bridge.cjs') >= 0,
     'VSIX manifest must include the v2 adapter bridge');
+assert.ok(packagedFiles.indexOf('dist/v2-worker.cjs') >= 0,
+    'VSIX manifest must include the v2 worker runtime');
 assert.strictEqual(packagedFiles.some(function(file) {
     return /^dist\/.*\.tmp$/.test(file);
 }), false, 'VSIX manifest must exclude temporary runtime artifacts');
 
 var runtimeSource = fs.readFileSync(runtimePath, 'utf8');
+var workerSource = fs.readFileSync(workerPath, 'utf8');
 var bridgeSource = fs.readFileSync(bridgeSourcePath, 'utf8');
 assert.ok(runtimeSource.indexOf("require('typescript')") < 0, 'runtime must not require TypeScript');
 assert.ok(runtimeSource.indexOf('dt-sql-parser') < 0, 'runtime must not bundle evaluation parser');
+assert.ok(workerSource.indexOf('dt-sql-parser') < 0, 'worker must not bundle evaluation parser');
+assert.ok(workerSource.indexOf('formatSqlWithStatistics') < 0,
+    'worker entry must load the shared runtime instead of bundling formatter core');
 assert.ok(!/from\s+["'][^"']*lib\//.test(transactionSource + directExecutorSource + bridgeSource),
     'v2 adapter sources must not import the 1.x CommonJS runtime');
 assert.ok(!/from\s+["']vscode["']/.test(transactionSource + directExecutorSource + bridgeSource),
