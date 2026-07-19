@@ -25,6 +25,10 @@ assert.strictEqual(sourceMapModule.mapSourceOffset(map, 10, 10, 12, 'left'), 9,
     'left affinity after the last source run must use the last mapped end');
 assert.strictEqual(sourceMapModule.mapSourceOffset(map, 10, 10, 12, 'right'), 12,
     'right affinity after the last source run requires the explicit output length');
+assert.strictEqual(sourceMapModule.mapSourceOffset({
+    entries: [{ source: { start: 0, end: 1 }, output: { start: 0, end: 1 } }]
+}, 1, 1, 4, 'right'), 4,
+    'right affinity at the source end must include a trailing generated gap');
 
 var invalid = {
     entries: [

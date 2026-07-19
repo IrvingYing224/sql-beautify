@@ -14,6 +14,10 @@ export interface FormatTarget {
     readonly start: number;
     readonly end: number;
     readonly mode: Extract<ParseMode, "document" | "fragment">;
+    readonly selection?: Readonly<{
+        readonly start: number;
+        readonly end: number;
+    }>;
 }
 
 export interface FormatExecutionRequest {
@@ -56,6 +60,8 @@ export interface TransactionSelection {
     readonly sourceEnd: number;
     readonly outputStart: number;
     readonly outputEnd: number;
+    readonly selectionStart: number;
+    readonly selectionEnd: number;
 }
 
 interface FormatTransactionResultBase<S extends string> {

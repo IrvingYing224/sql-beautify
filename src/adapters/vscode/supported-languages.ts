@@ -33,3 +33,19 @@ export function supportedLanguage(
     }
     return null;
 }
+
+export function formatterSelector(): readonly string[] {
+    return Object.freeze(SUPPORTED_LANGUAGES.map((value) => value.languageId));
+}
+
+export function commandLanguageIds(
+    experimentalDdl: boolean = false
+): readonly string[] {
+    return Object.freeze(SUPPORTED_LANGUAGES
+        .filter((value) =>
+            experimentalDdl
+                ? value.supportsExperimentalDdl
+                : value.supportsQueryFormatting
+        )
+        .map((value) => value.languageId));
+}

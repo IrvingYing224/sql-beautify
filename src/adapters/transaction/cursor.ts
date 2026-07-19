@@ -26,6 +26,14 @@ export function mapSelectionThroughSourceMap(
     ) {
         return null;
     }
+    if (selection.start === selection.end) {
+        const exact = mapSourceOffset(sourceMap, selection.start, sourceLength, outputLength, "exact");
+        const start = exact ?? mapSourceOffset(sourceMap, selection.start, sourceLength, outputLength, "left");
+        if (start === null) {
+            return null;
+        }
+        return Object.freeze({ start, end: start });
+    }
     const start = mapSourceOffset(
         sourceMap,
         selection.start,

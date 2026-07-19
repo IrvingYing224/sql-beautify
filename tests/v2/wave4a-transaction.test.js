@@ -36,7 +36,7 @@ function createExecutor(formatter) {
 
 async function run() {
     var executor = createExecutor(function(request) {
-        var output = request.targetId == 'first' ? 'AAAA' : 'C';
+        var output = request.targetId == 'first' ? 'SELECT AAA;\n' : 'S;\n';
         return {
             status: 'formatted',
             text: output,
@@ -44,20 +44,23 @@ async function run() {
             sourceMap: sourceMap(request.source.length, output.length)
         };
     });
+    var multiSource = 'select a;\nselect b;\n';
     var ready = await transaction.prepareFormatTransaction({
-        source: 'a bb ccc',
+        source: multiSource,
         documentVersion: 7,
         targets: [
-            { id: 'second', start: 5, end: 8, mode: 'fragment' },
-            { id: 'first', start: 0, end: 1, mode: 'fragment' }
+            { id: 'second', start: 10, end: 20, mode: 'fragment' },
+            { id: 'first', start: 0, end: 10, mode: 'fragment' }
         ]
     }, executor);
     assert.strictEqual(ready.status, 'ready', 'safe formatted targets must produce a ready transaction');
     assert.deepStrictEqual(ready.edits.map(function(edit) { return edit.targetId; }), ['first', 'second'],
         'transaction targets must be normalized into source order');
     assert.deepStrictEqual(ready.selections, [
-        { targetId: 'first', sourceStart: 0, sourceEnd: 1, outputStart: 0, outputEnd: 4 },
-        { targetId: 'second', sourceStart: 5, sourceEnd: 8, outputStart: 8, outputEnd: 9 }
+        { targetId: 'first', sourceStart: 0, sourceEnd: 10, outputStart: 0, outputEnd: 12,
+            selectionStart: 0, selectionEnd: 12 },
+        { targetId: 'second', sourceStart: 10, sourceEnd: 20, outputStart: 12, outputEnd: 15,
+            selectionStart: 12, selectionEnd: 15 }
     ], 'selection ranges must include cumulative edit deltas');
     assert.strictEqual(Object.isFrozen(ready), true, 'transaction result must be frozen');
     assert.strictEqual(Object.isFrozen(ready.edits), true, 'transaction edits must be frozen');
@@ -92,12 +95,13 @@ async function run() {
             sourceMap: sourceMap(request.source.length, request.source.length)
         };
     });
+    var preservedSource = 'select one;\nselect two;\n';
     var rejected = await transaction.prepareFormatTransaction({
-        source: 'one two',
+        source: preservedSource,
         documentVersion: 2,
         targets: [
-            { id: 'good', start: 0, end: 3, mode: 'fragment' },
-            { id: 'bad', start: 4, end: 7, mode: 'fragment' }
+            { id: 'good', start: 0, end: 12, mode: 'fragment' },
+            { id: 'bad', start: 12, end: 24, mode: 'fragment' }
         ]
     }, preservedExecutor);
     assert.strictEqual(rejected.status, 'rejected', 'one preserved target must reject the complete transaction');
@@ -105,7 +109,7 @@ async function run() {
     assert.strictEqual(rejected.edits, undefined, 'rejected transaction must never expose partial edits');
     assert.deepStrictEqual(rejected.diagnostics.map(function(item) { return item.targetId; }), ['bad'],
         'target diagnostics must retain absolute target identity');
-    assert.deepStrictEqual(rejected.diagnostics[0].span, { start: 4, end: 7 },
+    assert.deepStrictEqual(rejected.diagnostics[0].span, { start: 12, end: 24 },
         'target diagnostics must translate to document offsets');
 
     var unchangedExecutor = createExecutor(function(request) {
@@ -191,8 +195,8 @@ async function run() {
     assert.strictEqual(errorDiagnostic.status, 'rejected',
         'error diagnostics must reject a transaction even when text is formatted');
 
+    var toctouReads = 0;
     var toctouExecutor = createExecutor(function(request) {
-        var reads = 0;
         var result = {
             status: 'formatted',
             text: request.source.toUpperCase(),
@@ -202,13 +206,10 @@ async function run() {
         Object.defineProperty(result, 'sourceMap', {
             enumerable: true,
             get: function() {
-                reads += 1;
-                return reads == 1
+                toctouReads += 1;
+                return toctouReads == 1
                     ? sourceMap(request.source.length, request.source.length)
-                    : { entries: [{
-                        source: { start: 9, end: 10 },
-                        output: { start: 99, end: 100 }
-                    }] };
+                    : sourceMap(request.source.length, request.source.length);
             }
         });
         return result;
@@ -219,8 +220,21 @@ async function run() {
         targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
     }, toctouExecutor);
     assert.strictEqual(toctou.status, 'rejected',
-        'a source map that changes during inspection must fail closed');
+        'a source map accessor that could change between legal values must fail closed');
     assert.strictEqual(toctou.diagnostics[0].code, 'ADAPTER_RESULT_SNAPSHOT');
+    assert.strictEqual(toctouReads, 0, 'formatter result accessors must never be invoked');
+    var proxiedResult = await transaction.prepareFormatTransaction({
+        source: 'select 1',
+        documentVersion: 71,
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
+    }, createExecutor(function(request) {
+        return new Proxy({
+            status: 'formatted', text: request.source.toUpperCase(), diagnostics: [],
+            sourceMap: sourceMap(request.source.length, request.source.length)
+        }, {});
+    }));
+    assert.strictEqual(proxiedResult.status, 'rejected');
+    assert.strictEqual(proxiedResult.diagnostics[0].code, 'ADAPTER_RESULT_SNAPSHOT');
 
     var emptyExecutor = createExecutor(function() {
         throw new Error('empty target must not invoke executor');
@@ -274,16 +288,73 @@ async function run() {
         };
     });
     var changingTargetResult = await transaction.prepareFormatTransaction({
-        source: 'abc',
+        source: 'select a;\n',
         documentVersion: 10,
         targets: [changingTarget]
     }, changingTargetExecutor);
-    assert.strictEqual(changingTargetResult.status, 'ready',
-        'target properties must be read once into a stable primitive snapshot');
+    assert.strictEqual(changingTargetResult.status, 'rejected',
+        'target accessors must fail closed at the transaction boundary');
+    assert.strictEqual(changingTargetExecutor.calls.length, 0,
+        'rejected target accessors must not reach the executor');
+
+    var unsafeFragmentExecutor = createExecutor(function() {
+        throw new Error('unsafe fragment must not execute');
+    });
+    var unsafeFragment = await transaction.prepareFormatTransaction({
+        source: 'select a from t\n',
+        documentVersion: 11,
+        targets: [{ id: 'partial', start: 1, end: 15, mode: 'fragment' }]
+    }, unsafeFragmentExecutor);
+    assert.strictEqual(unsafeFragment.status, 'rejected',
+        'fragment range validation must be mandatory for direct transaction callers');
+    assert.strictEqual(unsafeFragment.diagnostics[0].code, 'ADAPTER_RANGE_LINE');
+    assert.strictEqual(unsafeFragmentExecutor.calls.length, 0);
+
+    var failedFragmentSource = 'select a;\nselect b;\n';
+    var failedFragment = await transaction.prepareFormatTransaction({
+        source: failedFragmentSource,
+        documentVersion: 12,
+        targets: [
+            { id: 'first-ok', start: 0, end: 10, mode: 'fragment' },
+            { id: 'second-fails', start: 10, end: 20, mode: 'fragment' }
+        ]
+    }, createExecutor(function(request) {
+        if (request.targetId == 'second-fails') {
+            throw new Error('private executor details');
+        }
+        return {
+            status: 'unchanged', text: request.source, diagnostics: [],
+            sourceMap: sourceMap(request.source.length, request.source.length)
+        };
+    }));
+    assert.strictEqual(failedFragment.diagnostics[0].code, 'ADAPTER_EXECUTOR_FAILED');
+    assert.deepStrictEqual(failedFragment.diagnostics[0].span, { start: 10, end: 20 },
+        'target-level internal failures must use absolute document spans');
+
+    var sortedDiagnosticResult = await transaction.prepareFormatTransaction({
+        source: multiSource,
+        documentVersion: 13,
+        targets: [
+            { id: 'z-target', start: 0, end: 10, mode: 'fragment' },
+            { id: 'a-target', start: 10, end: 20, mode: 'fragment' }
+        ]
+    }, createExecutor(function(request) {
+        return {
+            status: 'formatted', text: request.source.toUpperCase(),
+            diagnostics: [{
+                code: request.targetId == 'z-target' ? 'FMT_Z' : 'FMT_A',
+                severity: 'error', message: 'fatal', capabilityId: null,
+                span: { start: 0, end: request.source.length },
+                recovery: 'preserve-target'
+            }],
+            sourceMap: sourceMap(request.source.length, request.source.length)
+        };
+    }));
+    assert.strictEqual(sortedDiagnosticResult.status, 'rejected');
     assert.deepStrictEqual(
-        { start: changingTargetResult.edits[0].start, end: changingTargetResult.edits[0].end },
-        { start: 0, end: 3 },
-        'later target getter values must not alter the frozen transaction range'
+        sortedDiagnosticResult.diagnostics.map(function(item) { return item.targetId; }),
+        ['a-target', 'z-target'],
+        'early rejected diagnostics must use the same stable order as ready results'
     );
 
     console.log('v2 Wave 4A transaction tests passed');

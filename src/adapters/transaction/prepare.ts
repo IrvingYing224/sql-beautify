@@ -1,9 +1,25 @@
 import type { FormatResult } from "../../core/api/format-result";
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
+import { resolveFormatOptions } from "../../core/config/resolve-options";
 import {
     isValidSourceMap,
     type SourceMap,
 } from "../../core/source/source-map";
+import {
+    snapshotDataProperties,
+    snapshotDenseDataArray,
+} from "../boundary/data-snapshot";
+import { mapSelectionThroughSourceMap } from "./cursor";
+import {
+    convertDiagnostic,
+    sortDiagnostics,
+} from "../diagnostics/convert";
+import { observeCancellation } from "./cancellation";
+import { validateFormatTargetRanges } from "./range";
+
+function compareString(left: string, right: string): number {
+    return left < right ? -1 : left > right ? 1 : 0;
+}
 import type {
     CancelledFormatTransaction,
     FormatTarget,
@@ -33,6 +49,22 @@ function diagnostic(
     });
 }
 
+function targetDiagnostic(
+    target: FormatTarget,
+    code: string,
+    message: string
+): TransactionDiagnostic {
+    return Object.freeze({
+        code,
+        severity: "error" as const,
+        message,
+        capabilityId: null,
+        span: Object.freeze({ start: target.start, end: target.end }),
+        recovery: "preserve-target" as const,
+        targetId: target.id,
+    });
+}
+
 function cancelled(documentVersion: number): CancelledFormatTransaction {
     return Object.freeze({
         status: "cancelled",
@@ -41,10 +73,12 @@ function cancelled(documentVersion: number): CancelledFormatTransaction {
     });
 }
 
-function isCancelled(
-    token: FormatTransactionRequest["cancellation"]
-): boolean {
-    return token?.isCancellationRequested === true;
+function optionSnapshot(value: FormatTransactionRequest["options"]): FormatTransactionRequest["options"] | null {
+    if (value === undefined) {
+        return undefined;
+    }
+    const resolved = resolveFormatOptions(value);
+    return resolved.ok ? resolved.options : null;
 }
 
 function rejected(
@@ -54,11 +88,38 @@ function rejected(
     return Object.freeze({
         status: "rejected",
         documentVersion,
-        diagnostics: Object.freeze(Array.from(diagnostics)),
+        diagnostics: sortDiagnostics(diagnostics),
     });
 }
 
+const TARGET_KEYS: ReadonlySet<string> = new Set([
+    "id",
+    "start",
+    "end",
+    "mode",
+    "selection",
+]);
+const SELECTION_KEYS: ReadonlySet<string> = new Set(["start", "end"]);
+const RESULT_KEYS: ReadonlySet<string> = new Set([
+    "status",
+    "text",
+    "diagnostics",
+    "sourceMap",
+]);
+const DIAGNOSTIC_KEYS: ReadonlySet<string> = new Set([
+    "code",
+    "severity",
+    "message",
+    "capabilityId",
+    "span",
+    "recovery",
+]);
+const SPAN_KEYS: ReadonlySet<string> = new Set(["start", "end"]);
+const SOURCE_MAP_KEYS: ReadonlySet<string> = new Set(["entries"]);
+const SOURCE_MAP_ENTRY_KEYS: ReadonlySet<string> = new Set(["source", "output"]);
+
 function validTarget(target: FormatTarget, sourceLength: number): boolean {
+    const selection = target.selection;
     return (
         typeof target.id === "string" &&
         target.id.length > 0 &&
@@ -69,7 +130,13 @@ function validTarget(target: FormatTarget, sourceLength: number): boolean {
         target.end <= sourceLength &&
         (target.mode === "document" || target.mode === "fragment") &&
         (target.mode !== "document" ||
-            (target.start === 0 && target.end === sourceLength))
+            (target.start === 0 && target.end === sourceLength)) &&
+        (selection === undefined ||
+            (Number.isSafeInteger(selection.start) &&
+                Number.isSafeInteger(selection.end) &&
+                selection.start >= 0 &&
+                selection.end >= selection.start &&
+                selection.end <= target.end - target.start))
     );
 }
 
@@ -78,15 +145,35 @@ function snapshotTarget(
     sourceLength: number
 ): FormatTarget | null {
     try {
-        if (typeof value !== "object" || value === null) {
+        const raw = snapshotDataProperties(value, TARGET_KEYS, ["id", "start", "end", "mode"]);
+        if (raw === null) {
             return null;
         }
+        const rawSelection = raw.selection;
+        let selection: FormatTarget["selection"];
+        if (rawSelection !== undefined) {
+            const rawSelectionProperties = snapshotDataProperties(
+                rawSelection,
+                SELECTION_KEYS,
+                ["start", "end"]
+            );
+            if (rawSelectionProperties === null) {
+                return null;
+            }
+            selection = Object.freeze({
+                start: rawSelectionProperties.start as number,
+                end: rawSelectionProperties.end as number,
+            });
+        }
         const snapshot = Object.freeze({
-            id: value.id,
-            start: value.start,
-            end: value.end,
-            mode: value.mode,
-        });
+            id: raw.id,
+            start: raw.start,
+            end: raw.end,
+            mode: raw.mode,
+            ...(selection === undefined
+                ? {}
+                : { selection }),
+        }) as FormatTarget;
         return validTarget(snapshot, sourceLength) ? snapshot : null;
     } catch {
         return null;
@@ -99,9 +186,12 @@ function sortedTargets(
 ): readonly FormatTarget[] | null {
     const ids = new Set<string>();
     const targets: FormatTarget[] = [];
-    const rawTargets = Array.from(values);
+    const rawTargets = snapshotDenseDataArray(values);
+    if (rawTargets === null) {
+        return null;
+    }
     for (const rawTarget of rawTargets) {
-        const target = snapshotTarget(rawTarget, source.length);
+        const target = snapshotTarget(rawTarget as FormatTarget, source.length);
         if (target === null || ids.has(target.id)) {
             return null;
         }
@@ -109,7 +199,7 @@ function sortedTargets(
         targets.push(target);
     }
     targets.sort((left, right) =>
-        left.start - right.start || left.end - right.end || left.id.localeCompare(right.id)
+        left.start - right.start || left.end - right.end || compareString(left.id, right.id)
     );
     for (let index = 1; index < targets.length; index++) {
         if (targets[index - 1]!.end > targets[index]!.start) {
@@ -129,18 +219,16 @@ function absoluteDiagnostic(
     value: Diagnostic,
     target: FormatTarget
 ): TransactionDiagnostic {
-    return Object.freeze({
-        code: value.code,
-        severity: value.severity,
-        message: value.message,
-        capabilityId: value.capabilityId,
-        span: Object.freeze({
-            start: target.start + value.span.start,
-            end: target.start + value.span.end,
-        }),
-        recovery: value.recovery,
-        targetId: target.id,
-    });
+    return convertDiagnostic(
+        value,
+        target.id,
+        target.start,
+        target.end - target.start
+    ) ?? targetDiagnostic(
+        target,
+        "ADAPTER_DIAGNOSTIC_CONTRACT",
+        "Formatter diagnostic violated the adapter contract"
+    );
 }
 
 function resultIsSafeForTarget(result: FormatResult, source: string): boolean {
@@ -170,69 +258,118 @@ function resultIsSafeForTarget(result: FormatResult, source: string): boolean {
     }
     if (result.status === "formatted") {
         return (
+            Object.prototype.hasOwnProperty.call(result, "sourceMap") &&
             result.text !== source &&
             isValidSourceMap(result.sourceMap, source.length, result.text.length)
         );
     }
     if (result.status === "unchanged") {
         return (
+            Object.prototype.hasOwnProperty.call(result, "sourceMap") &&
             result.text === source &&
             isValidSourceMap(result.sourceMap, source.length, result.text.length)
         );
     }
     return (
         (result.status === "failed" || result.status === "preserved") &&
+        !Object.prototype.hasOwnProperty.call(result, "sourceMap") &&
         result.text === source &&
         result.diagnostics.length > 0
     );
 }
 
-function snapshotSourceMap(value: SourceMap): SourceMap {
-    return Object.freeze({
-        entries: Object.freeze(
-            value.entries.map((entry) =>
-                Object.freeze({
-                    source: Object.freeze({
-                        start: entry.source.start,
-                        end: entry.source.end,
-                    }),
-                    output: Object.freeze({
-                        start: entry.output.start,
-                        end: entry.output.end,
-                    }),
-                })
-            )
-        ),
-    });
+function snapshotSpan(value: unknown): Readonly<{ start: number; end: number }> | null {
+    const raw = snapshotDataProperties(value, SPAN_KEYS, ["start", "end"]);
+    return raw === null
+        ? null
+        : Object.freeze({ start: raw.start as number, end: raw.end as number });
 }
 
-function snapshotFormatResult(value: FormatResult): FormatResult {
-    const status = value.status;
-    const text = value.text;
-    const diagnostics = Object.freeze(
-        value.diagnostics.map((item) =>
-            Object.freeze({
-                code: item.code,
-                severity: item.severity,
-                message: item.message,
-                capabilityId: item.capabilityId,
-                span: Object.freeze({
-                    start: item.span.start,
-                    end: item.span.end,
-                }),
-                recovery: item.recovery,
-            })
-        )
-    );
-    if (status === "formatted" || status === "unchanged") {
-        return Object.freeze({
-            status,
-            text,
-            diagnostics,
-            sourceMap: snapshotSourceMap(value.sourceMap),
-        });
+function snapshotDiagnostic(value: unknown): Diagnostic | null {
+    const raw = snapshotDataProperties(value, DIAGNOSTIC_KEYS, [
+        "code",
+        "severity",
+        "message",
+        "capabilityId",
+        "span",
+        "recovery",
+    ]);
+    if (raw === null) {
+        return null;
     }
-    return Object.freeze({ status, text, diagnostics });
+    const span = snapshotSpan(raw.span);
+    if (span === null) {
+        return null;
+    }
+    return Object.freeze({
+        code: raw.code,
+        severity: raw.severity,
+        message: raw.message,
+        capabilityId: raw.capabilityId,
+        span,
+        recovery: raw.recovery,
+    }) as Diagnostic;
+}
+
+function snapshotSourceMap(value: unknown): SourceMap | null {
+    const raw = snapshotDataProperties(value, SOURCE_MAP_KEYS, ["entries"]);
+    if (raw === null) {
+        return null;
+    }
+    const rawEntries = snapshotDenseDataArray(raw.entries);
+    if (rawEntries === null) {
+        return null;
+    }
+    const entries = [];
+    for (const valueEntry of rawEntries) {
+        const rawEntry = snapshotDataProperties(
+            valueEntry,
+            SOURCE_MAP_ENTRY_KEYS,
+            ["source", "output"]
+        );
+        if (rawEntry === null) {
+            return null;
+        }
+        const source = snapshotSpan(rawEntry.source);
+        const output = snapshotSpan(rawEntry.output);
+        if (source === null || output === null) {
+            return null;
+        }
+        entries.push(Object.freeze({ source, output }));
+    }
+    return Object.freeze({ entries: Object.freeze(entries) });
+}
+
+function snapshotFormatResult(value: unknown): FormatResult | null {
+    const raw = snapshotDataProperties(value, RESULT_KEYS, ["status", "text", "diagnostics"]);
+    if (raw === null) {
+        return null;
+    }
+    const rawDiagnostics = snapshotDenseDataArray(raw.diagnostics);
+    if (rawDiagnostics === null) {
+        return null;
+    }
+    const diagnostics: Diagnostic[] = [];
+    for (const rawDiagnostic of rawDiagnostics) {
+        const item = snapshotDiagnostic(rawDiagnostic);
+        if (item === null) {
+            return null;
+        }
+        diagnostics.push(item);
+    }
+    const base = {
+        status: raw.status,
+        text: raw.text,
+        diagnostics: Object.freeze(diagnostics),
+    };
+    if (Object.prototype.hasOwnProperty.call(raw, "sourceMap")) {
+        const sourceMap = snapshotSourceMap(raw.sourceMap);
+        if (sourceMap === null) {
+            return null;
+        }
+        return Object.freeze({ ...base, sourceMap }) as FormatResult;
+    }
+    return Object.freeze(base) as FormatResult;
 }
 
 interface ComputedTarget {
@@ -244,7 +381,9 @@ interface ComputedTarget {
 function freezeSelection(
     target: FormatTarget,
     outputStart: number,
-    outputEnd: number
+    outputEnd: number,
+    selectionStart: number,
+    selectionEnd: number
 ): TransactionSelection {
     return Object.freeze({
         targetId: target.id,
@@ -252,21 +391,24 @@ function freezeSelection(
         sourceEnd: target.end,
         outputStart,
         outputEnd,
+        selectionStart,
+        selectionEnd,
     });
 }
 
 async function prepareFormatTransactionInternal(
     request: FormatTransactionRequest,
-    executor: FormatterExecutor
+    executor: FormatterExecutor,
+    cancellationValue: FormatTransactionRequest["cancellation"],
+    isCancelledNow: () => boolean
 ): Promise<FormatTransactionResult> {
     const sourceValue = request.source;
     const documentVersionValue = request.documentVersion;
     const targetsValue = request.targets;
-    const optionsValue = request.options;
-    const cancellationValue = request.cancellation;
+    const optionsValue = optionSnapshot(request.options);
     const sourceLength =
         typeof sourceValue === "string" ? sourceValue.length : 0;
-    if (
+    if (optionsValue === null ||
         typeof sourceValue !== "string" ||
         !Number.isSafeInteger(documentVersionValue) ||
         documentVersionValue < 0 ||
@@ -285,7 +427,7 @@ async function prepareFormatTransactionInternal(
             ]
         );
     }
-    if (isCancelled(cancellationValue)) {
+    if (isCancelledNow()) {
         return cancelled(documentVersionValue);
     }
     const targets = sortedTargets(sourceValue, targetsValue);
@@ -298,10 +440,34 @@ async function prepareFormatTransactionInternal(
             ),
         ]);
     }
+    const rangeValidation = validateFormatTargetRanges(
+        sourceValue,
+        targets,
+        optionsValue
+    );
+    if (!rangeValidation.safe) {
+        const rangeTarget = rangeValidation.targetId === null
+            ? null
+            : targets.find((target) => target.id === rangeValidation.targetId) ?? null;
+        return rejected(documentVersionValue, [
+            rangeTarget === null
+                ? diagnostic(
+                      sourceLength,
+                      rangeValidation.code,
+                      rangeValidation.message,
+                      rangeValidation.targetId
+                  )
+                : targetDiagnostic(
+                      rangeTarget,
+                      rangeValidation.code,
+                      rangeValidation.message
+                  ),
+        ]);
+    }
 
     const computed: ComputedTarget[] = [];
     for (const target of targets) {
-        if (isCancelled(cancellationValue)) {
+        if (isCancelledNow()) {
             return cancelled(documentVersionValue);
         }
         const targetSource = sourceValue.slice(target.start, target.end);
@@ -320,7 +486,7 @@ async function prepareFormatTransactionInternal(
             );
             continue;
         }
-        let result: FormatResult;
+        let result: unknown;
         try {
             const executionRequest = {
                 source: targetSource,
@@ -337,47 +503,38 @@ async function prepareFormatTransactionInternal(
             result = await executor.format(executionRequest);
         } catch {
             return rejected(documentVersionValue, [
-                diagnostic(
-                    targetSource.length,
+                targetDiagnostic(
+                    target,
                     "ADAPTER_EXECUTOR_FAILED",
-                    "Formatter executor failed",
-                    target.id
+                    "Formatter executor failed"
                 ),
             ]);
         }
-        if (isCancelled(cancellationValue)) {
+        if (isCancelledNow()) {
             return cancelled(documentVersionValue);
-        }
-        if (!resultIsSafeForTarget(result, targetSource)) {
-            return rejected(documentVersionValue, [
-                diagnostic(
-                    targetSource.length,
-                    "ADAPTER_RESULT_CONTRACT",
-                    "Formatter result violated the transaction contract",
-                    target.id
-                ),
-            ]);
         }
         let snapshot: FormatResult;
         try {
-            snapshot = snapshotFormatResult(result);
+            const value = snapshotFormatResult(result);
+            if (value === null) {
+                throw new TypeError("unsafe formatter result snapshot");
+            }
+            snapshot = value;
         } catch {
             return rejected(documentVersionValue, [
-                diagnostic(
-                    targetSource.length,
+                targetDiagnostic(
+                    target,
                     "ADAPTER_RESULT_SNAPSHOT",
-                    "Formatter result changed while it was being inspected",
-                    target.id
+                    "Formatter result could not be inspected safely"
                 ),
             ]);
         }
         if (!resultIsSafeForTarget(snapshot, targetSource)) {
             return rejected(documentVersionValue, [
-                diagnostic(
-                    targetSource.length,
-                    "ADAPTER_RESULT_SNAPSHOT",
-                    "Formatter result snapshot violated the transaction contract",
-                    target.id
+                targetDiagnostic(
+                    target,
+                    "ADAPTER_RESULT_CONTRACT",
+                    "Formatter result violated the transaction contract"
                 ),
             ]);
         }
@@ -414,7 +571,34 @@ async function prepareFormatTransactionInternal(
     for (const value of computed) {
         const outputStart = value.target.start + cumulativeDelta;
         const outputEnd = outputStart + value.result.text.length;
-        selections.push(freezeSelection(value.target, outputStart, outputEnd));
+        const sourceSelection = value.target.selection ?? Object.freeze({
+            start: 0,
+            end: value.target.end - value.target.start,
+        });
+        const mappedSelection = value.sourceMap === null
+            ? null
+            : mapSelectionThroughSourceMap(
+                  sourceSelection,
+                  value.sourceMap,
+                  value.target.end - value.target.start,
+                  value.result.text.length
+              );
+        if (mappedSelection === null) {
+            return rejected(documentVersionValue, [
+                targetDiagnostic(
+                    value.target,
+                    "ADAPTER_SELECTION_MAP",
+                    "Formatter selection could not be mapped safely"
+                ),
+            ]);
+        }
+        selections.push(freezeSelection(
+            value.target,
+            outputStart,
+            outputEnd,
+            outputStart + mappedSelection.start,
+            outputStart + mappedSelection.end
+        ));
         cumulativeDelta +=
             value.result.text.length - (value.target.end - value.target.start);
         if (value.result.status === "formatted") {
@@ -430,7 +614,7 @@ async function prepareFormatTransactionInternal(
         }
     }
 
-    const frozenDiagnostics = Object.freeze(diagnostics);
+    const frozenDiagnostics = sortDiagnostics(diagnostics);
     const frozenSelections = Object.freeze(selections);
     if (edits.length === 0) {
         return Object.freeze({
@@ -454,8 +638,16 @@ export async function prepareFormatTransaction(
     request: FormatTransactionRequest,
     executor: FormatterExecutor
 ): Promise<FormatTransactionResult> {
+    let observation: ReturnType<typeof observeCancellation> | null = null;
     try {
-        return await prepareFormatTransactionInternal(request, executor);
+        const cancellationValue = request.cancellation;
+        observation = observeCancellation(cancellationValue);
+        return await prepareFormatTransactionInternal(
+            request,
+            executor,
+            cancellationValue,
+            observation.isCancelled
+        );
     } catch {
         return rejected(0, [
             diagnostic(
@@ -464,5 +656,7 @@ export async function prepareFormatTransaction(
                 "Formatter transaction could not be inspected"
             ),
         ]);
+    } finally {
+        observation?.dispose();
     }
 }

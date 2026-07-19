@@ -152,7 +152,12 @@ export function mapSourceOffset(
             if (affinity !== "right") {
                 return entry.output.end;
             }
-            return next === undefined ? entry.output.end : next.output.start;
+            if (next === undefined) {
+                return entry.source.end === sourceLength
+                    ? outputLength
+                    : entry.output.end;
+            }
+            return next.output.start;
         }
         if (sourceOffset < entry.source.start) {
             if (affinity === "left" && previousEntry !== null) {
