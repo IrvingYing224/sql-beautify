@@ -14,10 +14,13 @@ export interface FormatTarget {
     readonly start: number;
     readonly end: number;
     readonly mode: Extract<ParseMode, "document" | "fragment">;
-    readonly selection?: Readonly<{
-        readonly start: number;
-        readonly end: number;
-    }>;
+}
+
+export interface FormatSelection {
+    readonly id: string;
+    readonly targetId: string | null;
+    readonly anchor: number;
+    readonly active: number;
 }
 
 export interface FormatExecutionRequest {
@@ -38,6 +41,7 @@ export interface FormatTransactionRequest {
     readonly source: string;
     readonly documentVersion: number;
     readonly targets: readonly FormatTarget[];
+    readonly selections?: readonly FormatSelection[];
     readonly options?: FormatOptions;
     readonly cancellation?: CancellationToken;
 }
@@ -55,13 +59,9 @@ export interface TransactionEdit {
 }
 
 export interface TransactionSelection {
-    readonly targetId: string;
-    readonly sourceStart: number;
-    readonly sourceEnd: number;
-    readonly outputStart: number;
-    readonly outputEnd: number;
-    readonly selectionStart: number;
-    readonly selectionEnd: number;
+    readonly selectionId: string;
+    readonly selectionAnchor: number;
+    readonly selectionActive: number;
 }
 
 interface FormatTransactionResultBase<S extends string> {

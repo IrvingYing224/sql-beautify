@@ -59,12 +59,17 @@ assert.strictEqual(sourceMapModule.mapSourceOffset(leadingGap, 5, 10, 12, 'left'
     'left affinity at the first mapped boundary must include the leading gap');
 
 assert.deepStrictEqual(
-    cursorModule.mapSelectionThroughSourceMap({ start: 0, end: 8 }, map, 10, 12),
-    { start: 0, end: 9 },
+    cursorModule.mapSelectionThroughSourceMap({ anchor: 0, active: 8 }, map, 10, 12),
+    { anchor: 0, active: 9 },
     'selection endpoints must use left/right affinity'
 );
+assert.deepStrictEqual(
+    cursorModule.mapSelectionThroughSourceMap({ anchor: 8, active: 0 }, map, 10, 12),
+    { anchor: 9, active: 0 },
+    'backward selections must retain anchor/active direction'
+);
 assert.strictEqual(
-    cursorModule.mapSelectionThroughSourceMap({ start: -1, end: 1 }, map, 10, 12),
+    cursorModule.mapSelectionThroughSourceMap({ anchor: -1, active: 1 }, map, 10, 12),
     null,
     'invalid selections must fail closed'
 );

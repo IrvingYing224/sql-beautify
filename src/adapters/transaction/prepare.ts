@@ -23,6 +23,7 @@ function compareString(left: string, right: string): number {
 }
 import type {
     CancelledFormatTransaction,
+    FormatSelection,
     FormatTarget,
     FormatTransactionRequest,
     FormatTransactionResult,
@@ -98,11 +99,14 @@ const TARGET_KEYS: ReadonlySet<string> = new Set([
     "start",
     "end",
     "mode",
-    "selection",
 ]);
-const SELECTION_KEYS: ReadonlySet<string> = new Set(["start", "end"]);
+const SELECTION_KEYS: ReadonlySet<string> = new Set([
+    "id",
+    "targetId",
+    "anchor",
+    "active",
+]);
 function validTarget(target: FormatTarget, sourceLength: number): boolean {
-    const selection = target.selection;
     return (
         typeof target.id === "string" &&
         target.id.length > 0 &&
@@ -113,13 +117,7 @@ function validTarget(target: FormatTarget, sourceLength: number): boolean {
         target.end <= sourceLength &&
         (target.mode === "document" || target.mode === "fragment") &&
         (target.mode !== "document" ||
-            (target.start === 0 && target.end === sourceLength)) &&
-        (selection === undefined ||
-            (Number.isSafeInteger(selection.start) &&
-                Number.isSafeInteger(selection.end) &&
-                selection.start >= 0 &&
-                selection.end >= selection.start &&
-                selection.end <= target.end - target.start))
+            (target.start === 0 && target.end === sourceLength))
     );
 }
 
@@ -132,35 +130,73 @@ function snapshotTarget(
         if (raw === null) {
             return null;
         }
-        const rawSelection = raw.selection;
-        let selection: FormatTarget["selection"];
-        if (rawSelection !== undefined) {
-            const rawSelectionProperties = snapshotDataProperties(
-                rawSelection,
-                SELECTION_KEYS,
-                ["start", "end"]
-            );
-            if (rawSelectionProperties === null) {
-                return null;
-            }
-            selection = Object.freeze({
-                start: rawSelectionProperties.start as number,
-                end: rawSelectionProperties.end as number,
-            });
-        }
         const snapshot = Object.freeze({
             id: raw.id,
             start: raw.start,
             end: raw.end,
             mode: raw.mode,
-            ...(selection === undefined
-                ? {}
-                : { selection }),
         }) as FormatTarget;
         return validTarget(snapshot, sourceLength) ? snapshot : null;
     } catch {
         return null;
     }
+}
+
+function snapshotSelections(
+    values: readonly FormatSelection[] | undefined,
+    sourceLength: number,
+    targets: readonly FormatTarget[]
+): readonly FormatSelection[] | null {
+    if (values === undefined) {
+        return Object.freeze([]);
+    }
+    const rawSelections = snapshotDenseDataArray(values);
+    if (rawSelections === null) {
+        return null;
+    }
+    const ids = new Set<string>();
+    const selections: FormatSelection[] = [];
+    for (const rawSelection of rawSelections) {
+        const raw = snapshotDataProperties(
+            rawSelection,
+            SELECTION_KEYS,
+            ["id", "targetId", "anchor", "active"]
+        );
+        const targetId = raw?.targetId;
+        const target = typeof targetId === "string"
+            ? targets.find((value) => value.id === targetId) ?? null
+            : null;
+        if (
+            raw === null ||
+            typeof raw.id !== "string" ||
+            raw.id.length === 0 ||
+            ids.has(raw.id) ||
+            (targetId !== null && typeof targetId !== "string") ||
+            (typeof targetId === "string" && target === null) ||
+            !Number.isSafeInteger(raw.anchor) ||
+            !Number.isSafeInteger(raw.active) ||
+            (raw.anchor as number) < 0 ||
+            (raw.active as number) < 0 ||
+            (raw.anchor as number) > sourceLength ||
+            (raw.active as number) > sourceLength ||
+            (target !== null && (
+                (raw.anchor as number) < target.start ||
+                (raw.anchor as number) > target.end ||
+                (raw.active as number) < target.start ||
+                (raw.active as number) > target.end
+            ))
+        ) {
+            return null;
+        }
+        ids.add(raw.id);
+        selections.push(Object.freeze({
+            id: raw.id,
+            targetId: targetId as string | null,
+            anchor: raw.anchor as number,
+            active: raw.active as number,
+        }));
+    }
+    return Object.freeze(selections);
 }
 
 function sortedTargets(
@@ -221,20 +257,96 @@ interface ComputedTarget {
 }
 
 function freezeSelection(
-    target: FormatTarget,
-    outputStart: number,
-    outputEnd: number,
-    selectionStart: number,
-    selectionEnd: number
+    selectionId: string,
+    selectionAnchor: number,
+    selectionActive: number
 ): TransactionSelection {
     return Object.freeze({
-        targetId: target.id,
-        sourceStart: target.start,
-        sourceEnd: target.end,
-        outputStart,
-        outputEnd,
-        selectionStart,
-        selectionEnd,
+        selectionId,
+        selectionAnchor,
+        selectionActive,
+    });
+}
+
+function appendSourceMapEntry(
+    entries: Array<{
+        readonly source: Readonly<{ readonly start: number; readonly end: number }>;
+        readonly output: Readonly<{ readonly start: number; readonly end: number }>;
+    }>,
+    sourceStart: number,
+    sourceEnd: number,
+    outputStart: number,
+    outputEnd: number
+): void {
+    if (sourceEnd <= sourceStart || outputEnd <= outputStart) {
+        return;
+    }
+    const previous = entries[entries.length - 1];
+    if (
+        previous !== undefined &&
+        previous.source.end === sourceStart &&
+        previous.output.end === outputStart
+    ) {
+        entries[entries.length - 1] = Object.freeze({
+            source: Object.freeze({ start: previous.source.start, end: sourceEnd }),
+            output: Object.freeze({ start: previous.output.start, end: outputEnd }),
+        });
+        return;
+    }
+    entries.push(Object.freeze({
+        source: Object.freeze({ start: sourceStart, end: sourceEnd }),
+        output: Object.freeze({ start: outputStart, end: outputEnd }),
+    }));
+}
+
+function documentSourceMap(
+    sourceLength: number,
+    computed: readonly ComputedTarget[]
+): Readonly<{ readonly sourceMap: SourceMap; readonly outputLength: number }> | null {
+    const entries: Array<{
+        readonly source: Readonly<{ readonly start: number; readonly end: number }>;
+        readonly output: Readonly<{ readonly start: number; readonly end: number }>;
+    }> = [];
+    let sourceCursor = 0;
+    let outputCursor = 0;
+    for (const value of computed) {
+        const sourceMap = value.sourceMap;
+        if (sourceMap === null) {
+            return null;
+        }
+        const gapLength = value.target.start - sourceCursor;
+        appendSourceMapEntry(
+            entries,
+            sourceCursor,
+            value.target.start,
+            outputCursor,
+            outputCursor + gapLength
+        );
+        outputCursor += gapLength;
+        const targetOutputStart = outputCursor;
+        for (const entry of sourceMap.entries) {
+            appendSourceMapEntry(
+                entries,
+                value.target.start + entry.source.start,
+                value.target.start + entry.source.end,
+                targetOutputStart + entry.output.start,
+                targetOutputStart + entry.output.end
+            );
+        }
+        sourceCursor = value.target.end;
+        outputCursor = targetOutputStart + value.result.text.length;
+    }
+    const tailLength = sourceLength - sourceCursor;
+    appendSourceMapEntry(
+        entries,
+        sourceCursor,
+        sourceLength,
+        outputCursor,
+        outputCursor + tailLength
+    );
+    return Object.freeze({
+        sourceMap: Object.freeze({ entries: Object.freeze(entries) }),
+        outputLength: outputCursor + tailLength,
     });
 }
 
@@ -247,6 +359,7 @@ async function prepareFormatTransactionInternal(
     const sourceValue = request.source;
     const documentVersionValue = request.documentVersion;
     const targetsValue = request.targets;
+    const selectionsValue = request.selections;
     const optionsValue = optionSnapshot(request.options);
     const sourceLength =
         typeof sourceValue === "string" ? sourceValue.length : 0;
@@ -279,6 +392,20 @@ async function prepareFormatTransactionInternal(
                 sourceLength,
                 "ADAPTER_TRANSACTION_TARGET",
                 "Formatter transaction targets are invalid or overlapping"
+            ),
+        ]);
+    }
+    const requestedSelections = snapshotSelections(
+        selectionsValue,
+        sourceValue.length,
+        targets
+    );
+    if (requestedSelections === null) {
+        return rejected(documentVersionValue, [
+            diagnostic(
+                sourceLength,
+                "ADAPTER_TRANSACTION_SELECTION",
+                "Formatter transaction selections are invalid"
             ),
         ]);
     }
@@ -408,41 +535,12 @@ async function prepareFormatTransactionInternal(
     }
 
     const edits: TransactionEdit[] = [];
-    const selections: TransactionSelection[] = [];
-    let cumulativeDelta = 0;
+    const outputStartByTargetId = new Map<string, number>();
+    let outputDelta = 0;
     for (const value of computed) {
-        const outputStart = value.target.start + cumulativeDelta;
-        const outputEnd = outputStart + value.result.text.length;
-        const sourceSelection = value.target.selection ?? Object.freeze({
-            start: 0,
-            end: value.target.end - value.target.start,
-        });
-        const mappedSelection = value.sourceMap === null
-            ? null
-            : mapSelectionThroughSourceMap(
-                  sourceSelection,
-                  value.sourceMap,
-                  value.target.end - value.target.start,
-                  value.result.text.length
-              );
-        if (mappedSelection === null) {
-            return rejected(documentVersionValue, [
-                targetDiagnostic(
-                    value.target,
-                    "ADAPTER_SELECTION_MAP",
-                    "Formatter selection could not be mapped safely"
-                ),
-            ]);
-        }
-        selections.push(freezeSelection(
-            value.target,
-            outputStart,
-            outputEnd,
-            outputStart + mappedSelection.start,
-            outputStart + mappedSelection.end
-        ));
-        cumulativeDelta +=
-            value.result.text.length - (value.target.end - value.target.start);
+        outputStartByTargetId.set(value.target.id, value.target.start + outputDelta);
+        outputDelta += value.result.text.length -
+            (value.target.end - value.target.start);
         if (value.result.status === "formatted") {
             edits.push(
                 Object.freeze({
@@ -454,6 +552,62 @@ async function prepareFormatTransactionInternal(
                 })
             );
         }
+    }
+
+    const combinedMap = documentSourceMap(sourceValue.length, computed);
+    if (combinedMap === null) {
+        return rejected(documentVersionValue, [
+            diagnostic(
+                sourceLength,
+                "ADAPTER_SELECTION_MAP",
+                "Formatter selections could not be mapped safely"
+            ),
+        ]);
+    }
+    const selections: TransactionSelection[] = [];
+    for (const selection of requestedSelections) {
+        const target = selection.targetId === null
+            ? null
+            : computed.find((value) => value.target.id === selection.targetId) ?? null;
+        const targetOutputStart = target === null
+            ? null
+            : outputStartByTargetId.get(target.target.id) ?? null;
+        const mapped = target === null || targetOutputStart === null
+            ? mapSelectionThroughSourceMap(
+                  selection,
+                  combinedMap.sourceMap,
+                  sourceValue.length,
+                  combinedMap.outputLength
+              )
+            : (() => {
+                  const local = mapSelectionThroughSourceMap(
+                      Object.freeze({
+                          anchor: selection.anchor - target.target.start,
+                          active: selection.active - target.target.start,
+                      }),
+                      target.sourceMap!,
+                      target.target.end - target.target.start,
+                      target.result.text.length
+                  );
+                  return local === null ? null : Object.freeze({
+                      anchor: targetOutputStart + local.anchor,
+                      active: targetOutputStart + local.active,
+                  });
+              })();
+        if (mapped === null) {
+            return rejected(documentVersionValue, [
+                diagnostic(
+                    sourceLength,
+                    "ADAPTER_SELECTION_MAP",
+                    "Formatter selection could not be mapped safely"
+                ),
+            ]);
+        }
+        selections.push(freezeSelection(
+            selection.id,
+            mapped.anchor,
+            mapped.active
+        ));
     }
 
     const frozenDiagnostics = sortDiagnostics(diagnostics);

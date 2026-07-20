@@ -51,17 +51,21 @@ async function run() {
         targets: [
             { id: 'second', start: 10, end: 20, mode: 'fragment' },
             { id: 'first', start: 0, end: 10, mode: 'fragment' }
+        ],
+        selections: [
+            { id: 'primary', targetId: 'second', anchor: 20, active: 10 },
+            { id: 'outside', targetId: null, anchor: 20, active: 20 },
+            { id: 'secondary', targetId: 'first', anchor: 0, active: 10 }
         ]
     }, executor);
     assert.strictEqual(ready.status, 'ready', 'safe formatted targets must produce a ready transaction');
     assert.deepStrictEqual(ready.edits.map(function(edit) { return edit.targetId; }), ['first', 'second'],
         'transaction targets must be normalized into source order');
     assert.deepStrictEqual(ready.selections, [
-        { targetId: 'first', sourceStart: 0, sourceEnd: 10, outputStart: 0, outputEnd: 12,
-            selectionStart: 0, selectionEnd: 12 },
-        { targetId: 'second', sourceStart: 10, sourceEnd: 20, outputStart: 12, outputEnd: 15,
-            selectionStart: 12, selectionEnd: 15 }
-    ], 'selection ranges must include cumulative edit deltas');
+        { selectionId: 'primary', selectionAnchor: 15, selectionActive: 12 },
+        { selectionId: 'outside', selectionAnchor: 13, selectionActive: 13 },
+        { selectionId: 'secondary', selectionAnchor: 0, selectionActive: 12 }
+    ], 'selection order/direction must survive source-sorted target edits');
     assert.strictEqual(Object.isFrozen(ready), true, 'transaction result must be frozen');
     assert.strictEqual(Object.isFrozen(ready.edits), true, 'transaction edits must be frozen');
     assert.strictEqual(Object.isFrozen(ready.selections), true, 'transaction selections must be frozen');

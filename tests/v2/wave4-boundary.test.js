@@ -5,10 +5,12 @@ var path = require('path');
 var packageJson = require('../../package.json');
 
 var root = path.join(__dirname, '..', '..');
-var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
-var ddlRuntimePath = path.join(root, 'dist', 'v2-ddl.cjs');
+var runtimePath = path.join(root, 'dist', 'runtime.cjs');
+var formatterPath = path.join(root, 'dist', 'sql-formatter.cjs');
+var ddlRuntimePath = path.join(root, 'dist', 'hive-ddl.cjs');
 var bridgePath = path.join(root, 'dist', 'v2-format-bridge.cjs');
-var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
+var workerPath = path.join(root, 'dist', 'formatter-worker.cjs');
+var extensionPath = path.join(root, 'dist', 'extension.cjs');
 var bridgeSourcePath = path.join(root, 'src', 'adapters', 'runtime', 'v2-format-bridge.ts');
 var buildScript = path.join(root, 'scripts', 'build-v2-runtime.js');
 var transactionSource = fs.readFileSync(
@@ -25,9 +27,11 @@ var directExecutorSource = fs.readFileSync(
 );
 
 assert.ok(fs.existsSync(runtimePath), 'Wave 4 must provide a production v2 runtime');
+assert.ok(fs.existsSync(formatterPath), 'Wave 5 must provide a public formatter facade');
 assert.ok(fs.existsSync(ddlRuntimePath), 'Wave 4 must provide an experimental DDL runtime');
 assert.ok(fs.existsSync(bridgePath), 'Wave 4 must provide a host-neutral v2 bridge');
 assert.ok(fs.existsSync(workerPath), 'Wave 4 must provide a persistent worker runtime');
+assert.ok(fs.existsSync(extensionPath), 'Wave 5 must provide a VS Code extension entry');
 assert.ok(fs.existsSync(bridgeSourcePath), 'v2 bridge source must live under src/adapters');
 assert.ok(!fs.existsSync(path.join(root, 'lib', 'runtime', 'v2-core.js')),
     'v2 runtime artifact must not reintroduce lib as a source/output boundary');
@@ -49,14 +53,18 @@ var packagedFiles = childProcess.execFileSync(
     [require.resolve('@vscode/vsce/vsce'), 'ls'],
     { cwd: root, encoding: 'utf8' }
 ).split(/\r?\n/).filter(Boolean);
-assert.ok(packagedFiles.indexOf('dist/v2-core.cjs') >= 0,
-    'VSIX manifest must include the v2 core runtime');
-assert.ok(packagedFiles.indexOf('dist/v2-ddl.cjs') >= 0,
+assert.ok(packagedFiles.indexOf('dist/runtime.cjs') >= 0,
+    'VSIX manifest must include the shared v2 runtime');
+assert.ok(packagedFiles.indexOf('dist/sql-formatter.cjs') >= 0,
+    'VSIX manifest must include the public formatter facade');
+assert.ok(packagedFiles.indexOf('dist/hive-ddl.cjs') >= 0,
     'VSIX manifest must include the experimental DDL runtime');
 assert.ok(packagedFiles.indexOf('dist/v2-format-bridge.cjs') >= 0,
     'VSIX manifest must include the v2 adapter bridge');
-assert.ok(packagedFiles.indexOf('dist/v2-worker.cjs') >= 0,
+assert.ok(packagedFiles.indexOf('dist/formatter-worker.cjs') >= 0,
     'VSIX manifest must include the v2 worker runtime');
+assert.ok(packagedFiles.indexOf('dist/extension.cjs') >= 0,
+    'VSIX manifest must include the v2 extension entry');
 assert.strictEqual(packagedFiles.some(function(file) {
     return /^dist\/.*\.tmp$/.test(file);
 }), false, 'VSIX manifest must exclude temporary runtime artifacts');

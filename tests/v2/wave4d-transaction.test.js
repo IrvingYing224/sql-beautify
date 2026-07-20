@@ -1,6 +1,7 @@
 'use strict';
 
 var assert = require('assert');
+var performance = require('perf_hooks').performance;
 var ddl = require('../../.tmp/v2-core/experimental/ddl');
 var cancellation = require('../../.tmp/v2-core/adapters/transaction/cancellation');
 var transaction = require('../../.tmp/v2-core/adapters/transaction/experimental-ddl');
@@ -13,11 +14,15 @@ function snapshot(source, version, identity) {
     });
 }
 
-function target(source) {
-    return Object.freeze({ id: 'ddl', start: 0, end: source.length });
+function target(source, id, start, end) {
+    return Object.freeze({
+        id: id || 'ddl',
+        start: start === undefined ? 0 : start,
+        end: end === undefined ? source.length : end
+    });
 }
 
-async function runOperation(source, operation, overrides) {
+async function runOperation(source, operation, overrides, targets) {
     var identity = {};
     var document = snapshot(source, 7, identity);
     var applied = [];
@@ -33,7 +38,7 @@ async function runOperation(source, operation, overrides) {
     };
     var result = await transaction.runExperimentalDdlTransaction({
         document: document,
-        target: target(source),
+        targets: targets || [target(source)],
         cancellation: options.cancellation
     }, operation, commit);
     return { result: result, applied: applied, document: document, identity: identity };
@@ -173,6 +178,213 @@ async function main() {
     }));
     assert.strictEqual(warningEditable.applied.length, 0,
         'editable results with diagnostics must never reach host commit');
+
+    var batchSource = 'CREATE TABLE a (x INT);\nCREATE TABLE b (y INT);';
+    var firstEnd = batchSource.indexOf(';') + 1;
+    var secondStart = firstEnd + 1;
+    var batchCalls = [];
+    var batch = await runOperation(batchSource, function(source) {
+        batchCalls.push(source);
+        return Object.freeze({
+            status: 'formatted',
+            source: source,
+            text: source.toLowerCase(),
+            diagnostics: Object.freeze([])
+        });
+    }, undefined, [
+        target(batchSource, 'second', secondStart, batchSource.length),
+        target(batchSource, 'first', 0, firstEnd)
+    ]);
+    assert.deepStrictEqual(batchCalls, [
+        batchSource.slice(0, firstEnd),
+        batchSource.slice(secondStart)
+    ], 'batch operations must run in source order');
+    assert.strictEqual(batch.result.status, 'ready');
+    assert.deepStrictEqual(batch.result.edits.map(function(item) { return item.targetId; }), [
+        'first', 'second'
+    ], 'batch edits must be sorted in source order');
+    assert.strictEqual(batch.applied.length, 1, 'batch edits must apply exactly once');
+
+    var failedBatchCalls = [];
+    var failedBatch = await runOperation(batchSource, function(source) {
+        failedBatchCalls.push(source);
+        if (source === batchSource.slice(secondStart)) {
+            return Object.freeze({
+                status: 'unsupported',
+                source: source,
+                text: source,
+                diagnostics: Object.freeze([Object.freeze({
+                    code: 'DDL_UNSUPPORTED',
+                    severity: 'warning',
+                    message: 'unsupported',
+                    capabilityId: null,
+                    span: Object.freeze({ start: 0, end: source.length }),
+                    recovery: 'preserve-target'
+                })])
+            });
+        }
+        return Object.freeze({
+            status: 'formatted',
+            source: source,
+            text: source.toLowerCase(),
+            diagnostics: Object.freeze([])
+        });
+    }, undefined, [
+        target(batchSource, 'first', 0, firstEnd),
+        target(batchSource, 'second', secondStart, batchSource.length)
+    ]);
+    assert.strictEqual(failedBatch.result.status, 'rejected');
+    assert.strictEqual(failedBatch.applied.length, 0,
+        'any non-editable/diagnostic target must prevent the entire batch commit');
+    assert.strictEqual(failedBatchCalls.length, 2,
+        'each target must be evaluated before the batch can commit');
+
+    var allUnchanged = await runOperation(batchSource, function(source) {
+        return Object.freeze({
+            status: 'unchanged',
+            source: source,
+            text: source,
+            diagnostics: Object.freeze([])
+        });
+    }, undefined, [
+        target(batchSource, 'first', 0, firstEnd),
+        target(batchSource, 'second', secondStart, batchSource.length)
+    ]);
+    assert.strictEqual(allUnchanged.result.status, 'unchanged');
+    assert.deepStrictEqual(allUnchanged.result.edits, []);
+    assert.strictEqual(allUnchanged.applied.length, 0,
+        'all unchanged targets must not invoke host commit');
+
+    var overlapping = await runOperation(batchSource, function(source) {
+        return Object.freeze({
+            status: 'formatted',
+            source: source,
+            text: source.toLowerCase(),
+            diagnostics: Object.freeze([])
+        });
+    }, undefined, [
+        target(batchSource, 'left', 0, firstEnd),
+        target(batchSource, 'right', firstEnd - 1, batchSource.length)
+    ]);
+    assert.strictEqual(overlapping.result.status, 'rejected');
+    assert.strictEqual(overlapping.applied.length, 0,
+        'overlapping targets must fail closed before operation or commit');
+
+    var emptyBatch = await runOperation(batchSource, function() {
+        throw new Error('empty DDL batch must not execute');
+    }, undefined, []);
+    assert.strictEqual(emptyBatch.result.status, 'rejected');
+    assert.strictEqual(emptyBatch.applied.length, 0,
+        'empty DDL batch must fail closed without host commit');
+
+    var protectedSource = "SELECT 'create table t (a int);' AS payload";
+    var protectedStart = protectedSource.indexOf('create table');
+    var protectedEnd = protectedSource.indexOf("' AS payload");
+    var protectedCalls = 0;
+    var protectedTarget = await runOperation(protectedSource, function(source) {
+        protectedCalls += 1;
+        return ddl.formatHiveDdl(source);
+    }, undefined, [target(
+        protectedSource,
+        'inside-string',
+        protectedStart,
+        protectedEnd
+    )]);
+    assert.strictEqual(protectedTarget.result.status, 'rejected');
+    assert.strictEqual(protectedTarget.result.diagnostics[0].code, 'ADAPTER_DDL_RANGE');
+    assert.strictEqual(protectedCalls, 0,
+        'DDL transaction must reject protected-content targets before operation');
+    assert.strictEqual(protectedTarget.applied.length, 0);
+
+    var partialLine = await runOperation(
+        'prefix CREATE TABLE t (a INT); suffix',
+        ddl.formatHiveDdl,
+        undefined,
+        [target('prefix CREATE TABLE t (a INT); suffix', 'partial-line', 7, 30)]
+    );
+    assert.strictEqual(partialLine.result.status, 'rejected');
+    assert.strictEqual(partialLine.result.diagnostics[0].code, 'ADAPTER_DDL_RANGE');
+    assert.strictEqual(partialLine.applied.length, 0,
+        'DDL transaction must reject non-line-complete selections');
+
+    var crlfSource = 'CREATE TABLE t (a INT);\r\nSELECT 1';
+    var crlfMidpoint = crlfSource.indexOf('\n');
+    var crlfCalls = 0;
+    var crlfOperation = function(source) {
+        crlfCalls += 1;
+        return ddl.formatHiveDdl(source);
+    };
+    var crlfEndTarget = await runOperation(
+        crlfSource,
+        crlfOperation,
+        undefined,
+        [target(crlfSource, 'crlf-midpoint', 0, crlfMidpoint)]
+    );
+    assert.strictEqual(crlfEndTarget.result.status, 'rejected');
+    assert.strictEqual(crlfEndTarget.result.diagnostics[0].code, 'ADAPTER_DDL_RANGE');
+    assert.strictEqual(crlfEndTarget.applied.length, 0,
+        'DDL target must not end between CR and LF code units');
+
+    var crlfStartTarget = await runOperation(
+        crlfSource,
+        crlfOperation,
+        undefined,
+        [target(crlfSource, 'crlf-midpoint-start', crlfMidpoint, crlfSource.length)]
+    );
+    assert.strictEqual(crlfStartTarget.result.status, 'rejected');
+    assert.strictEqual(crlfStartTarget.result.diagnostics[0].code, 'ADAPTER_DDL_RANGE');
+    assert.strictEqual(crlfStartTarget.applied.length, 0,
+        'DDL target must not start between CR and LF code units');
+    assert.strictEqual(crlfCalls, 0,
+        'CRLF midpoint targets must fail before the DDL operation runs');
+
+    var largeValues = [];
+    var largeTargets = [];
+    var largeOffset = 0;
+    for (var largeIndex = 0; largeIndex < 1200; largeIndex++) {
+        var statement = 'CREATE TABLE t' + largeIndex + ' (c INT);';
+        largeValues.push(statement);
+        largeTargets.push(target(
+            '',
+            'large-' + largeIndex,
+            largeOffset,
+            largeOffset + statement.length
+        ));
+        largeOffset += statement.length + 1;
+    }
+    var largeSource = largeValues.join('\n');
+    var largeStarted = performance.now();
+    var largeBatch = await runOperation(largeSource, function(source) {
+        return Object.freeze({
+            status: 'unchanged',
+            source: source,
+            text: source,
+            diagnostics: Object.freeze([])
+        });
+    }, undefined, largeTargets);
+    var largeElapsed = performance.now() - largeStarted;
+    assert.strictEqual(largeBatch.result.status, 'unchanged');
+    assert.ok(largeElapsed < 1000,
+        '1200-target DDL validation must remain below 1000ms, got ' + largeElapsed + 'ms');
+
+    var cancelledLargeController = cancellation.createCancellationController();
+    cancelledLargeController.cancel();
+    var cancelledLargeCalls = 0;
+    var cancelledLargeStarted = performance.now();
+    var cancelledLarge = await runOperation(largeSource, function(source) {
+        cancelledLargeCalls += 1;
+        return Object.freeze({
+            status: 'unchanged',
+            source: source,
+            text: source,
+            diagnostics: Object.freeze([])
+        });
+    }, { cancellation: cancelledLargeController.token }, largeTargets);
+    var cancelledLargeElapsed = performance.now() - cancelledLargeStarted;
+    assert.strictEqual(cancelledLarge.result.status, 'cancelled');
+    assert.strictEqual(cancelledLargeCalls, 0);
+    assert.ok(cancelledLargeElapsed < 250,
+        'pre-cancelled DDL must bypass target validation, got ' + cancelledLargeElapsed + 'ms');
 
     console.log('v2 Wave 4D experimental DDL transaction tests passed');
 }

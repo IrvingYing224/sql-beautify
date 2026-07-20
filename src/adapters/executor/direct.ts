@@ -1,5 +1,5 @@
-import { formatSql } from "../../core/api/format";
 import type { FormatResult } from "../../core/api/format-result";
+import type { FormatOptions } from "../../core/config/options";
 import {
     failedFormatResult,
     isFormatResultSafeForSource,
@@ -12,8 +12,23 @@ import {
     snapshotFormatExecutionSource,
 } from "./request";
 
-/** Synchronous core invocation behind the common executor contract. */
+export type TargetFormatter = (
+    source: string,
+    options: FormatOptions,
+    mode: "document" | "fragment"
+) => FormatResult;
+
+/** Synchronous target invocation behind the common executor contract. */
 export class DirectFormatterExecutor implements FormatterExecutor {
+    private readonly formatTarget: TargetFormatter;
+
+    constructor(formatTarget: TargetFormatter) {
+        if (typeof formatTarget !== "function") {
+            throw new TypeError("Direct formatter target is invalid");
+        }
+        this.formatTarget = formatTarget;
+    }
+
     async format(request: FormatExecutionRequest): Promise<FormatResult> {
         const snapshot = snapshotFormatExecutionRequest(request);
         if (snapshot === null) {
@@ -33,7 +48,7 @@ export class DirectFormatterExecutor implements FormatterExecutor {
                     "warning"
                 );
             }
-            const rawResult = formatSql(
+            const rawResult = this.formatTarget(
                 snapshot.source,
                 snapshot.options,
                 snapshot.mode

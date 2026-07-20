@@ -276,9 +276,10 @@ function assertNoThrowProperties() {
 }
 
 async function assertDirectWorkerParity() {
-    var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
-    var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
-    var direct = new directModule.DirectFormatterExecutor();
+    var runtimePath = path.join(root, 'dist', 'runtime.cjs');
+    var workerPath = path.join(root, 'dist', 'formatter-worker.cjs');
+    var targetCore = require('../../.tmp/v2-core/core/api/format');
+    var direct = new directModule.DirectFormatterExecutor(targetCore.formatSql);
     var worker = new persistentModule.PersistentWorkerExecutor({
         workerFactory: connectionModule.createNodeWorkerFactory(workerPath, runtimePath),
         runtimeDigest: digest(runtimePath)

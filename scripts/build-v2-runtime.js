@@ -7,16 +7,20 @@ var esbuild = require('esbuild');
 
 var root = path.join(__dirname, '..');
 var outDir = path.join(root, 'dist');
-var coreOutFile = path.join(outDir, 'v2-core.cjs');
-var ddlOutFile = path.join(outDir, 'v2-ddl.cjs');
-var bridgeOutFile = path.join(outDir, 'v2-format-bridge.cjs');
-var workerOutFile = path.join(outDir, 'v2-worker.cjs');
-var coreTempFile = coreOutFile + '.tmp';
-var ddlTempFile = ddlOutFile + '.tmp';
-var bridgeTempFile = bridgeOutFile + '.tmp';
-var workerTempFile = workerOutFile + '.tmp';
+var artifacts = {
+    runtime: path.join(outDir, 'runtime.cjs'),
+    formatter: path.join(outDir, 'sql-formatter.cjs'),
+    ddl: path.join(outDir, 'hive-ddl.cjs'),
+    worker: path.join(outDir, 'formatter-worker.cjs'),
+    extension: path.join(outDir, 'extension.cjs'),
+    bridge: path.join(outDir, 'v2-format-bridge.cjs')
+};
 
-function remove_files(files) {
+function temporary(file) {
+    return file + '.tmp';
+}
+
+function removeFiles(files) {
     var firstError = null;
     for (var index = 0; index < files.length; index++) {
         try {
@@ -30,91 +34,75 @@ function remove_files(files) {
     }
 }
 
-try {
-    fs.mkdirSync(outDir, { recursive: true });
-    remove_files([
-        coreOutFile,
-        ddlOutFile,
-        bridgeOutFile,
-        workerOutFile,
-        coreTempFile,
-        ddlTempFile,
-        bridgeTempFile,
-        workerTempFile
-    ]);
-
-    esbuild.buildSync({
-        entryPoints: [path.join(root, 'src', 'runtime', 'index.ts')],
-        bundle: true,
-        platform: 'node',
-        format: 'cjs',
-        target: 'node20',
-        outfile: coreTempFile,
-        sourcemap: false,
-        minify: false,
-        legalComments: 'none',
-        logLevel: 'warning'
-    });
-
-    esbuild.buildSync({
-        entryPoints: [path.join(root, 'src', 'runtime', 'experimental-ddl.ts')],
-        bundle: true,
-        platform: 'node',
-        format: 'cjs',
-        target: 'node20',
-        outfile: ddlTempFile,
-        sourcemap: false,
-        minify: false,
-        legalComments: 'none',
-        logLevel: 'warning'
-    });
-
-    esbuild.buildSync({
-        entryPoints: [path.join(root, 'src', 'adapters', 'runtime', 'v2-format-bridge.ts')],
-        bundle: true,
-        platform: 'node',
-        format: 'cjs',
-        target: 'node20',
-        outfile: bridgeTempFile,
-        sourcemap: false,
-        minify: false,
-        legalComments: 'none',
-        logLevel: 'warning'
-    });
-
-    esbuild.buildSync({
-        entryPoints: [path.join(root, 'src', 'adapters', 'executor', 'worker-entry.ts')],
-        bundle: true,
-        platform: 'node',
-        format: 'cjs',
-        target: 'node20',
-        outfile: workerTempFile,
-        sourcemap: false,
-        minify: false,
-        legalComments: 'none',
-        logLevel: 'warning'
-    });
-
-    fs.renameSync(coreTempFile, coreOutFile);
-    fs.renameSync(ddlTempFile, ddlOutFile);
-    fs.renameSync(bridgeTempFile, bridgeOutFile);
-    fs.renameSync(workerTempFile, workerOutFile);
-} catch (error) {
-    try {
-        remove_files([coreOutFile, ddlOutFile, bridgeOutFile, workerOutFile]);
-    } catch (cleanupError) {
-        console.error(cleanupError);
-    }
-    throw error;
-} finally {
-    try {
-        remove_files([coreTempFile, ddlTempFile, bridgeTempFile, workerTempFile]);
-    } catch (cleanupError) {
-        console.error(cleanupError);
-    }
+function sharedRuntimePlugin() {
+    return {
+        name: 'wave5-shared-runtime',
+        setup: function(build) {
+            build.onResolve({ filter: /^\.\/internal$/ }, function() {
+                return { path: './runtime.cjs', external: true };
+            });
+        }
+    };
 }
 
-console.log('Built v2 runtime: ' + path.relative(root, coreOutFile));
-console.log('Built v2 DDL runtime: ' + path.relative(root, ddlOutFile));
-console.log('Built v2 bridge: ' + path.relative(root, bridgeOutFile));
-console.log('Built v2 worker: ' + path.relative(root, workerOutFile));
+async function build(entryPoint, outfile, extra) {
+    await esbuild.build(Object.assign({
+        entryPoints: [entryPoint],
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',
+        target: 'node20',
+        outfile: temporary(outfile),
+        sourcemap: false,
+        minify: false,
+        legalComments: 'none',
+        logLevel: 'warning'
+    }, extra || {}));
+}
+
+var allFiles = Object.keys(artifacts).map(function(key) { return artifacts[key]; });
+var tempFiles = allFiles.map(temporary);
+
+async function main() {
+    try {
+        fs.mkdirSync(outDir, { recursive: true });
+        removeFiles(allFiles.concat(tempFiles));
+
+        await build(path.join(root, 'src', 'runtime', 'internal.ts'), artifacts.runtime);
+        await build(path.join(root, 'src', 'runtime', 'index.ts'), artifacts.formatter, {
+            plugins: [sharedRuntimePlugin()]
+        });
+        await build(path.join(root, 'src', 'runtime', 'experimental-ddl.ts'), artifacts.ddl, {
+            plugins: [sharedRuntimePlugin()]
+        });
+        await build(path.join(root, 'src', 'adapters', 'executor', 'worker-entry.ts'), artifacts.worker);
+        await build(path.join(root, 'src', 'extension.ts'), artifacts.extension, {
+            external: ['vscode']
+        });
+
+        /* Keep the Wave 4 bridge until the package cutover removes its tests. */
+        await build(path.join(root, 'src', 'adapters', 'runtime', 'v2-format-bridge.ts'), artifacts.bridge);
+
+        Object.keys(artifacts).forEach(function(key) {
+            fs.renameSync(temporary(artifacts[key]), artifacts[key]);
+        });
+    } catch (error) {
+        removeFiles(allFiles.concat(tempFiles));
+        throw error;
+    } finally {
+        removeFiles(tempFiles);
+    }
+
+    console.log('Built Wave 5 runtime artifacts: ' + [
+        path.relative(root, artifacts.runtime),
+        path.relative(root, artifacts.formatter),
+        path.relative(root, artifacts.ddl),
+        path.relative(root, artifacts.worker),
+        path.relative(root, artifacts.extension)
+    ].join(', '));
+}
+
+main().catch(function(error) {
+    console.error(error);
+    process.exitCode = 1;
+});

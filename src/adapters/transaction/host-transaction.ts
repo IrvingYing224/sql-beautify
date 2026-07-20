@@ -1,6 +1,7 @@
 import type { FormatOptions } from "../../core/config/options";
 import type {
     CancellationToken,
+    FormatSelection,
     FormatTarget,
     FormatterExecutor,
     FormatTransactionResult,
@@ -18,6 +19,7 @@ export type { DocumentSnapshot } from "./document-snapshot";
 export interface HostTransactionRequest {
     readonly document: DocumentSnapshot;
     readonly targets: readonly FormatTarget[];
+    readonly selections?: readonly FormatSelection[];
     readonly options?: FormatOptions;
     readonly cancellation?: CancellationToken;
 }
@@ -69,6 +71,9 @@ async function runHostTransactionInternal(
             source: expected.source,
             documentVersion: expected.version,
             targets: request.targets,
+            ...(request.selections === undefined
+                ? {}
+                : { selections: request.selections }),
             ...(request.options === undefined ? {} : { options: request.options }),
             ...(cancellationValue === undefined
                 ? {}

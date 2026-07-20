@@ -5,6 +5,7 @@ var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
 var directModule = require('../../.tmp/v2-core/adapters/executor/direct');
+var targetCore = require('../../.tmp/v2-core/core/api/format');
 var persistentModule = require('../../.tmp/v2-core/adapters/executor/persistent-worker');
 var connectionModule = require('../../.tmp/v2-core/adapters/executor/worker-connection');
 var routedModule = require('../../.tmp/v2-core/adapters/executor/routed');
@@ -44,11 +45,11 @@ function countingExecutor(label) {
 }
 
 async function run() {
-    var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
-    var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
+    var runtimePath = path.join(root, 'dist', 'runtime.cjs');
+    var workerPath = path.join(root, 'dist', 'formatter-worker.cjs');
     assert.ok(fs.existsSync(workerPath), 'production worker bundle must be built');
     var runtimeDigest = digest(runtimePath);
-    var direct = new directModule.DirectFormatterExecutor();
+    var direct = new directModule.DirectFormatterExecutor(targetCore.formatSql);
     var persistent = new persistentModule.PersistentWorkerExecutor({
         workerFactory: connectionModule.createNodeWorkerFactory(workerPath, runtimePath),
         runtimeDigest: runtimeDigest

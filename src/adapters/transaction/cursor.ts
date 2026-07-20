@@ -5,8 +5,8 @@ import {
 import type { SourceMap } from "../../core/source/source-map";
 
 export interface CursorPosition {
-    readonly start: number;
-    readonly end: number;
+    readonly anchor: number;
+    readonly active: number;
 }
 
 export function mapSelectionThroughSourceMap(
@@ -18,38 +18,44 @@ export function mapSelectionThroughSourceMap(
     if (
         selection === null ||
         selection === undefined ||
-        !Number.isSafeInteger(selection.start) ||
-        !Number.isSafeInteger(selection.end) ||
-        selection.start < 0 ||
-        selection.end < selection.start ||
-        selection.end > sourceLength
+        !Number.isSafeInteger(selection.anchor) ||
+        !Number.isSafeInteger(selection.active) ||
+        selection.anchor < 0 ||
+        selection.active < 0 ||
+        selection.anchor > sourceLength ||
+        selection.active > sourceLength
     ) {
         return null;
     }
-    if (selection.start === selection.end) {
-        const exact = mapSourceOffset(sourceMap, selection.start, sourceLength, outputLength, "exact");
-        const start = exact ?? mapSourceOffset(sourceMap, selection.start, sourceLength, outputLength, "left");
-        if (start === null) {
+    if (selection.anchor === selection.active) {
+        const exact = mapSourceOffset(sourceMap, selection.anchor, sourceLength, outputLength, "exact");
+        const mapped = exact ?? mapSourceOffset(sourceMap, selection.anchor, sourceLength, outputLength, "left");
+        if (mapped === null) {
             return null;
         }
-        return Object.freeze({ start, end: start });
+        return Object.freeze({ anchor: mapped, active: mapped });
     }
-    const start = mapSourceOffset(
+    const forward = selection.anchor < selection.active;
+    const sourceStart = Math.min(selection.anchor, selection.active);
+    const sourceEnd = Math.max(selection.anchor, selection.active);
+    const mappedStart = mapSourceOffset(
         sourceMap,
-        selection.start,
+        sourceStart,
         sourceLength,
         outputLength,
         "left" satisfies SourceMapAffinity
     );
-    const end = mapSourceOffset(
+    const mappedEnd = mapSourceOffset(
         sourceMap,
-        selection.end,
+        sourceEnd,
         sourceLength,
         outputLength,
         "right" satisfies SourceMapAffinity
     );
-    if (start === null || end === null || end < start) {
+    if (mappedStart === null || mappedEnd === null || mappedEnd < mappedStart) {
         return null;
     }
-    return Object.freeze({ start, end });
+    return Object.freeze(forward
+        ? { anchor: mappedStart, active: mappedEnd }
+        : { anchor: mappedEnd, active: mappedStart });
 }

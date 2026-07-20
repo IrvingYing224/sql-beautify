@@ -1,4 +1,5 @@
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
+import { lexSql } from "../../core/lexer/lossless-lexer";
 import type {
     ExtractDdlResult,
     HiveDdlResult,
@@ -26,7 +27,7 @@ export interface ExperimentalDdlTarget {
 
 export interface ExperimentalDdlTransactionRequest {
     readonly document: DocumentSnapshot;
-    readonly target: ExperimentalDdlTarget;
+    readonly targets: readonly ExperimentalDdlTarget[];
     readonly cancellation?: CancellationToken;
 }
 
@@ -45,7 +46,7 @@ interface ExperimentalDdlTransactionBase<S extends string> {
 
 export interface ReadyExperimentalDdlTransaction
     extends ExperimentalDdlTransactionBase<"ready"> {
-    readonly edits: readonly [ExperimentalDdlEdit];
+    readonly edits: readonly ExperimentalDdlEdit[];
 }
 
 export interface UnchangedExperimentalDdlTransaction
@@ -82,6 +83,16 @@ export interface ExperimentalDdlCommit {
     ) => Promise<boolean>;
 }
 
+interface SnapshottedDdlResult {
+    readonly target: ExperimentalDdlTarget;
+    readonly result: {
+        readonly status: string;
+        readonly source: string;
+        readonly text: string;
+        readonly diagnostics: readonly TransactionDiagnostic[];
+    };
+}
+
 const TARGET_KEYS: ReadonlySet<string> = new Set(["id", "start", "end"]);
 const RESULT_KEYS: ReadonlySet<string> = new Set([
     "status",
@@ -99,6 +110,10 @@ const RESULT_STATUSES: ReadonlySet<string> = new Set([
     "ambiguous",
     "empty",
 ]);
+
+function compareString(left: string, right: string): number {
+    return left < right ? -1 : left > right ? 1 : 0;
+}
 
 function diagnostic(
     target: ExperimentalDdlTarget,
@@ -164,6 +179,165 @@ function snapshotTarget(
     });
 }
 
+function sortedTargets(
+    source: string,
+    values: readonly ExperimentalDdlTarget[]
+): readonly ExperimentalDdlTarget[] | null {
+    const rawTargets = snapshotDenseDataArray(values);
+    if (rawTargets === null || rawTargets.length === 0) {
+        return null;
+    }
+    const ids = new Set<string>();
+    const targets: ExperimentalDdlTarget[] = [];
+    for (const rawTarget of rawTargets) {
+        const target = snapshotTarget(rawTarget as ExperimentalDdlTarget, source.length);
+        if (target === null || ids.has(target.id)) {
+            return null;
+        }
+        ids.add(target.id);
+        targets.push(target);
+    }
+    targets.sort((left, right) =>
+        left.start - right.start ||
+        left.end - right.end ||
+        compareString(left.id, right.id)
+    );
+    for (let index = 1; index < targets.length; index++) {
+        if (targets[index - 1]!.end > targets[index]!.start) {
+            return null;
+        }
+    }
+    return Object.freeze(targets);
+}
+
+function linePrefixIsWhitespace(source: string, offset: number): boolean {
+    const lineStart = Math.max(
+        source.lastIndexOf("\n", Math.max(0, offset - 1)),
+        source.lastIndexOf("\r", Math.max(0, offset - 1))
+    ) + 1;
+    return /^[ \t]*$/.test(source.slice(lineStart, offset));
+}
+
+function lineSuffixIsWhitespace(source: string, offset: number): boolean {
+    const newline = source.slice(offset).search(/[\r\n]/);
+    const lineEnd = newline < 0 ? source.length : offset + newline;
+    return /^[ \t]*$/.test(source.slice(offset, lineEnd));
+}
+
+type DdlTargetValidation =
+    | { readonly status: "valid" }
+    | { readonly status: "cancelled" }
+    | { readonly status: "invalid"; readonly target: ExperimentalDdlTarget };
+
+const VALID_DDL_TARGETS: DdlTargetValidation = Object.freeze({ status: "valid" });
+const CANCELLED_DDL_TARGETS: DdlTargetValidation = Object.freeze({ status: "cancelled" });
+
+function invalidDdlLineRange(
+    source: string,
+    target: ExperimentalDdlTarget
+): boolean {
+    return target.start === target.end ||
+        (source[target.start - 1] === "\r" && source[target.start] === "\n") ||
+        (source[target.end - 1] === "\r" && source[target.end] === "\n") ||
+        !linePrefixIsWhitespace(source, target.start) ||
+        !lineSuffixIsWhitespace(source, target.end);
+}
+
+function validateDdlTargets(
+    source: string,
+    targets: readonly ExperimentalDdlTarget[],
+    isCancelled: () => boolean
+): DdlTargetValidation {
+    try {
+        if (isCancelled()) {
+            return CANCELLED_DDL_TARGETS;
+        }
+        const lexical = lexSql(source, { dialect: "hive" });
+        if (isCancelled()) {
+            return CANCELLED_DDL_TARGETS;
+        }
+        const protectedLeaves = lexical.leaves.filter((leaf) =>
+            leaf.channel === "protected" ||
+            leaf.kind === "line-comment" ||
+            leaf.kind === "block-comment"
+        );
+        const codeLeaves = lexical.leaves.filter((leaf) => leaf.channel === "code");
+        let diagnosticIndex = 0;
+        let protectedIndex = 0;
+        let codeIndex = 0;
+        for (const target of targets) {
+            if (isCancelled()) {
+                return CANCELLED_DDL_TARGETS;
+            }
+            if (invalidDdlLineRange(source, target)) {
+                return Object.freeze({ status: "invalid", target });
+            }
+
+            while (
+                diagnosticIndex < lexical.diagnostics.length &&
+                lexical.diagnostics[diagnosticIndex]!.span.end <= target.start
+            ) {
+                diagnosticIndex += 1;
+            }
+            const overlappingDiagnostic = lexical.diagnostics[diagnosticIndex];
+            if (
+                overlappingDiagnostic !== undefined &&
+                overlappingDiagnostic.span.start < target.end &&
+                target.start < overlappingDiagnostic.span.end
+            ) {
+                return Object.freeze({ status: "invalid", target });
+            }
+
+            while (
+                protectedIndex < protectedLeaves.length &&
+                protectedLeaves[protectedIndex]!.span.end <= target.start
+            ) {
+                protectedIndex += 1;
+            }
+            const startLeaf = protectedLeaves[protectedIndex];
+            if (
+                startLeaf !== undefined &&
+                startLeaf.span.start < target.start &&
+                target.start < startLeaf.span.end
+            ) {
+                return Object.freeze({ status: "invalid", target });
+            }
+            while (
+                protectedIndex < protectedLeaves.length &&
+                protectedLeaves[protectedIndex]!.span.end <= target.end
+            ) {
+                protectedIndex += 1;
+            }
+            const endLeaf = protectedLeaves[protectedIndex];
+            if (
+                endLeaf !== undefined &&
+                endLeaf.span.start < target.end &&
+                target.end < endLeaf.span.end
+            ) {
+                return Object.freeze({ status: "invalid", target });
+            }
+
+            while (
+                codeIndex < codeLeaves.length &&
+                codeLeaves[codeIndex]!.span.end <= target.start
+            ) {
+                codeIndex += 1;
+            }
+            const codeLeaf = codeLeaves[codeIndex];
+            if (
+                codeLeaf === undefined ||
+                codeLeaf.span.start >= target.end ||
+                codeLeaf.span.end <= target.start
+            ) {
+                return Object.freeze({ status: "invalid", target });
+            }
+        }
+        return isCancelled() ? CANCELLED_DDL_TARGETS : VALID_DDL_TARGETS;
+    } catch {
+        return Object.freeze({ status: "invalid", target: targets[0]! });
+    }
+}
+
 function snapshotResult(
     value: ExperimentalDdlResult,
     target: ExperimentalDdlTarget
@@ -209,110 +383,83 @@ function snapshotResult(
 }
 
 function prepareExperimentalDdlTransactionInternal(
-    request: ExperimentalDdlTransactionRequest,
-    operationResult: ExperimentalDdlResult
+    expected: DocumentSnapshot,
+    snapshots: readonly SnapshottedDdlResult[]
 ): ExperimentalDdlTransactionResult {
-    const expected = snapshotDocument(request.document);
-    if (expected === null) {
-        return rejected(0, [
-            diagnostic(
-                { id: "document", start: 0, end: 0 },
-                "ADAPTER_DOCUMENT_SNAPSHOT",
-                "Document snapshot is invalid"
-            ),
-        ]);
-    }
-    const target = snapshotTarget(request.target, expected.source.length);
-    if (target === null) {
-        return rejected(expected.version, [
-            diagnostic(
-                { id: "document", start: 0, end: expected.source.length },
-                "ADAPTER_DDL_TARGET",
-                "Experimental DDL target is invalid"
-            ),
-        ]);
-    }
-    const snapshot = snapshotResult(operationResult, target);
-    if (snapshot === null || snapshot.source !== expected.source.slice(target.start, target.end)) {
-        return rejected(expected.version, [
-            diagnostic(
-                target,
-                "ADAPTER_DDL_RESULT",
-                "Experimental DDL result violated the source identity contract"
-            ),
-        ]);
-    }
-    const diagnostics = snapshot.diagnostics;
-    if (snapshot.status === "formatted" || snapshot.status === "extracted") {
-        if (snapshot.text.length === 0 || diagnostics.length !== 0) {
-            return rejected(expected.version, [
-                ...diagnostics,
-                diagnostic(
-                    target,
-                    "ADAPTER_DDL_RESULT",
-                    "Editable experimental DDL result must be non-empty and diagnostic-free"
-                ),
-            ]);
+    const diagnostics: TransactionDiagnostic[] = [];
+    for (const value of snapshots) {
+        if (value.result.diagnostics.length === 0) {
+            continue;
         }
-        if (snapshot.text === snapshot.source) {
-            return Object.freeze({
-                status: "unchanged",
-                documentVersion: expected.version,
-                edits: Object.freeze([]) as readonly [],
-                diagnostics,
-            });
-        }
-        return Object.freeze({
-            status: "ready",
-            documentVersion: expected.version,
-            edits: Object.freeze([
-                Object.freeze({
+        diagnostics.push(...value.result.diagnostics);
+        diagnostics.push(diagnostic(
+            value.target,
+            "ADAPTER_DDL_RESULT",
+            "Experimental DDL result must be diagnostic-free"
+        ));
+    }
+    if (diagnostics.length !== 0) {
+        return rejected(expected.version, diagnostics);
+    }
+
+    const edits: ExperimentalDdlEdit[] = [];
+    for (const value of snapshots) {
+        const { target, result } = value;
+        if (result.status === "formatted" || result.status === "extracted") {
+            if (result.text.length === 0) {
+                return rejected(expected.version, [
+                    diagnostic(
+                        target,
+                        "ADAPTER_DDL_RESULT",
+                        "Editable experimental DDL result must be non-empty"
+                    ),
+                ]);
+            }
+            if (result.text !== result.source) {
+                edits.push(Object.freeze({
                     targetId: target.id,
                     start: target.start,
                     end: target.end,
-                    text: snapshot.text,
-                }),
-            ]) as readonly [ExperimentalDdlEdit],
-            diagnostics,
-        });
-    }
-    if (snapshot.status === "unchanged" && snapshot.text === snapshot.source) {
-        if (diagnostics.some((item) => item.severity === "error")) {
+                    text: result.text,
+                }));
+            }
+            continue;
+        }
+        if (result.status === "unchanged" && result.text === result.source) {
+            continue;
+        }
+        if (result.text !== result.source) {
             return rejected(expected.version, [
-                ...diagnostics,
                 diagnostic(
                     target,
                     "ADAPTER_DDL_RESULT",
-                    "Unchanged experimental DDL result must be error-free"
+                    "Non-editable experimental DDL result must retain source"
                 ),
             ]);
         }
+        return rejected(expected.version, [
+            diagnostic(
+                target,
+                "ADAPTER_DDL_NOT_EDITABLE",
+                "Experimental DDL result is not editable in this transaction",
+                result.status === "failed" ? "error" : "warning"
+            ),
+        ]);
+    }
+    if (edits.length === 0) {
         return Object.freeze({
             status: "unchanged",
             documentVersion: expected.version,
             edits: Object.freeze([]) as readonly [],
-            diagnostics,
+            diagnostics: Object.freeze([]),
         });
     }
-    if (snapshot.text !== snapshot.source || diagnostics.length === 0) {
-        return rejected(expected.version, [
-            ...diagnostics,
-            diagnostic(
-                target,
-                "ADAPTER_DDL_RESULT",
-                "Non-editable experimental DDL result must retain source and diagnostics"
-            ),
-        ]);
-    }
-    return rejected(expected.version, [
-        ...diagnostics,
-        diagnostic(
-            target,
-            "ADAPTER_DDL_NOT_EDITABLE",
-            "Experimental DDL result is not editable in this transaction",
-            snapshot.status === "failed" ? "error" : "warning"
-        ),
-    ]);
+    return Object.freeze({
+        status: "ready",
+        documentVersion: expected.version,
+        edits: Object.freeze(edits),
+        diagnostics: Object.freeze([]),
+    });
 }
 
 async function runExperimentalDdlTransactionInternal(
@@ -330,51 +477,86 @@ async function runExperimentalDdlTransactionInternal(
             ),
         ]);
     }
-    const target = snapshotTarget(request.target, expected.source.length);
-    if (target === null) {
-        return rejected(expected.version, [
-            diagnostic(
-                { id: "document", start: 0, end: expected.source.length },
-                "ADAPTER_DDL_TARGET",
-                "Experimental DDL target is invalid"
-            ),
-        ]);
-    }
-    const stableRequest: ExperimentalDdlTransactionRequest = Object.freeze({
-        document: expected,
-        target,
-        ...(request.cancellation === undefined
-            ? {}
-            : { cancellation: request.cancellation }),
-    });
     const cancellation = observeCancellation(request.cancellation);
     try {
         if (cancellation.isCancelled()) {
             return cancelled(expected.version);
         }
-        let operationResult: ExperimentalDdlResult;
-        try {
-            operationResult = await operation(expected.source.slice(target.start, target.end));
-        } catch {
+        const targets = sortedTargets(expected.source, request.targets);
+        if (targets === null) {
             return rejected(expected.version, [
                 diagnostic(
-                    target,
-                    "ADAPTER_DDL_OPERATION",
-                    "Experimental DDL operation failed"
+                    { id: "document", start: 0, end: expected.source.length },
+                    "ADAPTER_DDL_TARGET",
+                    "Experimental DDL targets are invalid or overlapping"
                 ),
             ]);
         }
         if (cancellation.isCancelled()) {
             return cancelled(expected.version);
         }
-        const prepared = prepareExperimentalDdlTransactionInternal(stableRequest, operationResult);
+        const targetValidation = validateDdlTargets(
+            expected.source,
+            targets,
+            () => cancellation.isCancelled()
+        );
+        if (targetValidation.status === "cancelled") {
+            return cancelled(expected.version);
+        }
+        if (targetValidation.status === "invalid") {
+            return rejected(expected.version, [
+                diagnostic(
+                    targetValidation.target,
+                    "ADAPTER_DDL_RANGE",
+                    "Experimental DDL target is not a complete safe source range"
+                ),
+            ]);
+        }
+        const operationResults: SnapshottedDdlResult[] = [];
+        const operationDiagnostics: TransactionDiagnostic[] = [];
+        for (const target of targets) {
+            try {
+                const operationResult = await operation(
+                    expected.source.slice(target.start, target.end)
+                );
+                const result = snapshotResult(operationResult, target);
+                if (
+                    result === null ||
+                    result.source !== expected.source.slice(target.start, target.end)
+                ) {
+                    operationDiagnostics.push(diagnostic(
+                        target,
+                        "ADAPTER_DDL_RESULT",
+                        "Experimental DDL result violated the source identity contract"
+                    ));
+                } else {
+                    operationResults.push(Object.freeze({ target, result }));
+                }
+            } catch {
+                operationDiagnostics.push(diagnostic(
+                    target,
+                    "ADAPTER_DDL_OPERATION",
+                    "Experimental DDL operation failed"
+                ));
+            }
+            if (cancellation.isCancelled()) {
+                return cancelled(expected.version);
+            }
+        }
+        if (operationDiagnostics.length !== 0) {
+            return rejected(expected.version, operationDiagnostics);
+        }
+        const prepared = prepareExperimentalDdlTransactionInternal(
+            expected,
+            Object.freeze(operationResults)
+        );
         if (prepared.status !== "ready") {
             return prepared;
         }
         if (!sameDocument(expected, snapshotDocument(commit.currentDocument()))) {
             return rejected(expected.version, [
                 diagnostic(
-                    target,
+                    { id: "document", start: 0, end: expected.source.length },
                     "ADAPTER_STALE_DOCUMENT",
                     "Document changed before the experimental DDL edit could be applied",
                     "warning"
@@ -388,18 +570,18 @@ async function runExperimentalDdlTransactionInternal(
             if (await commit.apply(prepared, expected) !== true) {
                 return rejected(expected.version, [
                     diagnostic(
-                        target,
+                        { id: "document", start: 0, end: expected.source.length },
                         "ADAPTER_EDIT_REJECTED",
-                        "Host rejected the experimental DDL edit"
+                        "Host rejected the experimental DDL edits"
                     ),
                 ]);
             }
         } catch {
             return rejected(expected.version, [
                 diagnostic(
-                    target,
+                    { id: "document", start: 0, end: expected.source.length },
                     "ADAPTER_EDIT_REJECTED",
-                    "Host rejected the experimental DDL edit"
+                    "Host rejected the experimental DDL edits"
                 ),
             ]);
         }

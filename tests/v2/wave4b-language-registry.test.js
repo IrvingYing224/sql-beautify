@@ -37,12 +37,15 @@ assert.deepStrictEqual(adapter.createDocumentTarget(8), {
     id: 'document', start: 0, end: 8, mode: 'document'
 });
 assert.deepStrictEqual(adapter.createFragmentTargets([
-    { start: 4, end: 8 }, { start: 0, end: 3 }
+    { start: 4, end: 8 },
+    { start: 0, end: 3 }
 ]), [
     { id: 'selection:0', start: 4, end: 8, mode: 'fragment' },
     { id: 'selection:1', start: 0, end: 3, mode: 'fragment' }
 ]);
-assert.strictEqual(adapter.createFragmentTargets(new Proxy([{ start: 0, end: 3 }], {})), null,
+assert.strictEqual(adapter.createFragmentTargets(new Proxy([
+    { start: 0, end: 3 }
+], {})), null,
     'range arrays must reject transparent proxies');
 var rangeReads = 0;
 var dynamicRange = { end: 3 };

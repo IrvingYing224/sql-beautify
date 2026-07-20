@@ -6,10 +6,10 @@ var path = require('path');
 var performance = require('perf_hooks').performance;
 
 var root = path.join(__dirname, '..', '..');
-var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
-var ddlRuntimePath = path.join(root, 'dist', 'v2-ddl.cjs');
+var runtimePath = path.join(root, 'dist', 'sql-formatter.cjs');
+var ddlRuntimePath = path.join(root, 'dist', 'hive-ddl.cjs');
 var bridgePath = path.join(root, 'dist', 'v2-format-bridge.cjs');
-var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
+var workerPath = path.join(root, 'dist', 'formatter-worker.cjs');
 var runtime = require(runtimePath);
 var ddl = require(ddlRuntimePath);
 var startingRssBytes = process.memoryUsage().rss;
@@ -109,7 +109,12 @@ assert.ok(fs.statSync(workerPath).size < 256 * 1024,
     'v2 worker production bundle must remain below 256 KiB');
 var finalRssBytes = process.memoryUsage().rss;
 var rssGrowthBytes = Math.max(0, finalRssBytes - startingRssBytes);
-assert.ok(process.resourceUsage().maxRSS < 1024 * 1024,
+var maxRssValue = process.resourceUsage().maxRSS;
+/* Node has reported maxRSS as bytes and KiB on different host/runtime pairs. */
+var maxRssBytes = maxRssValue < finalRssBytes / 16
+    ? maxRssValue * 1024
+    : maxRssValue;
+assert.ok(maxRssBytes < 1024 * 1024 * 1024,
     'Wave 4 aggregate performance must remain below 1 GiB peak RSS');
 assert.ok(rssGrowthBytes < 768 * 1024 * 1024,
     'Wave 4 aggregate performance must remain below 768 MiB resident growth');
@@ -124,6 +129,6 @@ console.log('v2 Wave 4 aggregate performance ' + JSON.stringify({
         bridge: fs.statSync(bridgePath).size,
         worker: fs.statSync(workerPath).size
     },
-    maxRssKb: process.resourceUsage().maxRSS,
+    maxRssBytes: maxRssBytes,
     rssGrowthBytes: rssGrowthBytes
 }));

@@ -3,24 +3,28 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
-var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
-var ddlRuntimePath = path.join(root, 'dist', 'v2-ddl.cjs');
-var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
+var runtimePath = path.join(root, 'dist', 'runtime.cjs');
+var formatterRuntimePath = path.join(root, 'dist', 'sql-formatter.cjs');
+var ddlRuntimePath = path.join(root, 'dist', 'hive-ddl.cjs');
+var workerPath = path.join(root, 'dist', 'formatter-worker.cjs');
 assert.ok(fs.existsSync(runtimePath), 'production v2 runtime must be built before boundary tests');
+assert.ok(fs.existsSync(formatterRuntimePath),
+    'production v2 public formatter facade must be built before boundary tests');
 assert.ok(fs.existsSync(ddlRuntimePath),
     'production v2 DDL runtime must be built before boundary tests');
 assert.ok(fs.existsSync(workerPath), 'production v2 worker must be built before boundary tests');
 
 var runtime = require(runtimePath);
+var formatterRuntime = require(formatterRuntimePath);
 var ddlRuntime = require(ddlRuntimePath);
 assert.deepStrictEqual(
-    Object.keys(runtime).sort(),
-    ['formatSql', 'formatSqlTarget', 'lexSql'],
-    'production v2 runtime must expose the public API and one adapter-private target API'
+    Object.keys(formatterRuntime).sort(),
+    ['formatSql', 'lexSql'],
+    'public formatter facade must expose only approved values'
 );
-assert.strictEqual(typeof runtime.formatSql, 'function', 'production runtime must expose formatSql');
+assert.strictEqual(typeof formatterRuntime.formatSql, 'function', 'public facade must expose formatSql');
 assert.strictEqual(typeof runtime.formatSqlTarget, 'function', 'production runtime must expose adapter target API');
-assert.strictEqual(typeof runtime.lexSql, 'function', 'production runtime must expose lexSql');
+assert.strictEqual(typeof formatterRuntime.lexSql, 'function', 'public facade must expose lexSql');
 assert.deepStrictEqual(
     Object.keys(ddlRuntime).sort(),
     ['extractDdl', 'formatHiveDdl'],
@@ -42,7 +46,7 @@ assert.strictEqual(bundledAmbiguous.text, 'SELECT * AS x FROM t');
     'postgresql',
     'mysql'
 ].forEach(function(dialect) {
-    var result = runtime.formatSql('select a from t', {
+    var result = formatterRuntime.formatSql('select a from t', {
         dialect: dialect,
         unsupportedSyntaxPolicy: 'preserve'
     });
@@ -53,7 +57,7 @@ assert.strictEqual(bundledAmbiguous.text, 'SELECT * AS x FROM t');
     assert.strictEqual(typeof result.text, 'string', dialect + ' result must retain text');
 });
 
-var malformed = runtime.formatSql('select (', { dialect: 'hive' });
+var malformed = formatterRuntime.formatSql('select (', { dialect: 'hive' });
 assert.ok(
     malformed.status == 'preserved' || malformed.status == 'failed',
     'malformed SQL must fail closed in the production runtime'

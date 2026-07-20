@@ -6,6 +6,7 @@ var performance = require('perf_hooks').performance;
 
 var root = path.join(__dirname, '..', '..');
 var directModule = require('../../.tmp/v2-core/adapters/executor/direct');
+var targetCore = require('../../.tmp/v2-core/core/api/format');
 var persistentModule = require('../../.tmp/v2-core/adapters/executor/persistent-worker');
 var connectionModule = require('../../.tmp/v2-core/adapters/executor/worker-connection');
 
@@ -64,9 +65,9 @@ async function runCase(executor, source, rounds) {
 }
 
 async function run() {
-    var runtimePath = path.join(root, 'dist', 'v2-core.cjs');
-    var workerPath = path.join(root, 'dist', 'v2-worker.cjs');
-    var direct = new directModule.DirectFormatterExecutor();
+    var runtimePath = path.join(root, 'dist', 'runtime.cjs');
+    var workerPath = path.join(root, 'dist', 'formatter-worker.cjs');
+    var direct = new directModule.DirectFormatterExecutor(targetCore.formatSql);
     var worker = new persistentModule.PersistentWorkerExecutor({
         workerFactory: connectionModule.createNodeWorkerFactory(workerPath, runtimePath),
         runtimeDigest: digest(runtimePath)

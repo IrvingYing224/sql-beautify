@@ -1,1 +1,1 @@
-export { extractDdl, formatHiveDdl } from "../experimental/ddl";
+export { extractDdl, formatHiveDdl } from "./internal";

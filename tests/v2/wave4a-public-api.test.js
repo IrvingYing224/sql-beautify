@@ -1,5 +1,6 @@
 var assert = require('assert');
 var core = require('../../.tmp/v2-core/core/index');
+var targetCore = require('../../.tmp/v2-core/core/api/format');
 var directModule = require('../../.tmp/v2-core/adapters/executor/direct');
 var languageRegistry = require('../../.tmp/v2-core/adapters/vscode/supported-languages');
 
@@ -37,7 +38,7 @@ assert.strictEqual(languageRegistry.supportedLanguage('plsql'), null,
     'keyword-shaped language ids outside the registry must not be accepted');
 
 async function run() {
-    var executor = new directModule.DirectFormatterExecutor();
+    var executor = new directModule.DirectFormatterExecutor(targetCore.formatSql);
     var direct = await executor.format({
         source: 'select a from t',
         options: { dialect: 'hive' },
