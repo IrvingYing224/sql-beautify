@@ -18,17 +18,13 @@ var claimsApi = require('../../.tmp/v2-core/core/layout/verbatim-claims.js');
 var layoutCases = require('../fixtures/v2-layout-cases');
 var queryCases = require('../fixtures/v2-wave3c-hive-query-cases');
 var expressionCases = require('../fixtures/v2-wave3d-expression-cases');
-var parserCases = require('../fixtures/v2-parser-evaluation-cases');
+var parserCases = require('../fixtures/v2-sql-corpus-cases');
 var closureCases = require('../fixtures/v2-wave3-corpus-cases');
 
 var root = path.join(__dirname, '..', '..');
 
 function normalizedOptions(value) {
-    var options = Object.assign({}, value || {});
-    if (options.dialect === 'postgres') {
-        options.dialect = 'postgresql';
-    }
-    return options;
+	return Object.assign({}, value || {});
 }
 
 function lexedRows(source, dialect) {

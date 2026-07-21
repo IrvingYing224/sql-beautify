@@ -12,9 +12,14 @@ var artifacts = {
     formatter: path.join(outDir, 'sql-formatter.cjs'),
     ddl: path.join(outDir, 'hive-ddl.cjs'),
     worker: path.join(outDir, 'formatter-worker.cjs'),
-    extension: path.join(outDir, 'extension.cjs'),
-    bridge: path.join(outDir, 'v2-format-bridge.cjs')
+    extension: path.join(outDir, 'extension.cjs')
 };
+var obsoleteArtifacts = [
+    'v2-core.cjs',
+    'v2-ddl.cjs',
+    'v2-worker.cjs',
+    'v2-format-bridge.cjs'
+].map(function(fileName) { return path.join(outDir, fileName); });
 
 function temporary(file) {
     return file + '.tmp';
@@ -66,7 +71,7 @@ var tempFiles = allFiles.map(temporary);
 async function main() {
     try {
         fs.mkdirSync(outDir, { recursive: true });
-        removeFiles(allFiles.concat(tempFiles));
+        removeFiles(allFiles.concat(tempFiles, obsoleteArtifacts));
 
         await build(path.join(root, 'src', 'runtime', 'internal.ts'), artifacts.runtime);
         await build(path.join(root, 'src', 'runtime', 'index.ts'), artifacts.formatter, {
@@ -80,14 +85,11 @@ async function main() {
             external: ['vscode']
         });
 
-        /* Keep the Wave 4 bridge until the package cutover removes its tests. */
-        await build(path.join(root, 'src', 'adapters', 'runtime', 'v2-format-bridge.ts'), artifacts.bridge);
-
         Object.keys(artifacts).forEach(function(key) {
             fs.renameSync(temporary(artifacts[key]), artifacts[key]);
         });
     } catch (error) {
-        removeFiles(allFiles.concat(tempFiles));
+        removeFiles(allFiles.concat(tempFiles, obsoleteArtifacts));
         throw error;
     } finally {
         removeFiles(tempFiles);

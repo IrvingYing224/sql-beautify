@@ -6,9 +6,9 @@ var path = require('path');
 var performance = require('perf_hooks').performance;
 
 var root = path.join(__dirname, '..', '..');
+var sharedRuntimePath = path.join(root, 'dist', 'runtime.cjs');
 var runtimePath = path.join(root, 'dist', 'sql-formatter.cjs');
 var ddlRuntimePath = path.join(root, 'dist', 'hive-ddl.cjs');
-var bridgePath = path.join(root, 'dist', 'v2-format-bridge.cjs');
 var workerPath = path.join(root, 'dist', 'formatter-worker.cjs');
 var runtime = require(runtimePath);
 var ddl = require(ddlRuntimePath);
@@ -99,12 +99,12 @@ var extractDdl = counts.map(function(count) {
     );
 });
 
+assert.ok(fs.statSync(sharedRuntimePath).size < 2 * 1024 * 1024,
+    'v2 shared production runtime must remain below 2 MiB');
 assert.ok(fs.statSync(runtimePath).size < 2 * 1024 * 1024,
-    'v2 core production bundle must remain below 2 MiB');
+    'v2 formatter facade must remain below 2 MiB');
 assert.ok(fs.statSync(ddlRuntimePath).size < 2 * 1024 * 1024,
-    'v2 DDL production bundle must remain below 2 MiB');
-assert.ok(fs.statSync(bridgePath).size < 256 * 1024,
-    'v2 bridge production bundle must remain below 256 KiB');
+    'v2 DDL facade must remain below 2 MiB');
 assert.ok(fs.statSync(workerPath).size < 256 * 1024,
     'v2 worker production bundle must remain below 256 KiB');
 var finalRssBytes = process.memoryUsage().rss;
@@ -124,9 +124,9 @@ console.log('v2 Wave 4 aggregate performance ' + JSON.stringify({
     hiveDdl: hiveDdl,
     extractDdl: extractDdl,
     bundleBytes: {
-        core: fs.statSync(runtimePath).size,
+        runtime: fs.statSync(sharedRuntimePath).size,
+        formatter: fs.statSync(runtimePath).size,
         ddl: fs.statSync(ddlRuntimePath).size,
-        bridge: fs.statSync(bridgePath).size,
         worker: fs.statSync(workerPath).size
     },
     maxRssBytes: maxRssBytes,

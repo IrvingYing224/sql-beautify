@@ -1,6 +1,6 @@
 var assert = require('assert');
 var path = require('path');
-var sqlFormatter = require('../lib/sql-formatter');
+var sqlFormatter = require('../../dist/sql-formatter.cjs');
 var corpus = require('./helpers/production-corpus');
 
 var privateRoot = process.env.SQL_BEAUTIFY_CORPUS_DIR;

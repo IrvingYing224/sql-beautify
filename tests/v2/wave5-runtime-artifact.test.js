@@ -10,12 +10,15 @@ var formatterPath = path.join(dist, 'sql-formatter.cjs');
 var ddlPath = path.join(dist, 'hive-ddl.cjs');
 var workerPath = path.join(dist, 'formatter-worker.cjs');
 var extensionPath = path.join(dist, 'extension.cjs');
+var legacyBridgePath = path.join(dist, 'v2-format-bridge.cjs');
 
 assert.ok(fs.existsSync(runtimePath), 'Wave 5 runtime artifact must be built');
 assert.ok(fs.existsSync(formatterPath), 'Wave 5 public formatter facade must be built');
 assert.ok(fs.existsSync(ddlPath), 'Wave 5 public DDL facade must be built');
 assert.ok(fs.existsSync(workerPath), 'Wave 5 worker artifact must be built');
 assert.ok(fs.existsSync(extensionPath), 'Wave 5 extension artifact must be built');
+assert.strictEqual(fs.existsSync(legacyBridgePath), false,
+    'Wave 5 build must delete the legacy format bridge artifact');
 
 var runtime = require(runtimePath);
 var formatter = require(formatterPath);

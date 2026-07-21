@@ -234,11 +234,16 @@ function runGenerator(generatorRoot, args) {
     }
 }());
 
-(function testV2MatrixStaysOutsideTheVsix() {
-    var vscodeIgnore = fs.readFileSync(path.join(root, '.vscodeignore'), 'utf8');
-    ['docs/**', 'scripts/**', 'tests/**', '.tmp/**'].forEach(function(pattern) {
-        assert.ok(vscodeIgnore.split(/\r?\n/).includes(pattern),
-            '.vscodeignore must exclude ' + pattern);
+(function testV2MatrixStaysOutsideTheVsixAllowlist() {
+    var packageJson = JSON.parse(fs.readFileSync(
+        path.join(root, 'package.json'), 'utf8'
+    ));
+    assert.ok(Array.isArray(packageJson.files),
+        'VSIX packaging must use an explicit files allowlist');
+    ['docs', 'scripts', 'tests', '.tmp'].forEach(function(directory) {
+        assert.strictEqual(packageJson.files.some(function(pattern) {
+            return pattern === directory || pattern.indexOf(directory + '/') === 0;
+        }), false, 'package files allowlist must exclude ' + directory);
     });
     assert.notStrictEqual(
         path.basename(documentPath),

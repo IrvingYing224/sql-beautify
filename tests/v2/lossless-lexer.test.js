@@ -10,7 +10,7 @@ assert.ok(fs.existsSync(corePath), 'build:v2-core must produce .tmp/v2-core befo
 
 var core = require(corePath);
 var lexSql = core.lexSql;
-var corpus = require('../fixtures/v2-parser-evaluation-cases.js');
+var corpus = require('../fixtures/v2-sql-corpus-cases.js');
 
 function assertConservesSource(source, output) {
     assert.ok(output && Array.isArray(output.leaves), 'output.leaves must be an array');

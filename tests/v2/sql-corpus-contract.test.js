@@ -1,5 +1,5 @@
 var assert = require('assert');
-var cases = require('../fixtures/v2-parser-evaluation-cases');
+var cases = require('../fixtures/v2-sql-corpus-cases');
 var ids = Object.create(null);
 var allowedDialects = ['hive', 'generic', 'postgresql', 'mysql'];
 var allowedExpectations = ['required', 'opaque', 'invalid'];
@@ -31,4 +31,4 @@ assert.ok(required >= 10, 'at least 10 cases must require parsing');
 assert.ok(hiveRequired >= 7, 'at least 7 required cases must be Hive');
 assert.ok(cases.some(function(item) { return item.expectation == 'opaque'; }), 'opaque case required');
 assert.ok(cases.some(function(item) { return item.expectation == 'invalid'; }), 'invalid case required');
-console.log('v2 parser evaluation corpus tests passed');
+console.log('v2 SQL corpus contract tests passed');

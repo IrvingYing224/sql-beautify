@@ -17,11 +17,11 @@
 
 ## 阶段 B：Cutover 与删除
 
-- [ ] 修改 package `main`、`exports`、activation events、commands、keybindings、version 和 VSIX allowlist。
-- [ ] 删除根 `extension.js`、`vkbeautify.js`、`lib/**`、旧 command alias、positional API 和旧 bridge。
-- [ ] 删除已拒绝 parser evaluator 与 `dt-sql-parser` 长期依赖，仅保留 ADR/evidence 结论和迁入 v2 corpus 的通用 SQL fixture。
-- [ ] 删除只依赖旧 runtime 的生成脚本和失效矩阵；将旧测试迁移为 v2 runtime 测试或删除已经不适用的内部实现测试。
-- [ ] 更新 `.vscodeignore`，确保只允许生产 dist artifacts 和必要 metadata/assets。
+- [x] 修改 package `main`、`exports`、activation events、commands、keybindings、version 和 VSIX allowlist。
+- [x] 删除根 `extension.js`、`vkbeautify.js`、`lib/**`、旧 command alias、positional API 和旧 bridge。
+- [x] 删除已拒绝 parser evaluator 与 `dt-sql-parser` 长期依赖，仅保留 ADR/evidence 结论和迁入 v2 corpus 的通用 SQL fixture。
+- [x] 删除只依赖旧 runtime 的生成脚本和失效矩阵；将旧测试迁移为 v2 runtime 测试或删除已经不适用的内部实现测试。
+- [x] 使用 `package.files` 作为唯一 VSCE allowlist；删除与其冲突的 `.vscodeignore`，确保只允许生产 dist artifacts 和必要 metadata/assets。
 
 ## 阶段 C：文档、迁移与 CI
 

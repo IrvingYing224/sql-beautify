@@ -8,7 +8,7 @@ var root = path.join(__dirname, '..', '..');
 var analysis = require(path.join(root, '.tmp', 'v2-core', 'core', 'analysis', 'index.js'));
 var tokenTable = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js'));
 var invariants = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js'));
-var evaluationCases = require('../fixtures/v2-parser-evaluation-cases');
+var evaluationCases = require('../fixtures/v2-sql-corpus-cases');
 
 function flatten(rootNode) {
     var nodes = [];

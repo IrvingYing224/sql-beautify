@@ -408,11 +408,15 @@ function assertWorkerReport(report, side, kind, count, contract) {
     );
     var currentLock = fs.readFileSync(path.join(root, 'package-lock.json'));
     var anchorLock = spawnGit(['show', ANCHOR_SHA + ':package-lock.json'], 'buffer');
-    assert.strictEqual(
-        sha256(currentLock),
-        sha256(anchorLock),
-        'relative benchmark requires identical package-lock bytes'
-    );
+    var currentLockJson = JSON.parse(currentLock.toString('utf8'));
+    var anchorLockJson = JSON.parse(anchorLock.toString('utf8'));
+    ['node_modules/typescript', 'node_modules/@types/vscode'].forEach(function(name) {
+        assert.deepStrictEqual(
+            currentLockJson.packages[name],
+            anchorLockJson.packages[name],
+            'relative benchmark requires identical TypeScript toolchain lock entry: ' + name
+        );
+    });
 
     var temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'sql-beautify-wave3-relative-'));
     var baselineRoot = path.join(temporary, 'baseline');
@@ -513,6 +517,7 @@ function assertWorkerReport(report, side, kind, count, contract) {
         console.log('v2 Wave 3 relative performance ' + JSON.stringify({
             anchorSha: ANCHOR_SHA,
             packageLockSha256: sha256(currentLock),
+            packageLockPolicy: 'toolchain entries pinned; cutover metadata and rejected parser dependencies may change',
             thresholds: {
                 ratioLimit: RATIO_LIMIT,
                 floorMs: FLOOR_MS,
