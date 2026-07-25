@@ -1,11 +1,30 @@
 'use strict';
 
 var assert = require('assert');
+var childProcess = require('child_process');
 var fs = require('fs');
 var path = require('path');
 var performance = require('perf_hooks').performance;
 
 var root = path.join(__dirname, '..', '..');
+var childFlag = '--wave4-performance-child';
+if (process.argv.indexOf(childFlag) < 0) {
+    var childEnvironment = Object.assign({}, process.env);
+    delete childEnvironment.NODE_OPTIONS;
+    var child = childProcess.spawnSync(
+        process.execPath,
+        ['--max-old-space-size=640', __filename, childFlag],
+        {
+            cwd: root,
+            env: childEnvironment,
+            stdio: 'inherit'
+        }
+    );
+    if (child.error) {
+        throw child.error;
+    }
+    process.exit(child.status === null ? 1 : child.status);
+}
 var sharedRuntimePath = path.join(root, 'dist', 'runtime.cjs');
 var runtimePath = path.join(root, 'dist', 'sql-formatter.cjs');
 var ddlRuntimePath = path.join(root, 'dist', 'hive-ddl.cjs');
