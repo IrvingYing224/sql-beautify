@@ -1,6 +1,10 @@
 import type * as Vscode from "vscode";
 
-import type { FormatOptions } from "../../core/config/options";
+import type {
+    CanonicalFormatOptions,
+    FormatOptions,
+    UnsupportedSyntaxPolicy,
+} from "../../core/config/options";
 import type { ResolveFormatOptionsResult } from "../../core/config/resolve-options";
 import type { ExperimentalDdlOperation } from "../transaction/experimental-ddl";
 import type {
@@ -306,16 +310,30 @@ export function createVscodeExtension(
     }
 
     function configuration(document: Vscode.TextDocument): Readonly<{
-        options: FormatOptions;
+        options: CanonicalFormatOptions;
         debugDiagnostics: boolean;
     }> | null {
-        return readVscodeFormatConfiguration(vscode, document);
+        const configured = readVscodeFormatConfiguration(vscode, document);
+        if (configured === null) {
+            return null;
+        }
+        try {
+            const resolved = runtime.resolveFormatOptions(configured.options);
+            return resolved.ok
+                ? Object.freeze({
+                    options: resolved.options,
+                    debugDiagnostics: configured.debugDiagnostics,
+                })
+                : null;
+        } catch {
+            return null;
+        }
     }
 
     function commandOptions(
         configured: FormatOptions,
         explicit: unknown
-    ): FormatOptions | null {
+    ): CanonicalFormatOptions | null {
         const merged = mergeExplicitFormatOptions(configured, explicit);
         if (merged === null) {
             return null;
@@ -367,6 +385,7 @@ export function createVscodeExtension(
     function publishDiagnostics(
         document: Vscode.TextDocument,
         result: AnyTransactionResult,
+        unsupportedSyntaxPolicy: UnsupportedSyntaxPolicy,
         debugDiagnostics: boolean,
         phase: string,
         generation: number,
@@ -377,6 +396,13 @@ export function createVscodeExtension(
         }
         const converted: Vscode.Diagnostic[] = [];
         for (const item of result.diagnostics) {
+            if (
+                unsupportedSyntaxPolicy === "preserve" &&
+                item.severity === "warning" &&
+                item.capabilityId !== null
+            ) {
+                continue;
+            }
             const severity = item.severity === "error"
                 ? vscode.DiagnosticSeverity.Error
                 : item.severity === "warning"
@@ -459,7 +485,15 @@ export function createVscodeExtension(
             }
             return [];
         }
-        publishDiagnostics(document, result, current.debugDiagnostics, phase, generation, true);
+        publishDiagnostics(
+            document,
+            result,
+            current.options.unsupportedSyntaxPolicy,
+            current.debugDiagnostics,
+            phase,
+            generation,
+            true
+        );
         if (result.status !== "ready") {
             return [];
         }
@@ -605,6 +639,7 @@ export function createVscodeExtension(
         publishDiagnostics(
             editor.document,
             result,
+            commandOptionsValue.unsupportedSyntaxPolicy,
             current.debugDiagnostics,
             "command-format",
             publishedGeneration,
@@ -660,6 +695,7 @@ export function createVscodeExtension(
         publishDiagnostics(
             editor.document,
             result,
+            current.options.unsupportedSyntaxPolicy,
             current.debugDiagnostics,
             phase,
             publishedGeneration,

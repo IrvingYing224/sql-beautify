@@ -112,20 +112,20 @@ function createVscode(document, editor) {
     var diagnosticValues = [];
     var documentChangeListeners = [];
     var disposedRegistrations = 0;
+    var configurationValues = {
+        dialect: 'hive',
+        keywordCase: 'upper',
+        commaStyle: 'leading',
+        indentStyle: 'space',
+        maxAlignWidth: 150,
+        caseWhenThenWrapLength: 50,
+        caseLayout: 'expanded',
+        unsupportedSyntaxPolicy: 'warn',
+        debugDiagnostics: false
+    };
     var configuration = {
         get: function(key) {
-            var values = {
-                dialect: 'hive',
-                keywordCase: 'upper',
-                commaStyle: 'leading',
-                indentStyle: 'space',
-                maxAlignWidth: 150,
-                caseWhenThenWrapLength: 50,
-                caseLayout: 'expanded',
-                unsupportedSyntaxPolicy: 'warn',
-                debugDiagnostics: false
-            };
-            return values[key];
+            return configurationValues[key];
         }
     };
     var vscode = {
@@ -209,6 +209,7 @@ function createVscode(document, editor) {
     };
     return { vscode: vscode, commands: commandHandlers, providers: providers,
         diagnosticValues: diagnosticValues,
+        setConfiguration: function(key, value) { configurationValues[key] = value; },
         disposedRegistrations: function() { return disposedRegistrations; } };
 }
 
@@ -309,6 +310,51 @@ async function main() {
     assert.strictEqual(calls.host, 0, 'provider must never call host commit transaction');
     assert.strictEqual(providerEdits.length, 1);
 
+    function policyDiagnosticResult(request) {
+        return { status: 'rejected', documentVersion: request.documentVersion,
+            diagnostics: [
+                { code: 'CAPABILITY_WARNING', severity: 'warning', message: 'safe',
+                    capabilityId: 'qualify', span: { start: 0, end: 0 },
+                    recovery: 'verbatim-node', targetId: null },
+                { code: 'STRUCTURAL_WARNING', severity: 'warning', message: 'safe',
+                    capabilityId: null, span: { start: 0, end: 0 },
+                    recovery: 'preserve-target', targetId: null }
+            ] };
+    }
+    runtime.prepareFormatTransaction = async function(request) {
+        return policyDiagnosticResult(request);
+    };
+    await host.providers[0].provider.provideDocumentFormattingEdits(
+        document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
+            return { dispose: function() {} };
+        } }
+    );
+    assert.deepStrictEqual(
+        host.diagnosticValues[host.diagnosticValues.length - 1].values.map(function(value) {
+            return value.code;
+        }),
+        ['CAPABILITY_WARNING', 'STRUCTURAL_WARNING'],
+        'warn policy must publish capability and non-capability warnings'
+    );
+    host.setConfiguration('unsupportedSyntaxPolicy', 'preserve');
+    await host.providers[0].provider.provideDocumentFormattingEdits(
+        document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
+            return { dispose: function() {} };
+        } }
+    );
+    assert.deepStrictEqual(
+        host.diagnosticValues[host.diagnosticValues.length - 1].values.map(function(value) {
+            return value.code;
+        }),
+        ['STRUCTURAL_WARNING'],
+        'preserve policy must suppress only editor capability warnings'
+    );
+    await host.commands['sqlBeautify.copySafeDiagnosticReport']();
+    assert.ok(host.vscode.env.clipboard.value.indexOf('CAPABILITY_WARNING:1') >= 0,
+        'safe reports must retain capability evidence under preserve policy');
+    host.setConfiguration('unsupportedSyntaxPolicy', 'warn');
+    runtime.prepareFormatTransaction = stablePrepare;
+
     var releaseStale;
     runtime.prepareFormatTransaction = function(request) {
         return new Promise(function(resolve) {
@@ -382,6 +428,23 @@ async function main() {
         'NEW_RESULT'
     );
     runtime.prepareFormatTransaction = stablePrepare;
+
+    var stableRunHost = runtime.runHostTransaction;
+    runtime.runHostTransaction = async function(request) {
+        return policyDiagnosticResult({ documentVersion: request.document.version });
+    };
+    await host.commands['sqlBeautify.formatSql']({
+        keywordCase: 'lower',
+        unsupportedSyntaxPolicy: 'preserve'
+    });
+    assert.deepStrictEqual(
+        host.diagnosticValues[host.diagnosticValues.length - 1].values.map(function(value) {
+            return value.code;
+        }),
+        ['STRUCTURAL_WARNING'],
+        'explicit command preserve policy must control editor diagnostics'
+    );
+    runtime.runHostTransaction = stableRunHost;
 
     editor.selections = [
         new Selection(document.positionAt(18), document.positionAt(10)),
