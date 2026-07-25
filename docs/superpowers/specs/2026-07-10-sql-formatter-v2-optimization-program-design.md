@@ -1,7 +1,7 @@
 # SQL Formatter v2 长期优化程序设计
 
 - 日期：2026-07-10
-- 状态：实施完成（Wave 0–5 本地门禁已通过，待合并与发布）
+- 状态：实施完成（Wave 0–5 已合入本地 `main` 并通过门禁，待推送与正式发布）
 - 适用范围：SQL / Hive SQL formatter core、VS Code adapter、experimental Hive DDL、配置与公开 API、测试、性能、打包和发布流程
 
 ## 1. 背景

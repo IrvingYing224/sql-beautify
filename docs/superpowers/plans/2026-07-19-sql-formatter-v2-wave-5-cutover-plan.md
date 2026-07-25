@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 5 Cutover Implementation Plan
 
 - 日期：2026-07-19
-- 状态：已完成（本地 cutover 门禁已通过，待合并与发布）
+- 状态：已完成（已合入本地 `main` 并通过 cutover 门禁，待推送与正式发布）
 - 工作树：`/Users/yingirving/Documents/sql-beautify/.worktrees/sql-formatter-v2-wave5`
 - 分支：`codex/sql-formatter-v2-wave5`
 - 基线：`294d0bba84bec760eba4fb87f0ab2db9c76321ec`
@@ -55,4 +55,4 @@ Wave 5 本地完成后只报告 ready-to-merge/release 状态；不自动 push�
 - public facade keys 精确且 API/extension/runtime 实际可用；
 - 所有 target/DDL edit atomic，failed/preserved/unsupported 不提交；
 - package version、文档、support matrix、CI 和 VSIX 清单一致；
-- 工作树干净，所有本地提交可回滚，未越过 push/merge/release 授权边界。
+- 已本地合并至 `main`，工作树干净且所有本地提交可回滚，未越过 push/release 授权边界。
