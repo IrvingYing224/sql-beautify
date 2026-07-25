@@ -10,8 +10,8 @@ var path = require('path');
 var root = path.join(__dirname, '..', '..');
 var ANCHOR_SHA = 'b206e9b1f0df5e038169590b01e386d12146a47b';
 var RATIO_LIMIT = 1.20;
-var FLOOR_MS = 5;
-var LOW_BASELINE_NOISE_MS = 2;
+var FLOOR_MS = 15;
+var LOW_BASELINE_NOISE_MS = 3;
 var RSS_RATIO_LIMIT = 1.50;
 var RSS_FLOOR_KB = 128 * 1024;
 var PROCESS_ROUNDS = 4;
@@ -370,12 +370,14 @@ function assertWorkerReport(report, side, kind, count, contract) {
 (function testGateBoundaries() {
     assert.strictEqual(median([1, 2, 100, 200]), 51,
         'even process rounds must use the conventional two-middle median');
-    assert.strictEqual(performanceGate(10, 12), true);
-    assert.strictEqual(performanceGate(10, 12.01), false);
-    assert.strictEqual(performanceGate(4, 6), true);
-    assert.strictEqual(performanceGate(4, 6.01), false);
-    assert.strictEqual(performanceGate(1, 3), true);
-    assert.strictEqual(performanceGate(1, 3.01), false);
+    assert.strictEqual(performanceGate(20, 24), true);
+    assert.strictEqual(performanceGate(20, 24.01), false);
+    assert.strictEqual(performanceGate(15, 18), true);
+    assert.strictEqual(performanceGate(15, 18.01), false);
+    assert.strictEqual(performanceGate(10, 13), true);
+    assert.strictEqual(performanceGate(10, 13.01), false);
+    assert.strictEqual(performanceGate(1, 4), true);
+    assert.strictEqual(performanceGate(1, 4.01), false);
     assert.strictEqual(performanceGate(10, 8), true);
     [NaN, 0, -1, Infinity].forEach(function(value) {
         assert.strictEqual(performanceGate(value, 1), false);

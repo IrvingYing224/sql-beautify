@@ -722,7 +722,8 @@ Token equivalence checker 是 test/invariant，不是 render 后修复器。
 - Wave 2 parser/analysis relative gate继续运行；
 - 记录 median、source/output chars、leaf/doc/action count、隔离 child process maxRSS、
   Node/platform/arch/CPU；relative gate 使用
-  `current/max(baseline,5ms)<=1.20`，baseline <5ms 时另允许最多 +2ms absolute noise；
+  `current/max(baseline,15ms)<=1.20`，baseline <15ms 时另允许最多 +3ms absolute noise，
+  避免 hosted runner 的低毫秒调度抖动覆盖大样本的严格 1.20x 门；
 - deep CTE、depth-256 expression、250k comment、comment-dense lists 必须有 closure probes。
 
 ## 17. 子波次
