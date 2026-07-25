@@ -66,7 +66,7 @@ function protectedRows(source, dialect) {
         id: 'multiline-block-comment-keeps-following-physical-break',
         source: 'select a /* multi\r\nline */\n + b from t',
         options: {},
-        expected: 'SELECT\n      a /* multi\r\nline */\n      + b\nFROM t'
+        expected: 'SELECT\r\n      a /* multi\r\nline */\r\n      + b\r\nFROM t'
     },
     {
         id: 'line-owned-dangling-comment-expands-container',

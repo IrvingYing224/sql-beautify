@@ -15,6 +15,14 @@ import { deriveLayoutAlignmentPlan } from "../layout/alignment-policy";
 import type { LayoutPlan } from "../layout/plan";
 import { buildLayoutPlan } from "../layout/policy";
 import { applyKeywordCase } from "../renderer/keyword-case";
+import {
+    inferRenderEnvironment,
+    isCanonicalRenderEnvironment,
+    isRenderNewline,
+    renderEnvironmentForNewline,
+    type RenderEnvironment,
+    type RenderNewline,
+} from "../renderer/environment";
 import { renderLayoutArtifact } from "../renderer/render";
 import type { RenderStatistics } from "../renderer/types";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
@@ -328,7 +336,8 @@ function validMode(value: unknown): value is ParseMode {
 export function formatSqlWithStatistics(
     sourceValue: string,
     optionsValue: FormatOptions | unknown = undefined,
-    modeValue: ParseMode | unknown = "document"
+    modeValue: ParseMode | unknown = "document",
+    environmentValue: RenderEnvironment | RenderNewline | unknown = undefined
 ): FormatPipelineRun {
     const source = typeof sourceValue === "string" ? sourceValue : "";
     try {
@@ -348,6 +357,22 @@ export function formatSqlWithStatistics(
                 source,
                 "FMT_PARSE_MODE",
                 "Formatter parse mode is invalid"
+            );
+            return run(
+                originalResult("failed", source, [value]),
+                statistics(source.length)
+            );
+        }
+        const environment = environmentValue === undefined
+            ? inferRenderEnvironment(source)
+            : isRenderNewline(environmentValue)
+                ? renderEnvironmentForNewline(environmentValue)
+                : environmentValue;
+        if (!isCanonicalRenderEnvironment(environment)) {
+            const value = diagnostic(
+                source,
+                "RENDER_NEWLINE_CONTRACT",
+                "Formatter render environment is invalid"
             );
             return run(
                 originalResult("failed", source, [value]),
@@ -463,7 +488,7 @@ export function formatSqlWithStatistics(
                 )
             );
         }
-        let rendered = renderLayoutArtifact(compiled.artifact);
+        let rendered = renderLayoutArtifact(compiled.artifact, environment);
         let leafVisitCount =
             planned.plan.statistics.leafVisitCount +
             planned.plan.statistics.policyLeafVisitCount +
@@ -574,7 +599,7 @@ export function formatSqlWithStatistics(
                         statistics(source.length)
                     );
                 }
-                rendered = renderLayoutArtifact(compiled.artifact);
+                rendered = renderLayoutArtifact(compiled.artifact, environment);
                 if (!rendered.ok) {
                     const value = diagnostic(
                         source,
@@ -694,7 +719,8 @@ export function formatSqlWithStatistics(
 export function formatSql(
     source: string,
     options: FormatOptions | unknown = undefined,
-    mode: ParseMode | unknown = "document"
+    mode: ParseMode | unknown = "document",
+    environment: RenderEnvironment | RenderNewline | unknown = undefined
 ): FormatResult {
-    return formatSqlWithStatistics(source, options, mode).result;
+    return formatSqlWithStatistics(source, options, mode, environment).result;
 }

@@ -2,6 +2,7 @@ import type { FormatOptions } from "../../core/config/options";
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import type { FormatResult } from "../../core/api/format-result";
 import type { SourceMap } from "../../core/source/source-map";
+import type { RenderNewline } from "../../core/renderer/environment";
 import type { ParseMode } from "../../core/syntax/parser-backend";
 
 export interface CancellationToken {
@@ -29,6 +30,7 @@ export interface FormatExecutionRequest {
     readonly mode: FormatTarget["mode"];
     readonly documentVersion: number;
     readonly targetId: string;
+    readonly newline?: RenderNewline;
     readonly cancellation?: CancellationToken;
 }
 
@@ -43,6 +45,7 @@ export interface FormatTransactionRequest {
     readonly targets: readonly FormatTarget[];
     readonly selections?: readonly FormatSelection[];
     readonly options?: FormatOptions;
+    readonly newline?: RenderNewline;
     readonly cancellation?: CancellationToken;
 }
 

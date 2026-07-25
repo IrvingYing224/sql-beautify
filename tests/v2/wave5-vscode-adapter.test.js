@@ -35,10 +35,11 @@ function Diagnostic(range, message, severity) {
     this.severity = severity;
 }
 
-function Document(text) {
+function Document(text, eol) {
     this.text = text;
     this.version = 1;
     this.languageId = 'hive-sql';
+    this.eol = eol === undefined ? 1 : eol;
     this.uri = { toString: function() { return 'untitled:wave5.sql'; } };
 }
 
@@ -137,6 +138,7 @@ function createVscode(document, editor) {
         },
         Diagnostic: Diagnostic,
         DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2 },
+        EndOfLine: { LF: 1, CRLF: 2 },
         workspace: {
             getConfiguration: function() { return configuration; },
             onDidChangeTextDocument: function(listener) {
@@ -231,11 +233,12 @@ async function main() {
         new Selection(document.positionAt(18), document.positionAt(10))
     ]);
     var host = createVscode(document, editor);
-    var calls = { prepare: 0, host: 0, ddl: 0 };
+    var calls = { prepare: 0, host: 0, ddl: 0, prepareNewlines: [], hostNewlines: [] };
     var runtime = {
         resolveFormatOptions: function(input) { return { ok: true, options: input }; },
         prepareFormatTransaction: async function(request) {
             calls.prepare += 1;
+            calls.prepareNewlines.push(request.newline);
             return {
                 status: 'ready', documentVersion: request.documentVersion,
                 edits: [{ targetId: request.targets[0].id, start: request.targets[0].start,
@@ -248,6 +251,7 @@ async function main() {
         },
         runHostTransaction: async function(request, executor, commit) {
             calls.host += 1;
+            calls.hostNewlines.push(request.newline);
             assert.strictEqual(request.options.keywordCase, 'lower',
                 'explicit command options must override scoped settings');
             assert.ok(request.cancellation,
@@ -309,6 +313,19 @@ async function main() {
     assert.strictEqual(calls.prepare, 1, 'provider must call prepare transaction');
     assert.strictEqual(calls.host, 0, 'provider must never call host commit transaction');
     assert.strictEqual(providerEdits.length, 1);
+    assert.strictEqual(calls.prepareNewlines[0], '\n',
+        'physical LF must determine the provider render environment');
+
+    var crlfFallbackDocument = new Document('select a,b from t', 2);
+    var crlfFallbackEdits = await host.providers[0].provider.provideDocumentFormattingEdits(
+        crlfFallbackDocument, {}, {
+            isCancellationRequested: false,
+            onCancellationRequested: function() { return { dispose: function() {} }; }
+        }
+    );
+    assert.strictEqual(crlfFallbackEdits.length, 1);
+    assert.strictEqual(calls.prepareNewlines[calls.prepareNewlines.length - 1], '\r\n',
+        'VS Code document.eol must supply CRLF when source has no physical newline');
 
     function policyDiagnosticResult(request) {
         return { status: 'rejected', documentVersion: request.documentVersion,
@@ -321,7 +338,9 @@ async function main() {
                     recovery: 'preserve-target', targetId: null }
             ] };
     }
+    var lastPolicyNewline = null;
     runtime.prepareFormatTransaction = async function(request) {
+        lastPolicyNewline = request.newline;
         return policyDiagnosticResult(request);
     };
     await host.providers[0].provider.provideDocumentFormattingEdits(
@@ -350,6 +369,8 @@ async function main() {
         'preserve policy must suppress only editor capability warnings'
     );
     await host.commands['sqlBeautify.copySafeDiagnosticReport']();
+    assert.strictEqual(lastPolicyNewline, '\n',
+        'safe diagnostic preparation must pass the document render environment');
     assert.ok(host.vscode.env.clipboard.value.indexOf('CAPABILITY_WARNING:1') >= 0,
         'safe reports must retain capability evidence under preserve policy');
     host.setConfiguration('unsupportedSyntaxPolicy', 'warn');
@@ -454,6 +475,8 @@ async function main() {
 
     await host.commands['sqlBeautify.formatSql']({ keywordCase: 'lower' });
     assert.strictEqual(calls.host, 1);
+    assert.strictEqual(calls.hostNewlines[0], '\n',
+        'query command must pass the document render environment');
     assert.strictEqual(editor.editCalls, 1, 'command must apply all edits in one editor.edit call');
     assert.strictEqual(document.offsetAt(editor.selections[0].anchor), 18,
         'command must preserve backward selection anchor');

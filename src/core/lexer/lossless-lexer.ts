@@ -46,6 +46,7 @@ const CHANNEL_BY_KIND: Record<TokenKind, TokenChannel> = {
     unknown: "protected",
     "line-comment": "trivia",
     "block-comment": "trivia",
+    "byte-order-mark": "trivia",
     whitespace: "trivia",
     newline: "trivia",
 };
@@ -268,6 +269,14 @@ function scanNewline(state: ScannerState): boolean {
         return true;
     }
     return false;
+}
+
+function scanBoundaryByteOrderMark(state: ScannerState): boolean {
+    if (state.cursor !== 0 || charAt(state, state.cursor) !== "\uFEFF") {
+        return false;
+    }
+    emitLeaf(state, "byte-order-mark", 0, 1);
+    return true;
 }
 
 function scanWhitespace(state: ScannerState): boolean {
@@ -741,6 +750,9 @@ function scanUnknown(state: ScannerState): void {
 function advanceOneLeaf(state: ScannerState): void {
     const startCursor = state.cursor;
 
+    if (scanBoundaryByteOrderMark(state)) {
+        return;
+    }
     if (scanNewline(state)) {
         return;
     }

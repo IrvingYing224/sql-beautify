@@ -8,6 +8,7 @@ var compilerApi = require('../../.tmp/v2-core/core/layout/compiler.js');
 var fixtures = require('../fixtures/v2-sql-corpus-cases');
 var layoutCases = require('../fixtures/v2-layout-cases');
 var formatApi = require('../../.tmp/v2-core/core/api/format.js');
+var publicFormatApi = require('../../.tmp/v2-core/core/api/public-format.js');
 var optionsApi = require('../../.tmp/v2-core/core/config/resolve-options.js');
 var planApi = require('../../.tmp/v2-core/core/layout/plan.js');
 var policyApi = require('../../.tmp/v2-core/core/layout/policy.js');
@@ -35,6 +36,21 @@ function assertSafeOriginal(result, source, expectedStatus) {
         expectedStatus + ' must not expose a partial source map');
     assert.strictEqual(Object.isFrozen(result), true);
     assert.strictEqual(Object.isFrozen(result.diagnostics), true);
+}
+
+function assertOnlyEol(text, newline) {
+    for (var index = 0; index < text.length; index++) {
+        if (text[index] === '\r') {
+            assert.strictEqual(newline === '\r' || text[index + 1] === '\n', true,
+                'unexpected lone CR at ' + index);
+            if (text[index + 1] === '\n') {
+                assert.strictEqual(newline, '\r\n', 'unexpected CRLF at ' + index);
+                index += 1;
+            }
+        } else if (text[index] === '\n') {
+            assert.strictEqual(newline, '\n', 'unexpected lone LF at ' + index);
+        }
+    }
 }
 
 (function testCommittedHiveFirstGoldenCases() {
@@ -355,6 +371,60 @@ function assertSafeOriginal(result, source, expectedStatus) {
         assert.strictEqual(eofComment.text, 'SELECT 1 -- keep EOF',
             mode + ' EOF comment must not manufacture a final LF');
     });
+})();
+
+(function testBoundaryBomIsPreservedWhileSqlFormats() {
+    var source = '\uFEFFselect a,b from t';
+    var result = formatApi.formatSql(source, { dialect: 'hive' });
+    assert.strictEqual(result.status, 'formatted');
+    assert.strictEqual(
+        result.text,
+        '\uFEFFSELECT\n      a\n    , b\nFROM t'
+    );
+    assert.strictEqual(result.text.charCodeAt(0), 0xFEFF);
+    assert.strictEqual(result.diagnostics.length, 0);
+    assert.deepStrictEqual(result.sourceMap.entries[0], {
+        source: { start: 0, end: 7 },
+        output: { start: 0, end: 7 }
+    });
+    var repeated = formatApi.formatSql(result.text, { dialect: 'hive' });
+    assert.strictEqual(repeated.status, 'unchanged');
+    assert.strictEqual(repeated.text, result.text);
+})();
+
+(function testDocumentEolControlsEveryGeneratedLineBreak() {
+    [
+        ['CRLF', 'select a,b\r\nfrom t', '\r\n'],
+        ['CR', 'select a,b\rfrom t', '\r'],
+        ['mixed-first-CRLF', 'select a,b\r\nfrom t\nwhere a=1', '\r\n']
+    ].forEach(function(testCase) {
+        var result = publicFormatApi.formatSql(testCase[1], { dialect: 'hive' });
+        assert.strictEqual(result.status, 'formatted', testCase[0]);
+        assertOnlyEol(result.text, testCase[2]);
+        var repeated = publicFormatApi.formatSql(result.text, { dialect: 'hive' });
+        assert.strictEqual(repeated.text, result.text, testCase[0] + ' idempotency');
+        result.sourceMap.entries.forEach(function(entry) {
+            assert.strictEqual(
+                entry.source.end - entry.source.start,
+                entry.output.end - entry.output.start,
+                testCase[0] + ' source-map run length'
+            );
+        });
+    });
+
+    var noEol = publicFormatApi.formatSql('select a,b from t', { dialect: 'hive' });
+    assert.strictEqual(noEol.status, 'formatted');
+    assert.ok(noEol.text.indexOf('\n') >= 0, 'document API must default to LF');
+    assertOnlyEol(noEol.text, '\n');
+
+    var explicitFragment = formatApi.formatSql(
+        'select a,b from t',
+        { dialect: 'hive' },
+        'fragment',
+        '\r\n'
+    );
+    assert.strictEqual(explicitFragment.status, 'formatted');
+    assertOnlyEol(explicitFragment.text, '\r\n');
 })();
 
 (function testSharedDialectsUseProvenLayoutAndHiveQueriesUseWave3C() {

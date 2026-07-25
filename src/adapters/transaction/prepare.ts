@@ -1,4 +1,8 @@
 import type { FormatResult } from "../../core/api/format-result";
+import {
+    inferRenderNewline,
+    isRenderNewline,
+} from "../../core/renderer/environment";
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import { resolveFormatOptions } from "../../core/config/resolve-options";
 import type { SourceMap } from "../../core/source/source-map";
@@ -361,13 +365,15 @@ async function prepareFormatTransactionInternal(
     const targetsValue = request.targets;
     const selectionsValue = request.selections;
     const optionsValue = optionSnapshot(request.options);
+    const requestedNewline = request.newline;
     const sourceLength =
         typeof sourceValue === "string" ? sourceValue.length : 0;
     if (optionsValue === null ||
         typeof sourceValue !== "string" ||
         !Number.isSafeInteger(documentVersionValue) ||
         documentVersionValue < 0 ||
-        !Array.isArray(targetsValue)
+        !Array.isArray(targetsValue) ||
+        (requestedNewline !== undefined && !isRenderNewline(requestedNewline))
     ) {
         return rejected(
             Number.isSafeInteger(documentVersionValue)
@@ -382,6 +388,7 @@ async function prepareFormatTransactionInternal(
             ]
         );
     }
+    const newline = requestedNewline ?? inferRenderNewline(sourceValue);
     if (isCancelledNow()) {
         return cancelled(documentVersionValue);
     }
@@ -462,6 +469,7 @@ async function prepareFormatTransactionInternal(
                 mode: target.mode,
                 documentVersion: documentVersionValue,
                 targetId: target.id,
+                newline,
                 ...(optionsValue === undefined
                     ? {}
                     : { options: optionsValue }),

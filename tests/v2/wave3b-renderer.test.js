@@ -4,6 +4,7 @@ var assert = require('assert');
 var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
 var artifactApi = require('../../.tmp/v2-core/core/layout/artifact.js');
 var displayApi = require('../../.tmp/v2-core/core/renderer/display-width.js');
+var environmentApi = require('../../.tmp/v2-core/core/renderer/environment.js');
 var factoryApi = require('../../.tmp/v2-core/core/layout/doc-factory.js');
 var invariantApi = require('../../.tmp/v2-core/core/layout/invariants.js');
 var metricsApi = require('../../.tmp/v2-core/core/renderer/metrics.js');
@@ -175,12 +176,61 @@ function assertFrozenSourceMap(sourceMap) {
     assert.strictEqual(broken.ok, true);
     assert.strictEqual(broken.text, 'SELECT\n1');
 
+    var crlf = renderApi.renderLayoutArtifact(
+        grouped('break'),
+        environmentApi.renderEnvironmentForNewline('\r\n')
+    );
+    assert.strictEqual(crlf.ok, true);
+    assert.strictEqual(crlf.text, 'SELECT\r\n1');
+    assert.deepStrictEqual(crlf.sourceMap.entries, [
+        { source: { start: 0, end: 6 }, output: { start: 0, end: 6 } },
+        { source: { start: 7, end: 8 }, output: { start: 8, end: 9 } }
+    ], 'CRLF code-unit width must be reflected in output source-map offsets');
+
+    var cr = renderApi.renderLayoutArtifact(
+        grouped('break'),
+        environmentApi.renderEnvironmentForNewline('\r')
+    );
+    assert.strictEqual(cr.ok, true);
+    assert.strictEqual(cr.text, 'SELECT\r1');
+
+    var forgedEnvironment = renderApi.renderLayoutArtifact(
+        grouped('break'),
+        Object.freeze({ newline: '\r\n' })
+    );
+    assert.strictEqual(forgedEnvironment.ok, false);
+    assert.strictEqual(forgedEnvironment.code, 'RENDER_NEWLINE_CONTRACT');
+
     var autoFlat = renderApi.renderLayoutArtifact(grouped('auto', 8));
     var autoBreak = renderApi.renderLayoutArtifact(grouped('auto', 7));
     assert.strictEqual(autoFlat.ok, true);
     assert.strictEqual(autoFlat.text, 'SELECT 1');
     assert.strictEqual(autoBreak.ok, true);
     assert.strictEqual(autoBreak.text, 'SELECT\n1');
+})();
+
+(function testGeneratedEolDoesNotRewriteSourceDerivedNewlines() {
+    var artifact = artifactFrom('SELECT /*a\nb*/ 1', undefined,
+        function(factory, analysis) {
+            var comment = analysis.leaves.find(function(leaf) {
+                return leaf.kind === 'block-comment';
+            });
+            assert.ok(comment);
+            return factory.concat([
+                codeLeaf(factory, analysis, 'SELECT'),
+                factory.hardLine(),
+                factory.leaf(comment.id, 'raw'),
+                factory.space(1),
+                codeLeaf(factory, analysis, '1')
+            ]);
+        });
+    var rendered = renderApi.renderLayoutArtifact(
+        artifact,
+        environmentApi.renderEnvironmentForNewline('\r\n')
+    );
+    assert.strictEqual(rendered.ok, true);
+    assert.strictEqual(rendered.text, 'SELECT\r\n/*a\nb*/ 1',
+        'generated EOL must follow the environment while source text stays lossless');
 })();
 
 (function testIndentAlignPadAndTabUseOneColumnModel() {
@@ -327,6 +377,14 @@ function assertFrozenSourceMap(sourceMap) {
     assert.strictEqual(line.ok, true);
     assert.strictEqual(line.text, 'SELECT 1--a\n + 2',
         'space after a line suffix must force a physical line break first');
+
+    var crlfLine = renderApi.renderLayoutArtifact(
+        suffixBefore('line-comment'),
+        environmentApi.renderEnvironmentForNewline('\r\n')
+    );
+    assert.strictEqual(crlfLine.ok, true);
+    assert.strictEqual(crlfLine.text, 'SELECT 1--a\r\n + 2',
+        'line-suffix flushing must use the same request EOL');
 })();
 
 (function testNestedIndentAlignPadAndSuffixShareDisplayContext() {

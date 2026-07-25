@@ -136,4 +136,62 @@ Object.keys(dimensions).forEach(function(key) {
     );
 });
 
+var COMMENT_SOURCE = [
+    'select aaaaaaaaaa as x -- c1',
+    ', b as y -- c2',
+    ', cc as z -- c3',
+    'from t'
+].join('\n');
+var commentLeading = formatApi.formatSql(COMMENT_SOURCE, {
+    dialect: 'hive',
+    commaStyle: 'leading'
+});
+var commentTrailing = formatApi.formatSql(COMMENT_SOURCE, {
+    dialect: 'hive',
+    commaStyle: 'trailing'
+});
+assert.strictEqual(commentLeading.status, 'formatted');
+assert.strictEqual(commentTrailing.status, 'formatted');
+assert.strictEqual(
+    commentTrailing.text,
+    [
+        'SELECT',
+        '    aaaaaaaaaa AS x -- c1',
+        '    , b        AS y -- c2',
+        '    , cc       AS z -- c3',
+        'FROM t'
+    ].join('\n'),
+    'trailing style must locally fall back only at blocked separator boundaries'
+);
+assert.ok(
+    commentTrailing.text.indexOf('-- c1\n    , b') >= 0,
+    'a comment-before-separator boundary must keep the separator on the next leading-comma line'
+);
+assert.strictEqual(
+    formatApi.formatSql(commentTrailing.text, {
+        dialect: 'hive',
+        commaStyle: 'trailing'
+    }).status,
+    'unchanged',
+    'local comma fallback must be idempotent'
+);
+
+var noCommentTrailing = formatApi.formatSql(
+    'select aaaaaaaaaa as x, b as y, cc as z from t',
+    { dialect: 'hive', commaStyle: 'trailing' }
+);
+assert.ok(
+    noCommentTrailing.text.indexOf('AS x,\n') >= 0,
+    'trailing style must remain active when no line comment blocks source order'
+);
+
+var blockCommentTrailing = formatApi.formatSql(
+    'select aaaaaaaaaa as x /* c1 */, b as y /* c2 */, cc as z from t',
+    { dialect: 'hive', commaStyle: 'trailing' }
+);
+assert.ok(
+    blockCommentTrailing.text.indexOf('/* c1 */,\n') >= 0,
+    'block comments must not force the line-comment fallback'
+);
+
 console.log('v2 Wave 3E option Cartesian matrix tests passed');

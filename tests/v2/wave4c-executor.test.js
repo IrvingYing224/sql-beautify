@@ -14,14 +14,18 @@ function digest(file) {
     return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
-function request(source) {
-    return {
+function request(source, newline) {
+    var value = {
         source: source,
         options: { dialect: 'hive', unsupportedSyntaxPolicy: 'preserve' },
         mode: 'document',
         documentVersion: 7,
         targetId: 'document'
     };
+    if (newline !== undefined) {
+        value.newline = newline;
+    }
+    return value;
 }
 
 function countingExecutor(label) {
@@ -58,7 +62,8 @@ async function run() {
         'select a from t',
         'select a, b from t where a = 1',
         'with x as (select 1 as a) select a from x',
-        'select `Case`, array(1, 2) from t -- comment\n'
+        'select `Case`, array(1, 2) from t -- comment\n',
+        'select a,b\r\nfrom t'
     ];
     for (var index = 0; index < cases.length; index++) {
         var directResult = await direct.format(request(cases[index]));
@@ -78,6 +83,7 @@ async function run() {
         directCounter, workerCounter, { sourceCodeUnits: 100, leafCount: 20 }
     );
     var directRequest = request('select 1');
+    directRequest.newline = '\r\n';
     await routed.format(directRequest);
     assert.strictEqual(routed.lastRoute(), 'direct');
     assert.notStrictEqual(directCounter.requests[0], directRequest,
@@ -85,6 +91,19 @@ async function run() {
     directRequest.source = 'select mutated';
     assert.strictEqual(directCounter.requests[0].source, 'select 1',
         'router snapshot must not observe later request mutation');
+    assert.strictEqual(directCounter.requests[0].newline, '\r\n',
+        'router snapshot must preserve the canonical EOL environment');
+
+    var fragmentRequest = request('select a,b from t', '\r\n');
+    fragmentRequest.mode = 'fragment';
+    fragmentRequest.targetId = 'fragment';
+    var directFragment = await direct.format(fragmentRequest);
+    var workerFragment = await persistent.format(fragmentRequest);
+    assert.deepStrictEqual(workerFragment, directFragment,
+        'direct and worker fragments must share the request EOL');
+    assert.ok(directFragment.text.indexOf('\r\n') >= 0);
+    assert.strictEqual(/(^|[^\r])\n/.test(directFragment.text), false,
+        'fragment generated EOL must not fall back to LF');
     await routed.format(request('select ' + new Array(150).join('a')));
     assert.strictEqual(routed.lastRoute(), 'worker');
     assert.strictEqual(directCounter.calls, 1);
@@ -127,6 +146,14 @@ async function run() {
     assert.strictEqual(invalidWorkerResult.status, 'failed');
     assert.strictEqual(invalidWorkerResult.text, invalidRequest.source,
         'worker executor must preserve a safely snapshotted invalid source');
+
+    var invalidNewlineRequest = request('select 1', '\r\r');
+    var invalidNewlineResult = await direct.format(invalidNewlineRequest);
+    assert.strictEqual(invalidNewlineResult.status, 'failed');
+    assert.strictEqual(
+        invalidNewlineResult.diagnostics[0].code,
+        'ADAPTER_EXECUTION_REQUEST'
+    );
 
     await routed.dispose();
     await persistent.dispose();

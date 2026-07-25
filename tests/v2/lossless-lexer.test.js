@@ -209,6 +209,21 @@ test('CRLF newlines are single leaves', function() {
     );
 });
 
+test('UTF-8 BOM is boundary trivia only at offset zero', function() {
+    var source = '\uFEFFSELECT 1';
+    var output = lexSql(source);
+    assertConservesSource(source, output);
+    assert.deepStrictEqual(
+        [output.leaves[0].kind, output.leaves[0].channel, output.leaves[0].raw],
+        ['byte-order-mark', 'trivia', '\uFEFF']
+    );
+
+    var interior = lexSql('SELECT\uFEFF1');
+    assertConservesSource('SELECT\uFEFF1', interior);
+    assert.strictEqual(findLeaf(interior, '\uFEFF').kind, 'unknown');
+    assert.strictEqual(findLeaf(interior, '\uFEFF').channel, 'protected');
+});
+
 test('Chinese identifiers and comments conserve UTF-16 spans', function() {
     var source = "SELECT 用户 FROM t -- 中文注释";
     var output = lexSql(source);

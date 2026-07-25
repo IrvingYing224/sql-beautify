@@ -268,10 +268,17 @@ export function formatMultilineSequence(
         const separatorLeafId = separatorLeafIds[index]!;
         const left = members[index]!;
         const right = members[index + 1]!;
-        const beforeSeparator = context.plan.options.commaStyle === "leading"
+        const useLeadingSeparator =
+            context.plan.options.commaStyle === "leading" ||
+            rangeHasLineComment(
+                context,
+                left.leafRange.end,
+                separatorLeafId
+            );
+        const beforeSeparator = useLeadingSeparator
             ? HARD_LINE
             : EMPTY;
-        const afterSeparator = context.plan.options.commaStyle === "leading"
+        const afterSeparator = useLeadingSeparator
             ? SPACE
             : HARD_LINE;
         if (
@@ -289,7 +296,7 @@ export function formatMultilineSequence(
                 right.leafRange.start,
                 afterSeparator
             ) ||
-            (context.plan.options.commaStyle === "leading" &&
+            (useLeadingSeparator &&
                 (needsLeadingContinuationAlign(right) ||
                     rangeHasLineComment(
                         context,

@@ -6,6 +6,10 @@ import type {
     UnsupportedSyntaxPolicy,
 } from "../../core/config/options";
 import type { ResolveFormatOptionsResult } from "../../core/config/resolve-options";
+import {
+    inferRenderNewline,
+    type RenderNewline,
+} from "../../core/renderer/environment";
 import type { ExperimentalDdlOperation } from "../transaction/experimental-ddl";
 import type {
     ExperimentalDdlTransactionRequest,
@@ -72,6 +76,22 @@ export interface VscodeExtensionOptions {
 
 type AnyTransactionResult = FormatTransactionResult | ExperimentalDdlTransactionResult;
 const FORMATTER_SELECTOR = formatterSelector();
+
+function documentRenderNewline(
+    vscode: typeof Vscode,
+    document: Vscode.TextDocument,
+    source: string
+): RenderNewline {
+    let fallback: RenderNewline = "\n";
+    try {
+        if (document.eol === vscode.EndOfLine.CRLF) {
+            fallback = "\r\n";
+        }
+    } catch {
+        fallback = "\n";
+    }
+    return inferRenderNewline(source, fallback);
+}
 
 function snapshotDocument(document: Vscode.TextDocument): DocumentSnapshot | null {
     try {
@@ -456,6 +476,7 @@ export function createVscodeExtension(
                 documentVersion: capturedVersion,
                 targets: Object.freeze([target]),
                 options: current.options,
+                newline: documentRenderNewline(vscode, document, capturedSource),
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor);
         } catch {
@@ -624,6 +645,11 @@ export function createVscodeExtension(
                 targets: selectionSet.targets,
                 selections: selectionSet.selections,
                 options: commandOptionsValue,
+                newline: documentRenderNewline(
+                    vscode,
+                    editor.document,
+                    expected.source
+                ),
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor, queryCommit(editor, editor.document));
         } catch {
@@ -730,6 +756,7 @@ export function createVscodeExtension(
                 targets: selectionSet.targets,
                 selections: selectionSet.selections,
                 options: current.options,
+                newline: documentRenderNewline(vscode, document, expected.source),
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor);
         } catch {

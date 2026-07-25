@@ -1,4 +1,5 @@
 import type { FormatOptions } from "../../core/config/options";
+import type { RenderNewline } from "../../core/renderer/environment";
 import type {
     CancellationToken,
     FormatSelection,
@@ -21,6 +22,7 @@ export interface HostTransactionRequest {
     readonly targets: readonly FormatTarget[];
     readonly selections?: readonly FormatSelection[];
     readonly options?: FormatOptions;
+    readonly newline?: RenderNewline;
     readonly cancellation?: CancellationToken;
 }
 
@@ -75,6 +77,7 @@ async function runHostTransactionInternal(
                 ? {}
                 : { selections: request.selections }),
             ...(request.options === undefined ? {} : { options: request.options }),
+            ...(request.newline === undefined ? {} : { newline: request.newline }),
             ...(cancellationValue === undefined
                 ? {}
                 : { cancellation: cancellationValue }),

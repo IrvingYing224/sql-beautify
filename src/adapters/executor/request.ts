@@ -1,5 +1,10 @@
 import type { CanonicalFormatOptions } from "../../core/config/options";
 import { resolveFormatOptions } from "../../core/config/resolve-options";
+import {
+    inferRenderNewline,
+    isRenderNewline,
+    type RenderNewline,
+} from "../../core/renderer/environment";
 import { snapshotDataProperties } from "../boundary/data-snapshot";
 import type {
     CancellationToken,
@@ -12,6 +17,7 @@ const REQUEST_KEYS: ReadonlySet<string> = new Set([
     "mode",
     "documentVersion",
     "targetId",
+    "newline",
     "cancellation",
 ]);
 
@@ -21,6 +27,7 @@ export interface StableFormatExecutionRequest {
     readonly mode: "document" | "fragment";
     readonly documentVersion: number;
     readonly targetId: string;
+    readonly newline: RenderNewline;
     readonly cancellation?: CancellationToken;
 }
 
@@ -50,7 +57,10 @@ export function snapshotFormatExecutionRequest(
         return null;
     }
     const options = resolveFormatOptions(raw.options);
-    if (!options.ok) {
+    const newline = raw.newline === undefined
+        ? inferRenderNewline(raw.source)
+        : raw.newline;
+    if (!options.ok || !isRenderNewline(newline)) {
         return null;
     }
     const cancellation = raw.cancellation as CancellationToken | undefined;
@@ -60,6 +70,7 @@ export function snapshotFormatExecutionRequest(
         mode: raw.mode,
         documentVersion: raw.documentVersion as number,
         targetId: raw.targetId,
+        newline,
         ...(cancellation === undefined ? {} : { cancellation }),
     });
 }
@@ -73,6 +84,7 @@ export function executionRequestForCore(
         mode: request.mode,
         documentVersion: request.documentVersion,
         targetId: request.targetId,
+        newline: request.newline,
         ...(request.cancellation === undefined
             ? {}
             : { cancellation: request.cancellation }),

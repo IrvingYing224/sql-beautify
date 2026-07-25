@@ -5,6 +5,7 @@ import { parentPort, workerData } from "node:worker_threads";
 
 import type { FormatResult } from "../../core/api/format-result";
 import type { FormatOptions } from "../../core/config/options";
+import type { RenderNewline } from "../../core/renderer/environment";
 import { failedFormatResult } from "../boundary/format-result-snapshot";
 import {
     snapshotWorkerRequestMessage,
@@ -15,7 +16,8 @@ interface FormatterRuntime {
     formatSqlTarget(
         source: string,
         options: FormatOptions,
-        mode: "document" | "fragment"
+        mode: "document" | "fragment",
+        newline: RenderNewline
     ): FormatResult;
 }
 
@@ -50,7 +52,8 @@ port.on("message", (value: unknown) => {
         result = runtime.formatSqlTarget!(
             request.source,
             request.options,
-            request.mode
+            request.mode,
+            request.newline
         );
     } catch {
         result = failedFormatResult(

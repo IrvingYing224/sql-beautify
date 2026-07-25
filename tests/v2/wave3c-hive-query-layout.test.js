@@ -324,10 +324,10 @@ function commentEvidenceMatchesCapability(
 (function testCommentedStructuralGapsAreCanonicalAndKeepBindings() {
     [
         {
-            id: 'trailing-comment-before-trailing-comma',
+            id: 'trailing-comment-forces-local-leading-comma',
             source: 'select a --c\n,b from t',
             options: { dialect: 'hive', commaStyle: 'trailing' },
-            expected: 'SELECT\n    a --c\n    ,\n    b\nFROM t'
+            expected: 'SELECT\n    a --c\n    , b\nFROM t'
         },
         {
             id: 'leading-comment-after-leading-comma',
@@ -466,7 +466,7 @@ function commentEvidenceMatchesCapability(
         {
             id: 'intrinsic-expression-crlf',
             source: 'select a\r\n + b from t',
-            expected: 'SELECT\n      a + b\nFROM t'
+            expected: 'SELECT\r\n      a + b\r\nFROM t'
         },
         {
             id: 'named-window-member-comment-line-break',
@@ -532,7 +532,7 @@ function commentEvidenceMatchesCapability(
                 'FROM a',
                 'JOIN b',
                 '    ON a.id = b.id'
-            ].join('\n')
+            ].join('\r\n')
         },
         {
             id: 'parenthesized-query-line-break',

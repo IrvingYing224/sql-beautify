@@ -11,13 +11,17 @@ function sourceMap(length) {
     }] };
 }
 
-function request(id, token) {
-    return {
+function request(id, token, newline) {
+    var value = {
         source: 'select ' + id,
         options: { dialect: 'hive' },
         mode: 'document', documentVersion: id, targetId: 'target:' + id,
         cancellation: token
     };
+    if (newline !== undefined) {
+        value.newline = newline;
+    }
+    return value;
 }
 
 function FakeWorker(generation, factory) {
@@ -86,6 +90,8 @@ async function run() {
         workerFactory: queuedFactory.create, runtimeDigest: RUNTIME_DIGEST
     });
     var first = queuedExecutor.format(request(1));
+    assert.strictEqual(queuedFactory.workers[0].messages[0].newline, '\n',
+        'worker request must infer LF for source without a physical EOL');
     var queuedController = cancellationModule.createCancellationController();
     var queued = queuedExecutor.format(request(2, queuedController.token));
     queuedController.cancel();
@@ -102,7 +108,9 @@ async function run() {
         workerFactory: activeFactory.create, runtimeDigest: RUNTIME_DIGEST
     });
     var activeController = cancellationModule.createCancellationController();
-    var active = activeExecutor.format(request(3, activeController.token));
+    var active = activeExecutor.format(request(3, activeController.token, '\r\n'));
+    assert.strictEqual(activeFactory.workers[0].messages[0].newline, '\r\n',
+        'explicit fragment/document EOL must survive the worker protocol');
     activeController.cancel();
     assert.strictEqual((await active).diagnostics[0].code, 'ADAPTER_CANCELLED');
     await tick();

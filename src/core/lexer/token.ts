@@ -12,6 +12,7 @@ export type TokenKind =
     | "punctuation"
     | "line-comment"
     | "block-comment"
+    | "byte-order-mark"
     | "whitespace"
     | "newline"
     | "unknown";

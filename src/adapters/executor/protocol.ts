@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 
 import type { CanonicalFormatOptions } from "../../core/config/options";
 import { resolveFormatOptions } from "../../core/config/resolve-options";
+import {
+    isRenderNewline,
+    type RenderNewline,
+} from "../../core/renderer/environment";
 import { snapshotDataProperties } from "../boundary/data-snapshot";
 
 const REQUEST_KEYS: ReadonlySet<string> = new Set([
@@ -14,6 +18,7 @@ const REQUEST_KEYS: ReadonlySet<string> = new Set([
     "source",
     "options",
     "mode",
+    "newline",
 ]);
 const RESPONSE_KEYS: ReadonlySet<string> = new Set([
     "kind",
@@ -37,6 +42,7 @@ export interface WorkerFormatRequestMessage {
     readonly source: string;
     readonly options: CanonicalFormatOptions;
     readonly mode: "document" | "fragment";
+    readonly newline: RenderNewline;
 }
 
 export interface WorkerFormatResponseMessage {
@@ -68,6 +74,7 @@ export function snapshotWorkerRequestMessage(
         "source",
         "options",
         "mode",
+        "newline",
     ]);
     if (
         raw === null ||
@@ -83,7 +90,8 @@ export function snapshotWorkerRequestMessage(
         typeof raw.sourceDigest !== "string" ||
         !/^[a-f0-9]{64}$/.test(raw.sourceDigest) ||
         typeof raw.source !== "string" ||
-        (raw.mode !== "document" && raw.mode !== "fragment")
+        (raw.mode !== "document" && raw.mode !== "fragment") ||
+        !isRenderNewline(raw.newline)
     ) {
         return null;
     }
@@ -101,6 +109,7 @@ export function snapshotWorkerRequestMessage(
         source: raw.source,
         options: options.options,
         mode: raw.mode,
+        newline: raw.newline,
     });
 }
 

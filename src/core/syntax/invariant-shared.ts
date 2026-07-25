@@ -25,6 +25,7 @@ export const CHANNEL_BY_KIND: Readonly<Record<TokenKind, TokenChannel>> = Object
     unknown: "protected",
     "line-comment": "trivia",
     "block-comment": "trivia",
+    "byte-order-mark": "trivia",
     whitespace: "trivia",
     newline: "trivia",
 });

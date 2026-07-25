@@ -10,6 +10,11 @@ import type {
 import type { SourceSpan } from "../source/source-span";
 import type { SourceMap, SourceMapEntry } from "../source/source-map";
 import { measureDisplayText } from "./display-width";
+import {
+    inferRenderEnvironment,
+    isCanonicalRenderEnvironment,
+    type RenderEnvironment,
+} from "./environment";
 import { applyKeywordCase } from "./keyword-case";
 import { measureLayoutArtifact } from "./metrics";
 import type {
@@ -150,7 +155,8 @@ function freezeSourceMap(
 
 function renderCanonical(
     artifact: LayoutArtifact,
-    metrics: LayoutMetrics
+    metrics: LayoutMetrics,
+    environment: RenderEnvironment
 ): RenderResult {
     const budget = canonicalLayoutResourceBudget(artifact);
     if (budget === null) {
@@ -198,6 +204,12 @@ function renderCanonical(
         displayColumns: number,
         lineBreak: boolean
     ): void => {
+        if (lineBreak && raw !== environment.newline) {
+            throw new RenderAbort(
+                "RENDER_NEWLINE_CONTRACT",
+                "Generated line break does not match the render environment"
+            );
+        }
         if (
             !Number.isSafeInteger(displayColumns) ||
             displayColumns < 0 ||
@@ -224,6 +236,10 @@ function renderCanonical(
             displayColumn += displayColumns;
             generatedColumnsOnLine += displayColumns;
         }
+    };
+
+    const appendGeneratedLineBreak = (): void => {
+        appendGenerated(environment.newline, 0, true);
     };
 
     const appendMapEntry = (
@@ -353,7 +369,7 @@ function renderCanonical(
         if (suffixes.length > 0) {
             const hadLineComment = flushSuffixes();
             if (hadLineComment) {
-                appendGenerated("\n", 0, true);
+                appendGeneratedLineBreak();
             }
         }
         if (needsLinePrefix) {
@@ -371,7 +387,7 @@ function renderCanonical(
         if (suffixes.length > 0) {
             const hadLineComment = flushSuffixes();
             if (hadLineComment) {
-                appendGenerated("\n", 0, true);
+                appendGeneratedLineBreak();
             }
         }
         if (needsLinePrefix) {
@@ -424,7 +440,7 @@ function renderCanonical(
 
     const emitLineBreak = (): void => {
         flushSuffixes();
-        appendGenerated("\n", 0, true);
+        appendGeneratedLineBreak();
     };
 
     const beforeSource = (raw: string): void => {
@@ -433,7 +449,7 @@ function renderCanonical(
         }
         const hadLineComment = flushSuffixes();
         if (hadLineComment && !startsWithLineBreak(raw)) {
-            appendGenerated("\n", 0, true);
+            appendGeneratedLineBreak();
         }
     };
 
@@ -616,7 +632,10 @@ function renderCanonical(
 }
 
 /** Fail-closed SQL-agnostic renderer for exact canonical LayoutArtifact objects. */
-export function renderLayoutArtifact(value: unknown): RenderResult {
+export function renderLayoutArtifact(
+    value: unknown,
+    environmentValue: RenderEnvironment | unknown = undefined
+): RenderResult {
     try {
         if (!isCanonicalLayoutArtifact(value)) {
             return failure(
@@ -624,11 +643,20 @@ export function renderLayoutArtifact(value: unknown): RenderResult {
                 "Renderer requires an exact canonical LayoutArtifact"
             );
         }
+        const environment = environmentValue === undefined
+            ? inferRenderEnvironment(value.analysis.source)
+            : environmentValue;
+        if (!isCanonicalRenderEnvironment(environment)) {
+            return failure(
+                "RENDER_NEWLINE_CONTRACT",
+                "Renderer requires a canonical render environment"
+            );
+        }
         const measured = measureLayoutArtifact(value);
         if (!measured.ok) {
             return failure("RENDER_METRICS", measured.message);
         }
-        const rendered = renderCanonical(value, measured.metrics);
+        const rendered = renderCanonical(value, measured.metrics, environment);
         if (rendered.ok) {
             CANONICAL_RENDER_ARTIFACTS.set(rendered, value);
         }

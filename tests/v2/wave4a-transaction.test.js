@@ -69,6 +69,59 @@ async function run() {
     assert.strictEqual(Object.isFrozen(ready), true, 'transaction result must be frozen');
     assert.strictEqual(Object.isFrozen(ready.edits), true, 'transaction edits must be frozen');
     assert.strictEqual(Object.isFrozen(ready.selections), true, 'transaction selections must be frozen');
+    assert.deepStrictEqual(executor.calls.map(function(call) { return call.newline; }),
+        ['\n', '\n'], 'all fragments must inherit the complete document EOL');
+
+    var crlfExecutor = createExecutor(function(request) {
+        return {
+            status: 'unchanged',
+            text: request.source,
+            diagnostics: [],
+            sourceMap: sourceMap(request.source.length, request.source.length)
+        };
+    });
+    var crlfSource = 'select a;\r\nselect b;';
+    var crlfResult = await transaction.prepareFormatTransaction({
+        source: crlfSource,
+        documentVersion: 8,
+        targets: [
+            { id: 'left', start: 0, end: 9, mode: 'fragment' },
+            { id: 'right', start: 11, end: 20, mode: 'fragment' }
+        ]
+    }, crlfExecutor);
+    assert.strictEqual(crlfResult.status, 'unchanged');
+    assert.deepStrictEqual(
+        crlfExecutor.calls.map(function(call) { return call.newline; }),
+        ['\r\n', '\r\n'],
+        'fragments without physical EOL must inherit CRLF from the full document'
+    );
+
+    var fallbackExecutor = createExecutor(function(request) {
+        return {
+            status: 'unchanged', text: request.source, diagnostics: [],
+            sourceMap: sourceMap(request.source.length, request.source.length)
+        };
+    });
+    var fallbackResult = await transaction.prepareFormatTransaction({
+        source: 'select a',
+        documentVersion: 9,
+        newline: '\r\n',
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
+    }, fallbackExecutor);
+    assert.strictEqual(fallbackResult.status, 'unchanged');
+    assert.strictEqual(fallbackExecutor.calls[0].newline, '\r\n');
+
+    var invalidNewlineExecutor = createExecutor(function() {
+        throw new Error('invalid newline must not reach executor');
+    });
+    var invalidNewline = await transaction.prepareFormatTransaction({
+        source: 'select a',
+        documentVersion: 10,
+        newline: '\r\r',
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
+    }, invalidNewlineExecutor);
+    assert.strictEqual(invalidNewline.status, 'rejected');
+    assert.strictEqual(invalidNewlineExecutor.calls.length, 0);
 
     var overlapExecutor = createExecutor(function() {
         throw new Error('must not run');

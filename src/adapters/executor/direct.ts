@@ -1,5 +1,6 @@
 import type { FormatResult } from "../../core/api/format-result";
 import type { FormatOptions } from "../../core/config/options";
+import type { RenderNewline } from "../../core/renderer/environment";
 import {
     failedFormatResult,
     isFormatResultSafeForSource,
@@ -15,7 +16,8 @@ import {
 export type TargetFormatter = (
     source: string,
     options: FormatOptions,
-    mode: "document" | "fragment"
+    mode: "document" | "fragment",
+    newline: RenderNewline
 ) => FormatResult;
 
 /** Synchronous target invocation behind the common executor contract. */
@@ -51,7 +53,8 @@ export class DirectFormatterExecutor implements FormatterExecutor {
             const rawResult = this.formatTarget(
                 snapshot.source,
                 snapshot.options,
-                snapshot.mode
+                snapshot.mode,
+                snapshot.newline
             );
             if (cancellation.isCancelled()) {
                 return failedFormatResult(

@@ -372,6 +372,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
                 source: pending.request.source,
                 options: pending.request.options,
                 mode: pending.request.mode,
+                newline: pending.request.newline,
             });
             pending.timeout = setTimeout(() => {
                 if (
