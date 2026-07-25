@@ -93,6 +93,11 @@ function expectedFacts() {
 
     assert.strictEqual(first, second, 'matrix rendering must be deterministic');
     assert.strictEqual(document, first, 'generated document must byte-match renderer output');
+    assert.match(
+        document,
+        /covers the main `formatSql` pipeline only/,
+        'matrix must distinguish the main formatter from experimental DDL APIs'
+    );
     assert.deepStrictEqual(parsed.dialects, facts.dialects,
         'matrix dialect columns must come from the compiled v2 registry');
     assert.deepStrictEqual(parsed.rows.map(function(row) {

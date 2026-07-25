@@ -90,7 +90,7 @@ DDL command batches use their own all-or-nothing transaction. Only diagnostic-fr
 - `dist/formatter-worker.cjs`: persistent worker entry;
 - `dist/extension.cjs`: VS Code host wiring.
 
-`package.json.files` is the package and VSIX allowlist. Source, tests, scripts, technical docs, agent files, dependencies, and temporary output must not enter the VSIX. `prepack` builds runtime artifacts so a clean checkout cannot produce a package with dangling `main` or `exports`.
+`package.json.files` is the package and VSIX allowlist. Only the five runtime artifacts, extension icon, package metadata, README, CHANGELOG, and license may ship. Source, tests, scripts, technical docs, agent files, dependencies, historical plans, and temporary output must not enter the VSIX. `prepack` builds runtime artifacts so a clean checkout cannot produce a package with dangling `main` or `exports`.
 
 PR/push CI runs with `contents: read`. Only the manual `main` release job receives `contents: write`. Release gates require package, lockfile, VSIX manifest, VSIX filename, tag, workflow SHA, `origin/main`, and GitHub Release target to identify the same version and commit.
 

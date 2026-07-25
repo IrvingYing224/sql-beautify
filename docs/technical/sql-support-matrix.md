@@ -4,6 +4,8 @@
 
 This is the canonical SQL Beautify 2.x capability matrix generated from the compiled dialect registry.
 
+This matrix covers the main `formatSql` pipeline only. The separate experimental Hive DDL APIs are documented in [SQL Formatter Architecture](sql-formatter-architecture.md#experimental-hive-ddl).
+
 `formatted` means the construct has a verified layout policy. `structured` means it is parsed and preserved structurally without a dedicated layout guarantee. `diagnostic` means it is recognized as low-confidence syntax and handled by `unsupportedSyntaxPolicy`. `verbatim` means the source is retained unchanged. `—` means the dialect registry declares no capability.
 
 | Capability | `generic` | `hive` | `mysql` | `postgresql` |

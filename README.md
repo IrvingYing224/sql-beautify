@@ -2,15 +2,13 @@
 
 VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格式化与 DDL 提取能力。
 
-![demo](images/demo.gif)
-
 ## 安装
 
 从 [GitHub Releases](https://github.com/IrvingYing224/sql-beautify/releases) 下载最新 `.vsix`，然后在 VS Code 中执行 `Extensions: Install from VSIX...` 安装。
 
 最低支持 VS Code `1.90.0`。
 
-从 1.x 升级时，请先阅读 [2.0 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.0.0/docs/migration-to-2.0.md)。
+从 1.x 升级时，请先阅读 [2.0 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.0.1/docs/migration-to-2.0.md)。
 
 ## 这个扩展做什么
 
@@ -18,7 +16,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 - 对 `SELECT`、`GROUP BY` 和顶层 `ORDER BY` 做列表换行与逗号对齐
 - 支持 VS Code 标准 `Format Document` / `Format Selection`
 - 提供实验性的 Hive DDL 格式化
-- 提供实验性的 Hive `extractddl` 草稿提取
+- 提供实验性的 Hive Extract DDL 草稿提取
 
 主格式化能力优先面向 Hive SQL / HQL。`generic`、`postgresql`、`mysql` 为 best-effort 支持，复杂 SQL 建议格式化后复核结果。
 
@@ -65,9 +63,9 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 
 ### Hive DDL formatting
 
-`Format Hive DDL (Experimental)` 只面向 Hive 风格 DDL。它不是通用 DDL parser，复杂建表语句请先在小范围验证结果。
+`Format Hive DDL (Experimental)` 只接受完整消费的、已建模的 Hive `CREATE TABLE` 子集。它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、未建模后缀、约束、默认值或结构不完整的输入会保留原文，不会被猜测性改写。
 
-### Hive `extractddl`
+### Hive Extract DDL
 
 `Extract Hive DDL (Experimental)` 适合从常规 `SELECT` / `INSERT SELECT` 字段列表生成 DDL 草稿。
 

@@ -9,6 +9,7 @@ var path = require('path');
 
 var root = path.join(__dirname, '..');
 var excludedNames = new Set(['.git', '.tmp', 'dist', 'node_modules']);
+var imageFiles = ['images/icon.png'];
 
 function copySource(sourceRoot, targetRoot) {
     fs.cpSync(sourceRoot, targetRoot, {
@@ -35,9 +36,11 @@ function run(command, args, options) {
 }
 
 function expectedPackageFiles(sourceRoot) {
-    var imageFiles = fs.readdirSync(path.join(sourceRoot, 'images')).sort().map(function(fileName) {
-        return 'images/' + fileName;
-    });
+    assert.deepStrictEqual(
+        fs.readdirSync(path.join(sourceRoot, 'images')).sort(),
+        imageFiles.map(function(fileName) { return path.basename(fileName); }).sort(),
+        'source images must contain only explicitly packaged production assets'
+    );
     return [
         'CHANGELOG.md',
         'LICENSE.txt',

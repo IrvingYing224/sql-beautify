@@ -21,7 +21,7 @@ var expectedFiles = [
     'dist/sql-formatter.cjs',
     'dist/hive-ddl.cjs',
     'dist/formatter-worker.cjs',
-    'images/**',
+    'images/icon.png',
     'README.md',
     'CHANGELOG.md',
     'LICENSE.txt'
@@ -44,7 +44,7 @@ var expectedConfigurationKeys = [
     'sqlBeautify.unsupportedSyntaxPolicy'
 ];
 
-assert.strictEqual(packageJson.version, '2.0.0');
+assert.strictEqual(packageJson.version, '2.0.1');
 assert.strictEqual(packageJson.main, './dist/extension.cjs');
 assert.deepStrictEqual(packageJson.exports, {
     './formatter': './dist/sql-formatter.cjs',
@@ -53,6 +53,8 @@ assert.deepStrictEqual(packageJson.exports, {
 });
 assert.deepStrictEqual(packageJson.files, expectedFiles,
     'package files must be the explicit Wave 5 production allowlist');
+assert.deepStrictEqual(fs.readdirSync(path.join(root, 'images')).sort(), ['icon.png'],
+    'only the extension icon may remain in the production image directory');
 assert.deepStrictEqual(packageJson.activationEvents.slice().sort(), [
     'onCommand:sqlBeautify.copySafeDiagnosticReport',
     'onCommand:sqlBeautify.extractHiveDdl',
@@ -97,7 +99,8 @@ assert.strictEqual(configuration['sqlBeautify.unsupportedSyntaxPolicy'].default,
     'tests/v2/parser-evaluation-harness.test.js',
     'tests/v2/parser-evaluation-report.test.js',
     'tests/v2/dt-sql-parser-candidate.test.js',
-    'dist/v2-format-bridge.cjs'
+    'dist/v2-format-bridge.cjs',
+    'docs/superpowers'
 ].forEach(function(relativePath) {
     assert.strictEqual(fs.existsSync(path.join(root, relativePath)), false,
         'legacy path must not exist: ' + relativePath);
@@ -106,6 +109,21 @@ assert.strictEqual(configuration['sqlBeautify.unsupportedSyntaxPolicy'].default,
 assert.strictEqual(lockText.indexOf('dt-sql-parser'), -1,
     'package lock must not retain the rejected parser candidate');
 assert.strictEqual(packageJson.devDependencies['dt-sql-parser'], undefined);
+var parserAdr = fs.readFileSync(
+    path.join(root, 'docs', 'technical', 'adr', '0001-v2-parser-backend.md'),
+    'utf8'
+);
+var parserReport = fs.readFileSync(
+    path.join(root, 'docs', 'technical', 'v2-parser-evaluation-report.md'),
+    'utf8'
+);
+assert.doesNotMatch(parserAdr, /v2-parser-evidence-base64/,
+    'ADR must link the full parser evidence instead of duplicating it');
+assert.strictEqual(
+    (parserReport.match(/v2-parser-evidence-base64/g) || []).length,
+    1,
+    'parser evaluation report must remain the single embedded evidence owner'
+);
 assert.strictEqual(fs.existsSync(path.join(root, '.vscodeignore')), false,
     'VSCE forbids combining .vscodeignore with the package files allowlist');
 

@@ -1,11 +1,17 @@
-
-## 😎 更迭日志 Release Notes
+# 更新日志 / Release Notes
 
 > 0.3.23 及以后版本由 [IrvingYing224](https://github.com/IrvingYing224) 维护。
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
-### 2.0.0 (2026/07/22)
+### 2.0.1 (2026/07/26)
+* 修正文档中的旧 `extractddl` 名称、Experimental Hive DDL 支持边界、support matrix 作用域和 2.0.0 实际发布日期
+* 删除已完成且已被现役架构文档、ADR 和测试取代的 Wave 0–5 阶段设计与实施计划
+* 删除 2021 年旧演示和未引用图片，发布清单只允许 `images/icon.png`，校验脚本不再自动接受图片目录中的任意文件
+* 移除 ADR 中与完整 parser evaluation report 重复的 evidence blob，并整理历史 CHANGELOG 的重复标题和版本顺序
+* 将扩展包版本同步至 `2.0.1`
+
+### 2.0.0 (2026/07/26)
 * 使用 lossless lexer、formatter-oriented CST、一次性结构索引、Layout IR 和单一 renderer 重建 SQL formatter；Hive 仍是默认和优先方言
 * 对注释、字符串、quoted identifier、参数、方言 literal 和 opaque/verbatim 结构实施 source code-unit 保真与 token equivalence 检查
 * 将整文档、选区、多选区、异步 worker 和 experimental DDL 接入同一 fail-closed、可取消、all-or-nothing 事务边界
@@ -220,6 +226,12 @@
 * Hardened the GitHub Actions VSIX workflow so PR / main push runs packaging smoke, manual releases are limited to `main`, and existing tag targets are validated for both annotated and lightweight tags
 * Updated README experimental boundaries, formatter architecture docs, the generated support matrix, and focused regression coverage
 
+### 0.5.4 (2026/05/17)
+* 修复一元正负号在主格式化链中的 spacing 错误，`THEN -1`、`a=-1`、`a=+1`、`1*-1`、`1/-1` 不再被错误改写为 `- 1`、`=+ 1`、`*- 1` 等无效形式
+* 增加 `CASE`、条件表达式和算术表达式中一元 `+/-` 的回归覆盖，确保二元运算符 spacing 与 Postgres / MySQL 特殊运算符行为不回归
+* Fixed unary plus/minus spacing in the main formatter path so expressions such as `THEN -1`, `a=-1`, `a=+1`, `1*-1`, and `1/-1` are no longer rewritten into invalid forms like `- 1`, `=+ 1`, or `*- 1`
+* Added regression coverage for unary `+/-` in `CASE`, condition expressions, and arithmetic expressions to protect normal binary spacing and dialect-specific operators from regression
+
 ### 0.5.3 (2026/05/17)
 * Breaking cleanup：移除全部旧 `extension.*` 配置项，VS Code 侧只保留 `sqlBeautify.*`
 * `unsupportedSyntaxPolicy=warn` 现在具有真实行为：保留未建模片段并通过 VS Code warning 暴露诊断
@@ -233,12 +245,6 @@
 * Continued the token-aware primitive and dialect-capability rollout through `CASE`, condition, and comment paths
 * Unified the whitespace output contract around LF, at most one blank line, and a single trailing newline
 * Tightened the README back to an end-user manual and moved support-boundary, experimental-scope, and diagnostics contract detail into technical docs and the support matrix
-
-### 0.5.4 (2026/05/17)
-* 修复一元正负号在主格式化链中的 spacing 错误，`THEN -1`、`a=-1`、`a=+1`、`1*-1`、`1/-1` 不再被错误改写为 `- 1`、`=+ 1`、`*- 1` 等无效形式
-* 增加 `CASE`、条件表达式和算术表达式中一元 `+/-` 的回归覆盖，确保二元运算符 spacing 与 Postgres / MySQL 特殊运算符行为不回归
-* Fixed unary plus/minus spacing in the main formatter path so expressions such as `THEN -1`, `a=-1`, `a=+1`, `1*-1`, and `1/-1` are no longer rewritten into invalid forms like `- 1`, `=+ 1`, or `*- 1`
-* Added regression coverage for unary `+/-` in `CASE`, condition expressions, and arithmetic expressions to protect normal binary spacing and dialect-specific operators from regression
 
 ### 0.5.2 (2026/05/17)
 * 将核心 SQL formatter 进一步收敛为 canonical options + dialect/clause/operator registry + structured pipeline，减少对历史字符串熔炉 pass 的依赖
@@ -512,23 +518,16 @@
 ### 0.1.32
 * Fixed some bugs with "Comments".
 
-### 0.1.32
 * Add "Use whitespace to replace Tab in the indentation of subquery" setting.
-
-![tablevswhitespace](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/tablevswhitespace.png?raw=true)
 
 * 端午节快乐！
 
 ### 0.1.30
 * Add comma location setting.
 
-![comma](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/comma.png?raw=true)
-
 ### 0.1.28
 
 * fix [the bug of COMMENT](https://github.com/clarkyu2016/sql-beautify/issues/4) @LiHaoyu1994 
-
-### 0.1.28
 
 * fix [the bug of COMMENT](https://github.com/clarkyu2016/sql-beautify/issues/3) @aleegreat 
 
@@ -559,8 +558,6 @@
 ### 0.1.7
 
 * Align words after `as` left
-
-![as](https://clarkyu1993.coding.net/p/tuku/shared-depot/pic/git/raw/master/as.gif?raw=true)
 
 ### 0.0.12
 * Fix some bugs of auto-wrap

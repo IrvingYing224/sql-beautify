@@ -1,8 +1,8 @@
 {
 	"name": "vscode-sql-beautify",
 	"displayName": "SQL Beautify",
-	"description": "More Powerful extension that beautifies SQL/一键美化你的SQL",
-	"version": "2.0.0",
+	"description": "Hive-first SQL formatter with lossless token handling, fail-closed edits, and experimental Hive DDL tools / Hive 优先的安全 SQL 格式化器",
+	"version": "2.0.1",
 	"publisher": "clarkyu",
 	"maintainers": [
 		"IrvingYing224"
@@ -45,7 +45,7 @@
 		"dist/sql-formatter.cjs",
 		"dist/hive-ddl.cjs",
 		"dist/formatter-worker.cjs",
-		"images/**",
+		"images/icon.png",
 		"README.md",
 		"CHANGELOG.md",
 		"LICENSE.txt"

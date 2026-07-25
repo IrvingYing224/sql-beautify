@@ -13,6 +13,7 @@ var runtimeFiles = [
     'dist/runtime.cjs',
     'dist/sql-formatter.cjs'
 ];
+var imageFiles = ['images/icon.png'];
 
 function argumentValue(args, name) {
     var index = args.indexOf(name);
@@ -64,8 +65,8 @@ function verifyArtifact(artifactPath, options) {
 
     var entries = listEntries(artifactPath);
     var entrySet = new Set(entries);
-    var imageEntries = fs.readdirSync(path.join(root, 'images')).sort().map(function(fileName) {
-        return 'extension/images/' + fileName;
+    var imageEntries = imageFiles.map(function(fileName) {
+        return 'extension/' + fileName;
     });
     var expectedEntries = [
         '[Content_Types].xml',
@@ -106,6 +107,11 @@ function verifyArtifact(artifactPath, options) {
         assert.notStrictEqual(entry, 'extension/extension.js');
         assert.notStrictEqual(entry, 'extension/vkbeautify.js');
     });
+    assert.deepStrictEqual(
+        fs.readdirSync(path.join(root, 'images')).sort(),
+        imageFiles.map(function(fileName) { return path.basename(fileName); }).sort(),
+        'repository images must contain only explicitly packaged production assets'
+    );
 
     var packedManifest = JSON.parse(unzipText(
         artifactPath,

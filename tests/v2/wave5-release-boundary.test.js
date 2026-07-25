@@ -11,13 +11,14 @@ var packageJson = require(path.join(root, 'package.json'));
 var packageLock = require(path.join(root, 'package-lock.json'));
 var workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'build-vsix.yml'), 'utf8');
 var readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+var changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
 var migration = fs.readFileSync(path.join(root, 'docs', 'migration-to-2.0.md'), 'utf8');
 var architecture = fs.readFileSync(
     path.join(root, 'docs', 'technical', 'sql-formatter-architecture.md'),
     'utf8'
 );
 
-assert.strictEqual(packageJson.version, '2.0.0');
+assert.strictEqual(packageJson.version, '2.0.1');
 assert.strictEqual(packageLock.version, packageJson.version);
 assert.strictEqual(packageLock.packages[''].version, packageJson.version);
 assert.strictEqual(packageJson.scripts.prepack, 'npm run build:v2-runtime');
@@ -38,6 +39,14 @@ assert.match(workflow, /vscode-sql-beautify-v\$\{VERSION\}\.vsix/);
 
 assert.match(readme, /`postgresql`/);
 assert.doesNotMatch(readme, /`postgres`/);
+assert.doesNotMatch(readme, /extractddl/i,
+    'current README must not reuse the removed 1.x API spelling');
+assert.doesNotMatch(readme, /demo\.gif/,
+    'current README must not embed the obsolete 1.x demo');
+assert.match(readme, /Hive `CREATE TABLE` 子集/,
+    'README must state the bounded experimental Hive DDL contract');
+assert.match(packageJson.description, /Hive-first SQL formatter with lossless token handling/,
+    'Marketplace description must describe the current formatter');
 assert.match(readme, new RegExp(
     '/blob/v' + packageJson.version.replace(/\./g, '\\.') +
     '/docs/migration-to-' + packageJson.version.split('.').slice(0, 2).join('\\.') + '\\.md'
@@ -60,6 +69,30 @@ assert.match(architecture, /src\/core\/lexer/);
 assert.match(architecture, /dist\/runtime\.cjs/);
 assert.doesNotMatch(architecture, /`lib\//);
 assert.doesNotMatch(architecture, /vkbeautify/);
+
+var changelogVersions = Array.from(changelog.matchAll(/^### (\d+)\.(\d+)\.(\d+)(?: |$)/gm));
+assert.ok(changelogVersions.length > 0, 'CHANGELOG must contain semantic version headings');
+assert.strictEqual(
+    changelogVersions[0].slice(1, 4).join('.'),
+    packageJson.version,
+    'latest CHANGELOG version must match the package version'
+);
+var changelogVersionKeys = changelogVersions.map(function(match) {
+    return match.slice(1, 4).join('.');
+});
+assert.strictEqual(new Set(changelogVersionKeys).size, changelogVersionKeys.length,
+    'CHANGELOG version headings must be unique');
+for (var versionIndex = 1; versionIndex < changelogVersions.length; versionIndex++) {
+    var previous = changelogVersions[versionIndex - 1].slice(1, 4).map(Number);
+    var current = changelogVersions[versionIndex].slice(1, 4).map(Number);
+    assert.ok(
+        previous[0] > current[0] ||
+            (previous[0] === current[0] && previous[1] > current[1]) ||
+            (previous[0] === current[0] && previous[1] === current[1] && previous[2] > current[2]),
+        'CHANGELOG versions must be strictly descending: ' +
+            changelogVersionKeys[versionIndex - 1] + ' before ' + changelogVersionKeys[versionIndex]
+    );
+}
 
 var temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sql-beautify-release-boundary-'));
 try {
@@ -88,6 +121,15 @@ try {
         ['scripts/verify-release-artifact.js', '--artifact', artifactName],
         { cwd: cleanRoot, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
     );
+    fs.writeFileSync(path.join(cleanRoot, 'images', 'unused.png'), '', 'utf8');
+    var orphanImageCheck = childProcess.spawnSync(
+        process.execPath,
+        ['scripts/verify-release-artifact.js', '--artifact', artifactName],
+        { cwd: cleanRoot, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
+    );
+    assert.notStrictEqual(orphanImageCheck.status, 0,
+        'release verification must reject undeclared repository images');
+    assert.match(orphanImageCheck.stderr, /repository images must contain only explicitly packaged/);
 } finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }
