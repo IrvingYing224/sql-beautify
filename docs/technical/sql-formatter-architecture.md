@@ -1,126 +1,107 @@
 # SQL Formatter Architecture
 
-This document is for maintainers. User-facing behavior belongs in `README.md`.
+This document defines the maintained SQL Beautify 2.x architecture. User-facing behavior belongs in `README.md`; breaking upgrade steps belong in `docs/migration-to-2.0.md`.
 
-## Boundaries
+## Source and dependency boundaries
 
-- `lib/core/`: SQL formatting core. It owns tokenization, shielding, canonical options, registries, opaque unsupported-segment protection, clause line-break mutations, comment/code line modeling, case/select/condition formatting, layout rendering, and keyword casing.
-- `lib/adapters/`: host integration. It owns VS Code configuration mapping, VS Code command/provider orchestration, range-safety enforcement, and user-facing diagnostics.
-- `lib/experimental/ddl/`: experimental Hive DDL formatting and Extract DDL. It is intentionally outside the main SQL formatter responsibility layer.
-- Root `lib/*.js` files are compatibility shims only. They must remain single-line re-exports and must not contain formatter logic.
-- `lib/core/sql-tokenizer.js`: owns protected token and literal boundaries for the structured formatter. It must preserve full bytes for comments, strings, block comments, quoted identifiers, PostgreSQL dollar strings, numeric literals including exponent/hex/leading-dot forms, typed quoted literals, and Hive `${...}` substitutions.
-- `lib/core/sql-token-primitives.js`: shared token-aware primitives for top-level item splitting and code/comment boundaries. New SQL boundary logic must reuse it instead of re-implementing character scans.
-- `lib/core/sql-clause-context.js`: shared token-aware context helper for opaque protection, syntax-risk detection, and structured clause mutation boundaries. `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` detection must use this helper rather than duplicating local word-value checks.
-- `lib/core/sql-opaque-protector.js`: tokenizer-backed protection for complete `MATCH_RECOGNIZE(...)` opaque unsupported clauses. It stores and restores complete opaque ranges, records unsupported metadata, and must not own general clause splitting or layout.
-- `lib/core/sql-safe-diagnostic-report.js`: local-only report builder for restricted production debugging. It emits counts, classifications, safe labels, and timings only; it must not render raw SQL, formatted SQL, token values, file paths, URLs, unsupported snippets, or adapter state.
-- `lib/adapters/safe-diagnostic-report.js`: VS Code command adapter for copying a fresh safe diagnostic report from the active document or selection. It owns clipboard integration and user messages.
-- Obsolete structured formatter facades such as `sql-select-formatter.js`, `sql-case-formatter.js`, `sql-comment-formatter.js`, and `sql-condition-formatter.js` are removed. Do not recreate them as compatibility wrappers; live structured behavior belongs in the focused modules below.
+- `src/core/lexer/` is the lossless lexer. It owns UTF-16 source spans, maximal-munch dialect lexemes, and exact comment/string/identifier bytes.
+- `src/core/syntax/` builds the formatter-oriented lossless CST, applies bounded recovery, recognizes unsupported constructs, and validates tree/token-table invariants.
+- `src/core/analysis/` builds immutable structural indexes and trivia ownership once per request.
+- `src/core/layout/` is the only formatting-policy layer. It emits bounded Layout IR and explicit verbatim claims; it does not edit final strings.
+- `src/core/renderer/` is the only formatted-whitespace authority. It renders Layout IR, applies approved keyword case, and produces source-map facts.
+- `src/core/api/` and `src/core/config/` own the public result and canonical options contracts.
+- `src/adapters/transaction/` owns document/range/multi-selection atomicity. `src/adapters/executor/` owns direct/worker routing, cancellation, timeout, stale-response, and lifecycle boundaries.
+- `src/adapters/vscode/` maps canonical settings, providers, commands, diagnostics, selections, and extension lifecycle without owning SQL layout.
+- `src/experimental/ddl/` contains the explicitly separate Hive DDL formatter and Extract DDL implementation.
 
-## Pipeline
+`src/core/**` must not import adapters, VS Code, or experimental DDL. Adapter and DDL code may consume public or explicitly internal core contracts, never the reverse. TypeScript `strict` mode and immutable result objects make these boundaries executable.
+
+## Formatting pipeline
 
 ```mermaid
 flowchart LR
-    A["adapter canonical options"] --> B["core sql-formatter"]
-    B --> C["SET / opaque protection"]
-    C --> D["tokenize once"]
-    D --> E["FormatDocument"]
-    E --> F["ScopeModel"]
-    F --> G["FormatNodes"]
-    G --> H["structured passes create MutationPlan"]
-    H --> I["invariant guard"]
-    I --> J["StructuredRenderer"]
-    J --> K["controlled restore and final whitespace"]
+    A["source + canonical options"] --> B["lossless lexer"]
+    B --> C["formatter-oriented CST"]
+    C --> D["dialect validation + bounded recovery"]
+    D --> E["structural indexes + trivia binding"]
+    E --> F["layout policy"]
+    F --> G["Layout IR + verbatim claims"]
+    G --> H["single renderer"]
+    H --> I["token equivalence + source-map checks"]
+    I --> J["structured FormatResult"]
 ```
 
-## Core Rules
+Leaves partition the original JavaScript string by end-exclusive UTF-16 code-unit offsets. Comments, strings, quoted identifiers, parameters, dialect literals, and opaque/verbatim structures retain their exact source slices. No global whitespace or SQL regular-expression pass is allowed after rendering.
 
-- Core accepts canonical option names only: `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `caseLayout`, `dialect`, and `unsupportedSyntaxPolicy`.
-- Core must not import `lib/adapters/` or `lib/experimental/`.
-- VS Code configuration accepts `sqlBeautify.*` only. Positional `vkbeautify.sql(...)` arguments remain a wrapper responsibility for the JS API.
-- Comments, strings, block comments, quoted identifiers, and opaque unsupported syntax must never be treated as active SQL code by structure passes.
-- SQL literal and placeholder bytes are semantic input. Renderer spacing must not split exponent numeric literals, hexadecimal literals, typed quoted literals, leading-dot decimals, PostgreSQL dollar strings, or Hive `${...}` substitutions.
-- Structure passes consume `FormatDocument`, `ScopeModel`, and `FormatNodes`; they must not re-derive SELECT, CASE, condition, list, or comment ownership from restored raw strings.
-- No structural pass may run after line comments are restored to real user-authored comment text.
-- Comment/layout interaction must use code/comment records, scope ownership, or mutation records, not fake SQL marker strings.
-- Layout must render the requested indentation directly. It must not render tabs first and globally replace them later.
-- Parenthesized query layout must be stable after one formatting pass. CTE, `FROM (...)`, `IN (...)`, and `EXISTS (...)` query scopes should derive expansion from structured scope/layout facts, not from whether the source text happened to contain newlines.
-- Output whitespace contract: preserve at most one user blank line between logical blocks, normalize line endings to LF, and emit exactly one trailing newline.
-- Range formatting contract: only whole-line, clause-safe, structurally balanced fragments are formatted; unsafe fragments are rejected rather than speculatively rewritten.
+Parser recovery is deliberately bounded. When the formatter can prove a construct boundary, it may preserve that range verbatim; when it can only prove a statement or target boundary, it preserves the broader unit. It never guesses through an unbounded malformed structure.
 
-## Structured Format Model
+Analysis constructs parent/ancestor, statement/clause, list/separator, trivia, offset, and dialect capability indexes once. Layout and renderer code query those indexes instead of repeatedly rescanning all leaves or nodes. Resource-budget and performance tests guard against accidental superlinear work.
 
-`lib/core/sql-format-document.js` builds the lossless per-format `FormatDocument`: source text, tokenizer records, physical line records, protected token classification, diagnostics, scopes, and extracted nodes. `lib/core/sql-format-model.js` remains a legacy compatibility facade for old line-level consumers and should not gain new structure ownership logic.
+## Public result contract
 
-`lib/core/sql-scope-model.js` owns structural ranges such as query, CASE expression, condition block, function call, IN-list, window spec, and parenthesized list. Close-paren indentation facts belong on the owning scope, not in per-pass bracket counters.
+`formatSql(source, options)` is document-only and returns one of:
 
-`lib/core/sql-format-nodes.js` is the thin public orchestrator for pass-level nodes. Concrete extraction is split into focused modules:
+- `formatted`: safe changed text, diagnostics, and a validated source map;
+- `unchanged`: safe identical text, diagnostics, and a validated source map;
+- `preserved`: exact original text and diagnostics, without a source map;
+- `failed`: exact original text and diagnostics, without a source map.
 
-- `sql-list-nodes.js`: SELECT/GROUP BY/top-level ORDER BY list spans, SELECT header metadata, and separator ownership
-- `sql-select-item-nodes.js`: SELECT/GROUP BY item nodes
-- `sql-case-nodes.js`: CASE expression and branch nodes
-- `sql-condition-nodes.js`: condition block and segment nodes
-- `sql-node-utils.js`: shared token predicates and range helpers
+Canonical options are `dialect`, `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `caseLayout`, and `unsupportedSyntaxPolicy`. The default dialect is `hive`; the default unsupported policy is `warn`. Proxies, accessors, exotic option objects, unknown keys, and invalid values fail closed.
 
-Separators must always carry an owner scope so comma mutations cannot accidentally affect function arguments or IN-list values.
+The public package exports are intentionally narrow:
 
-SELECT header modifiers such as `DISTINCT` and `ALL` belong to `selectSpan.header.modifier`. They must not be extracted as `selectItems`, and first-item layout must use owner-local item ordinals rather than global item IDs.
+- `vscode-sql-beautify/formatter`: `formatSql`, `lexSql`;
+- `vscode-sql-beautify/experimental/ddl`: `formatHiveDdl`, `extractDdl`;
+- `vscode-sql-beautify/package.json`.
 
-`lib/core/sql-format-mutations.js` is the only write plan for structure passes. Passes add declarative token, separator, indentation, and comment-alignment mutations; they do not edit final strings directly.
+The package root and internal runtime paths are not public exports.
 
-Structured mutation implementations are split by responsibility:
+## Adapter and transaction contract
 
-- `lib/core/sql-list-layout-policy.js`: pure structured list layout facts for SELECT, GROUP BY, and top-level ORDER BY prefixes, continuation indentation, item indentation, and CASE-in-list indentation. Mutation modules consume this policy instead of duplicating list-kind spacing widths.
-- `sql-list-mutations.js`: generic SELECT/GROUP BY/top-level ORDER BY list layout and comma placement mutations; list indentation facts come from `sql-list-layout-policy.js`
-- `sql-select-mutations.js`: SELECT-specific item layout, AS alignment, CASE item coordination, and SELECT comment/hint behavior
-- `sql-case-mutations.js`: CASE branch layout mutations and explicit CASE layout strategies
-- `sql-condition-mutations.js`: condition clause and connector mutations
-- `sql-comment-mutations.js`: trailing and bound comment alignment mutations
-- `sql-comment-spacing.js`: final line-comment spacing normalization
+Document, range, and multi-selection formatting share one transaction sequence:
 
-Mutation modules expose only their `apply_*_mutations` entry points, except `sql-comment-spacing.js`, which exposes only `normalize_line_comment_spacing`. `sql-list-layout-policy.js` exposes only pure list layout helpers.
+1. snapshot document identity, version, source, targets, options, and cancellation state;
+2. validate target ownership, balance, protected boundaries, non-overlap, and configuration;
+3. compute every target before constructing edits;
+4. recheck document identity, version, and source immediately before one host commit;
+5. commit all edits once, or no edits at all.
 
-`lib/core/sql-structured-renderer.js` is the single rendering boundary for the structured pipeline. It applies mutations deterministically, renders comments from bound comment tokens, preserves protected token bytes, and enforces the final whitespace contract. Its implementation delegates focused helper work to `sql-render-move-state.js`, `sql-render-indent.js`, `sql-render-token-spacing.js`, `sql-render-line.js`, `sql-render-line-facts.js`, `sql-render-width.js`, and `sql-token-renderer.js`. Pre-alignment comment width planning must consume renderer-owned line facts rather than duplicating token rendering, indentation, separator-prefix, line-join, or display-width logic in `sql-render-width.js`; final comment alignment must use the same tab-expanded display width as planned facts. Token-adjacency spacing policy lives in `sql-render-token-spacing.js`; final line rendering, planned-width calculation, and snippet rendering must share that policy. `sql-token-renderer.js` is the mutation-facing facade and must not carry private comma, parenthesis, operator, or window spacing rules.
+Range formatting only accepts complete, structurally safe fragments. Any cancellation, stale state, preservation, failure, malformed executor response, or host rejection returns no partial edits. Selection direction is preserved through the validated source map.
 
-## Verification Contract
+Small requests use the direct executor. Large requests use one persistent worker selected by explicit source/leaf thresholds. Both load `dist/runtime.cjs`; requests bind identity, generation, version, target, source digest, and runtime digest. Timeout, crash, malformed or stale responses, backpressure, cancellation, and disposal fail closed.
 
-- `tests/module-boundary.test.js` checks the live core source graph for forbidden legacy markers and dependency direction.
-- `tests/canonical-core-boundary.test.js` checks canonical options through the core path.
-- `tests/layout-marker-leakage.test.js` protects user-authored text that resembles removed historical markers.
-- `tests/token-boundary.test.js` guards tokenizer-owned literal and placeholder boundaries so renderer spacing cannot change SQL semantics.
-- `tests/pipeline-idempotency.test.js` guards first-pass stability for protected text and compact parenthesized query scopes.
-- `tests/generated-support-matrix.test.js` keeps `docs/technical/sql-support-matrix.md` synchronized with clause/operator registries.
-- `tests/tokenizer-profile.test.js` and the performance smoke test are regression guards for tokenizer churn and accidental path blowups. They are not proof that every maintainability refactor improves wall-clock time.
-- `tests/production-corpus-golden.test.js` locks committed anonymized production-shaped SQL against readable `.formatted.sql` snapshots. Snapshot updates require `SQL_BEAUTIFY_UPDATE_SNAPSHOTS=1`.
-- `tests/production-performance-budget.test.js` reports corpus p50/p95/max timing and uses wide gates as disaster guards, not exact performance promises.
-- Packaging smoke must confirm new runtime core modules are included in the VSIX and obsolete formatter facades are absent when module structure changes.
+The VS Code adapter only handles the explicit `sql` and `hive-sql` language IDs. It reads `sqlBeautify.*` at the document/language scope, publishes safe diagnostics, and registers only the four `sqlBeautify.*` commands declared in `package.json`.
 
-## Unsupported Policy
+## Experimental Hive DDL
 
-Unsupported syntax detection has two inputs:
+The DDL formatter accepts only a fully consumed Hive `CREATE TABLE` subset. It preserves complete input for comments, constraints, defaults, unknown suffixes, malformed delimiters, and multiple statements.
 
-- Opaque protection for constructs whose body must not be rewritten.
-- A lightweight syntax risk detector for known dialect mismatches or known unmodeled constructs.
+Extract DDL consumes query CST ownership and requires one complete, unambiguous projection schema. Wildcards, unresolved expressions without aliases, duplicate Hive output names, malformed aliases, and set-branch schema mismatches reject the entire operation. The only wildcard scalar accepted by projection safety is exact `count(*)`. No type inference is claimed; the default output type is `__TYPE_REQUIRED__`.
 
-This is still not a full parser. The policy means "known low-confidence syntax", not "every possible unsupported SQL grammar form". Opaque constructs must be preserved through shielding before broad rewrites; detector-only findings are context-aware and are reported without implying that every detected fragment was isolated as an opaque preserved segment. Experimental DDL should remain clearly labeled and tested separately.
+DDL command batches use their own all-or-nothing transaction. Only diagnostic-free, non-empty `formatted`/`unchanged` or `extracted` results reach the host commit.
 
-Detector findings must not be based on word value alone. Keyword-shaped identifiers, aliases, and expression function names such as `qualify`, `merge`, or `pivot` are valid formatter inputs unless they appear at a recognized clause or table-construct boundary. Clause boundary handling follows the same rule so a `SELECT qualify AS c` list item is not rewritten into a `QUALIFY` clause.
+## Production artifacts and packaging
 
-`lib/core/sql-clause-context.js` is the shared boundary implementation for this policy. Clause boundary decisions, syntax-risk detection, and structured clause mutations must route low-confidence clause decisions through it so `QUALIFY`, `PIVOT` / `UNPIVOT`, `MERGE`, and `MATCH_RECOGNIZE` context rules do not drift across separate modules.
+`npm run build:v2-runtime` creates exactly five ignored artifacts:
 
-`unsupportedSyntaxPolicy` currently supports:
+- `dist/runtime.cjs`: the single production core plus internal adapter runtime;
+- `dist/sql-formatter.cjs`: public formatter facade loading the shared runtime;
+- `dist/hive-ddl.cjs`: public experimental DDL facade loading the shared runtime;
+- `dist/formatter-worker.cjs`: persistent worker entry;
+- `dist/extension.cjs`: VS Code host wiring.
 
-- `preserve`: keep protected opaque syntax intact, record detected low-confidence syntax, and continue formatting around it
-- `warn`: keep formatting behavior, and emit a runtime warning through the adapter diagnostics path; the warning does not imply every detected fragment was opaque-preserved
-- `bail_out`: abort formatting when known low-confidence syntax is detected
+`package.json.files` is the package and VSIX allowlist. Source, tests, scripts, technical docs, agent files, dependencies, and temporary output must not enter the VSIX. `prepack` builds runtime artifacts so a clean checkout cannot produce a package with dangling `main` or `exports`.
 
-## Diagnostics Contract
+PR/push CI runs with `contents: read`. Only the manual `main` release job receives `contents: write`. Release gates require package, lockfile, VSIX manifest, VSIX filename, tag, workflow SHA, `origin/main`, and GitHub Release target to identify the same version and commit.
 
-- Formatter exceptions surface as user-visible errors and do not replace the source text.
-- Unsafe range fragments are rejected in both the VS Code range formatter and command-driven selection formatting.
-- `warn` diagnostics are user-visible warnings, not debug-only logs.
-- `sqlBeautify.debugDiagnostics=true` adds structured payloads to the extension host console; it does not change formatting behavior.
-- Unsupported syntax diagnostics use structured segment metadata: `kind`, `code`, `label`, `text`, `snippet`, `range`, `source`, `confidence`, and `action`.
-- `format_sql()` remains text-only. Normal `format_sql_detailed()` remains `{ text, diagnostics }` and is the diagnostics-bearing API.
-- `format_sql_detailed(text, { includeTelemetry: true })` is an internal diagnostic mode. It may return `telemetry` and `safeReport`, and formatter errors may carry `error.sqlBeautifyTelemetry`; this flag is not a public VS Code setting and must not change formatted output.
-- `SQL Beautify: Copy Safe Diagnostic Report` (`sqlBeautify.copySafeDiagnosticReport`) copies a local Markdown report only when the user explicitly runs the command. The report is for restricted-environment debugging and must not contain SQL content, formatted SQL, identifiers, literals, comments, paths, URLs, or unsupported segment snippets.
-- Private production SQL can be checked locally with `SQL_BEAUTIFY_CORPUS_DIR=/path/to/sql node tests/production-corpus-private.test.js`; private corpus contents must not be committed.
+## Maintained verification gates
+
+- `npm run typecheck:v2`: strict TypeScript contracts;
+- `npm run test:v2:wave1` through `npm run test:v2:wave5`: lexer, CST, analysis, layout, renderer, adapter, DDL, cutover, packaging, property, and performance gates;
+- `npm run test:verify`: the complete maintained regression aggregate;
+- `npm run verify:clean-package`: isolated clean-source npm package lifecycle and public facade smoke;
+- `npm run package:vsix`: build, package, and inspect the versioned VSIX;
+- `npm exec -- vsce ls --tree --no-dependencies`: human-readable package inventory;
+- `git diff --check`: patch hygiene.
+
+The generated `docs/technical/sql-support-matrix.md` is the single capability authority and must byte-match `scripts/generate-v2-support-matrix.js --check` after the core registry is built.

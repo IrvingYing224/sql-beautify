@@ -8,7 +8,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-vsix-${{ github.ref }}
@@ -16,12 +16,19 @@ concurrency:
 
 jobs:
   build-vsix:
-    name: Build VSIX
+    name: Verify and build VSIX
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      artifact: ${{ steps.package.outputs.artifact }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # Relative performance gates load the committed Wave 2B anchor.
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -32,64 +39,119 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify clean npm package lifecycle
+        run: npm run verify:clean-package
+
       - name: Run regression tests
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: npm run test:verify
 
-      - name: Package VSIX
-        run: npm run package:vsix
-
-      - name: Guard release branch
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: |
-          echo "Formal VSIX release must be built from main. Current ref: ${{ github.ref }}"
-          exit 1
-
-      - name: Read package version
-        if: github.event_name == 'workflow_dispatch'
+      - name: Read package metadata
         id: package
         run: |
-          version=$(node -p "require('./package.json').version")
+          version="$(node -p "require('./package.json').version")"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "artifact=vscode-sql-beautify-v${version}.vsix" >> "$GITHUB_OUTPUT"
 
-      - name: Verify release tag target
+      - name: Package and verify VSIX
+        run: npm run package:vsix
+
+      - name: Upload release candidate
         if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v6
+        with:
+          name: vscode-sql-beautify-v${{ steps.package.outputs.version }}
+          path: ${{ steps.package.outputs.artifact }}
+          if-no-files-found: error
+
+  release:
+    name: Release VSIX
+    needs: build-vsix
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout release SHA
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download verified release candidate
+        uses: actions/download-artifact@v7
+        with:
+          name: vscode-sql-beautify-v${{ needs.build-vsix.outputs.version }}
+
+      - name: Verify release provenance
+        env:
+          VERSION: ${{ needs.build-vsix.outputs.version }}
+          ARTIFACT: ${{ needs.build-vsix.outputs.artifact }}
+        run: |
+          set -eu
+          package_version="$(node -p "require('./package.json').version")"
+          lock_version="$(node -p "require('./package-lock.json').version")"
+          lock_root_version="$(node -p "require('./package-lock.json').packages[''].version")"
+          checkout_sha="$(git rev-parse HEAD)"
+          main_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          tag="v${VERSION}"
+          tag_ref="refs/tags/${tag}"
+          peeled_ref="${tag_ref}^{}"
+
+          test "${package_version}" = "${VERSION}"
+          test "${lock_version}" = "${VERSION}"
+          test "${lock_root_version}" = "${VERSION}"
+          test "${checkout_sha}" = "${GITHUB_SHA}"
+          test "${main_sha}" = "${GITHUB_SHA}"
+          test "${ARTIFACT}" = "vscode-sql-beautify-v${VERSION}.vsix"
+          test -f "${ARTIFACT}"
+          test "$(find . -maxdepth 1 -name '*.vsix' -type f | wc -l | tr -d ' ')" = "1"
+          node scripts/verify-release-artifact.js --artifact "${ARTIFACT}"
+
+          remote_refs="$(git ls-remote --tags origin "${tag_ref}" "${peeled_ref}")"
+          tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${peeled_ref}" '$2 == ref {print $1; exit}')"
+          if [ -z "${tag_sha}" ]; then
+            tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${tag_ref}" '$2 == ref {print $1; exit}')"
+          fi
+          if [ -n "${tag_sha}" ]; then
+            test "${tag_sha}" = "${GITHUB_SHA}"
+          fi
+
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.package.outputs.version }}
+          VERSION: ${{ needs.build-vsix.outputs.version }}
+          ARTIFACT: ${{ needs.build-vsix.outputs.artifact }}
         run: |
+          set -eu
+          tag="v${VERSION}"
+          if gh release view "${tag}" > /dev/null 2>&1; then
+            target="$(gh release view "${tag}" --json targetCommitish --jq .targetCommitish)"
+            test "${target}" = "${GITHUB_SHA}"
+            gh release upload "${tag}" "${ARTIFACT}" --clobber
+          else
+            gh release create "${tag}" "${ARTIFACT}" \
+              --target "${GITHUB_SHA}" \
+              --title "${tag}" \
+              --generate-notes
+          fi
+
+      - name: Verify published tag and Release target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build-vsix.outputs.version }}
+        run: |
+          set -eu
           tag="v${VERSION}"
           tag_ref="refs/tags/${tag}"
           peeled_ref="${tag_ref}^{}"
           remote_refs="$(git ls-remote --tags origin "${tag_ref}" "${peeled_ref}")"
-          remote_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${peeled_ref}" '$2 == ref {print $1; exit}')"
-          if [ -z "${remote_sha}" ]; then
-            remote_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${tag_ref}" '$2 == ref {print $1; exit}')"
+          tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${peeled_ref}" '$2 == ref {print $1; exit}')"
+          if [ -z "${tag_sha}" ]; then
+            tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${tag_ref}" '$2 == ref {print $1; exit}')"
           fi
-          if [ -n "${remote_sha}" ]; then
-            current_sha="$(git rev-parse HEAD)"
-            if [ "${remote_sha}" != "${current_sha}" ]; then
-              echo "Existing tag ${tag} resolves to ${remote_sha}, but current HEAD is ${current_sha}."
-              exit 1
-            fi
-          fi
-
-      - name: Upload VSIX artifact
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v6
-        with:
-          name: vscode-sql-beautify-vsix
-          path: "*.vsix"
-          if-no-files-found: error
-
-      - name: Create or update GitHub Release
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.package.outputs.version }}
-        run: |
-          tag="v${VERSION}"
-          if gh release view "${tag}" > /dev/null 2>&1; then
-            gh release upload "${tag}" ./*.vsix --clobber
-          else
-            gh release create "${tag}" ./*.vsix --title "${tag}" --notes "Manual VSIX build for ${tag}."
-          fi
+          target="$(gh release view "${tag}" --json targetCommitish --jq .targetCommitish)"
+          test "${tag_sha}" = "${GITHUB_SHA}"
+          test "${target}" = "${GITHUB_SHA}"

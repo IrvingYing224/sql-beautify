@@ -1,0 +1,20 @@
+{
+    "extends": "./tsconfig.v2.json",
+    "compilerOptions": {
+        "noEmit": false,
+        "rootDir": "src",
+        "outDir": ".tmp/v2-core",
+        "declaration": false,
+        "declarationMap": false,
+        "sourceMap": false,
+        "removeComments": false
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "tests/**",
+        "node_modules/**",
+        ".tmp/**"
+    ]
+}

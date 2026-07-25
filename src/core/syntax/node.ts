@@ -1,0 +1,363 @@
+import type { CapabilityIdentity } from "../diagnostics/diagnostic";
+import type {
+    OperatorFixity,
+    OperatorFormatClass,
+    OperatorSemantics,
+} from "../dialects/types";
+import type { SourceSpan } from "../source/source-span";
+import type { LeafRange } from "./leaf-range";
+
+export type { LeafRange } from "./leaf-range";
+
+export type SyntaxLeafRole =
+    | "syntax-keyword"
+    | "word-operator-keyword"
+    | "builtin-type-keyword"
+    | "identifier-name"
+    | "alias-name"
+    | "relation-name"
+    | "user-type-name"
+    | "literal"
+    | "parameter"
+    | "symbol-operator"
+    | "delimiter"
+    | "separator"
+    | "punctuation"
+    | "unknown-preserved";
+
+export type SyntaxMarkerId =
+    | `clause:${ClauseKind}`
+    | "statement-terminator"
+    | "cte-as"
+    | "alias-as"
+    | "lateral-view-output-as"
+    | "join-head"
+    | "set-operator"
+    | "case:start"
+    | "case:when"
+    | "case:then"
+    | "case:else"
+    | "case:end"
+    | "window:over"
+    | "window:partition-by"
+    | "window:order-by"
+    | "window:rows"
+    | "window:range"
+    | "window:groups"
+    | "window:between"
+    | "window:and"
+    | "window:unbounded"
+    | "window:current-row"
+    | "window:preceding"
+    | "window:following"
+    | "type:name"
+    | "type:cast"
+    | "type:as"
+    | "type:member-colon"
+    | "delimiter"
+    | "separator"
+    | "operator";
+
+export interface SyntaxMarker {
+    readonly leafId: number;
+    readonly syntaxId: SyntaxMarkerId;
+    readonly partOrdinal: number;
+    readonly syntaxRole: SyntaxLeafRole;
+    readonly keywordCaseEligible: boolean;
+}
+
+export type FormatRole =
+    | "capability"
+    | "intrinsic-container"
+    | "intrinsic-primitive"
+    | "opaque";
+
+export interface SyntaxNodeFacts {
+    readonly syntaxMarkers: readonly SyntaxMarker[];
+    readonly capabilityId: CapabilityIdentity;
+    readonly formatRole: FormatRole;
+}
+
+export interface OperatorOccurrenceInput {
+    readonly leafIds: readonly number[];
+    /** Exact canonical semantics object returned by the dialect registry. */
+    readonly semantics: OperatorSemantics;
+}
+
+export interface OperatorOccurrence {
+    readonly ownerNodeId: number;
+    readonly leafIds: readonly number[];
+    readonly operatorId: string;
+    readonly capabilityId: string | null;
+    readonly fixity: OperatorFixity;
+    readonly formatClass: OperatorFormatClass;
+    /** Retains registry object identity; analysis rejects cloned semantics. */
+    readonly semantics: OperatorSemantics;
+}
+
+export interface ClauseNodeFacts extends SyntaxNodeFacts {
+    readonly separatorLeafIds: readonly number[];
+}
+
+export interface RelationNodeFacts extends SyntaxNodeFacts {
+    readonly nameLeafRange: LeafRange | null;
+}
+
+export interface ExpressionNodeFacts extends SyntaxNodeFacts {
+    readonly operatorOccurrences: readonly OperatorOccurrenceInput[];
+}
+
+export interface SyntaxNodeBase<K extends string> {
+    readonly id: number;
+    readonly kind: K;
+    readonly span: SourceSpan;
+    readonly leafRange: LeafRange;
+    readonly syntaxMarkers: readonly SyntaxMarker[];
+    readonly capabilityId: CapabilityIdentity;
+    readonly formatRole: FormatRole;
+}
+
+export interface AliasInfo {
+    readonly keywordLeafId: number | null;
+    readonly nameLeafRange: LeafRange;
+}
+
+export type StatementKind = "empty" | "query" | "insert-query" | "opaque";
+export type QueryKind = "select" | "set" | "parenthesized";
+export type ClauseKind =
+    | "with"
+    | "select"
+    | "from"
+    | "where"
+    | "group-by"
+    | "having"
+    | "window"
+    | "order-by"
+    | "cluster-by"
+    | "distribute-by"
+    | "sort-by"
+    | "limit"
+    | "join-on"
+    | "join-using"
+    | "lateral-view"
+    | "insert"
+    | "partition"
+    | "set-operation";
+
+/**
+ * Relation kinds. `opaque` means the relation wrapper contains exactly one
+ * OpaqueNode child that carries reasonCode/boundary — not a second opaque form.
+ */
+export type RelationKind =
+    | "table"
+    | "subquery"
+    | "join"
+    | "lateral-view"
+    | "table-function"
+    | "opaque";
+
+export type ListRole =
+    | "select-items"
+    | "group-by-items"
+    | "order-by-items"
+    | "cluster-by-items"
+    | "distribute-by-items"
+    | "sort-by-items"
+    | "partition-columns"
+    | "function-args"
+    | "cte-columns"
+    | "window-partition"
+    | "window-order"
+    | "type-args"
+    | "type-members"
+    | "values"
+    | "other";
+
+export type ListItemRole =
+    | "select-item"
+    | "group-by-item"
+    | "order-by-item"
+    | "cluster-by-item"
+    | "distribute-by-item"
+    | "sort-by-item"
+    | "partition-column"
+    | "function-arg"
+    | "cte-column"
+    | "window-partition-item"
+    | "window-order-item"
+    | "type-arg"
+    | "type-member"
+    | "value"
+    | "other";
+
+/**
+ * Structured expression kinds only. Opaque expressions use OpaqueNode
+ * (reasonCode + boundary) — never ExpressionKind "opaque".
+ */
+export type ExpressionKind =
+    | "identifier"
+    | "qualified-identifier"
+    | "wildcard"
+    | "literal"
+    | "parameter"
+    | "unary"
+    | "binary"
+    | "function-call"
+    | "cast"
+    | "case"
+    | "subquery"
+    | "parenthesized"
+    | "collection"
+    | "window"
+    | "between"
+    | "in"
+    | "exists"
+    | "is"
+    | "frame-bound"
+    | "typed-literal";
+
+export type CaseBranchKind = "when" | "else";
+
+export type OpaqueBoundary =
+    | "expression"
+    | "list-item"
+    | "clause"
+    | "relation"
+    | "statement"
+    | "target"
+    | "type"
+    | "window"
+    | "other";
+
+export interface ProgramNode extends SyntaxNodeBase<"program"> {
+    /** Ordered statement children only (design §7.2). */
+    readonly children: readonly StatementNode[];
+}
+
+export interface StatementNode extends SyntaxNodeBase<"statement"> {
+    readonly statementKind: StatementKind;
+    /**
+     * Direct child id of the statement body (query / insert body / opaque),
+     * or null for empty statements.
+     */
+    readonly bodyChildId: number | null;
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface QueryNode extends SyntaxNodeBase<"query"> {
+    readonly queryKind: QueryKind;
+    /** Leaf ids of set operators combining child queries (empty for non-set). */
+    readonly setOperatorLeafIds: readonly number[];
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface CteNode extends SyntaxNodeBase<"cte"> {
+    readonly nameLeafRange: LeafRange;
+    /** Child id of the CTE query body (required). */
+    readonly queryChildId: number;
+    /** Child id of optional column list, or null. */
+    readonly columnListChildId: number | null;
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface ClauseNode extends SyntaxNodeBase<"clause"> {
+    readonly clauseKind: ClauseKind;
+    readonly headLeafRange: LeafRange;
+    readonly bodyLeafRange: LeafRange;
+    /** Direct comma separators for clause-owned sequences not represented by ListNode. */
+    readonly separatorLeafIds: readonly number[];
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface RelationNode extends SyntaxNodeBase<"relation"> {
+    readonly relationKind: RelationKind;
+    /** Complete qualified table name; null for non-table relations. */
+    readonly nameLeafRange: LeafRange | null;
+    readonly alias: AliasInfo | null;
+    /**
+     * When relationKind is "opaque", bodyChildId must reference the unique
+     * OpaqueNode child. Otherwise optional body (subquery/join payload).
+     */
+    readonly bodyChildId: number | null;
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface ListNode extends SyntaxNodeBase<"list"> {
+    readonly listRole: ListRole;
+    readonly separatorLeafIds: readonly number[];
+    /** Ordered list-item children. */
+    readonly children: readonly ListItemNode[];
+}
+
+export interface ListItemNode extends SyntaxNodeBase<"list-item"> {
+    readonly itemRole: ListItemRole;
+    readonly alias: AliasInfo | null;
+    readonly modifierLeafIds: readonly number[];
+    /** Child id of the item value (expression / opaque / subquery). */
+    readonly valueChildId: number;
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface ExpressionNode extends SyntaxNodeBase<"expression"> {
+    readonly expressionKind: ExpressionKind;
+    readonly operatorLeafIds: readonly number[];
+    readonly operatorOccurrences: readonly OperatorOccurrence[];
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface CaseBranchNode extends SyntaxNodeBase<"case-branch"> {
+    readonly branchKind: CaseBranchKind;
+    /** WHEN condition child id, or null for ELSE. */
+    readonly conditionChildId: number | null;
+    /** THEN/ELSE value child id. */
+    readonly valueChildId: number;
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface WindowSpecNode extends SyntaxNodeBase<"window-spec"> {
+    /** Named WINDOW reference/declaration name, or null for an inline spec. */
+    readonly nameLeafRange: LeafRange | null;
+    readonly partitionChildId: number | null;
+    readonly orderChildId: number | null;
+    readonly frameChildId: number | null;
+    readonly children: readonly SyntaxNode[];
+}
+
+export interface TypeExpressionNode extends SyntaxNodeBase<"type-expression"> {
+    readonly typeNameLeafRange: LeafRange;
+    readonly argumentListChildId: number | null;
+    readonly memberListChildId: number | null;
+    readonly children: readonly SyntaxNode[];
+}
+
+/**
+ * Sole opaque structure carrying reasonCode and boundary.
+ * Must not declare a children property.
+ */
+export interface OpaqueNode extends SyntaxNodeBase<"opaque"> {
+    readonly reasonCode: string;
+    readonly boundary: OpaqueBoundary;
+}
+
+export type SyntaxNode =
+    | ProgramNode
+    | StatementNode
+    | QueryNode
+    | CteNode
+    | ClauseNode
+    | RelationNode
+    | ListNode
+    | ListItemNode
+    | ExpressionNode
+    | CaseBranchNode
+    | WindowSpecNode
+    | TypeExpressionNode
+    | OpaqueNode;
+
+/**
+ * Structured kinds are derived from the SyntaxNode union excluding opaque.
+ */
+export type StructuredSyntaxKind = Exclude<SyntaxNode["kind"], "opaque">;
+
+/** @deprecated Use specific node interfaces; retained name for Wave 0 type surface. */
+export type StructuredNode = Exclude<SyntaxNode, OpaqueNode>;

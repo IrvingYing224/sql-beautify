@@ -2,7 +2,7 @@
 	"name": "vscode-sql-beautify",
 	"displayName": "SQL Beautify",
 	"description": "More Powerful extension that beautifies SQL/一键美化你的SQL",
-	"version": "1.0.13",
+	"version": "2.0.0",
 	"publisher": "clarkyu",
 	"maintainers": [
 		"IrvingYing224"
@@ -24,11 +24,8 @@
 	"activationEvents": [
 		"onLanguage:sql",
 		"onLanguage:hive-sql",
-		"onCommand:extension.beautifySql",
 		"onCommand:sqlBeautify.formatSql",
-		"onCommand:extension.beautifySqlddl",
 		"onCommand:sqlBeautify.formatHiveDdl",
-		"onCommand:extension.extractDdl",
 		"onCommand:sqlBeautify.extractHiveDdl",
 		"onCommand:sqlBeautify.copySafeDiagnosticReport"
 	],
@@ -36,28 +33,32 @@
 		"type": "git",
 		"url": "https://github.com/IrvingYing224/sql-beautify.git"
 	},
-	"main": "./extension.js",
+	"main": "./dist/extension.cjs",
+	"exports": {
+		"./formatter": "./dist/sql-formatter.cjs",
+		"./experimental/ddl": "./dist/hive-ddl.cjs",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"dist/extension.cjs",
+		"dist/runtime.cjs",
+		"dist/sql-formatter.cjs",
+		"dist/hive-ddl.cjs",
+		"dist/formatter-worker.cjs",
+		"images/**",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE.txt"
+	],
 	"contributes": {
 		"commands": [
-			{
-				"command": "extension.beautifySql",
-				"title": "Beautify SQL"
-			},
 			{
 				"command": "sqlBeautify.formatSql",
 				"title": "SQL Beautify: Format SQL"
 			},
 			{
-				"command": "extension.beautifySqlddl",
-				"title": "Beautify SQL DDL (Experimental)"
-			},
-			{
 				"command": "sqlBeautify.formatHiveDdl",
 				"title": "SQL Beautify: Format Hive DDL (Experimental)"
-			},
-			{
-				"command": "extension.extractDdl",
-				"title": "Extract DDL (Experimental)"
 			},
 			{
 				"command": "sqlBeautify.extractHiveDdl",
@@ -70,19 +71,19 @@
 		],
 		"keybindings": [
 			{
-				"command": "extension.beautifySql",
+				"command": "sqlBeautify.formatSql",
 				"key": "alt+shift+f",
-				"when": "editorTextFocus && !editorReadonly && editorLangId =~ /sql/ "
+				"when": "editorTextFocus && !editorReadonly && (editorLangId == sql || editorLangId == hive-sql)"
 			},
 			{
-				"command": "extension.beautifySqlddl",
+				"command": "sqlBeautify.formatHiveDdl",
 				"key": "alt+shift+l",
-				"when": "editorTextFocus && !editorReadonly && editorLangId =~ /sql/ "
+				"when": "editorTextFocus && !editorReadonly && (editorLangId == sql || editorLangId == hive-sql)"
 			},
 			{
-				"command": "extension.extractDdl",
+				"command": "sqlBeautify.extractHiveDdl",
 				"key": "alt+shift+;",
-				"when": "editorTextFocus && !editorReadonly && editorLangId =~ /sql/ "
+				"when": "editorTextFocus && !editorReadonly && (editorLangId == sql || editorLangId == hive-sql)"
 			}
 		],
 		"configuration": {
@@ -151,7 +152,7 @@
 					"enum": [
 						"generic",
 						"hive",
-						"postgres",
+						"postgresql",
 						"mysql"
 					],
 					"default": "hive",
@@ -165,7 +166,7 @@
 						"warn",
 						"bail_out"
 					],
-					"default": "preserve",
+					"default": "warn",
 					"description": "Policy for unsupported or unmodeled syntax. /未建模语法的处理策略"
 				},
 				"sqlBeautify.debugDiagnostics": {
@@ -178,57 +179,43 @@
 		}
 	},
 	"scripts": {
-		"test:case": "node tests/case-when.test.js",
-		"test:comment": "node tests/comment-alignment.test.js",
-		"test:config": "node tests/config-options.test.js",
-		"test:ddl": "node tests/ddl-regression.test.js",
-		"test:extractddl": "node tests/extractddl-safety.test.js",
-		"test:select": "node tests/select-alignment.test.js",
-		"test:window": "node tests/window-function-spacing.test.js",
-		"test:token-spacing-policy": "node tests/token-spacing-policy.test.js",
-		"test:condition": "node tests/condition-alignment.test.js",
-		"test:extension": "node tests/extension-contribution.test.js",
-		"test:range": "node tests/range-format-policy.test.js",
-		"test:performance": "node tests/performance-smoke.test.js",
-		"test:production-performance": "node tests/production-performance-budget.test.js",
-		"test:tokenizer-profile": "node tests/tokenizer-profile.test.js",
-		"test:hive": "node tests/hive-regression.test.js",
-		"test:placeholder": "node tests/placeholder-collision.test.js",
-		"test:dialect": "node tests/dialect-boundary.test.js",
-		"test:operators": "node tests/operator-matrix.test.js",
-		"test:clauses": "node tests/clause-registry.test.js",
-		"test:clause-context": "node tests/clause-context.test.js",
-		"test:api": "node tests/formatter-api.test.js",
-		"test:modules": "node tests/module-boundary.test.js",
-		"test:marker": "node tests/layout-marker-leakage.test.js",
-		"test:canonical": "node tests/canonical-core-boundary.test.js",
-		"test:format-document": "node tests/format-document-model.test.js",
-		"test:format-scope": "node tests/format-scope-model.test.js",
-		"test:format-navigation": "node tests/format-navigation.test.js",
-		"test:token-renderer": "node tests/sql-token-renderer.test.js",
-		"test:render-width": "node tests/render-width.test.js",
-		"test:format-invariants": "node tests/format-invariants.test.js",
-		"test:structured": "node tests/structured-pipeline-regression.test.js",
-		"test:production-corpus": "node tests/production-corpus-golden.test.js",
-		"test:production-private": "node tests/production-corpus-private.test.js",
-		"test:pipeline": "node tests/pipeline-idempotency.test.js",
-		"test:token": "node tests/token-boundary.test.js",
-		"test:support-matrix": "node tests/generated-support-matrix.test.js",
-		"test:unsupported": "node tests/unsupported-safety.test.js",
-		"test:diagnostics": "node tests/diagnostics-explainability.test.js",
-		"test:safe-report": "node tests/safe-diagnostic-report.test.js",
-		"test:telemetry": "node tests/formatter-telemetry.test.js",
-		"test:verify": "node tests/comment-alignment.test.js && node tests/case-when.test.js && node tests/select-alignment.test.js && node tests/window-function-spacing.test.js && node tests/token-spacing-policy.test.js && node tests/condition-alignment.test.js && node tests/hive-regression.test.js && node tests/token-boundary.test.js && node tests/placeholder-collision.test.js && node tests/dialect-boundary.test.js && node tests/operator-matrix.test.js && node tests/clause-registry.test.js && node tests/clause-context.test.js && node tests/formatter-api.test.js && node tests/module-boundary.test.js && node tests/layout-marker-leakage.test.js && node tests/canonical-core-boundary.test.js && node tests/extension-contribution.test.js && node tests/range-format-policy.test.js && node tests/performance-smoke.test.js && node tests/production-performance-budget.test.js && node tests/tokenizer-profile.test.js && node tests/config-options.test.js && node tests/format-document-model.test.js && node tests/format-scope-model.test.js && node tests/format-navigation.test.js && node tests/sql-token-renderer.test.js && node tests/render-width.test.js && node tests/format-invariants.test.js && node tests/structured-pipeline-regression.test.js && node tests/structured-differential.test.js && node tests/production-corpus-golden.test.js && node tests/pipeline-idempotency.test.js && node tests/ddl-regression.test.js && node tests/extractddl-safety.test.js && node tests/generated-support-matrix.test.js && node tests/unsupported-safety.test.js && node tests/diagnostics-explainability.test.js && node tests/safe-diagnostic-report.test.js && node tests/formatter-telemetry.test.js",
-		"package:vsix": "vsce package --out vscode-sql-beautify-v${npm_package_version}.vsix"
+		"test:verify": "npm run test:v2:wave1 && npm run test:v2:wave2 && npm run test:v2:wave3 && npm run test:v2:wave4 && npm run test:v2:wave5",
+		"package:vsix": "npm run build:v2-runtime && vsce package --no-dependencies --out vscode-sql-beautify-v${npm_package_version}.vsix && node scripts/verify-release-artifact.js --artifact vscode-sql-beautify-v${npm_package_version}.vsix --compare-build",
+		"prepack": "npm run build:v2-runtime",
+		"verify:clean-package": "node scripts/verify-clean-package.js",
+		"typecheck:v2": "tsc -p tsconfig.v2.json",
+		"build:v2-core": "node scripts/build-v2-core.js",
+		"build:v2-runtime": "node scripts/build-v2-runtime.js",
+		"test:v2:lexer": "npm run build:v2-core && node tests/v2/lossless-lexer.test.js",
+		"test:v2:lexer-performance": "npm run build:v2-core && node tests/v2/lossless-lexer-performance.test.js",
+		"test:v2:wave1": "npm run build:v2-core && node tests/v2/sql-corpus-contract.test.js && node tests/v2/lossless-lexer.test.js && node tests/v2/lossless-lexer-performance.test.js",
+		"test:v2:wave2-foundation": "npm run build:v2-core && node tests/v2/dialect-capability-registry.test.js && node tests/v2/syntax-token-table.test.js && node tests/v2/syntax-invariants.test.js && node tests/v2/wave2a-hardening.test.js && node tests/v2/wave2a-cst-hardening.test.js && node tests/v2/wave2a-token-table-hardening.test.js && node tests/v2/syntax-invariants-performance.test.js",
+		"test:v2:hive-cst": "npm run build:v2-core && node tests/v2/hive-cst-parser.test.js",
+		"test:v2:wave2-corpus": "npm run build:v2-core && node tests/v2/wave2-corpus.test.js",
+		"test:v2:wave2-performance": "npm run build:v2-core && node tests/v2/wave2-performance.test.js",
+		"test:v2:expression": "npm run build:v2-core && node tests/v2/expression-parser.test.js",
+		"test:v2:recovery": "npm run build:v2-core && node tests/v2/recovery-opaque.test.js && node tests/v2/parser-depth.test.js && node tests/v2/recovery-fuzz.test.js",
+		"test:v2:trivia": "npm run build:v2-core && node tests/v2/trivia-binding.test.js",
+		"test:v2:analysis": "npm run build:v2-core && node tests/v2/analysis-index.test.js",
+		"test:v2:support-matrix": "npm run build:v2-core && node tests/v2/v2-support-matrix.test.js && node scripts/generate-v2-support-matrix.js --check",
+		"test:v2:wave2": "npm run test:v2:wave2-foundation && node tests/v2/hive-cst-parser.test.js && node tests/v2/wave2b-final-hardening.test.js && node tests/v2/expression-parser.test.js && node tests/v2/recovery-opaque.test.js && node tests/v2/parser-depth.test.js && node tests/v2/trivia-binding.test.js && node tests/v2/recovery-fuzz.test.js && node tests/v2/analysis-index.test.js && node tests/v2/v2-support-matrix.test.js && node scripts/generate-v2-support-matrix.js --check && node tests/v2/wave2-corpus.test.js && node tests/v2/wave2-performance.test.js",
+		"test:v2:wave3-foundation": "npm run typecheck:v2 && npm run build:v2-core && node tests/v2/wave3a-config-options.test.js && node tests/v2/wave3a-analysis-artifact.test.js && node tests/v2/wave3a-contextual-facts.test.js && node tests/v2/wave3a-cst-invariants.test.js && node tests/v2/wave3a-layout-resource-budget.test.js && node tests/v2/wave3a-layout-invariants.test.js",
+		"test:v2:wave3": "npm run test:v2:wave3-foundation && node tests/v2/wave3b-renderer.test.js && node tests/v2/wave3b-format-kernel.test.js && node tests/v2/wave3c-plan-scopes.test.js && node tests/v2/wave3c-hive-query-layout.test.js && node tests/v2/wave3c-resource-closure.test.js && node tests/v2/wave3d-expression-layout.test.js && node tests/v2/wave3d-resource-closure.test.js && node tests/v2/wave3e-trivia-layout.test.js && node tests/v2/wave3e-alignment-options.test.js && node tests/v2/wave3e-dialect-layout.test.js && node tests/v2/wave3e-option-matrix.test.js && node tests/v2/wave3-properties.test.js && node tests/v2/wave3-alignment-performance.test.js && node tests/v2/wave3-performance.test.js && node tests/v2/wave3-performance-relative.test.js && node tests/v2/dialect-capability-registry.test.js && node tests/v2/v2-support-matrix.test.js && node scripts/generate-v2-support-matrix.js --check",
+		"test:v2:wave4": "npm run build:v2-core && npm run build:v2-runtime && node tests/v2/v2-runtime-boundary.test.js && node tests/v2/wave4a-public-api.test.js && node tests/v2/wave4a-source-map.test.js && node tests/v2/wave4a-transaction.test.js && node tests/v2/wave4b-range-transaction.test.js && node tests/v2/wave4b-cancellation-diagnostics.test.js && node tests/v2/wave4b-multiselection.test.js && node tests/v2/wave4b-cursor.test.js && node tests/v2/wave4b-language-registry.test.js && node tests/v2/wave4c-executor.test.js && node tests/v2/wave4c-worker-lifecycle.test.js && node tests/v2/wave4c-performance.test.js && node tests/v2/wave4d-ddl.test.js && node tests/v2/wave4d-extract-ddl.test.js && node tests/v2/wave4d-transaction.test.js && node tests/v2/wave4d-performance.test.js && node tests/v2/wave4-properties.test.js && node tests/v2/wave4-performance.test.js",
+		"test:v2:wave5-stage-a": "npm run typecheck:v2 && npm run build:v2-core && npm run build:v2-runtime && node tests/v2/wave4a-transaction.test.js && node tests/v2/wave4d-transaction.test.js && node tests/v2/wave5-runtime-artifact.test.js && node tests/v2/wave5-vscode-adapter.test.js",
+		"test:v2:corpus": "npm run build:v2-core && node tests/v2/sql-corpus-contract.test.js",
+		"test:v2:wave5-stage-b": "npm run test:v2:wave5-stage-a && node tests/v2/wave5-production-corpus.test.js && node tests/v2/wave5-cutover-boundary.test.js",
+		"test:v2:wave5": "npm run test:v2:wave5-stage-b && node tests/v2/wave5-release-boundary.test.js && npm run verify:clean-package",
+		"test:production-private": "npm run build:v2-runtime && node tests/v2/wave5-production-private.test.js"
 	},
 	"vsce": {
 		"dependencies": false
 	},
 	"icon": "images/icon.png",
-	"dependencies": {
-	},
 	"devDependencies": {
 		"@types/vscode": "^1.90.0",
-		"@vscode/vsce": "^3.2.2"
+		"@vscode/vsce": "^3.2.2",
+		"esbuild": "0.28.1",
+		"typescript": "6.0.3"
 	}
 }

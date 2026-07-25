@@ -20,9 +20,11 @@ pnpm-debug.log*
 # Build / package output
 *.vsix
 .vsixmanifest
+dist/
 
 # Dependencies
 node_modules/
 
 # Local agent files
 .codex
+.tmp/

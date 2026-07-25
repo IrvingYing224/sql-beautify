@@ -1,0 +1,1302 @@
+'use strict';
+
+/**
+ * Wave 2A CST / Program coverage / relationship contract regressions.
+ * Production invariant surface only (not exhaustive token-table misuse).
+ */
+var assert = require('assert');
+var fs = require('fs');
+var path = require('path');
+
+var root = path.join(__dirname, '..', '..');
+var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
+var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
+var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
+
+assert.ok(fs.existsSync(corePath), 'build:v2-core required');
+assert.ok(fs.existsSync(invariantsPath), 'invariants required');
+
+var core = require(corePath);
+var tokenTableMod = require(tokenTablePath);
+var invariantRuntime = require(invariantsPath);
+
+var EMPTY_FACTS = Object.freeze([]);
+
+function hasOwn(value, key) {
+    return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function dataValue(value, key) {
+    var descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && hasOwn(descriptor, 'value') ? descriptor.value : undefined;
+}
+
+function freezeDataRange(value) {
+    if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+        Object.freeze(value);
+    }
+    return value;
+}
+
+function freezeDataArray(value, itemFreezer) {
+    if (!Array.isArray(value)) {
+        return value;
+    }
+    for (var index = 0; index < value.length; index += 1) {
+        var descriptor = Object.getOwnPropertyDescriptor(value, index);
+        if (descriptor && hasOwn(descriptor, 'value') && itemFreezer) {
+            itemFreezer(descriptor.value);
+        }
+    }
+    if (!Object.isFrozen(value)) {
+        Object.freeze(value);
+    }
+    return value;
+}
+
+function marker(leafId, syntaxId, partOrdinal, syntaxRole, keywordCaseEligible) {
+    return Object.freeze({
+        leafId: leafId,
+        syntaxId: syntaxId,
+        partOrdinal: partOrdinal,
+        syntaxRole: syntaxRole,
+        keywordCaseEligible: keywordCaseEligible
+    });
+}
+
+function inferredKind(node) {
+    var kind = dataValue(node, 'kind');
+    if (typeof kind === 'string') {
+        return kind;
+    }
+    // The mutable-leaf oracle fixture intentionally exposes kind through a
+    // getter. Infer its opaque shape without consuming that getter early.
+    if (hasOwn(node, 'reasonCode') && hasOwn(node, 'boundary')) {
+        return 'opaque';
+    }
+    return null;
+}
+
+function formatFactsFor(node, kind) {
+    var capabilityId = null;
+    var formatRole = 'intrinsic-container';
+    if (kind === 'opaque') {
+        formatRole = 'opaque';
+    } else if (kind === 'query') {
+        formatRole = 'capability';
+        capabilityId = dataValue(node, 'queryKind') === 'parenthesized'
+            ? 'subquery'
+            : dataValue(node, 'queryKind') === 'set'
+                ? 'set-operations'
+                : 'select-without-from';
+    } else if (kind === 'expression') {
+        var expressionKind = dataValue(node, 'expressionKind');
+        var capabilityByKind = {
+            'function-call': 'function-call',
+            cast: 'cast-type',
+            case: 'case-expression',
+            subquery: 'subquery-expression',
+            window: 'window-expression',
+            collection: 'collection-expression'
+        };
+        if (capabilityByKind[expressionKind]) {
+            formatRole = 'capability';
+            capabilityId = capabilityByKind[expressionKind];
+        } else if (
+            expressionKind === 'identifier' ||
+            expressionKind === 'wildcard' ||
+            expressionKind === 'literal' ||
+            expressionKind === 'parameter' ||
+            expressionKind === 'typed-literal'
+        ) {
+            formatRole = 'intrinsic-primitive';
+        }
+    } else if (kind === 'type-expression') {
+        formatRole = 'intrinsic-primitive';
+    }
+    return { capabilityId: capabilityId, formatRole: formatRole };
+}
+
+function defaultSyntaxMarkers(node, kind, leaves) {
+    var markers = [];
+    if (kind === 'clause') {
+        var headRange = dataValue(node, 'headLeafRange');
+        var clauseKind = dataValue(node, 'clauseKind');
+        var ordinal = 0;
+        if (headRange && typeof clauseKind === 'string') {
+            for (var leafId = headRange.start; leafId < headRange.end; leafId += 1) {
+                if (leaves[leafId] && leaves[leafId].channel === 'code') {
+                    markers.push(marker(
+                        leafId,
+                        'clause:' + clauseKind,
+                        ordinal,
+                        'syntax-keyword',
+                        true
+                    ));
+                    ordinal += 1;
+                }
+            }
+        }
+    } else if (kind === 'list-item') {
+        var alias = dataValue(node, 'alias');
+        var keywordLeafId = alias && typeof alias === 'object'
+            ? dataValue(alias, 'keywordLeafId')
+            : null;
+        if (Number.isInteger(keywordLeafId)) {
+            markers.push(marker(keywordLeafId, 'alias-as', 0, 'syntax-keyword', true));
+        }
+    }
+    return markers.length === 0 ? EMPTY_FACTS : Object.freeze(markers);
+}
+
+function freezeAlias(alias) {
+    if (!alias || typeof alias !== 'object') {
+        return;
+    }
+    freezeDataRange(dataValue(alias, 'nameLeafRange'));
+    if (!Object.isFrozen(alias)) {
+        Object.freeze(alias);
+    }
+}
+
+function freezeOperatorOccurrence(occurrence) {
+    if (!occurrence || typeof occurrence !== 'object') {
+        return;
+    }
+    freezeDataArray(dataValue(occurrence, 'leafIds'));
+    if (!Object.isFrozen(occurrence)) {
+        Object.freeze(occurrence);
+    }
+}
+
+function supplyWave3Facts(node, leaves, seen) {
+    if (!node || typeof node !== 'object') {
+        return;
+    }
+    seen = seen || new Set();
+    if (seen.has(node)) {
+        return;
+    }
+    seen.add(node);
+
+    var kind = inferredKind(node);
+    var facts = formatFactsFor(node, kind);
+    if (!hasOwn(node, 'capabilityId')) {
+        node.capabilityId = facts.capabilityId;
+    }
+    if (!hasOwn(node, 'formatRole')) {
+        node.formatRole = facts.formatRole;
+    }
+    if (!hasOwn(node, 'syntaxMarkers')) {
+        node.syntaxMarkers = defaultSyntaxMarkers(node, kind, leaves);
+    } else {
+        freezeDataArray(dataValue(node, 'syntaxMarkers'), function(value) {
+            if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+                Object.freeze(value);
+            }
+        });
+    }
+
+    if (kind === 'clause') {
+        if (!hasOwn(node, 'separatorLeafIds')) {
+            node.separatorLeafIds = EMPTY_FACTS;
+        } else {
+            freezeDataArray(dataValue(node, 'separatorLeafIds'));
+        }
+    } else if (kind === 'list') {
+        freezeDataArray(dataValue(node, 'separatorLeafIds'));
+    } else if (kind === 'expression') {
+        freezeDataArray(dataValue(node, 'operatorLeafIds'));
+        if (!hasOwn(node, 'operatorOccurrences')) {
+            node.operatorOccurrences = EMPTY_FACTS;
+        } else {
+            freezeDataArray(dataValue(node, 'operatorOccurrences'), freezeOperatorOccurrence);
+        }
+    }
+
+    freezeDataArray(dataValue(node, 'setOperatorLeafIds'));
+    freezeDataArray(dataValue(node, 'modifierLeafIds'));
+    freezeDataRange(dataValue(node, 'nameLeafRange'));
+    freezeDataRange(dataValue(node, 'typeNameLeafRange'));
+    freezeAlias(dataValue(node, 'alias'));
+
+    var children = dataValue(node, 'children');
+    if (!Array.isArray(children)) {
+        return;
+    }
+    // Do not consume array accessors here. The children snapshot regression
+    // must still exercise the production validator's single read.
+    for (var childIndex = 0; childIndex < children.length; childIndex += 1) {
+        var childDescriptor = Object.getOwnPropertyDescriptor(children, childIndex);
+        if (childDescriptor && hasOwn(childDescriptor, 'value')) {
+            supplyWave3Facts(childDescriptor.value, leaves, seen);
+        }
+    }
+}
+
+var invariants = Object.assign({}, invariantRuntime, {
+    validateSyntaxInvariants: function(input) {
+        supplyWave3Facts(input.root, input.leaves);
+        return invariantRuntime.validateSyntaxInvariants(input);
+    }
+});
+
+function lex(source) {
+    return core.lexSql(source, { dialect: 'hive' });
+}
+
+var failures = [];
+function test(name, fn) {
+    try {
+        fn();
+        console.log('  ok - ' + name);
+    } catch (err) {
+        failures.push({ name: name, error: err });
+        console.log('  FAIL - ' + name + ': ' + err.message);
+    }
+}
+
+function assertFails(label, result, codeHint) {
+    assert.strictEqual(result.ok, false, label + ' expected ok=false: ' + JSON.stringify(result.failures));
+    assert.ok(result.failures.length >= 1, label + ' expected failures');
+    assert.strictEqual(result.failures.some(function(failure) {
+        return /(?:capabilityId|formatRole|syntaxMarkers|separatorLeafIds|operatorOccurrences|nameLeafRange).*own data property/i.test(
+            failure.message
+        );
+    }), false, label + ' must not pass through missing Wave 3 facts: ' + JSON.stringify(result.failures));
+    if (codeHint) {
+        var joined = result.failures.map(function(f) {
+            return f.code + ' ' + f.message;
+        }).join('\n');
+        assert.ok(codeHint.test(joined), label + ' code/message mismatch:\n' + joined);
+    }
+}
+
+function spanOfLeaves(leaves, range) {
+    if (range.start === range.end) {
+        if (leaves.length === 0) return { start: 0, end: 0 };
+        if (range.start === 0) return { start: 0, end: 0 };
+        if (range.start === leaves.length) {
+            var last = leaves[leaves.length - 1];
+            return { start: last.span.end, end: last.span.end };
+        }
+        return { start: leaves[range.start].span.start, end: leaves[range.start].span.start };
+    }
+    return {
+        start: leaves[range.start].span.start,
+        end: leaves[range.end - 1].span.end
+    };
+}
+
+function programWith(children, leaves, source) {
+    return {
+        id: 0,
+        kind: 'program',
+        span: { start: 0, end: source.length },
+        leafRange: { start: 0, end: leaves.length },
+        children: children
+    };
+}
+
+function opaqueStmtTree(source, leaves, range, boundary) {
+    var span = spanOfLeaves(leaves, range);
+    return {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'opaque',
+        bodyChildId: 2,
+        leafRange: range,
+        span: span,
+        children: [{
+            id: 2,
+            kind: 'opaque',
+            reasonCode: 'SYN_UNMODELED_CONSTRUCT',
+            capabilityId: null,
+            boundary: boundary || 'statement',
+            leafRange: range,
+            span: span
+        }]
+    };
+}
+
+// --- Program coverage ---
+test('final A1 partial statement coverage fails', function() {
+    var source = 'SELECT 1; SELECT 2';
+    var leaves = lex(source).leaves;
+    var table = tokenTableMod.buildStructuralTokenTable(leaves, source);
+    var onlyFirst = table.statementRanges()[0];
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([opaqueStmtTree(source, leaves, onlyFirst)], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('A1', r, /ROOT_COVERAGE|statement count|expected/i);
+});
+
+test('final A2 false split SELECT 1 fails', function() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var mid = Math.max(1, Math.floor(leaves.length / 2));
+    var r1 = { start: 0, end: mid };
+    var r2 = { start: mid, end: leaves.length };
+    var s1 = opaqueStmtTree(source, leaves, r1);
+    var s2 = {
+        id: 3,
+        kind: 'statement',
+        statementKind: 'opaque',
+        bodyChildId: 4,
+        leafRange: r2,
+        span: spanOfLeaves(leaves, r2),
+        children: [{
+            id: 4,
+            kind: 'opaque',
+            reasonCode: 'X',
+            capabilityId: null,
+            boundary: 'statement',
+            leafRange: r2,
+            span: spanOfLeaves(leaves, r2)
+        }]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([s1, s2], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('A2', r, /ROOT_COVERAGE/i);
+});
+
+test('final A4 trivia-only fake empty Statement fails', function() {
+    var source = '  -- comment\n';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'empty',
+        bodyChildId: null,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: []
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('A4', r, /ROOT_COVERAGE|expected 0/i);
+});
+
+test('final A5 empty source zero-leaf Statement fails', function() {
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([{
+            id: 1,
+            kind: 'statement',
+            statementKind: 'empty',
+            bodyChildId: null,
+            leafRange: { start: 0, end: 0 },
+            span: { start: 0, end: 0 },
+            children: []
+        }], [], ''),
+        leaves: [],
+        source: ''
+    });
+    assert.strictEqual(r.ok, false);
+    assert.ok(r.failures.some(function(f) {
+        return f.code === 'INV_ROOT_COVERAGE' || f.code === 'INV_EMPTY_RANGE';
+    }));
+});
+
+// --- Relationship / opaque / alias ---
+test('TREE opaque-under-expression-wrong-boundary fails', function() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [{
+            id: 3,
+            kind: 'expression',
+            expressionKind: 'literal',
+            operatorLeafIds: [],
+            leafRange: range,
+            span: spanOfLeaves(leaves, range),
+            children: [{
+                id: 4,
+                kind: 'opaque',
+                reasonCode: 'X',
+                capabilityId: null,
+                boundary: 'statement',
+                leafRange: range,
+                span: spanOfLeaves(leaves, range)
+            }]
+        }]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('opaque-expr', r, /RELATIONSHIP|boundary|expression|statement/i);
+});
+
+test('TREE Expression + opaque(expression) ok', function() {
+    var source = 'SELECT (1)';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var itemRange = { start: 2, end: 5 };
+    var opaqueRange = { start: 3, end: 4 };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [{
+            id: 3,
+            kind: 'clause',
+            clauseKind: 'select',
+            headLeafRange: { start: 0, end: 1 },
+            bodyLeafRange: { start: 1, end: 5 },
+            leafRange: range,
+            span: spanOfLeaves(leaves, range),
+            children: [{
+                id: 4,
+                kind: 'list',
+                listRole: 'select-items',
+                separatorLeafIds: [],
+                leafRange: itemRange,
+                span: spanOfLeaves(leaves, itemRange),
+                children: [{
+                    id: 5,
+                    kind: 'list-item',
+                    itemRole: 'select-item',
+                    alias: null,
+                    modifierLeafIds: [],
+                    valueChildId: 6,
+                    leafRange: itemRange,
+                    span: spanOfLeaves(leaves, itemRange),
+                    children: [{
+                        id: 6,
+                        kind: 'expression',
+                        expressionKind: 'parenthesized',
+                        operatorLeafIds: [],
+                        syntaxMarkers: Object.freeze([
+                            marker(2, 'delimiter', 0, 'delimiter', false),
+                            marker(4, 'delimiter', 1, 'delimiter', false)
+                        ]),
+                        leafRange: itemRange,
+                        span: spanOfLeaves(leaves, itemRange),
+                        children: [{
+                            id: 7,
+                            kind: 'opaque',
+                            reasonCode: 'X',
+                            capabilityId: null,
+                            boundary: 'expression',
+                            leafRange: opaqueRange,
+                            span: spanOfLeaves(leaves, opaqueRange)
+                        }]
+                    }]
+                }]
+            }]
+        }]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, true, JSON.stringify(r.failures));
+});
+
+test('TREE list + opaque(target) fails', function() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var itemRange = { start: 2, end: 3 };
+    var opaque = {
+        id: 6,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'target',
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange)
+    };
+    var item = {
+        id: 5,
+        kind: 'list-item',
+        itemRole: 'select-item',
+        alias: null,
+        modifierLeafIds: [],
+        valueChildId: 6,
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [opaque]
+    };
+    var list = {
+        id: 4,
+        kind: 'list',
+        listRole: 'select-items',
+        separatorLeafIds: [],
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
+    };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [clause]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('opaque-target', r, /RELATIONSHIP|boundary|target/i);
+});
+
+test('TREE alias-name-overlaps-AS fails', function() {
+    var source = 'SELECT 1 AS x';
+    var leaves = lex(source).leaves;
+    var asIdx = leaves.findIndex(function(l) {
+        return l.channel === 'code' && l.raw.toLowerCase() === 'as';
+    });
+    var nameIdx = leaves.findIndex(function(l) {
+        return l.kind === 'identifier' && l.raw === 'x';
+    });
+    var numIdx = leaves.findIndex(function(l) {
+        return l.kind === 'number';
+    });
+    var range = { start: 0, end: leaves.length };
+    var itemRange = { start: numIdx, end: leaves.length };
+    var nameRange = { start: asIdx, end: nameIdx + 1 };
+    var val = {
+        id: 6,
+        kind: 'expression',
+        expressionKind: 'literal',
+        operatorLeafIds: [],
+        leafRange: { start: numIdx, end: numIdx + 1 },
+        span: spanOfLeaves(leaves, { start: numIdx, end: numIdx + 1 }),
+        children: []
+    };
+    var item = {
+        id: 5,
+        kind: 'list-item',
+        itemRole: 'select-item',
+        alias: { keywordLeafId: asIdx, nameLeafRange: nameRange },
+        modifierLeafIds: [],
+        valueChildId: 6,
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [val]
+    };
+    var list = {
+        id: 4,
+        kind: 'list',
+        listRole: 'select-items',
+        separatorLeafIds: [],
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
+    };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [clause]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('alias-overlap', r, /RELATIONSHIP|keywordLeafId|before name/i);
+});
+
+test('TREE alias-empty-name fails', function() {
+    var source = 'SELECT 1 AS x';
+    var leaves = lex(source).leaves;
+    var asIdx = leaves.findIndex(function(l) {
+        return l.channel === 'code' && l.raw.toLowerCase() === 'as';
+    });
+    var numIdx = leaves.findIndex(function(l) {
+        return l.kind === 'number';
+    });
+    var range = { start: 0, end: leaves.length };
+    var itemRange = { start: numIdx, end: leaves.length };
+    var emptyName = { start: asIdx, end: asIdx };
+    var val = {
+        id: 6,
+        kind: 'expression',
+        expressionKind: 'literal',
+        operatorLeafIds: [],
+        leafRange: { start: numIdx, end: numIdx + 1 },
+        span: spanOfLeaves(leaves, { start: numIdx, end: numIdx + 1 }),
+        children: []
+    };
+    var item = {
+        id: 5,
+        kind: 'list-item',
+        itemRole: 'select-item',
+        alias: { keywordLeafId: asIdx, nameLeafRange: emptyName },
+        modifierLeafIds: [],
+        valueChildId: 6,
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [val]
+    };
+    var list = {
+        id: 4,
+        kind: 'list',
+        listRole: 'select-items',
+        separatorLeafIds: [],
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
+    };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [clause]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('alias-empty', r, /RELATIONSHIP|non-empty|nameLeafRange/i);
+});
+
+test('TREE alias trivia-only name fails', function() {
+    var source = 'SELECT 1 AS x';
+    var leaves = lex(source).leaves;
+    var asIdx = leaves.findIndex(function(l) {
+        return l.channel === 'code' && l.raw.toLowerCase() === 'as';
+    });
+    var numIdx = leaves.findIndex(function(l) {
+        return l.kind === 'number';
+    });
+    // whitespace after AS is trivia-only range
+    var wsAfterAs = asIdx + 1;
+    assert.strictEqual(leaves[wsAfterAs].channel, 'trivia');
+    var range = { start: 0, end: leaves.length };
+    var itemRange = { start: numIdx, end: leaves.length };
+    var triviaName = { start: wsAfterAs, end: wsAfterAs + 1 };
+    var val = {
+        id: 6,
+        kind: 'expression',
+        expressionKind: 'literal',
+        operatorLeafIds: [],
+        leafRange: { start: numIdx, end: numIdx + 1 },
+        span: spanOfLeaves(leaves, { start: numIdx, end: numIdx + 1 }),
+        children: []
+    };
+    var item = {
+        id: 5,
+        kind: 'list-item',
+        itemRole: 'select-item',
+        alias: { keywordLeafId: asIdx, nameLeafRange: triviaName },
+        modifierLeafIds: [],
+        valueChildId: 6,
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [val]
+    };
+    var list = {
+        id: 4,
+        kind: 'list',
+        listRole: 'select-items',
+        separatorLeafIds: [],
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
+    };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [clause]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('alias-trivia-name', r, /RELATIONSHIP|syntax leaf|nameLeafRange/i);
+});
+
+test('TREE alias name before AS fails', function() {
+    var source = 'SELECT 1 AS x';
+    var leaves = lex(source).leaves;
+    var asIdx = leaves.findIndex(function(l) {
+        return l.channel === 'code' && l.raw.toLowerCase() === 'as';
+    });
+    var numIdx = leaves.findIndex(function(l) {
+        return l.kind === 'number';
+    });
+    var range = { start: 0, end: leaves.length };
+    var itemRange = { start: numIdx, end: leaves.length };
+    // name is the number before AS
+    var nameBefore = { start: numIdx, end: numIdx + 1 };
+    var val = {
+        id: 6,
+        kind: 'expression',
+        expressionKind: 'literal',
+        operatorLeafIds: [],
+        leafRange: { start: numIdx, end: numIdx + 1 },
+        span: spanOfLeaves(leaves, { start: numIdx, end: numIdx + 1 }),
+        children: []
+    };
+    var item = {
+        id: 5,
+        kind: 'list-item',
+        itemRole: 'select-item',
+        alias: { keywordLeafId: asIdx, nameLeafRange: nameBefore },
+        modifierLeafIds: [],
+        valueChildId: 6,
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [val]
+    };
+    var list = {
+        id: 4,
+        kind: 'list',
+        listRole: 'select-items',
+        separatorLeafIds: [],
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
+    };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [clause]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('alias-name-before-as', r, /RELATIONSHIP|before name|keywordLeafId/i);
+});
+
+test('final positive alias with explicit AS ok', function() {
+    var source = 'SELECT 1 AS x';
+    var leaves = lex(source).leaves;
+    var asIdx = leaves.findIndex(function(l) {
+        return l.channel === 'code' && l.raw.toLowerCase() === 'as';
+    });
+    var nameIdx = leaves.findIndex(function(l) {
+        return l.kind === 'identifier' && l.raw === 'x';
+    });
+    var numIdx = leaves.findIndex(function(l) {
+        return l.kind === 'number';
+    });
+    var range = { start: 0, end: leaves.length };
+    var itemRange = { start: numIdx, end: leaves.length };
+    var val = {
+        id: 6,
+        kind: 'expression',
+        expressionKind: 'literal',
+        operatorLeafIds: [],
+        leafRange: { start: numIdx, end: numIdx + 1 },
+        span: spanOfLeaves(leaves, { start: numIdx, end: numIdx + 1 }),
+        children: []
+    };
+    var item = {
+        id: 5,
+        kind: 'list-item',
+        itemRole: 'select-item',
+        alias: {
+            keywordLeafId: asIdx,
+            nameLeafRange: { start: nameIdx, end: nameIdx + 1 }
+        },
+        modifierLeafIds: [],
+        valueChildId: 6,
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [val]
+    };
+    var list = {
+        id: 4,
+        kind: 'list',
+        listRole: 'select-items',
+        separatorLeafIds: [],
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
+    };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [clause]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, true, JSON.stringify(r.failures));
+});
+
+test('final positive alias without AS ok', function() {
+    var source = 'SELECT 1 x';
+    var leaves = lex(source).leaves;
+    var numIdx = leaves.findIndex(function(l) { return l.kind === 'number'; });
+    var nameIdx = leaves.findIndex(function(l) {
+        return l.kind === 'identifier' && l.raw === 'x';
+    });
+    var range = { start: 0, end: leaves.length };
+    var itemRange = { start: numIdx, end: leaves.length };
+    var val = {
+        id: 6,
+        kind: 'expression',
+        expressionKind: 'literal',
+        operatorLeafIds: [],
+        leafRange: { start: numIdx, end: numIdx + 1 },
+        span: spanOfLeaves(leaves, { start: numIdx, end: numIdx + 1 }),
+        children: []
+    };
+    var item = {
+        id: 5,
+        kind: 'list-item',
+        itemRole: 'select-item',
+        alias: {
+            keywordLeafId: null,
+            nameLeafRange: { start: nameIdx, end: nameIdx + 1 }
+        },
+        modifierLeafIds: [],
+        valueChildId: 6,
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [val]
+    };
+    var list = {
+        id: 4,
+        kind: 'list',
+        listRole: 'select-items',
+        separatorLeafIds: [],
+        leafRange: itemRange,
+        span: spanOfLeaves(leaves, itemRange),
+        children: [item]
+    };
+    var clause = {
+        id: 3,
+        kind: 'clause',
+        clauseKind: 'select',
+        headLeafRange: { start: 0, end: 1 },
+        bodyLeafRange: { start: 1, end: leaves.length },
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [list]
+    };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [clause]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, true, JSON.stringify(r.failures));
+});
+
+test('final B5b nested Statement under Query fails', function() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var nested = {
+        id: 3,
+        kind: 'statement',
+        statementKind: 'opaque',
+        bodyChildId: 4,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [{
+            id: 4,
+            kind: 'opaque',
+            reasonCode: 'X',
+            capabilityId: null,
+            boundary: 'statement',
+            leafRange: range,
+            span: spanOfLeaves(leaves, range)
+        }]
+    };
+    var query = {
+        id: 2,
+        kind: 'query',
+        queryKind: 'select',
+        setOperatorLeafIds: [],
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [nested]
+    };
+    var stmt = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'query',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [query]
+    };
+    var r = invariants.validateSyntaxInvariants({
+        root: programWith([stmt], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r.ok, false);
+    assertFails('nested-stmt', r, /RELATIONSHIP|StatementNode|Program/i);
+});
+
+test('single-oracle reuse falls back for mutable leaf partitions', function() {
+    var source = 'SELECT (a) FROM t;';
+    var leaves = lex(source).leaves.map(function(leaf) {
+        return Object.assign({}, leaf, { span: Object.assign({}, leaf.span) });
+    });
+    var table = tokenTableMod.buildStructuralTokenTable(leaves, source);
+    var range = table.statementRanges()[0];
+    var opener = leaves.findIndex(function(leaf) { return leaf.raw === '('; });
+    var opaque = {
+        id: 2,
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: range,
+        span: spanOfLeaves(leaves, range)
+    };
+    Object.defineProperty(opaque, 'kind', {
+        enumerable: true,
+        get: function() {
+            leaves[opener].raw = '+';
+            return 'opaque';
+        }
+    });
+    var statement = {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'opaque',
+        bodyChildId: 2,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: [opaque]
+    };
+    var result = invariants.validateSyntaxInvariants({
+        root: programWith([statement], leaves, source),
+        leaves: leaves,
+        source: source,
+        tokenTable: table
+    });
+    assertFails('mutable-leaf-oracle', result,
+        /DELIMITER_PAIR|DEPTH_CONSISTENCY|TOKEN_TABLE/i);
+});
+
+function twoOpaqueChildStatement(leaves, range, children, bodyChildId) {
+    return {
+        id: 1,
+        kind: 'statement',
+        statementKind: 'opaque',
+        bodyChildId: bodyChildId,
+        leafRange: range,
+        span: spanOfLeaves(leaves, range),
+        children: children
+    };
+}
+
+test('stateful child ref cannot claim multiple children', function() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var split = 1;
+    var firstRange = { start: range.start, end: split };
+    var secondRange = { start: split, end: range.end };
+    var first = {
+        id: 2,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: firstRange,
+        span: spanOfLeaves(leaves, firstRange)
+    };
+    var second = {
+        id: 3,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: secondRange,
+        span: spanOfLeaves(leaves, secondRange)
+    };
+    supplyWave3Facts(second, leaves);
+    var reads = 0;
+    var statement = twoOpaqueChildStatement(leaves, range, [first, second], 2);
+    Object.defineProperty(statement, 'bodyChildId', {
+        enumerable: true,
+        get: function() {
+            reads += 1;
+            return reads <= 4 ? 2 : 3;
+        }
+    });
+    var result = invariants.validateSyntaxInvariants({
+        root: programWith([statement], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assertFails('stateful-ref', result, /EXTRA_CHILD|unreferenced child 3/i);
+});
+
+test('children accessor is snapshotted before post-order relationships', function() {
+    var source = 'SELECT 1';
+    var leaves = lex(source).leaves;
+    var range = { start: 0, end: leaves.length };
+    var firstRange = { start: 0, end: 1 };
+    var secondRange = { start: 1, end: leaves.length };
+    var first = {
+        id: 2,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: firstRange,
+        span: spanOfLeaves(leaves, firstRange)
+    };
+    var second = {
+        id: 3,
+        kind: 'opaque',
+        reasonCode: 'X',
+        capabilityId: null,
+        boundary: 'statement',
+        leafRange: secondRange,
+        span: spanOfLeaves(leaves, secondRange)
+    };
+    supplyWave3Facts(second, leaves);
+    var reads = 0;
+    var children = [first];
+    Object.defineProperty(children, 1, {
+        enumerable: true,
+        configurable: true,
+        get: function() {
+            reads += 1;
+            return reads === 1 ? second : first;
+        }
+    });
+    var statement = twoOpaqueChildStatement(leaves, range, children, 2);
+    var result = invariants.validateSyntaxInvariants({
+        root: programWith([statement], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(reads, 1, 'children accessor must be read once');
+    assertFails('children-snapshot', result, /EXTRA_CHILD|unreferenced child 3/i);
+});
+
+test('final positive empty + trivia Program ok', function() {
+    var r1 = invariants.validateSyntaxInvariants({
+        root: { id: 0, kind: 'program', span: { start: 0, end: 0 }, leafRange: { start: 0, end: 0 }, children: [] },
+        leaves: [],
+        source: ''
+    });
+    assert.strictEqual(r1.ok, true, JSON.stringify(r1.failures));
+    var source = '  \n';
+    var leaves = lex(source).leaves;
+    var r2 = invariants.validateSyntaxInvariants({
+        root: programWith([], leaves, source),
+        leaves: leaves,
+        source: source
+    });
+    assert.strictEqual(r2.ok, true, JSON.stringify(r2.failures));
+});
+
+if (failures.length > 0) {
+    console.error('\n' + failures.length + ' CST hardening test(s) failed');
+    failures.forEach(function(f) {
+        console.error(' - ' + f.name + ': ' + f.error.stack);
+    });
+    process.exit(1);
+}
+console.log('v2 Wave 2A CST hardening tests passed');
