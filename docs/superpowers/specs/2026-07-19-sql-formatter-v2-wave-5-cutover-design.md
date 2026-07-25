@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 5 Cutover Design
 
 - 日期：2026-07-19
-- 状态：已完成（本地 cutover 门禁已通过，待合并与发布）
+- 状态：已完成（已合入本地 `main` 并通过 cutover 门禁，待推送与正式发布）
 - 基线：`codex/sql-formatter-v2-wave4` @ `294d0bba84bec760eba4fb87f0ab2db9c76321ec`
 - 目标分支：`codex/sql-formatter-v2-wave5`
 
