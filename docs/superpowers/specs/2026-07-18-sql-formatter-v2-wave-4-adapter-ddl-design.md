@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 4 Adapter 与 Experimental DDL Design
 
 - 日期：2026-07-18
-- 状态：已批准（承接 umbrella design；仓库规则授权主代理连续推进）
+- 状态：已完成（历史设计基线）
 - 分支：`codex/sql-formatter-v2-wave4`
 - 基线：`0d765402fe022c84499a641d6ef020df14f17e85`（Wave 3F closure）
 - 上位设计：`docs/superpowers/specs/2026-07-10-sql-formatter-v2-optimization-program-design.md`

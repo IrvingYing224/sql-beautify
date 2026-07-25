@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 3 Layout 与 Renderer Design
 
 - 日期：2026-07-16
-- 状态：已批准（依据 umbrella design 与用户授权，由 Codex 自主推进）
+- 状态：已完成（历史设计基线）
 - 分支：`codex/sql-formatter-v2-wave3`
 - 基线：`c4369e9`（Wave 2E closure）
 - 上位设计：`docs/superpowers/specs/2026-07-10-sql-formatter-v2-optimization-program-design.md`

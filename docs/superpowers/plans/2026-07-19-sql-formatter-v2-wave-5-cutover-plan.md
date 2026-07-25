@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 5 Cutover Implementation Plan
 
 - 日期：2026-07-19
-- 状态：执行中
+- 状态：已完成（本地 cutover 门禁已通过，待合并与发布）
 - 工作树：`/Users/yingirving/Documents/sql-beautify/.worktrees/sql-formatter-v2-wave5`
 - 分支：`codex/sql-formatter-v2-wave5`
 - 基线：`294d0bba84bec760eba4fb87f0ab2db9c76321ec`
@@ -32,10 +32,10 @@
 
 ## 阶段 D：验证与审查
 
-- [ ] 新增 cutover boundary、public facade、extension mock、provider transaction、DDL batch、migration/package tests。
-- [ ] 串行运行 `npm run typecheck:v2`、完整 v2 wave suite、`npm run test:verify`（重构后）、`npm run package:vsix`、VSIX manifest、`git diff --check`。
-- [ ] 检查旧路径不可加载、旧 command/config 不存在、现役 runtime 只剩 v2 dist artifact。
-- [ ] 委派只读 reviewer；Critical/Important 未清零不得提交 cutover。
+- [x] 新增 cutover boundary、public facade、extension mock、provider transaction、DDL batch、migration/package tests。
+- [x] 串行运行 `npm run typecheck:v2`、完整 v2 wave suite、`npm run test:verify`（重构后）、`npm run package:vsix`、VSIX manifest、`git diff --check`。
+- [x] 检查旧路径不可加载、旧 command/config 不存在、现役 runtime 只剩 v2 dist artifact。
+- [x] 委派只读 reviewer；Critical/Important 未清零不得提交 cutover。
 
 ## 提交边界
 

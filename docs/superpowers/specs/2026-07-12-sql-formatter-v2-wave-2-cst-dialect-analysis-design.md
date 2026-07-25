@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 2 CST、Dialect 与 Analysis Design
 
 - 日期：2026-07-12
-- 状态：已批准（用户授权由 Codex 自主判断）
+- 状态：已完成（历史设计基线）
 - 分支：`codex/sql-formatter-v2-wave2`
 - 基线：`c9b9014`（Wave 1 checkpoint）
 - 上位设计：`docs/superpowers/specs/2026-07-10-sql-formatter-v2-optimization-program-design.md`

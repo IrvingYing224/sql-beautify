@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 0 Foundation Design
 
 - 日期：2026-07-11
-- 状态：已批准（从已确认的 v2 umbrella design 派生）
+- 状态：已完成（历史设计基线）
 - 上位设计：`docs/superpowers/specs/2026-07-10-sql-formatter-v2-optimization-program-design.md`
 
 ## 1. 目标

@@ -1,7 +1,7 @@
 # SQL Formatter v2 Wave 1 Lossless Lexer Design
 
 - 日期：2026-07-12
-- 状态：待确认
+- 状态：已完成（历史设计基线）
 - 分支：`codex/sql-formatter-v2-wave1`
 - 基线：`c393ccc`
 - 上位设计：`docs/superpowers/specs/2026-07-10-sql-formatter-v2-optimization-program-design.md`
