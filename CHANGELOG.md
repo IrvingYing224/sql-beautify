@@ -5,6 +5,19 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 2.0.0 (2026/07/22)
+* 使用 lossless lexer、formatter-oriented CST、一次性结构索引、Layout IR 和单一 renderer 重建 SQL formatter；Hive 仍是默认和优先方言
+* 对注释、字符串、quoted identifier、参数、方言 literal 和 opaque/verbatim 结构实施 source code-unit 保真与 token equivalence 检查
+* 将整文档、选区、多选区、异步 worker 和 experimental DDL 接入同一 fail-closed、可取消、all-or-nothing 事务边界
+* 新增结构化 `FormatResult`、validated source map、安全诊断和 direct/persistent-worker 路由；失败、取消、过期文档或任一 target 拒绝时不提交部分编辑
+* 将 Hive DDL formatting / Extract DDL 重写为独立 experimental 能力；只接受高置信结构，非成功结果保留原文，Extract DDL 不推断字段类型
+* 仅保留 `sqlBeautify.*` 命令和配置；PostgreSQL 方言值由 `postgres` 改为 `postgresql`，`unsupportedSyntaxPolicy` 默认值改为 `warn`
+* 删除 `extension.*` 命令、根 `extension.js`、`vkbeautify.js` positional API、`lib/**` require shim、旧 1.x core 和被拒绝的 parser evaluator
+* Node API 改为 `vscode-sql-beautify/formatter` 与 `vscode-sql-beautify/experimental/ddl` 两个显式 subpath export，package root 不再公开
+* 构建只生成五个共享生产 artifact；VSIX 使用显式 allowlist，clean package 与 release gate 校验 version/tag/SHA/manifest/artifact 一致性
+* CI 默认权限收敛为只读，只有从 `main` 手动触发的 release job 获得内容写权限
+* 完整 breaking change 和迁移步骤见 `docs/migration-to-2.0.md`
+
 ### 1.0.13 (2026/07/05)
 * 将 `SELECT DISTINCT` / `SELECT ALL` 重构为结构化 SELECT header modifier，挂载在 `selectSpan.header.modifier`，不再作为 select item 参与字段列表布局
 * 修复 `SELECT` header comment、standalone comment 或 block comment 夹在 `SELECT` 与 `DISTINCT` / `ALL` 之间时的布局与幂等性问题，避免跨注释 line join 报错

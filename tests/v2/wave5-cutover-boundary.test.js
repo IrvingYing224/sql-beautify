@@ -83,6 +83,8 @@ assert.deepStrictEqual(Object.keys(configuration).sort(), expectedConfigurationK
 assert.deepStrictEqual(configuration['sqlBeautify.dialect'].enum,
     ['generic', 'hive', 'postgresql', 'mysql']);
 assert.strictEqual(configuration['sqlBeautify.dialect'].default, 'hive');
+assert.strictEqual(configuration['sqlBeautify.unsupportedSyntaxPolicy'].default, 'warn',
+    'VS Code and canonical core must share the fail-visible default policy');
 
 [
     'extension.js',

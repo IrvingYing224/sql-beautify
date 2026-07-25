@@ -8,7 +8,7 @@ var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
 var generatorPath = path.join(root, 'scripts', 'generate-v2-support-matrix.js');
-var documentPath = path.join(root, 'docs', 'technical', 'sql-formatter-v2-support-matrix.md');
+var documentPath = path.join(root, 'docs', 'technical', 'sql-support-matrix.md');
 var registryPath = path.join(
     root,
     '.tmp',
@@ -195,7 +195,7 @@ function runGenerator(generatorRoot, args) {
         temporaryRoot,
         'docs',
         'technical',
-        'sql-formatter-v2-support-matrix.md'
+        'sql-support-matrix.md'
     );
     try {
         var drift = generator.renderMatrix() + '\n';
@@ -245,10 +245,12 @@ function runGenerator(generatorRoot, args) {
             return pattern === directory || pattern.indexOf(directory + '/') === 0;
         }), false, 'package files allowlist must exclude ' + directory);
     });
-    assert.notStrictEqual(
-        path.basename(documentPath),
-        'sql-support-matrix.md',
-        'v2 support matrix must remain independent from the 1.x matrix'
+    assert.strictEqual(path.basename(documentPath), 'sql-support-matrix.md',
+        '2.x must own the single canonical support matrix');
+    assert.strictEqual(
+        fs.existsSync(path.join(root, 'docs', 'technical', 'sql-formatter-v2-support-matrix.md')),
+        false,
+        'the development-stage v2 matrix alias must be removed after cutover'
     );
 }());
 

@@ -10,6 +10,8 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 
 最低支持 VS Code `1.90.0`。
 
+从 1.x 升级时，请先阅读 [2.0 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.0.0/docs/migration-to-2.0.md)。
+
 ## 这个扩展做什么
 
 - 格式化 SQL / HQL
@@ -18,7 +20,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 - 提供实验性的 Hive DDL 格式化
 - 提供实验性的 Hive `extractddl` 草稿提取
 
-主格式化能力优先面向 Hive SQL / HQL。`generic`、`postgres`、`mysql` 为 best-effort 支持，复杂 SQL 建议格式化后复核结果。
+主格式化能力优先面向 Hive SQL / HQL。`generic`、`postgresql`、`mysql` 为 best-effort 支持，复杂 SQL 建议格式化后复核结果。
 
 ## 怎么用
 
@@ -51,8 +53,8 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 | `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
 | `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | `CASE WHEN` 中 `THEN` / `ELSE` 值的换行阈值 |
 | `sqlBeautify.caseLayout` | `expanded` / `compactShort` | `expanded` | `CASE` 表达式布局；`compactShort` 会在安全且较短时保持单行 |
-| `sqlBeautify.dialect` | `generic` / `hive` / `postgres` / `mysql` | `hive` | SQL 方言边界处理 |
-| `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `preserve` | 未建模语法的处理策略 |
+| `sqlBeautify.dialect` | `generic` / `hive` / `postgresql` / `mysql` | `hive` | SQL 方言边界处理 |
+| `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `warn` | 未建模语法的处理策略 |
 | `sqlBeautify.debugDiagnostics` | `true` / `false` | `false` | 是否在扩展宿主控制台输出调试诊断 |
 
 顶层 `ORDER BY` 会像 `GROUP BY` 一样拆成多行并对齐逗号；窗口函数里的 `ORDER BY` 仍保持原有行内格式。
@@ -77,6 +79,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 
 - 复杂 SQL、非 Hive 方言、以及未建模语法场景下，请在格式化后复核结果。
 - `unsupportedSyntaxPolicy=warn` 会继续格式化周边 SQL，并在 VS Code 中给出 warning。
+- `unsupportedSyntaxPolicy=preserve` 使用相同的安全输出，但不在编辑器中显示 capability warning；安全诊断报告和调试摘要仍保留计数。
 - `unsupportedSyntaxPolicy=bail_out` 会在遇到未建模语法时直接拒绝格式化。
 - 选区格式化只接受边界完整的整行片段；不安全片段会被拒绝，而不是猜测性改写。
 

@@ -25,10 +25,10 @@
 
 ## 阶段 C：文档、迁移与 CI
 
-- [ ] 新增最终用户 migration guide，说明 2.0 breaking cleanup、对象式 API、命令/配置变化、Hive 优先边界和 DDL 风险。
-- [ ] 更新 README、CHANGELOG、architecture、support matrix，删除“development-stage v2”和“maintained 1.x matrix”冲突表述。
-- [ ] 收敛历史 plan：保留 umbrella、Wave design、Wave 5 plan 和仍有 ADR 价值的文档，归档/删除重复失效 implementation plan，不把 superpowers 文档打包。
-- [ ] 将 CI 默认权限改为 least privilege，并把 release-only 写权限隔离到明确 job；补充 version/tag/SHA/VSIX 一致性检查。
+- [x] 新增最终用户 migration guide，说明 2.0 breaking cleanup、对象式 API、命令/配置变化、Hive 优先边界和 DDL 风险。
+- [x] 更新 README、CHANGELOG、architecture、support matrix，删除“development-stage v2”和“maintained 1.x matrix”冲突表述。
+- [x] 收敛历史 plan：保留 umbrella、Wave design、Wave 5 plan 和仍有 ADR 价值的文档，归档/删除重复失效 implementation plan，不把 superpowers 文档打包。
+- [x] 将 CI 默认权限改为 least privilege，并把 release-only 写权限隔离到明确 job；补充 version/tag/SHA/VSIX 一致性检查。
 
 ## 阶段 D：验证与审查
 

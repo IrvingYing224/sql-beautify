@@ -50,5 +50,5 @@ Full per-case evidence is recorded in `docs/technical/v2-parser-evaluation-repor
 
 - Canonical CST, diagnostic, layout, and result types remain independent of candidate parse-tree classes.
 - Synthetic source-preservation leaves never count as candidate-native ownership evidence.
-- No candidate package is imported by the shipping 1.x entrypoint.
-- Wave 1 can implement the lossless lexer without reopening the backend role unless committed evidence changes.
+- The candidate package never entered the 2.x production runtime. Its evaluator and dependency were removed during Wave 5 cutover.
+- The project-owned lossless lexer and grammar backend remain the production implementation unless new committed evidence reopens this ADR.

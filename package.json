@@ -166,7 +166,7 @@
 						"warn",
 						"bail_out"
 					],
-					"default": "preserve",
+					"default": "warn",
 					"description": "Policy for unsupported or unmodeled syntax. /未建模语法的处理策略"
 				},
 				"sqlBeautify.debugDiagnostics": {
@@ -179,8 +179,10 @@
 		}
 	},
 	"scripts": {
-		"test:verify": "npm run test:v2:wave1 && npm run test:v2:wave2 && npm run test:v2:wave3 && npm run test:v2:wave4 && npm run test:v2:wave5-stage-b",
-		"package:vsix": "npm run build:v2-runtime && vsce package --no-dependencies --out vscode-sql-beautify-v${npm_package_version}.vsix",
+		"test:verify": "npm run test:v2:wave1 && npm run test:v2:wave2 && npm run test:v2:wave3 && npm run test:v2:wave4 && npm run test:v2:wave5",
+		"package:vsix": "npm run build:v2-runtime && vsce package --no-dependencies --out vscode-sql-beautify-v${npm_package_version}.vsix && node scripts/verify-release-artifact.js --artifact vscode-sql-beautify-v${npm_package_version}.vsix --compare-build",
+		"prepack": "npm run build:v2-runtime",
+		"verify:clean-package": "node scripts/verify-clean-package.js",
 		"typecheck:v2": "tsc -p tsconfig.v2.json",
 		"build:v2-core": "node scripts/build-v2-core.js",
 		"build:v2-runtime": "node scripts/build-v2-runtime.js",
@@ -203,6 +205,7 @@
 		"test:v2:wave5-stage-a": "npm run typecheck:v2 && npm run build:v2-core && npm run build:v2-runtime && node tests/v2/wave4a-transaction.test.js && node tests/v2/wave4d-transaction.test.js && node tests/v2/wave5-runtime-artifact.test.js && node tests/v2/wave5-vscode-adapter.test.js",
 		"test:v2:corpus": "npm run build:v2-core && node tests/v2/sql-corpus-contract.test.js",
 		"test:v2:wave5-stage-b": "npm run test:v2:wave5-stage-a && node tests/v2/wave5-production-corpus.test.js && node tests/v2/wave5-cutover-boundary.test.js",
+		"test:v2:wave5": "npm run test:v2:wave5-stage-b && node tests/v2/wave5-release-boundary.test.js && npm run verify:clean-package",
 		"test:production-private": "npm run build:v2-runtime && node tests/v2/wave5-production-private.test.js"
 	},
 	"vsce": {
