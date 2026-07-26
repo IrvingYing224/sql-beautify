@@ -29,10 +29,17 @@ function copySource(sourceRoot, targetRoot) {
 }
 
 function run(command, args, options) {
-    return childProcess.execFileSync(command, args, Object.assign({
-        encoding: 'utf8',
-        maxBuffer: 32 * 1024 * 1024
-    }, options || {}));
+    try {
+        return childProcess.execFileSync(command, args, Object.assign({
+            encoding: 'utf8',
+            maxBuffer: 32 * 1024 * 1024
+        }, options || {}));
+    } catch (error) {
+        if (error && error.stdout) {
+            process.stderr.write(String(error.stdout));
+        }
+        throw error;
+    }
 }
 
 function expectedPackageFiles(sourceRoot) {
@@ -86,6 +93,9 @@ function verifyCleanPackage() {
     var sourceRoot = path.join(temporaryRoot, 'source');
     var packageOutput = path.join(temporaryRoot, 'package-output');
     var consumerRoot = path.join(temporaryRoot, 'consumer');
+    var npmEnvironment = Object.assign({}, process.env, {
+        npm_config_cache: path.join(temporaryRoot, 'npm-cache')
+    });
     try {
         copySource(root, sourceRoot);
         fs.symlinkSync(path.join(root, 'node_modules'), path.join(sourceRoot, 'node_modules'), 'dir');
@@ -96,10 +106,9 @@ function verifyCleanPackage() {
         var packOutput = run('npm', [
             'pack',
             '--json',
-            '--silent',
             '--pack-destination',
             packageOutput
-        ], { cwd: sourceRoot });
+        ], { cwd: sourceRoot, env: npmEnvironment });
         var jsonStart = packOutput.indexOf('[\n');
         assert.ok(jsonStart >= 0, 'npm pack must emit a JSON result array');
         var packResult = JSON.parse(packOutput.slice(jsonStart))[0];
@@ -124,7 +133,7 @@ function verifyCleanPackage() {
             '--no-audit',
             '--no-fund',
             tarball
-        ], { cwd: consumerRoot });
+        ], { cwd: consumerRoot, env: npmEnvironment });
         verifyInstalledConsumer(consumerRoot);
         console.log('Clean npm package verified: ' + packResult.filename +
             ' (' + packedFiles.length + ' files)');
