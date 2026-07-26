@@ -8,15 +8,15 @@ var os = require('os');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
-var ANCHOR_SHA = 'b206e9b1f0df5e038169590b01e386d12146a47b';
+var RELEASE_BASELINE_SHA = 'bc08772a20ab94e33978068e738999a2759dacd6';
 var RATIO_LIMIT = 1.20;
 var FLOOR_MS = 15;
 var LOW_BASELINE_NOISE_MS = 3;
 var RSS_RATIO_LIMIT = 1.50;
 var RSS_FLOOR_KB = 128 * 1024;
 var PROCESS_ROUNDS = 4;
-var ANCHOR_WORKER_SHA256 =
-    'b68a22753dba020d0138850cc7d06798216c021c74eb459af80bd8b3441c0e6e';
+var RELEASE_BASELINE_WORKER_SHA256 =
+    '7c00112fa0df4f8aa24199da4d8856b20bc433747979ef670caefa5f80d5a59d';
 var WORKLOAD_CONTRACTS = Object.freeze({
     'statements/100': Object.freeze({
         sourceCodeUnits: 1089,
@@ -143,9 +143,9 @@ function writeFile(targetRoot, relativePath, bytes) {
     fs.writeFileSync(target, bytes);
 }
 
-function materializeAnchor(targetRoot) {
+function materializeReleaseBaseline(targetRoot) {
     var names = String(spawnGit(
-        ['ls-tree', '-r', '-z', '--name-only', ANCHOR_SHA],
+        ['ls-tree', '-r', '-z', '--name-only', RELEASE_BASELINE_SHA],
         'buffer'
     )).split('\0').filter(Boolean).filter(function(relativePath) {
         return relativePath.indexOf('src/') === 0 ||
@@ -154,12 +154,15 @@ function materializeAnchor(targetRoot) {
     });
     assert.ok(names.some(function(value) {
         return value === 'src/core/api/format.ts';
-    }), 'anchor must contain the Wave 3B format kernel');
+    }), 'release baseline must contain the Wave 3 format kernel');
     names.forEach(function(relativePath) {
         writeFile(
             targetRoot,
             relativePath,
-            spawnGit(['show', ANCHOR_SHA + ':' + relativePath], 'buffer')
+            spawnGit([
+                'show',
+                RELEASE_BASELINE_SHA + ':' + relativePath
+            ], 'buffer')
         );
     });
 }
@@ -397,25 +400,41 @@ function assertWorkerReport(report, side, kind, count, contract) {
     });
 })();
 
-(function testWave3CurrentAgainstCommittedWave3bAnchor() {
-    spawnGit(['cat-file', '-e', ANCHOR_SHA + '^{commit}'], 'utf8');
-    spawnGit(['merge-base', '--is-ancestor', ANCHOR_SHA, 'HEAD'], 'utf8');
+(function testWave3CurrentAgainstReleaseBaseline() {
+    spawnGit(['cat-file', '-e', RELEASE_BASELINE_SHA + '^{commit}'], 'utf8');
+    spawnGit([
+        'merge-base',
+        '--is-ancestor',
+        RELEASE_BASELINE_SHA,
+        'HEAD'
+    ], 'utf8');
+    assert.strictEqual(
+        JSON.parse(spawnGit([
+            'show',
+            RELEASE_BASELINE_SHA + ':package.json'
+        ], 'utf8')).version,
+        '2.0.1',
+        'release performance baseline must identify package version 2.0.1'
+    );
     assert.strictEqual(
         sha256(spawnGit([
             'show',
-            ANCHOR_SHA + ':tests/v2/wave3-performance.test.js'
+            RELEASE_BASELINE_SHA + ':tests/v2/wave3-performance.test.js'
         ], 'buffer')),
-        ANCHOR_WORKER_SHA256,
-        'Wave 3B benchmark worker must remain pinned to the committed anchor'
+        RELEASE_BASELINE_WORKER_SHA256,
+        'Wave 3 benchmark worker must remain pinned to the 2.0.1 release baseline'
     );
     var currentLock = fs.readFileSync(path.join(root, 'package-lock.json'));
-    var anchorLock = spawnGit(['show', ANCHOR_SHA + ':package-lock.json'], 'buffer');
+    var baselineLock = spawnGit([
+        'show',
+        RELEASE_BASELINE_SHA + ':package-lock.json'
+    ], 'buffer');
     var currentLockJson = JSON.parse(currentLock.toString('utf8'));
-    var anchorLockJson = JSON.parse(anchorLock.toString('utf8'));
+    var baselineLockJson = JSON.parse(baselineLock.toString('utf8'));
     ['node_modules/typescript', 'node_modules/@types/vscode'].forEach(function(name) {
         assert.deepStrictEqual(
             currentLockJson.packages[name],
-            anchorLockJson.packages[name],
+            baselineLockJson.packages[name],
             'relative benchmark requires identical TypeScript toolchain lock entry: ' + name
         );
     });
@@ -425,7 +444,7 @@ function assertWorkerReport(report, side, kind, count, contract) {
     var currentRoot = path.join(temporary, 'current');
     var reports = [];
     try {
-        materializeAnchor(baselineRoot);
+        materializeReleaseBaseline(baselineRoot);
         materializeCurrent(currentRoot);
         compileTree(baselineRoot);
         compileTree(currentRoot);
@@ -459,13 +478,11 @@ function assertWorkerReport(report, side, kind, count, contract) {
                         side + ' output must be deterministic across fresh processes'
                     );
                 });
-                if (kind === 'formatted-list') {
-                    assert.notStrictEqual(
-                        processReports.baseline[0].outputDigest,
-                        processReports.current[0].outputDigest,
-                        'current formatted-list must execute Wave 3C layout, not the 3B path'
-                    );
-                }
+                assert.strictEqual(
+                    processReports.baseline[0].outputDigest,
+                    processReports.current[0].outputDigest,
+                    'release-relative benchmark requires equivalent formatted output'
+                );
                 var baselineMs = median(processReports.baseline.map(function(value) {
                     return value.medianMs;
                 }));
@@ -517,7 +534,7 @@ function assertWorkerReport(report, side, kind, count, contract) {
             });
         });
         console.log('v2 Wave 3 relative performance ' + JSON.stringify({
-            anchorSha: ANCHOR_SHA,
+            releaseBaselineSha: RELEASE_BASELINE_SHA,
             packageLockSha256: sha256(currentLock),
             packageLockPolicy: 'toolchain entries pinned; cutover metadata and rejected parser dependencies may change',
             thresholds: {
