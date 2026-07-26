@@ -30,7 +30,7 @@ node、leaf 和 source-map entry 建 projection。大型查询只在两个 list 
 
 ## 等价性证据
 
-`scripts/profile-alignment-candidates.js` 同时加载基线提交 `58ffaa5` 和候选 build，对 Wave 3 的完整
+`scripts/profile-alignment-candidates.js` 同时加载基线提交 `58ffaa5` 和候选提交 `9b33a1b` 的 build，对 Wave 3 的完整
 68-case corpus（含当时公开 production corpus）、128 个确定性 fuzz、48 个确定性 malformed case 和
 12 个 alignment option matrix case 比较：
 
@@ -38,12 +38,12 @@ node、leaf 和 source-map entry 建 projection。大型查询只在两个 list 
 - 其中 14 个 case 实际产生 target，共 22 个 target；
 - 另对下述三类 2,000-item 性能样本先独立断言 target 逐项相等。
 
-复现命令（`--baseline-root` 指向基线的 `.tmp/v2-core` build）：
+复现命令（两个 root 必须分别来自上述固定提交的 `.tmp/v2-core` build；不要用后续 live build 替代候选）：
 
 ```bash
 node scripts/profile-alignment-candidates.js \
     --baseline-root /path/to/baseline/.tmp/v2-core \
-    --candidate-root "$PWD/.tmp/v2-core"
+    --candidate-root /path/to/candidate/.tmp/v2-core
 ```
 
 既有 `wave3e-alignment-options`、完整 Wave 3 properties 与 alignment performance regression 同时通过。

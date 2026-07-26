@@ -1,0 +1,1 @@
+tests/fixtures/production-corpus/public/hive-crlf-bom-comments.sql -text whitespace=cr-at-eol
