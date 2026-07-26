@@ -230,6 +230,130 @@ test('Chinese identifiers and comments conserve UTF-16 spans', function() {
     assertConservesSource(source, output);
 });
 
+test('dialect identifier profiles classify Unicode conservatively', function() {
+    ['hive', 'generic'].forEach(function(dialect) {
+        assertSingleLeaf(
+            'SELECT 中文字段 FROM t',
+            dialect,
+            '中文字段',
+            'unknown',
+            'protected'
+        );
+    });
+    ['postgresql', 'mysql'].forEach(function(dialect) {
+        assertSingleLeaf(
+            'SELECT 中文字段 FROM t',
+            dialect,
+            '中文字段',
+            'identifier',
+            'code'
+        );
+    });
+
+    assertSingleLeaf(
+        'SELECT \u{10400}name FROM t',
+        'postgresql',
+        '\u{10400}name',
+        'identifier',
+        'code'
+    );
+    assertSingleLeaf(
+        'SELECT \u{20000} FROM t',
+        'postgresql',
+        '\u{20000}',
+        'identifier',
+        'code'
+    );
+    assertSingleLeaf(
+        'SELECT \u{20000} FROM t',
+        'mysql',
+        '\u{20000}',
+        'unknown',
+        'protected'
+    );
+    assertSingleLeaf(
+        'SELECT 😀 FROM t',
+        'postgresql',
+        '😀',
+        'unknown',
+        'protected'
+    );
+});
+
+test('combining marks follow dialect contracts without guessing ID_Continue', function() {
+    var postgres = lexSql('SELECT a\u0301 FROM t', { dialect: 'postgresql' });
+    assertConservesSource('SELECT a\u0301 FROM t', postgres);
+    assert.strictEqual(findLeaf(postgres, 'a').kind, 'identifier');
+    assert.strictEqual(findLeaf(postgres, '\u0301').kind, 'unknown');
+
+    assertSingleLeaf(
+        'SELECT a\u0301 FROM t',
+        'mysql',
+        'a\u0301',
+        'identifier',
+        'code'
+    );
+    assertSingleLeaf(
+        'SELECT \u0301 FROM t',
+        'mysql',
+        '\u0301',
+        'identifier',
+        'code'
+    );
+    assertSingleLeaf(
+        'SELECT ² FROM t',
+        'postgresql',
+        '²',
+        'unknown',
+        'protected'
+    );
+});
+
+test('MySQL BMP identifier range excludes whitespace BOM and surrogates', function() {
+    assertSingleLeaf('SELECT $name FROM t', 'mysql', '$name', 'identifier', 'code');
+    assertSingleLeaf(
+        'SELECT 123column FROM t',
+        'mysql',
+        '123column',
+        'identifier',
+        'code'
+    );
+    assertSingleLeaf('SELECT 1e3 FROM t', 'mysql', '1e3', 'number', 'code');
+    assertSingleLeaf('SELECT 0xAF FROM t', 'mysql', '0xAF', 'number', 'code');
+    ['\u0085', '\u00a0', '\u2028', '\u2029', '\u3000', '\uFEFF'].forEach(
+        function(raw) {
+            var source = 'SELECT a' + raw + 'b FROM t';
+            var output = lexSql(source, { dialect: 'mysql' });
+            assertConservesSource(source, output);
+            assert.strictEqual(findLeaf(output, 'a').kind, 'identifier');
+            assert.strictEqual(findLeaf(output, 'b').kind, 'identifier');
+            assert.strictEqual(
+                findLeaf(output, 'a' + raw + 'b'),
+                undefined,
+                'whitespace/BOM must not join a MySQL identifier'
+            );
+        }
+    );
+    assertSingleLeaf(
+        'SELECT \uD800\uD801 FROM t',
+        'mysql',
+        '\uD800\uD801',
+        'unknown',
+        'protected'
+    );
+});
+
+test('continuous unknown code points merge into one protected leaf', function() {
+    var raw = '@@\\§©中文😀\uD800\uD801';
+    assertSingleLeaf(
+        'SELECT ' + raw + ' FROM t',
+        'hive',
+        raw,
+        'unknown',
+        'protected'
+    );
+});
+
 test('emoji uses UTF-16 surrogate-aware spans', function() {
     var source = "SELECT '😀' -- 保留 FROM 😀";
     var output = lexSql(source);
@@ -278,24 +402,12 @@ test('shared-prefix operators choose longest form', function() {
     assert.ok(!findLeaf(output, '@'));
 });
 
-test('unregistered operator characters are not merged into generic runs', function() {
-    // Hive profile does not register @@; each @ must remain a separate unknown leaf.
+test('unregistered operator characters merge only as an unknown run', function() {
+    // Hive profile does not register @@; the exact run remains protected.
     var source = 'SELECT a @@ b';
     var output = lexSql(source, { dialect: 'hive' });
     assertConservesSource(source, output);
-    assert.strictEqual(
-        findLeaf(output, '@@'),
-        undefined,
-        'Hive must not emit a single @@ operator leaf'
-    );
-    var atLeaves = output.leaves.filter(function(leaf) {
-        return leaf.raw === '@';
-    });
-    assert.strictEqual(atLeaves.length, 2, 'each @ must be its own leaf');
-    atLeaves.forEach(function(leaf) {
-        assert.strictEqual(leaf.kind, 'unknown');
-        assert.strictEqual(leaf.channel, 'protected');
-    });
+    assertSingleLeaf(source, 'hive', '@@', 'unknown', 'protected');
 });
 
 // ---------------------------------------------------------------------------
@@ -645,6 +757,9 @@ test('profile lookups do not expose mutators and cannot alter lexSql', function(
     assert.strictEqual(typeof profile.parameters.add, 'undefined');
     assert.strictEqual(typeof profile.prefixedLiterals.add, 'undefined');
     assert.ok(Object.isFrozen(profile.operators), 'operators array must be frozen');
+    assert.ok(Object.isFrozen(profile.identifierCharacters));
+    assert.strictEqual(typeof profile.identifierCharacters.isStart, 'function');
+    assert.strictEqual(typeof profile.identifierCharacters.isContinue, 'function');
 
     // Attempt ordinary mutation if a Set were leaked; should throw or be no-op on frozen lookup.
     var before = lexSql('SELECT NOT_A_REAL_KEYWORD_XYZ');

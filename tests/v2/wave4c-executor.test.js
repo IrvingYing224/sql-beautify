@@ -152,6 +152,28 @@ async function run() {
     await defaultRouted.format(request(new Array(8193).join('a')));
     assert.strictEqual(defaultRouted.lastRoute(), 'worker',
         'default source code-unit threshold must route to worker');
+    var compactUnknownRun = 'select ' + '中'.repeat(8184);
+    assert.strictEqual(compactUnknownRun.length, 8191);
+    await defaultRouted.format(request(compactUnknownRun));
+    assert.strictEqual(defaultRouted.lastRoute(), 'direct',
+        'merged unknown run below both thresholds may remain direct');
+    var boundedUnknownRun = compactUnknownRun + '中';
+    assert.strictEqual(boundedUnknownRun.length, 8192);
+    await defaultRouted.format(request(boundedUnknownRun));
+    assert.strictEqual(defaultRouted.lastRoute(), 'worker',
+        'source threshold must bound merged unknown runs');
+    var separatedUnknownRuns = new Array(1001).fill('中 ').join('');
+    assert.ok(separatedUnknownRuns.length < 8192);
+    await defaultRouted.format(request(separatedUnknownRuns));
+    assert.strictEqual(defaultRouted.lastRoute(), 'worker',
+        'leaf threshold must still bound separated unknown runs');
+    for (var cjkDialect of ['postgresql', 'mysql']) {
+        var cjkRequest = request('select ' + '字段'.repeat(1500));
+        cjkRequest.options = { dialect: cjkDialect };
+        await defaultRouted.format(cjkRequest);
+        assert.strictEqual(defaultRouted.lastRoute(), 'direct',
+            cjkDialect + ' Unicode identifier below both thresholds');
+    }
     await defaultRouted.format(request(new Array(1001).join('a ')));
     assert.strictEqual(defaultRouted.lastRoute(), 'worker',
         'default leaf-count threshold must independently route to worker');

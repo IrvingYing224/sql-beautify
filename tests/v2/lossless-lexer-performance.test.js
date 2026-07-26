@@ -97,6 +97,39 @@ function measureScale(statementCount, repeatsPerSample) {
     };
 }
 
+function measureUnknownScale(patternCount, repeatsPerSample) {
+    var source = '中😀§'.repeat(patternCount);
+    var samples = [];
+    var output;
+    for (var warmup = 0; warmup < 2; warmup++) {
+        output = lexSql(source, { dialect: 'hive' });
+        assert.strictEqual(reconstruct(output), source);
+        assert.strictEqual(output.leaves.length, 1);
+        assert.strictEqual(output.leaves[0].kind, 'unknown');
+    }
+    for (var sample = 0; sample < 7; sample++) {
+        var start = process.hrtime.bigint();
+        for (var repeat = 0; repeat < repeatsPerSample; repeat++) {
+            output = lexSql(source, { dialect: 'hive' });
+        }
+        samples.push(
+            Number(process.hrtime.bigint() - start) /
+                1e6 /
+                repeatsPerSample
+        );
+    }
+    assert.strictEqual(reconstruct(output), source);
+    assert.strictEqual(output.leaves.length, 1);
+    return {
+        patterns: patternCount,
+        codePoints: patternCount * 3,
+        codeUnits: source.length,
+        leaves: output.leaves.length,
+        medianMs: median(samples),
+        samples: samples
+    };
+}
+
 // Keep 100-case samples out of sub-millisecond noise by repeating inside the sample.
 var result100 = measureScale(100, 30);
 var result800 = measureScale(800, 4);
@@ -106,6 +139,11 @@ var result1200 = measureScale(1200, 3);
 // Near-linear ideal: 800/100 ≈ 8, 1200/100 ≈ 12.
 var ratio800 = result800.medianMs / result100.medianMs;
 var ratio1200 = result1200.medianMs / result100.medianMs;
+var unknown100 = measureUnknownScale(10000, 30);
+var unknown800 = measureUnknownScale(80000, 4);
+var unknown1200 = measureUnknownScale(120000, 3);
+var unknownRatio800 = unknown800.medianMs / unknown100.medianMs;
+var unknownRatio1200 = unknown1200.medianMs / unknown100.medianMs;
 
 var report = {
     result100: {
@@ -131,6 +169,13 @@ var report = {
     },
     ratio800: ratio800,
     ratio1200: ratio1200,
+    unknownRuns: {
+        result100: unknown100,
+        result800: unknown800,
+        result1200: unknown1200,
+        ratio800: unknownRatio800,
+        ratio1200: unknownRatio1200
+    },
     processPeakRssNote: 'processPeakRssKb is process.resourceUsage().maxRSS for the whole test process; cumulative, not independent per scale'
 };
 
@@ -143,6 +188,16 @@ assert.ok(
 assert.ok(
     ratio1200 <= 18,
     '1200/100 scale ratio must be <= 18 (disaster gate), got ' + ratio1200
+);
+assert.ok(
+    unknownRatio800 <= 12,
+    'merged unknown 800/100 scale ratio must be <= 12, got ' +
+        unknownRatio800
+);
+assert.ok(
+    unknownRatio1200 <= 18,
+    'merged unknown 1200/100 scale ratio must be <= 18, got ' +
+        unknownRatio1200
 );
 
 console.log('v2 lossless lexer performance tests passed');

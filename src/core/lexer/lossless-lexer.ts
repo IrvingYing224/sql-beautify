@@ -383,23 +383,10 @@ function scanDollarString(state: ScannerState): boolean {
     }
 
     const start = state.cursor;
-    let tagEnd = start + 1;
-    if (charAt(state, tagEnd) === "$") {
-        tagEnd += 1;
-    } else {
-        if (!isDollarTagStart(charAt(state, tagEnd))) {
-            return false;
-        }
-        tagEnd += 1;
-        while (tagEnd < state.length && isDollarTagContinue(charAt(state, tagEnd))) {
-            tagEnd += 1;
-        }
-        if (charAt(state, tagEnd) !== "$") {
-            return false;
-        }
-        tagEnd += 1;
+    const tagEnd = dollarStringTagEnd(state, start);
+    if (tagEnd === null) {
+        return false;
     }
-
     const tag = state.source.slice(start, tagEnd);
     let end = tagEnd;
     let terminated = false;
@@ -425,6 +412,27 @@ function scanDollarString(state: ScannerState): boolean {
 
     emitLeaf(state, "string", start, end);
     return true;
+}
+
+function dollarStringTagEnd(
+    state: ScannerState,
+    start: number
+): number | null {
+    if (!state.profile.dollarStrings || charAt(state, start) !== "$") {
+        return null;
+    }
+    let tagEnd = start + 1;
+    if (charAt(state, tagEnd) === "$") {
+        return tagEnd + 1;
+    }
+    if (!isDollarTagStart(charAt(state, tagEnd))) {
+        return null;
+    }
+    tagEnd += 1;
+    while (tagEnd < state.length && isDollarTagContinue(charAt(state, tagEnd))) {
+        tagEnd += 1;
+    }
+    return charAt(state, tagEnd) === "$" ? tagEnd + 1 : null;
 }
 
 function scanTemplateParameter(state: ScannerState): boolean {
@@ -570,6 +578,49 @@ function scanQuoted(state: ScannerState): boolean {
     return false;
 }
 
+function scanMysqlDigitStartedIdentifier(
+    state: ScannerState,
+    start: number
+): boolean {
+    if (state.profile.dialect !== "mysql") {
+        return false;
+    }
+    let digitEnd = start;
+    while (digitEnd < state.length && isAsciiDigit(charAt(state, digitEnd))) {
+        digitEnd += 1;
+    }
+    const next = charAt(state, digitEnd);
+    const exponentFollower = charAt(state, digitEnd + 1);
+    const hasNumericExponent =
+        (next === "e" || next === "E") &&
+        (isAsciiDigit(exponentFollower) ||
+            ((exponentFollower === "+" || exponentFollower === "-") &&
+                isAsciiDigit(charAt(state, digitEnd + 2))));
+    if (hasNumericExponent) {
+        return false;
+    }
+    const nextCodePoint = codePointAt(state.source, digitEnd);
+    if (
+        nextCodePoint === undefined ||
+        !state.profile.identifierCharacters.isContinue(nextCodePoint)
+    ) {
+        return false;
+    }
+    let end = digitEnd;
+    while (end < state.length) {
+        const codePoint = codePointAt(state.source, end);
+        if (
+            codePoint === undefined ||
+            !state.profile.identifierCharacters.isContinue(codePoint)
+        ) {
+            break;
+        }
+        end += codePointWidth(codePoint);
+    }
+    emitLeaf(state, "identifier", start, end);
+    return true;
+}
+
 function scanNumber(state: ScannerState): boolean {
     const start = state.cursor;
     const ch = charAt(state, start);
@@ -594,6 +645,10 @@ function scanNumber(state: ScannerState): boolean {
             emitLeaf(state, "number", start, end);
             return true;
         }
+    }
+
+    if (isAsciiDigit(ch) && scanMysqlDigitStartedIdentifier(state, start)) {
+        return true;
     }
 
     let end = start;
@@ -645,13 +700,23 @@ function scanNumber(state: ScannerState): boolean {
 
 function scanIdentifierOrKeyword(state: ScannerState): boolean {
     const start = state.cursor;
-    const ch = charAt(state, start);
-    if (!isIdentifierStart(ch)) {
+    const firstCodePoint = codePointAt(state.source, start);
+    if (
+        firstCodePoint === undefined ||
+        !state.profile.identifierCharacters.isStart(firstCodePoint)
+    ) {
         return false;
     }
-    let end = start + 1;
-    while (end < state.length && isIdentifierContinue(charAt(state, end))) {
-        end += 1;
+    let end = start + codePointWidth(firstCodePoint);
+    while (end < state.length) {
+        const nextCodePoint = codePointAt(state.source, end);
+        if (
+            nextCodePoint === undefined ||
+            !state.profile.identifierCharacters.isContinue(nextCodePoint)
+        ) {
+            break;
+        }
+        end += codePointWidth(nextCodePoint);
     }
     const raw = state.source.slice(start, end);
     const kind = state.profile.keywords.has(raw.toUpperCase()) ? "keyword" : "identifier";
@@ -741,10 +806,76 @@ function scanPunctuation(state: ScannerState): boolean {
     return true;
 }
 
+function knownLeafStartsAfterUnknown(
+    state: ScannerState,
+    index: number
+): boolean {
+    const codePoint = codePointAt(state.source, index);
+    if (codePoint === undefined) {
+        return false;
+    }
+    const ch = charAt(state, index);
+    if (codePoint > 0x7f) {
+        return isHorizontalWhitespace(ch) ||
+            state.profile.identifierCharacters.isStart(codePoint);
+    }
+    if (
+        isNewlineChar(ch) ||
+        isHorizontalWhitespace(ch) ||
+        isAsciiDigit(ch) ||
+        state.profile.identifierCharacters.isStart(codePoint) ||
+        ch === "'" ||
+        ch === '"' ||
+        (ch === "`" && state.profile.backtickIdentifiers) ||
+        PUNCTUATION.has(ch) ||
+        (state.profile.hashComments && ch === "#") ||
+        (state.profile.templateParameters &&
+            state.source.startsWith("${", index)) ||
+        dollarStringTagEnd(state, index) !== null
+    ) {
+        return true;
+    }
+    for (const operator of state.profile.operators) {
+        if (state.source.startsWith(operator, index)) {
+            return true;
+        }
+    }
+    if (
+        state.profile.parameters.has("$n") &&
+        ch === "$" &&
+        isAsciiDigit(charAt(state, index + 1))
+    ) {
+        return true;
+    }
+    if (
+        state.profile.parameters.has(":id") &&
+        ch === ":" &&
+        isIdentifierStart(charAt(state, index + 1))
+    ) {
+        return true;
+    }
+    if (
+        state.profile.parameters.has("@name") &&
+        ch === "@" &&
+        isIdentifierStart(charAt(state, index + 1))
+    ) {
+        return true;
+    }
+    return state.profile.parameters.has("?") && ch === "?";
+}
+
 function scanUnknown(state: ScannerState): void {
-    const cp = codePointAt(state.source, state.cursor);
-    const width = codePointWidth(cp ?? 0);
-    emitLeaf(state, "unknown", state.cursor, state.cursor + Math.max(width, 1));
+    const start = state.cursor;
+    const firstCodePoint = codePointAt(state.source, start);
+    let end = start + Math.max(codePointWidth(firstCodePoint ?? 0), 1);
+    while (
+        end < state.length &&
+        !knownLeafStartsAfterUnknown(state, end)
+    ) {
+        const codePoint = codePointAt(state.source, end);
+        end += Math.max(codePointWidth(codePoint ?? 0), 1);
+    }
+    emitLeaf(state, "unknown", start, end);
 }
 
 function advanceOneLeaf(state: ScannerState): void {

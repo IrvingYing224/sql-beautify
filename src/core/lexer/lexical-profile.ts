@@ -24,8 +24,14 @@ export interface ReadonlyLookup<T extends string> {
     readonly has: (value: T) => boolean;
 }
 
+export interface IdentifierCharacterProfile {
+    readonly isStart: (codePoint: number) => boolean;
+    readonly isContinue: (codePoint: number) => boolean;
+}
+
 export interface LexicalProfile {
     readonly dialect: Dialect;
+    readonly identifierCharacters: IdentifierCharacterProfile;
     readonly doubleQuote: DoubleQuoteSemantics;
     readonly backtickIdentifiers: boolean;
     readonly hashComments: boolean;
@@ -284,6 +290,98 @@ const HIVE_OPERATORS = [
     "~",
 ] as const;
 
+function isAsciiLetterCodePoint(codePoint: number): boolean {
+    return (
+        (codePoint >= 0x41 && codePoint <= 0x5a) ||
+        (codePoint >= 0x61 && codePoint <= 0x7a)
+    );
+}
+
+function isAsciiDigitCodePoint(codePoint: number): boolean {
+    return codePoint >= 0x30 && codePoint <= 0x39;
+}
+
+const POSTGRES_UNICODE_LETTER = /^\p{Letter}$/u;
+
+function isPostgresIdentifierLetter(codePoint: number): boolean {
+    return Number.isInteger(codePoint) &&
+        codePoint >= 0 &&
+        codePoint <= 0x10ffff &&
+        POSTGRES_UNICODE_LETTER.test(String.fromCodePoint(codePoint));
+}
+
+function isMysqlIdentifierWhitespace(codePoint: number): boolean {
+    return (
+        codePoint === 0x0085 ||
+        codePoint === 0x00a0 ||
+        codePoint === 0x1680 ||
+        (codePoint >= 0x2000 && codePoint <= 0x200a) ||
+        codePoint === 0x2028 ||
+        codePoint === 0x2029 ||
+        codePoint === 0x202f ||
+        codePoint === 0x205f ||
+        codePoint === 0x3000
+    );
+}
+
+function isMysqlExtendedIdentifierCodePoint(codePoint: number): boolean {
+    // MySQL's documented unquoted range is U+0080..U+FFFF. Supplementary
+    // characters are not permitted. Exclude invalid UTF-16 surrogates, the
+    // whitespace recognized by this lexer, and an interior BOM boundary.
+    return codePoint >= 0x0080 &&
+        codePoint <= 0xffff &&
+        !(codePoint >= 0xd800 && codePoint <= 0xdfff) &&
+        codePoint !== 0xfeff &&
+        !isMysqlIdentifierWhitespace(codePoint);
+}
+
+function identifierCharacters(
+    isStart: (codePoint: number) => boolean,
+    isContinue: (codePoint: number) => boolean
+): IdentifierCharacterProfile {
+    return Object.freeze({ isStart, isContinue });
+}
+
+const ASCII_IDENTIFIER_CHARACTERS = identifierCharacters(
+    (codePoint) => isAsciiLetterCodePoint(codePoint) || codePoint === 0x5f,
+    (codePoint) =>
+        isAsciiLetterCodePoint(codePoint) ||
+        isAsciiDigitCodePoint(codePoint) ||
+        codePoint === 0x5f ||
+        codePoint === 0x24
+);
+
+const POSTGRES_IDENTIFIER_CHARACTERS = identifierCharacters(
+    // Conservative PostgreSQL UTF-8 subset: Unicode letters are accepted,
+    // while combining marks and non-ASCII numbers remain protected until the
+    // scanner/encoding contract can justify a broader set.
+    (codePoint) => codePoint === 0x5f ||
+        isPostgresIdentifierLetter(codePoint),
+    (codePoint) =>
+        codePoint === 0x5f ||
+        codePoint === 0x24 ||
+        isAsciiDigitCodePoint(codePoint) ||
+        isPostgresIdentifierLetter(codePoint)
+);
+
+const MYSQL_IDENTIFIER_CHARACTERS = identifierCharacters(
+    // MySQL 8.4 "Schema Object Names" documents ASCII [0-9A-Za-z$_]
+    // plus U+0080..U+FFFF for unquoted identifiers. The scanner resolves an
+    // all-digit run as a number and a digit-started mixed run as an identifier.
+    (codePoint) =>
+        isAsciiLetterCodePoint(codePoint) ||
+        isAsciiDigitCodePoint(codePoint) ||
+        codePoint === 0x5f ||
+        codePoint === 0x24 ||
+        isMysqlExtendedIdentifierCodePoint(codePoint),
+    (codePoint) =>
+        isAsciiLetterCodePoint(codePoint) ||
+        isAsciiDigitCodePoint(codePoint) ||
+        codePoint === 0x5f ||
+        codePoint === 0x24 ||
+        isMysqlExtendedIdentifierCodePoint(codePoint)
+);
+
 function sortOperatorsLongestFirst(operators: readonly string[]): readonly string[] {
     return Object.freeze(
         [...operators].sort((left, right) => {
@@ -334,6 +432,7 @@ function freezeSyntaxOperatorWords(words: readonly string[] = []): ReadonlyLooku
 
 const HIVE_PROFILE: LexicalProfile = Object.freeze({
     dialect: "hive",
+    identifierCharacters: ASCII_IDENTIFIER_CHARACTERS,
     doubleQuote: "string",
     backtickIdentifiers: true,
     hashComments: false,
@@ -386,6 +485,7 @@ const HIVE_PROFILE: LexicalProfile = Object.freeze({
 
 const GENERIC_PROFILE: LexicalProfile = Object.freeze({
     dialect: "generic",
+    identifierCharacters: ASCII_IDENTIFIER_CHARACTERS,
     doubleQuote: "identifier",
     backtickIdentifiers: false,
     hashComments: false,
@@ -403,6 +503,7 @@ const GENERIC_PROFILE: LexicalProfile = Object.freeze({
 
 const POSTGRES_PROFILE: LexicalProfile = Object.freeze({
     dialect: "postgresql",
+    identifierCharacters: POSTGRES_IDENTIFIER_CHARACTERS,
     doubleQuote: "identifier",
     backtickIdentifiers: false,
     hashComments: false,
@@ -432,6 +533,7 @@ const POSTGRES_PROFILE: LexicalProfile = Object.freeze({
 
 const MYSQL_PROFILE: LexicalProfile = Object.freeze({
     dialect: "mysql",
+    identifierCharacters: MYSQL_IDENTIFIER_CHARACTERS,
     doubleQuote: "string",
     backtickIdentifiers: true,
     hashComments: true,

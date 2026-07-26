@@ -39,8 +39,8 @@ function largeComment(size) {
     return '/*' + new Array(size + 1).join('x') + '*/\nselect 1;';
 }
 
-function request(source) {
-    return { source: source, options: { dialect: 'hive' }, mode: 'document',
+function request(source, dialect) {
+    return { source: source, options: { dialect: dialect || 'hive' }, mode: 'document',
         documentVersion: 1, targetId: 'performance' };
 }
 
@@ -49,12 +49,12 @@ function percentile(values, fraction) {
     return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
 }
 
-async function runCase(executor, source, rounds) {
-    await executor.format(request(source));
+async function runCase(executor, source, rounds, dialect) {
+    await executor.format(request(source, dialect));
     var samples = [];
     for (var index = 0; index < rounds; index++) {
         var started = performance.now();
-        var result = await executor.format(request(source));
+        var result = await executor.format(request(source, dialect));
         samples.push(performance.now() - started);
         assert.ok(result.status == 'formatted' || result.status == 'unchanged');
     }
@@ -120,6 +120,53 @@ async function run() {
         });
     }
 
+    var directCalibrationSources = [
+        {
+            kind: 'merged-hive-unknown',
+            dialect: 'hive',
+            source: 'select ' + '中'.repeat(8184)
+        },
+        {
+            kind: 'postgres-unicode-identifier',
+            dialect: 'postgresql',
+            source: 'select ' + '字段'.repeat(3500)
+        },
+        {
+            kind: 'mysql-unicode-identifier',
+            dialect: 'mysql',
+            source: 'select ' + '字段'.repeat(3500)
+        },
+        {
+            kind: 'large-comment',
+            dialect: 'hive',
+            source: largeComment(8000)
+        }
+    ];
+    var directCalibration = [];
+    for (
+        var calibrationIndex = 0;
+        calibrationIndex < directCalibrationSources.length;
+        calibrationIndex++
+    ) {
+        var calibration = directCalibrationSources[calibrationIndex];
+        assert.ok(calibration.source.length < 8192,
+            calibration.kind + ' must stay below the source threshold');
+        var calibrationTiming = await runCase(
+            direct,
+            calibration.source,
+            9,
+            calibration.dialect
+        );
+        assert.ok(calibrationTiming.p95Ms < 150,
+            calibration.kind + ' direct p95 latency gate');
+        directCalibration.push({
+            kind: calibration.kind,
+            dialect: calibration.dialect,
+            sourceCodeUnits: calibration.source.length,
+            timing: calibrationTiming
+        });
+    }
+
     var cancelState = { cancelled: false, listeners: [] };
     var cancelToken = {
         get isCancellationRequested() { return cancelState.cancelled; },
@@ -155,6 +202,7 @@ async function run() {
         limitReport: limitReport,
         report: report,
         specialReport: specialReport,
+        directCalibration: directCalibration,
         cancellationLatencyMs: cancellationLatencyMs,
         stats: stats
     }));

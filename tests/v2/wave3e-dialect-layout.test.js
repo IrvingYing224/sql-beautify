@@ -192,6 +192,49 @@ function assertStable(dialect, source, options, expected) {
     );
 });
 
+(function testUnicodeIdentifierDialectMatrixAndTokenEquivalence() {
+    var source = 'select 中文字段 as c1, b as c2 from t';
+    ['hive', 'generic'].forEach(function(dialect) {
+        assertStable(dialect, source, {}, [
+            'SELECT',
+            '      中文字段 AS c1',
+            '    , b AS c2',
+            'FROM t'
+        ].join('\n'));
+    });
+    ['postgresql', 'mysql'].forEach(function(dialect) {
+        assertStable(dialect, source, {}, [
+            'SELECT',
+            '      中文字段 AS c1',
+            '    , b        AS c2',
+            'FROM t'
+        ].join('\n'));
+    });
+
+    assertStable(
+        'postgresql',
+        'select \u{10400}name as x, b as y from t',
+        {},
+        [
+            'SELECT',
+            '      \u{10400}name AS x',
+            '    , b     AS y',
+            'FROM t'
+        ].join('\n')
+    );
+    assertStable(
+        'mysql',
+        'select a\u0301 as x, b as y from t',
+        {},
+        [
+            'SELECT',
+            '      a\u0301 AS x',
+            '    , b AS y',
+            'FROM t'
+        ].join('\n')
+    );
+})();
+
 (function testDialectSpecificStructuredOperatorsRemainAtomicBoundaries() {
     [
         ['generic', 'generic-array-subset', 'select ARRAY[1,2] as x from t', 'ARRAY[1,2]'],
