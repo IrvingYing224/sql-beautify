@@ -173,7 +173,7 @@
 					"scope": "window",
 					"type": "boolean",
 					"default": false,
-					"description": "Enable debug diagnostics in the extension host console. /在扩展宿主控制台输出调试诊断信息"
+					"description": "Enable opt-in debug diagnostics in the extension host console; output may expose SQL fragments, error stacks, and local file paths. /在扩展宿主控制台输出可选调试信息；内容可能暴露 SQL 片段、错误栈和本地文件路径"
 				}
 			}
 		}

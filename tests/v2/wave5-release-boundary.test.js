@@ -59,6 +59,11 @@ assert.match(readme, /INSERT INTO.*`SET`|`SET`.*INSERT INTO/,
     'README must describe the new bounded Hive command support');
 assert.match(packageJson.description, /Hive-first SQL formatter with lossless token handling/,
     'Marketplace description must describe the current formatter');
+assert.match(
+    packageJson.contributes.configuration.properties['sqlBeautify.debugDiagnostics'].description,
+    /SQL fragments.*error stacks.*local file paths/,
+    'Settings UI must disclose opt-in debug console content'
+);
 assert.match(readme, new RegExp(
     '/blob/v' + packageJson.version.replace(/\./g, '\\.') +
     '/docs/migration-to-' + migrationVersion.replace(/\./g, '\\.') + '\\.md'
