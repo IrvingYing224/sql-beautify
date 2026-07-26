@@ -26,7 +26,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # Relative performance gates load the committed Wave 2B anchor.
+          # Relative performance gates load the committed 2.0.1 release baseline.
           fetch-depth: 0
           persist-credentials: false
 

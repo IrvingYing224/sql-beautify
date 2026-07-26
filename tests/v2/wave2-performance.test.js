@@ -18,10 +18,10 @@ var SCALE_SAMPLE_COUNT = 9;
 var SCALE_WARMUP_ROUNDS = 3;
 var SCALE_COUNTS = Object.freeze([100, 800, 1200]);
 var SCALE_RATIO_GATE = 12;
-var WAVE2B_BASELINE_COMMIT = '67de251db4e66c167d2988ff4b971a24bb56aaec';
-var WAVE2B_RELATIVE_GATE = 1.2;
-var WAVE2B_RELATIVE_FLOOR_MS = 50;
-var WAVE2B_LOW_BASELINE_NOISE_MS = 10;
+var RELEASE_BASELINE_COMMIT = 'bc08772a20ab94e33978068e738999a2759dacd6';
+var RELEASE_RELATIVE_GATE = 1.2;
+var RELEASE_RELATIVE_FLOOR_MS = 50;
+var RELEASE_LOW_BASELINE_NOISE_MS = 10;
 var RELATIVE_PROCESS_ROUNDS = 3;
 var RELATIVE_WORKER_SAMPLE_COUNT = 5;
 var RELATIVE_WORKER_WARMUP_ROUNDS = 2;
@@ -107,7 +107,7 @@ function median(values) {
     return sorted[Math.floor(sorted.length / 2)];
 }
 
-function passesWave2bRelativeGate(
+function passesReleaseRelativeGate(
     currentMedianMs,
     baselineMedianMs,
     pairedDeltaMedianMs
@@ -118,13 +118,13 @@ function passesWave2bRelativeGate(
         return false;
     }
     return currentMedianMs /
-        Math.max(baselineMedianMs, WAVE2B_RELATIVE_FLOOR_MS) <=
-            WAVE2B_RELATIVE_GATE &&
-        (baselineMedianMs >= WAVE2B_RELATIVE_FLOOR_MS ||
+        Math.max(baselineMedianMs, RELEASE_RELATIVE_FLOOR_MS) <=
+            RELEASE_RELATIVE_GATE &&
+        (baselineMedianMs >= RELEASE_RELATIVE_FLOOR_MS ||
             (Number.isFinite(pairedDeltaMedianMs)
                 ? pairedDeltaMedianMs
                 : currentMedianMs - baselineMedianMs) <=
-                WAVE2B_LOW_BASELINE_NOISE_MS);
+                RELEASE_LOW_BASELINE_NOISE_MS);
 }
 
 function runRequired(command, args, options, label) {
@@ -138,21 +138,32 @@ function runRequired(command, args, options, label) {
     return result;
 }
 
-function prepareWave2bBaseline() {
+function prepareReleaseBaseline() {
     runRequired(
         'git',
-        ['cat-file', '-e', WAVE2B_BASELINE_COMMIT + '^{commit}'],
+        ['cat-file', '-e', RELEASE_BASELINE_COMMIT + '^{commit}'],
         { cwd: root, encoding: 'utf8' },
-        'Wave 2B baseline lookup (checkout must retain full git history)'
+        '2.0.1 release baseline lookup (checkout must retain full git history)'
     );
     runRequired(
         'git',
-        ['merge-base', '--is-ancestor', WAVE2B_BASELINE_COMMIT, 'HEAD'],
+        ['merge-base', '--is-ancestor', RELEASE_BASELINE_COMMIT, 'HEAD'],
         { cwd: root, encoding: 'utf8' },
-        'Wave 2B baseline ancestry check'
+        '2.0.1 release baseline ancestry check'
+    );
+    var baselinePackage = runRequired(
+        'git',
+        ['show', RELEASE_BASELINE_COMMIT + ':package.json'],
+        { cwd: root, encoding: 'utf8' },
+        '2.0.1 release baseline package metadata'
+    );
+    assert.strictEqual(
+        JSON.parse(baselinePackage.stdout).version,
+        '2.0.1',
+        'release performance baseline must identify package version 2.0.1'
     );
 
-    var checkoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sql-beautify-wave2b-'));
+    var checkoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sql-beautify-v2-release-'));
     try {
         var listed = runRequired(
             'git',
@@ -161,40 +172,58 @@ function prepareWave2bBaseline() {
                 '-r',
                 '-z',
                 '--name-only',
-                WAVE2B_BASELINE_COMMIT,
+                RELEASE_BASELINE_COMMIT,
                 '--',
                 'src'
             ],
             { cwd: root, encoding: null },
-            'Wave 2B baseline source listing'
+            '2.0.1 release baseline source listing'
         );
         var sourcePaths = listed.stdout.toString('utf8').split('\0').filter(Boolean);
-        sourcePaths.push('tsconfig.v2.json', 'tsconfig.v2.build.json');
+        sourcePaths.push('tsconfig.v2.json');
         sourcePaths.forEach(function(relativePath) {
             var file = runRequired(
                 'git',
-                ['show', WAVE2B_BASELINE_COMMIT + ':' + relativePath],
+                ['show', RELEASE_BASELINE_COMMIT + ':' + relativePath],
                 { cwd: root, encoding: null },
-                'Wave 2B baseline file ' + relativePath
+                '2.0.1 release baseline file ' + relativePath
             );
             var destination = path.join(checkoutRoot, relativePath);
             fs.mkdirSync(path.dirname(destination), { recursive: true });
             fs.writeFileSync(destination, file.stdout);
         });
+        var performanceTsconfig = path.join(
+            checkoutRoot,
+            'tsconfig.v2.performance.json'
+        );
+        fs.writeFileSync(performanceTsconfig, JSON.stringify({
+            extends: './tsconfig.v2.json',
+            compilerOptions: {
+                noEmit: false,
+                rootDir: 'src',
+                outDir: '.tmp/v2-core',
+                declaration: false,
+                declarationMap: false,
+                sourceMap: false,
+                removeComments: false
+            },
+            include: ['src/core/**/*.ts', 'src/types/**/*.d.ts'],
+            exclude: ['tests/**', 'node_modules/**', '.tmp/**']
+        }, null, 4));
         runRequired(
             process.execPath,
             [
                 require.resolve('typescript/bin/tsc'),
                 '-p',
-                path.join(checkoutRoot, 'tsconfig.v2.build.json')
+                performanceTsconfig
             ],
             { cwd: checkoutRoot, encoding: 'utf8', env: process.env },
-            'Wave 2B baseline build'
+            '2.0.1 release baseline build'
         );
         var coreRoot = path.join(checkoutRoot, '.tmp', 'v2-core');
         assert.ok(
             fs.existsSync(path.join(coreRoot, 'core', 'syntax', 'parser.js')),
-            'Wave 2B baseline build must produce the parser'
+            '2.0.1 release baseline build must produce the parser'
         );
         return Object.freeze({
             checkoutRoot: checkoutRoot,
@@ -206,7 +235,7 @@ function prepareWave2bBaseline() {
     }
 }
 
-function removeWave2bBaseline(baseline) {
+function removeReleaseBaseline(baseline) {
     fs.rmSync(baseline.checkoutRoot, { recursive: true, force: true });
 }
 
@@ -510,12 +539,12 @@ function measureAnalysisClosureCases() {
     return Object.freeze(timings);
 }
 
-var wave2bBaseline = prepareWave2bBaseline();
+var releaseBaseline = prepareReleaseBaseline();
 var relativeParserScales;
 try {
-    relativeParserScales = measureRelativeParserScales(wave2bBaseline.coreRoot);
+    relativeParserScales = measureRelativeParserScales(releaseBaseline.coreRoot);
 } finally {
-    removeWave2bBaseline(wave2bBaseline);
+    removeReleaseBaseline(releaseBaseline);
 }
 var parserScales = Object.freeze(relativeParserScales.map(function(item) {
     return item.current;
@@ -559,11 +588,11 @@ var performanceReport = {
     }),
     ratio800To100: Number(ratio800.toFixed(2)),
     ratio1200To100: Number(ratio1200.toFixed(2)),
-    wave2bRelativeBaseline: {
-        commit: WAVE2B_BASELINE_COMMIT,
-        currentToBaselineGate: WAVE2B_RELATIVE_GATE,
-        relativeFloorMs: WAVE2B_RELATIVE_FLOOR_MS,
-        lowBaselineNoiseMs: WAVE2B_LOW_BASELINE_NOISE_MS,
+    releaseRelativeBaseline: {
+        commit: RELEASE_BASELINE_COMMIT,
+        currentToBaselineGate: RELEASE_RELATIVE_GATE,
+        relativeFloorMs: RELEASE_RELATIVE_FLOOR_MS,
+        lowBaselineNoiseMs: RELEASE_LOW_BASELINE_NOISE_MS,
         processRounds: RELATIVE_PROCESS_ROUNDS,
         workerWarmupRounds: RELATIVE_WORKER_WARMUP_ROUNDS,
         workerSampleRounds: RELATIVE_WORKER_SAMPLE_COUNT,
@@ -627,41 +656,41 @@ assert.ok(Number.isFinite(ratio1200) && ratio1200 <= SCALE_RATIO_GATE,
     '1200/100 parser scale ratio exceeded ' + SCALE_RATIO_GATE + 'x: ' + ratio1200);
 relativeParserScales.forEach(function(item) {
     assert.ok(
-        passesWave2bRelativeGate(
+        passesReleaseRelativeGate(
             item.current.medianMs,
             item.baseline.medianMs,
             item.pairedDeltaMedianMs
         ),
-        item.statementCount + ' parser regression versus committed Wave 2B baseline exceeded ' +
-            WAVE2B_RELATIVE_GATE + 'x / low-baseline +' +
-            WAVE2B_LOW_BASELINE_NOISE_MS + 'ms gate: ' + item.currentToBaseline +
+        item.statementCount + ' parser regression versus 2.0.1 release baseline exceeded ' +
+            RELEASE_RELATIVE_GATE + 'x / low-baseline +' +
+            RELEASE_LOW_BASELINE_NOISE_MS + 'ms gate: ' + item.currentToBaseline +
             ' (baseline=' + item.baseline.medianMs + 'ms, current=' +
             item.current.medianMs + 'ms, pairedDelta=' +
             item.pairedDeltaMedianMs + 'ms)'
     );
 });
 assert.strictEqual(
-    passesWave2bRelativeGate(200, 100),
+    passesReleaseRelativeGate(200, 100),
     false,
     'relative baseline gate must reject a synthetic 2x slowdown'
 );
-assert.strictEqual(passesWave2bRelativeGate(39, 30), true,
+assert.strictEqual(passesReleaseRelativeGate(39, 30), true,
     'low baseline must allow at most the bounded absolute noise budget');
-assert.strictEqual(passesWave2bRelativeGate(40.01, 30), false,
+assert.strictEqual(passesReleaseRelativeGate(40.01, 30), false,
     'low baseline must reject work beyond the absolute noise budget');
-assert.strictEqual(passesWave2bRelativeGate(40.5, 30, 9), true,
+assert.strictEqual(passesReleaseRelativeGate(40.5, 30, 9), true,
     'low baseline must use the paired process delta for scheduler noise');
-assert.strictEqual(passesWave2bRelativeGate(39, 30, 10.01), false,
+assert.strictEqual(passesReleaseRelativeGate(39, 30, 10.01), false,
     'paired low-baseline delta must retain the exact absolute noise budget');
-assert.strictEqual(passesWave2bRelativeGate(60.01, 30, 0), false,
+assert.strictEqual(passesReleaseRelativeGate(60.01, 30, 0), false,
     'paired low-baseline noise must not bypass the exact 1.2x ratio gate');
-assert.strictEqual(passesWave2bRelativeGate(120, 100), true,
+assert.strictEqual(passesReleaseRelativeGate(120, 100), true,
     'normal baselines must retain the exact 1.2x gate');
-assert.strictEqual(passesWave2bRelativeGate(120.01, 100), false,
+assert.strictEqual(passesReleaseRelativeGate(120.01, 100), false,
     'normal baselines must reject values above the exact 1.2x gate');
 [NaN, 0, -1, Infinity].forEach(function(value) {
-    assert.strictEqual(passesWave2bRelativeGate(value, 100), false);
-    assert.strictEqual(passesWave2bRelativeGate(100, value), false);
+    assert.strictEqual(passesReleaseRelativeGate(value, 100), false);
+    assert.strictEqual(passesReleaseRelativeGate(100, value), false);
 });
 assert.ok(Number.isFinite(aliasRatio400) && aliasRatio400 <= ALIAS_RATIO_400_GATE,
     '400/100 alias-list scale ratio exceeded ' + ALIAS_RATIO_400_GATE + 'x: ' +
