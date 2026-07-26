@@ -1,4 +1,5 @@
 var assert = require('assert');
+var performance = require('perf_hooks').performance;
 var transaction = require('../../.tmp/v2-core/adapters/transaction/prepare');
 
 function diagnostic(source, code) {
@@ -443,6 +444,72 @@ async function run() {
         ['a-target', 'z-target'],
         'early rejected diagnostics must use the same stable order as ready results'
     );
+
+    var largeDocument = 'select a;\n' + new Array(30001).join('-- padding\n');
+    var resolveBatch;
+    var batchCalls = 0;
+    var firstYieldExecutor = {
+        format: async function() {
+            throw new Error('production fragment path must use one batch request');
+        },
+        validateAndFormat: function(request) {
+            batchCalls += 1;
+            return new Promise(function(resolve) { resolveBatch = resolve; });
+        },
+        dispose: async function() {}
+    };
+    var firstYieldStarted = performance.now();
+    var firstYieldPromise = transaction.prepareFormatTransaction({
+        source: largeDocument,
+        documentVersion: 14,
+        targets: [{ id: 'small-fragment', start: 0, end: 9, mode: 'fragment' }]
+    }, firstYieldExecutor);
+    var firstYieldSyncMs = performance.now() - firstYieldStarted;
+    assert.ok(firstYieldSyncMs < 50,
+        'a 300+ KB document with a small fragment must reach the batch promise before synchronous analysis');
+    assert.strictEqual(batchCalls, 1);
+    resolveBatch({
+        status: 'completed',
+        results: [{
+            targetId: 'small-fragment',
+            result: {
+                status: 'unchanged', text: 'select a;', diagnostics: [],
+                sourceMap: sourceMap(9, 9)
+            }
+        }]
+    });
+    assert.strictEqual((await firstYieldPromise).status, 'unchanged');
+
+    var exactLimitSource = new Array(524289).join(' ');
+    var limitCalls = 0;
+    var limitExecutor = createExecutor(function(request) {
+        limitCalls += 1;
+        return {
+            status: 'unchanged', text: request.source, diagnostics: [],
+            sourceMap: sourceMap(request.source.length, request.source.length)
+        };
+    });
+    var exactLimit = await transaction.prepareFormatTransaction({
+        source: exactLimitSource,
+        documentVersion: 15,
+        targets: [{
+            id: 'document', start: 0, end: exactLimitSource.length, mode: 'document'
+        }]
+    }, limitExecutor);
+    assert.strictEqual(exactLimit.status, 'unchanged',
+        '524288 UTF-16 code units must remain accepted');
+    var overLimitSource = exactLimitSource + 'x';
+    var overLimit = await transaction.prepareFormatTransaction({
+        source: overLimitSource,
+        documentVersion: 16,
+        targets: [{
+            id: 'document', start: 0, end: overLimitSource.length, mode: 'document'
+        }]
+    }, limitExecutor);
+    assert.strictEqual(overLimit.status, 'rejected');
+    assert.strictEqual(overLimit.diagnostics[0].code, 'ADAPTER_INPUT_LIMIT');
+    assert.strictEqual(limitCalls, 1,
+        '524289 UTF-16 code units must be rejected before executor dispatch');
 
     console.log('v2 Wave 4A transaction tests passed');
 }

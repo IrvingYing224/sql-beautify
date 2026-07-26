@@ -24,6 +24,19 @@ function request(id, token, newline) {
     return value;
 }
 
+function batchRequest(token) {
+    return {
+        source: 'select a;\nselect b;\n',
+        options: { dialect: 'hive' },
+        documentVersion: 30,
+        targets: [
+            { id: 'first', start: 0, end: 10, mode: 'fragment' },
+            { id: 'second', start: 10, end: 20, mode: 'fragment' }
+        ],
+        cancellation: token
+    };
+}
+
 function FakeWorker(generation, factory) {
     this.generation = generation;
     this.factory = factory;
@@ -58,6 +71,32 @@ FakeWorker.prototype.respond = function(message, overrides) {
             status: 'unchanged', text: message.source, diagnostics: [],
             sourceMap: sourceMap(message.source.length)
         }
+    }, overrides || {});
+    this.handlers.message(response);
+};
+FakeWorker.prototype.respondBatch = function(message, overrides, resultOverride) {
+    var result = resultOverride || {
+        status: 'completed',
+        results: message.targets.map(function(target) {
+            var text = message.source.slice(target.start, target.end);
+            return {
+                targetId: target.id,
+                result: {
+                    status: 'unchanged', text: text, diagnostics: [],
+                    sourceMap: sourceMap(text.length)
+                }
+            };
+        })
+    };
+    var response = Object.assign({
+        kind: 'batch-result',
+        requestId: message.requestId,
+        generation: message.generation,
+        documentVersion: message.documentVersion,
+        sourceDigest: message.sourceDigest,
+        runtimeDigest: RUNTIME_DIGEST,
+        formattingMs: 1,
+        result: result
     }, overrides || {});
     this.handlers.message(response);
 };
@@ -114,12 +153,16 @@ async function run() {
     activeController.cancel();
     assert.strictEqual((await active).diagnostics[0].code, 'ADAPTER_CANCELLED');
     await tick();
-    assert.strictEqual(activeFactory.workers[0].terminated, 1,
-        'active cancellation must terminate the worker');
+    assert.strictEqual(activeFactory.workers[0].terminated, 0,
+        'active cancellation must allow the worker a bounded drain grace');
+    activeFactory.workers[0].respond(activeFactory.workers[0].messages[0]);
+    await tick();
+    assert.strictEqual(activeExecutor.statistics().cancellationReuses, 1,
+        'a valid response during cancellation grace must permit safe worker reuse');
     var afterCancel = activeExecutor.format(request(4));
-    assert.strictEqual(activeFactory.workers.length, 2,
-        'the next request after active cancellation must use a new generation');
-    activeFactory.workers[1].respond(activeFactory.workers[1].messages[0]);
+    assert.strictEqual(activeFactory.workers.length, 1,
+        'the next request after a safely drained cancellation must reuse the generation');
+    activeFactory.workers[0].respond(activeFactory.workers[0].messages[1]);
     assert.strictEqual((await afterCancel).status, 'unchanged');
     await activeExecutor.dispose();
 
@@ -197,7 +240,8 @@ async function run() {
     };
     var retirementExecutor = new persistentModule.PersistentWorkerExecutor({
         workerFactory: retirementFactory.create,
-        runtimeDigest: RUNTIME_DIGEST
+        runtimeDigest: RUNTIME_DIGEST,
+        cancellationGraceMs: 20
     });
     var retirementController = cancellationModule.createCancellationController();
     var retiring = retirementExecutor.format(request(12, retirementController.token));
@@ -205,7 +249,10 @@ async function run() {
     assert.strictEqual((await retiring).diagnostics[0].code, 'ADAPTER_CANCELLED');
     var afterRetirement = retirementExecutor.format(request(13));
     assert.strictEqual(retirementFactory.workers.length, 1,
-        'a replacement worker must wait for active termination to finish');
+        'a replacement worker must wait for cancellation grace and termination');
+    await new Promise(function(resolve) { setTimeout(resolve, 30); });
+    assert.strictEqual(retirementFactory.workers[0].terminated, 1,
+        'a worker that misses cancellation grace must be retired');
     retirementResolvers.shift()(0);
     await tick();
     assert.strictEqual(retirementFactory.workers.length, 2);
@@ -321,9 +368,96 @@ async function run() {
         'ADAPTER_CANCELLED',
         'response handling must re-check cancellation state');
     await tick();
-    assert.strictEqual(lateCancellationFactory.workers[0].terminated, 1,
-        'late active cancellation must retire the worker before reuse');
+    assert.strictEqual(lateCancellationFactory.workers[0].terminated, 0,
+        'a fully validated response may safely complete a late cancellation drain');
+    assert.strictEqual(lateCancellationExecutor.statistics().cancellationReuses, 1);
     await lateCancellationExecutor.dispose();
+
+    var queuedDeadlineFactory = fakeFactory(function() {});
+    var queuedDeadlineExecutor = new persistentModule.PersistentWorkerExecutor({
+        workerFactory: queuedDeadlineFactory.create,
+        runtimeDigest: RUNTIME_DIGEST,
+        requestTimeoutMs: 20,
+        cancellationGraceMs: 100
+    });
+    var drainController = cancellationModule.createCancellationController();
+    var draining = queuedDeadlineExecutor.format(request(24, drainController.token));
+    var drainingMessage = queuedDeadlineFactory.workers[0].messages[0];
+    drainController.cancel();
+    assert.strictEqual((await draining).diagnostics[0].code, 'ADAPTER_CANCELLED');
+    var queuedDeadline = queuedDeadlineExecutor.format(request(25));
+    assert.strictEqual((await queuedDeadline).diagnostics[0].code,
+        'ADAPTER_WORKER_TIMEOUT',
+        'queued requests must retain the deadline assigned at enqueue');
+    assert.strictEqual(queuedDeadlineFactory.workers[0].terminated, 0,
+        'a queued timeout must not terminate the active draining worker');
+    queuedDeadlineFactory.workers[0].respond(drainingMessage);
+    await tick();
+    assert.strictEqual(queuedDeadlineExecutor.statistics().cancellationReuses, 1);
+    await queuedDeadlineExecutor.dispose();
+
+    var batchFactory = fakeFactory(function() {});
+    var batchExecutor = new persistentModule.PersistentWorkerExecutor({
+        workerFactory: batchFactory.create,
+        runtimeDigest: RUNTIME_DIGEST,
+        maxStaleResponses: 1
+    });
+    var batchPromise = batchExecutor.validateAndFormat(batchRequest());
+    var batchMessage = batchFactory.workers[0].messages[0];
+    assert.strictEqual(batchMessage.kind, 'validate-and-format');
+    batchFactory.workers[0].respondBatch(batchMessage);
+    assert.strictEqual((await batchPromise).status, 'completed',
+        'worker batch response must preserve the exact target set');
+    await batchExecutor.dispose();
+
+    async function tamperedBatch(resultTransform, responseOverrides) {
+        var factory = fakeFactory(function() {});
+        var executor = new persistentModule.PersistentWorkerExecutor({
+            workerFactory: factory.create,
+            runtimeDigest: RUNTIME_DIGEST,
+            maxStaleResponses: 1
+        });
+        var promise = executor.validateAndFormat(batchRequest());
+        var message = factory.workers[0].messages[0];
+        var normal = {
+            status: 'completed',
+            results: message.targets.map(function(target) {
+                var text = message.source.slice(target.start, target.end);
+                return {
+                    targetId: target.id,
+                    result: {
+                        status: 'unchanged', text: text, diagnostics: [],
+                        sourceMap: sourceMap(text.length)
+                    }
+                };
+            })
+        };
+        factory.workers[0].respondBatch(
+            message,
+            responseOverrides,
+            resultTransform ? resultTransform(normal) : normal
+        );
+        var result = await promise;
+        await executor.dispose();
+        return result;
+    }
+    var tamperedId = await tamperedBatch(function(result) {
+        result.results[0].targetId = 'other';
+        return result;
+    });
+    assert.strictEqual(tamperedId.code, 'ADAPTER_WORKER_RESULT_CONTRACT',
+        'a changed batch target id must fail closed');
+    var tamperedCount = await tamperedBatch(function(result) {
+        result.results.pop();
+        return result;
+    });
+    assert.strictEqual(tamperedCount.code, 'ADAPTER_WORKER_RESULT_CONTRACT',
+        'a changed batch target count must fail closed');
+    var tamperedDigest = await tamperedBatch(null, {
+        sourceDigest: new Array(65).join('0')
+    });
+    assert.strictEqual(tamperedDigest.code, 'ADAPTER_WORKER_STALE_RESPONSE',
+        'a changed batch source digest must fail closed');
 
     var disposeFirst = staleExecutor.format(request(8));
     var disposeSecond = staleExecutor.format(request(9));

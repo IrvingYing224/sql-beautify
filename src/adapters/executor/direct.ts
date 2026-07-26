@@ -8,9 +8,15 @@ import {
 } from "../boundary/format-result-snapshot";
 import { observeCancellation } from "../transaction/cancellation";
 import type { FormatterExecutor, FormatExecutionRequest } from "../transaction/types";
+import type {
+    FormatBatchExecutionResult,
+    ValidateAndFormatExecutionRequest,
+} from "../transaction/types";
+import { executeFormatBatch } from "./batch";
 import {
     snapshotFormatExecutionRequest,
     snapshotFormatExecutionSource,
+    snapshotValidateAndFormatExecutionRequest,
 } from "./request";
 
 export type TargetFormatter = (
@@ -78,6 +84,36 @@ export class DirectFormatterExecutor implements FormatterExecutor {
                 "ADAPTER_EXECUTOR_FAILED",
                 "Formatter executor failed"
             );
+        } finally {
+            cancellation.dispose();
+        }
+    }
+
+    async validateAndFormat(
+        request: ValidateAndFormatExecutionRequest
+    ): Promise<FormatBatchExecutionResult> {
+        const snapshot = snapshotValidateAndFormatExecutionRequest(request);
+        if (snapshot === null) {
+            return Object.freeze({
+                status: "failed" as const,
+                code: "ADAPTER_EXECUTION_REQUEST",
+            });
+        }
+        const cancellation = observeCancellation(snapshot.cancellation);
+        try {
+            if (cancellation.isCancelled()) {
+                return Object.freeze({
+                    status: "failed" as const,
+                    code: "ADAPTER_CANCELLED",
+                });
+            }
+            const result = executeFormatBatch(snapshot, this.formatTarget);
+            return cancellation.isCancelled()
+                ? Object.freeze({
+                      status: "failed" as const,
+                      code: "ADAPTER_CANCELLED",
+                  })
+                : result;
         } finally {
             cancellation.dispose();
         }

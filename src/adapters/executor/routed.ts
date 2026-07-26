@@ -1,12 +1,16 @@
 import type { FormatResult } from "../../core/api/format-result";
 import { lexSql } from "../../core/lexer/lossless-lexer";
 import type {
+    FormatBatchExecutionResult,
     FormatExecutionRequest,
     FormatterExecutor,
+    ValidateAndFormatExecutionRequest,
 } from "../transaction/types";
 import {
     executionRequestForCore,
     snapshotFormatExecutionRequest,
+    snapshotValidateAndFormatExecutionRequest,
+    type StableValidateAndFormatExecutionRequest,
 } from "./request";
 
 export interface ExecutorThresholds {
@@ -15,8 +19,8 @@ export interface ExecutorThresholds {
 }
 
 export const DEFAULT_EXECUTOR_THRESHOLDS: ExecutorThresholds = Object.freeze({
-    sourceCodeUnits: 65_536,
-    leafCount: 12_000,
+    sourceCodeUnits: 8_192,
+    leafCount: 2_000,
 });
 
 export class RoutedFormatterExecutor implements FormatterExecutor {
@@ -41,26 +45,64 @@ export class RoutedFormatterExecutor implements FormatterExecutor {
         return this.route;
     }
 
+    private useWorkerFor(
+        source: string,
+        dialect: StableValidateAndFormatExecutionRequest["options"]["dialect"]
+    ): boolean {
+        let useWorker = source.length >= this.thresholds.sourceCodeUnits;
+        // Every lossless leaf covers at least one UTF-16 code unit. Therefore
+        // source.length < leafCount is a safe lower-bound prune, not a unit mix.
+        if (!useWorker && source.length >= this.thresholds.leafCount) {
+            try {
+                useWorker = lexSql(source, { dialect }).leaves.length >=
+                    this.thresholds.leafCount;
+            } catch {
+                useWorker = true;
+            }
+        }
+        return useWorker;
+    }
+
     async format(request: FormatExecutionRequest): Promise<FormatResult> {
         const snapshot = snapshotFormatExecutionRequest(request);
         if (snapshot === null) {
             this.route = "direct";
             return await this.direct.format(request);
         }
-        let useWorker = snapshot.source.length >= this.thresholds.sourceCodeUnits;
-        if (!useWorker && snapshot.source.length >= this.thresholds.leafCount) {
-            try {
-                useWorker = lexSql(snapshot.source, {
-                    dialect: snapshot.options.dialect,
-                }).leaves.length >= this.thresholds.leafCount;
-            } catch {
-                useWorker = true;
-            }
-        }
+        const useWorker = this.useWorkerFor(
+            snapshot.source,
+            snapshot.options.dialect
+        );
         this.route = useWorker ? "worker" : "direct";
         return await (useWorker ? this.worker : this.direct).format(
             executionRequestForCore(snapshot)
         );
+    }
+
+    async validateAndFormat(
+        request: ValidateAndFormatExecutionRequest
+    ): Promise<FormatBatchExecutionResult> {
+        const snapshot = snapshotValidateAndFormatExecutionRequest(request);
+        if (snapshot === null) {
+            this.route = "direct";
+            return Object.freeze({
+                status: "failed" as const,
+                code: "ADAPTER_EXECUTION_REQUEST",
+            });
+        }
+        const useWorker = this.useWorkerFor(
+            snapshot.source,
+            snapshot.options.dialect
+        );
+        this.route = useWorker ? "worker" : "direct";
+        const selected = useWorker ? this.worker : this.direct;
+        if (typeof selected.validateAndFormat !== "function") {
+            return Object.freeze({
+                status: "failed" as const,
+                code: "ADAPTER_EXECUTOR_FAILED",
+            });
+        }
+        return await selected.validateAndFormat(snapshot);
     }
 
     async dispose(): Promise<void> {

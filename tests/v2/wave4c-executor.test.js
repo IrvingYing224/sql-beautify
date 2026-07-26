@@ -71,8 +71,40 @@ async function run() {
         assert.deepStrictEqual(workerResult, directResult,
             'direct and worker must use the same formatter artifact: case ' + index);
     }
+    var batchSource = 'select a,b\nfrom t\n';
+    var batchRequest = {
+        source: batchSource,
+        options: { dialect: 'hive' },
+        documentVersion: 8,
+        targets: [
+            { id: 'select', start: 0, end: 10, mode: 'fragment' },
+            { id: 'from', start: 11, end: 17, mode: 'fragment' }
+        ]
+    };
+    var directBatch = await direct.validateAndFormat(batchRequest);
+    var workerBatch = await persistent.validateAndFormat(batchRequest);
+    assert.strictEqual(directBatch.status, 'completed');
+    assert.deepStrictEqual(workerBatch, directBatch,
+        'direct and worker batch execution must share validation and formatting semantics');
+    assert.deepStrictEqual(
+        workerBatch.results.map(function(value) { return value.targetId; }),
+        ['select', 'from'],
+        'batch execution must preserve normalized target identity and order'
+    );
+    var overLimitBatchSource = new Array(524290).join(' ');
+    var overLimitBatch = await direct.validateAndFormat({
+        source: overLimitBatchSource,
+        options: { dialect: 'hive' },
+        documentVersion: 9,
+        targets: [{
+            id: 'document', start: 0, end: overLimitBatchSource.length,
+            mode: 'document'
+        }]
+    });
+    assert.strictEqual(overLimitBatch.status, 'failed');
+    assert.strictEqual(overLimitBatch.code, 'ADAPTER_INPUT_LIMIT');
     var stats = persistent.statistics();
-    assert.strictEqual(stats.requests, cases.length);
+    assert.strictEqual(stats.requests, cases.length + 1);
     assert.ok(stats.lastFormattingMs >= 0);
     assert.ok(stats.lastRoundTripMs >= stats.lastFormattingMs);
     assert.ok(stats.lastTransferMs >= 0);
@@ -114,9 +146,15 @@ async function run() {
     var defaultRouted = new routedModule.RoutedFormatterExecutor(
         defaultRouteDirect, defaultRouteWorker
     );
-    await defaultRouted.format(request(new Array(65_537).join('a')));
+    await defaultRouted.format(request(new Array(8192).join('a')));
+    assert.strictEqual(defaultRouted.lastRoute(), 'direct',
+        '8191 code units below both thresholds must remain direct');
+    await defaultRouted.format(request(new Array(8193).join('a')));
     assert.strictEqual(defaultRouted.lastRoute(), 'worker',
         'default source code-unit threshold must route to worker');
+    await defaultRouted.format(request(new Array(1001).join('a ')));
+    assert.strictEqual(defaultRouted.lastRoute(), 'worker',
+        'default leaf-count threshold must independently route to worker');
     var manyLeaves = new Array(1200).fill(
         'select a, b, c, d, e, f, g, h, i, j from t;'
     ).join('\n');

@@ -1,4 +1,5 @@
 import type { FormatResult } from "../../core/api/format-result";
+import { MAX_FORMAT_SOURCE_CODE_UNITS } from "../../core/api/limits";
 import {
     inferRenderNewline,
     isRenderNewline,
@@ -14,13 +15,19 @@ import {
     isFormatResultSafeForSource,
     snapshotFormatResult,
 } from "../boundary/format-result-snapshot";
+import { snapshotFormatBatchExecutionResult } from "../executor/batch";
+import { snapshotValidateAndFormatExecutionRequest } from "../executor/request";
 import { mapSelectionThroughSourceMap } from "./cursor";
 import {
     convertDiagnostic,
     sortDiagnostics,
 } from "../diagnostics/convert";
 import { observeCancellation } from "./cancellation";
-import { validateFormatTargetRanges } from "./range";
+import {
+    rangeValidationMessage,
+    type RangeValidationCode,
+    validateFormatTargetRanges,
+} from "./range";
 
 function compareString(left: string, right: string): number {
     return left < right ? -1 : left > right ? 1 : 0;
@@ -393,6 +400,15 @@ async function prepareFormatTransactionInternal(
     if (isCancelledNow()) {
         return cancelled(documentVersionValue);
     }
+    if (sourceValue.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
+        return rejected(documentVersionValue, [
+            diagnostic(
+                sourceLength,
+                "ADAPTER_INPUT_LIMIT",
+                "SQL input exceeds the supported 512 Ki code-unit limit"
+            ),
+        ]);
+    }
     const targets = sortedTargets(sourceValue, targetsValue);
     if (targets === null) {
         return rejected(documentVersionValue, [
@@ -417,29 +433,121 @@ async function prepareFormatTransactionInternal(
             ),
         ]);
     }
-    const rangeValidation = validateFormatTargetRanges(
-        sourceValue,
-        targets,
-        optionsValue
+    const targetById = new Map(targets.map((target) => [target.id, target]));
+    let batchResultByTargetId: ReadonlyMap<string, FormatResult> | null = null;
+    const requiresDocumentValidation = targets.some(
+        (target) => target.mode === "fragment" && target.start !== target.end
     );
-    if (!rangeValidation.safe) {
-        const rangeTarget = rangeValidation.targetId === null
-            ? null
-            : targets.find((target) => target.id === rangeValidation.targetId) ?? null;
-        return rejected(documentVersionValue, [
-            rangeTarget === null
-                ? diagnostic(
-                      sourceLength,
-                      rangeValidation.code,
-                      rangeValidation.message,
-                      rangeValidation.targetId
-                  )
-                : targetDiagnostic(
-                      rangeTarget,
-                      rangeValidation.code,
-                      rangeValidation.message
-                  ),
-        ]);
+    if (
+        requiresDocumentValidation &&
+        typeof executor.validateAndFormat === "function"
+    ) {
+        const batchRequest = snapshotValidateAndFormatExecutionRequest({
+            source: sourceValue,
+            targets,
+            documentVersion: documentVersionValue,
+            newline,
+            ...(optionsValue === undefined ? {} : { options: optionsValue }),
+            ...(cancellationValue === undefined
+                ? {}
+                : { cancellation: cancellationValue }),
+        });
+        if (batchRequest === null) {
+            return rejected(documentVersionValue, [
+                diagnostic(
+                    sourceLength,
+                    "ADAPTER_EXECUTION_REQUEST",
+                    "Formatter execution request is invalid"
+                ),
+            ]);
+        }
+        let rawBatchResult: unknown;
+        try {
+            // Production executors perform both full-document range analysis and
+            // target formatting behind this first asynchronous boundary.
+            rawBatchResult = await executor.validateAndFormat(batchRequest);
+        } catch {
+            return rejected(documentVersionValue, [
+                diagnostic(
+                    sourceLength,
+                    "ADAPTER_EXECUTOR_FAILED",
+                    "Formatter executor failed"
+                ),
+            ]);
+        }
+        if (isCancelledNow()) {
+            return cancelled(documentVersionValue);
+        }
+        const batchResult = snapshotFormatBatchExecutionResult(
+            rawBatchResult,
+            batchRequest
+        );
+        if (batchResult === null) {
+            return rejected(documentVersionValue, [
+                diagnostic(
+                    sourceLength,
+                    "ADAPTER_RESULT_SNAPSHOT",
+                    "Formatter batch result could not be inspected safely"
+                ),
+            ]);
+        }
+        if (batchResult.status === "invalid") {
+            const rangeTarget = batchResult.targetId === null
+                ? null
+                : targetById.get(batchResult.targetId) ?? null;
+            const message = rangeValidationMessage(
+                batchResult.code as RangeValidationCode
+            );
+            return rejected(documentVersionValue, [
+                rangeTarget === null
+                    ? diagnostic(
+                          sourceLength,
+                          batchResult.code,
+                          message,
+                          batchResult.targetId
+                      )
+                    : targetDiagnostic(rangeTarget, batchResult.code, message),
+            ]);
+        }
+        if (batchResult.status === "failed") {
+            return rejected(documentVersionValue, [
+                diagnostic(
+                    sourceLength,
+                    batchResult.code,
+                    "Formatter executor failed"
+                ),
+            ]);
+        }
+        batchResultByTargetId = new Map(
+            batchResult.results.map((value) => [value.targetId, value.result])
+        );
+    } else {
+        // Compatibility path for injected/test executors without the production
+        // batch capability. Production direct/routed/worker executors never use it.
+        const rangeValidation = validateFormatTargetRanges(
+            sourceValue,
+            targets,
+            optionsValue
+        );
+        if (!rangeValidation.safe) {
+            const rangeTarget = rangeValidation.targetId === null
+                ? null
+                : targetById.get(rangeValidation.targetId) ?? null;
+            return rejected(documentVersionValue, [
+                rangeTarget === null
+                    ? diagnostic(
+                          sourceLength,
+                          rangeValidation.code,
+                          rangeValidation.message,
+                          rangeValidation.targetId
+                      )
+                    : targetDiagnostic(
+                          rangeTarget,
+                          rangeValidation.code,
+                          rangeValidation.message
+                      ),
+            ]);
+        }
     }
 
     const computed: ComputedTarget[] = [];
@@ -463,30 +571,32 @@ async function prepareFormatTransactionInternal(
             );
             continue;
         }
-        let result: unknown;
-        try {
-            const executionRequest = {
-                source: targetSource,
-                mode: target.mode,
-                documentVersion: documentVersionValue,
-                targetId: target.id,
-                newline,
-                ...(optionsValue === undefined
-                    ? {}
-                    : { options: optionsValue }),
-                ...(cancellationValue === undefined
-                    ? {}
-                    : { cancellation: cancellationValue }),
-            };
-            result = await executor.format(executionRequest);
-        } catch {
-            return rejected(documentVersionValue, [
-                targetDiagnostic(
-                    target,
-                    "ADAPTER_EXECUTOR_FAILED",
-                    "Formatter executor failed"
-                ),
-            ]);
+        let result: unknown = batchResultByTargetId?.get(target.id);
+        if (batchResultByTargetId === null) {
+            try {
+                const executionRequest = {
+                    source: targetSource,
+                    mode: target.mode,
+                    documentVersion: documentVersionValue,
+                    targetId: target.id,
+                    newline,
+                    ...(optionsValue === undefined
+                        ? {}
+                        : { options: optionsValue }),
+                    ...(cancellationValue === undefined
+                        ? {}
+                        : { cancellation: cancellationValue }),
+                };
+                result = await executor.format(executionRequest);
+            } catch {
+                return rejected(documentVersionValue, [
+                    targetDiagnostic(
+                        target,
+                        "ADAPTER_EXECUTOR_FAILED",
+                        "Formatter executor failed"
+                    ),
+                ]);
+            }
         }
         if (isCancelledNow()) {
             return cancelled(documentVersionValue);

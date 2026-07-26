@@ -10,7 +10,10 @@ declare module "node:crypto" {
 }
 
 declare module "node:fs" {
+    export const constants: Readonly<{ readonly R_OK: number }>;
+    export function accessSync(path: string, mode?: number): void;
     export function readFileSync(path: string): Uint8Array;
+    export function statSync(path: string): Readonly<{ isFile(): boolean }>;
 }
 
 declare module "node:perf_hooks" {

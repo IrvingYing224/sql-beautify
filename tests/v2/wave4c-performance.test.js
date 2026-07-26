@@ -1,4 +1,5 @@
 var assert = require('assert');
+var childProcess = require('child_process');
 var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
@@ -72,6 +73,21 @@ async function run() {
         workerFactory: connectionModule.createNodeWorkerFactory(workerPath, runtimePath),
         runtimeDigest: digest(runtimePath)
     });
+    var limitProbe = childProcess.spawnSync(
+        process.execPath,
+        [path.join(__dirname, 'helpers', 'worker-limit-probe.js')],
+        { encoding: 'utf8', timeout: 15000, maxBuffer: 1024 * 1024 }
+    );
+    assert.strictEqual(limitProbe.status, 0,
+        '512 Ki code-unit worker probe must complete in an independent process: ' +
+            limitProbe.stderr);
+    var limitReport = JSON.parse(limitProbe.stdout);
+    assert.strictEqual(limitReport.sourceCodeUnits, 524288);
+    assert.strictEqual(limitReport.route, 'worker');
+    assert.ok(limitReport.status == 'formatted' || limitReport.status == 'unchanged');
+    assert.ok(limitReport.elapsedMs < 10000, '512 Ki worker latency SLO');
+    assert.ok(limitReport.maxRssKiB < 1.25 * 1024 * 1024,
+        '512 Ki worker process must remain below 1.25 GB maxRSS');
     var counts = [100, 800, 1200];
     var report = [];
     for (var index = 0; index < counts.length; index++) {
@@ -136,6 +152,7 @@ async function run() {
     await worker.dispose();
     await direct.dispose();
     console.log('v2 Wave 4C performance ' + JSON.stringify({
+        limitReport: limitReport,
         report: report,
         specialReport: specialReport,
         cancellationLatencyMs: cancellationLatencyMs,

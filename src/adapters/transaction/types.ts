@@ -34,8 +34,46 @@ export interface FormatExecutionRequest {
     readonly cancellation?: CancellationToken;
 }
 
+export interface ValidateAndFormatExecutionRequest {
+    readonly source: string;
+    readonly options?: FormatOptions;
+    readonly targets: readonly FormatTarget[];
+    readonly documentVersion: number;
+    readonly newline?: RenderNewline;
+    readonly cancellation?: CancellationToken;
+}
+
+export interface FormatBatchTargetResult {
+    readonly targetId: string;
+    readonly result: FormatResult;
+}
+
+export interface CompletedFormatBatchExecution {
+    readonly status: "completed";
+    readonly results: readonly FormatBatchTargetResult[];
+}
+
+export interface InvalidFormatBatchExecution {
+    readonly status: "invalid";
+    readonly code: string;
+    readonly targetId: string | null;
+}
+
+export interface FailedFormatBatchExecution {
+    readonly status: "failed";
+    readonly code: string;
+}
+
+export type FormatBatchExecutionResult =
+    | CompletedFormatBatchExecution
+    | InvalidFormatBatchExecution
+    | FailedFormatBatchExecution;
+
 export interface FormatterExecutor {
     format(request: FormatExecutionRequest): Promise<FormatResult>;
+    validateAndFormat?(
+        request: ValidateAndFormatExecutionRequest
+    ): Promise<FormatBatchExecutionResult>;
     dispose(): Promise<void>;
 }
 

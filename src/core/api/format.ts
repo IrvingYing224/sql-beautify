@@ -3,6 +3,7 @@ import type {
     OriginalTextFormatResult,
     SafeFormatResult,
 } from "./format-result";
+import { MAX_FORMAT_SOURCE_CODE_UNITS } from "./limits";
 import { analyzeSql } from "../analysis/analyze";
 import type { AnalyzedArtifact } from "../analysis/types";
 import type { FormatOptions } from "../config/options";
@@ -384,6 +385,18 @@ export function formatSqlWithStatistics(
             const value = diagnostic(source, resolved.code, resolved.message);
             return run(
                 originalResult("failed", source, [value]),
+                statistics(source.length)
+            );
+        }
+        if (source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
+            const value = diagnostic(
+                source,
+                "FMT_INPUT_LIMIT",
+                "Formatter source exceeds the supported input limit",
+                "warning"
+            );
+            return run(
+                originalResult("preserved", source, [value]),
                 statistics(source.length)
             );
         }

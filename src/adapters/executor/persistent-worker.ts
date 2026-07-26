@@ -11,18 +11,26 @@ import {
     type CancellationObservation,
 } from "../transaction/cancellation";
 import type {
+    FormatBatchExecutionResult,
     FormatExecutionRequest,
     FormatterExecutor,
+    ValidateAndFormatExecutionRequest,
 } from "../transaction/types";
+import { snapshotFormatBatchExecutionResult } from "./batch";
 import {
     snapshotFormatExecutionRequest,
     snapshotFormatExecutionSource,
+    snapshotValidateAndFormatExecutionRequest,
     type StableFormatExecutionRequest,
+    type StableValidateAndFormatExecutionRequest,
 } from "./request";
 import {
     snapshotWorkerResponseMessage,
     sourceDigest,
+    type WorkerBatchRequestMessage,
     type WorkerFormatRequestMessage,
+    type WorkerRequestMessage,
+    type WorkerResponseMessage,
 } from "./protocol";
 import type {
     WorkerConnection,
@@ -35,6 +43,7 @@ export interface PersistentWorkerExecutorOptions {
     readonly maxConsecutiveFailures?: number;
     readonly maxStaleResponses?: number;
     readonly requestTimeoutMs?: number;
+    readonly cancellationGraceMs?: number;
     readonly maxQueueSize?: number;
     readonly maxQueuedSourceCodeUnits?: number;
 }
@@ -43,22 +52,33 @@ export interface PersistentWorkerStatistics {
     readonly requests: number;
     readonly restarts: number;
     readonly staleResponses: number;
+    readonly cancellationReuses: number;
+    readonly cancellationRetirements: number;
     readonly workerStartMs: number;
     readonly lastFormattingMs: number;
     readonly lastRoundTripMs: number;
     readonly lastTransferMs: number;
 }
 
+type StableExecutionRequest =
+    | StableFormatExecutionRequest
+    | StableValidateAndFormatExecutionRequest;
+type ExecutionResult = FormatResult | FormatBatchExecutionResult;
+
 interface PendingRequest {
+    readonly kind: "format" | "batch";
     readonly requestId: number;
-    readonly request: StableFormatExecutionRequest;
+    readonly request: StableExecutionRequest;
     readonly digest: string;
-    readonly resolve: (result: FormatResult) => void;
+    readonly deadlineAt: number;
+    readonly resolve: (result: ExecutionResult) => void;
     observation: CancellationObservation;
-    state: "queued" | "active" | "done";
+    state: "queued" | "active" | "draining" | "done";
+    settled: boolean;
     generation: number;
     dispatchedAt: number;
     timeout: ReturnType<typeof setTimeout> | null;
+    drainTimeout: ReturnType<typeof setTimeout> | null;
 }
 
 interface WorkerState {
@@ -68,12 +88,17 @@ interface WorkerState {
     retired: boolean;
 }
 
+function failedBatch(code: string): FormatBatchExecutionResult {
+    return Object.freeze({ status: "failed" as const, code });
+}
+
 export class PersistentWorkerExecutor implements FormatterExecutor {
     private readonly factory: WorkerConnectionFactory;
     private readonly runtimeDigest: string;
     private readonly maxConsecutiveFailures: number;
     private readonly maxStaleResponses: number;
     private readonly requestTimeoutMs: number;
+    private readonly cancellationGraceMs: number;
     private readonly maxQueueSize: number;
     private readonly maxQueuedSourceCodeUnits: number;
     private readonly queue: PendingRequest[] = [];
@@ -89,6 +114,8 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
     private requests = 0;
     private restarts = 0;
     private staleResponses = 0;
+    private cancellationReuses = 0;
+    private cancellationRetirements = 0;
     private workerStartMs = 0;
     private lastFormattingMs = 0;
     private lastRoundTripMs = 0;
@@ -100,6 +127,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         this.maxConsecutiveFailures = options.maxConsecutiveFailures ?? 3;
         this.maxStaleResponses = options.maxStaleResponses ?? 8;
         this.requestTimeoutMs = options.requestTimeoutMs ?? 60_000;
+        this.cancellationGraceMs = options.cancellationGraceMs ?? 200;
         this.maxQueueSize = options.maxQueueSize ?? 64;
         this.maxQueuedSourceCodeUnits =
             options.maxQueuedSourceCodeUnits ?? 4 * 1024 * 1024;
@@ -112,6 +140,8 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             this.maxStaleResponses < 1 ||
             !Number.isSafeInteger(this.requestTimeoutMs) ||
             this.requestTimeoutMs < 1 ||
+            !Number.isSafeInteger(this.cancellationGraceMs) ||
+            this.cancellationGraceMs < 1 ||
             !Number.isSafeInteger(this.maxQueueSize) ||
             this.maxQueueSize < 1 ||
             !Number.isSafeInteger(this.maxQueuedSourceCodeUnits) ||
@@ -131,62 +161,29 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             );
         }
         if (this.disposed) {
-            return failedFormatResult(
-                snapshot.source,
-                "ADAPTER_CANCELLED",
-                "Formatting was cancelled",
-                "warning"
-            );
+            return this.failedFormat(snapshot.source, "ADAPTER_CANCELLED");
         }
         return await new Promise<FormatResult>((resolve) => {
-            let pending: PendingRequest | null = null;
-            let cancellationObserved = false;
-            const observation = observeCancellation(snapshot.cancellation, () => {
-                cancellationObserved = true;
-                if (pending !== null) {
-                    this.cancelPending(pending);
-                }
+            this.enqueue("format", snapshot, (result) => {
+                resolve(result as FormatResult);
             });
-            pending = {
-                requestId: this.nextRequestId++,
-                request: snapshot,
-                digest: sourceDigest(snapshot.source),
-                resolve,
-                observation,
-                state: "queued",
-                generation: 0,
-                dispatchedAt: 0,
-                timeout: null,
-            };
-            this.requests += 1;
-            if (cancellationObserved || observation.isCancelled()) {
-                this.finishCancelled(pending);
-                return;
-            }
-            const canDispatchImmediately =
-                this.active === null &&
-                this.queue.length === 0 &&
-                this.retirement === null;
-            if (
-                !canDispatchImmediately &&
-                (this.queue.length >= this.maxQueueSize ||
-                    this.queuedSourceCodeUnits + snapshot.source.length >
-                        this.maxQueuedSourceCodeUnits)
-            ) {
-                this.finish(
-                    pending,
-                    failedFormatResult(
-                        snapshot.source,
-                        "ADAPTER_WORKER_BACKPRESSURE",
-                        "Formatter worker queue is full",
-                        "warning"
-                    )
-                );
-                return;
-            }
-            this.queue.push(pending);
-            this.queuedSourceCodeUnits += pending.request.source.length;
-            this.pump();
+        });
+    }
+
+    async validateAndFormat(
+        request: ValidateAndFormatExecutionRequest
+    ): Promise<FormatBatchExecutionResult> {
+        const snapshot = snapshotValidateAndFormatExecutionRequest(request);
+        if (snapshot === null) {
+            return failedBatch("ADAPTER_EXECUTION_REQUEST");
+        }
+        if (this.disposed) {
+            return failedBatch("ADAPTER_CANCELLED");
+        }
+        return await new Promise<FormatBatchExecutionResult>((resolve) => {
+            this.enqueue("batch", snapshot, (result) => {
+                resolve(result as FormatBatchExecutionResult);
+            });
         });
     }
 
@@ -195,6 +192,8 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             requests: this.requests,
             restarts: this.restarts,
             staleResponses: this.staleResponses,
+            cancellationReuses: this.cancellationReuses,
+            cancellationRetirements: this.cancellationRetirements,
             workerStartMs: this.workerStartMs,
             lastFormattingMs: this.lastFormattingMs,
             lastRoundTripMs: this.lastRoundTripMs,
@@ -213,15 +212,107 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         const active = this.active;
         this.active = null;
         if (active !== null) {
-            this.finishCancelled(active);
+            this.finish(active, this.cancelledResult(active));
         }
         while (this.queue.length > 0) {
-            this.finishCancelled(this.dequeue()!);
+            const pending = this.dequeue()!;
+            this.finish(pending, this.cancelledResult(pending));
         }
         await this.beginRetireWorker();
     }
 
-    private finish(pending: PendingRequest, result: FormatResult): void {
+    private enqueue(
+        kind: PendingRequest["kind"],
+        request: StableExecutionRequest,
+        resolve: PendingRequest["resolve"]
+    ): void {
+        let pending: PendingRequest | null = null;
+        let cancellationObserved = false;
+        const observation = observeCancellation(request.cancellation, () => {
+            cancellationObserved = true;
+            if (pending !== null) {
+                this.cancelPending(pending);
+            }
+        });
+        const now = performance.now();
+        pending = {
+            kind,
+            requestId: this.nextRequestId++,
+            request,
+            digest: sourceDigest(request.source),
+            deadlineAt: now + this.requestTimeoutMs,
+            resolve,
+            observation,
+            state: "queued",
+            settled: false,
+            generation: 0,
+            dispatchedAt: 0,
+            timeout: null,
+            drainTimeout: null,
+        };
+        this.requests += 1;
+        if (cancellationObserved || observation.isCancelled()) {
+            this.finish(pending, this.cancelledResult(pending));
+            return;
+        }
+        const canDispatchImmediately =
+            this.active === null &&
+            this.queue.length === 0 &&
+            this.retirement === null;
+        if (
+            !canDispatchImmediately &&
+            (this.queue.length >= this.maxQueueSize ||
+                this.queuedSourceCodeUnits + request.source.length >
+                    this.maxQueuedSourceCodeUnits)
+        ) {
+            this.finish(pending, this.failedResult(
+                pending,
+                "ADAPTER_WORKER_BACKPRESSURE"
+            ));
+            return;
+        }
+        pending.timeout = setTimeout(() => {
+            this.handleDeadline(pending!);
+        }, this.requestTimeoutMs);
+        this.queue.push(pending);
+        this.queuedSourceCodeUnits += request.source.length;
+        this.pump();
+    }
+
+    private failedFormat(source: string, code: string): FormatResult {
+        return failedFormatResult(
+            source,
+            code,
+            code === "ADAPTER_CANCELLED"
+                ? "Formatting was cancelled"
+                : "Formatter worker failed",
+            code === "ADAPTER_CANCELLED" ||
+                code === "ADAPTER_WORKER_BACKPRESSURE"
+                ? "warning"
+                : "error"
+        );
+    }
+
+    private failedResult(pending: PendingRequest, code: string): ExecutionResult {
+        return pending.kind === "batch"
+            ? failedBatch(code)
+            : this.failedFormat(pending.request.source, code);
+    }
+
+    private cancelledResult(pending: PendingRequest): ExecutionResult {
+        return this.failedResult(pending, "ADAPTER_CANCELLED");
+    }
+
+    private settle(pending: PendingRequest, result: ExecutionResult): void {
+        if (pending.settled) {
+            return;
+        }
+        pending.settled = true;
+        pending.observation.dispose();
+        pending.resolve(result);
+    }
+
+    private finish(pending: PendingRequest, result: ExecutionResult): void {
         if (pending.state === "done") {
             return;
         }
@@ -229,25 +320,16 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             clearTimeout(pending.timeout);
             pending.timeout = null;
         }
+        if (pending.drainTimeout !== null) {
+            clearTimeout(pending.drainTimeout);
+            pending.drainTimeout = null;
+        }
         pending.state = "done";
-        pending.observation.dispose();
-        pending.resolve(result);
-    }
-
-    private finishCancelled(pending: PendingRequest): void {
-        this.finish(
-            pending,
-            failedFormatResult(
-                pending.request.source,
-                "ADAPTER_CANCELLED",
-                "Formatting was cancelled",
-                "warning"
-            )
-        );
+        this.settle(pending, result);
     }
 
     private cancelPending(pending: PendingRequest): void {
-        if (pending.state === "done") {
+        if (pending.state === "done" || pending.state === "draining") {
             return;
         }
         if (pending.state === "queued") {
@@ -256,13 +338,55 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
                 this.queue.splice(index, 1);
                 this.queuedSourceCodeUnits -= pending.request.source.length;
             }
-            this.finishCancelled(pending);
+            this.finish(pending, this.cancelledResult(pending));
             return;
         }
         if (this.active === pending) {
+            this.beginCancellationDrain(pending);
+        }
+    }
+
+    private beginCancellationDrain(pending: PendingRequest): void {
+        if (pending.state === "draining" || pending.state === "done") {
+            return;
+        }
+        this.settle(pending, this.cancelledResult(pending));
+        if (pending.timeout !== null) {
+            clearTimeout(pending.timeout);
+            pending.timeout = null;
+        }
+        pending.state = "draining";
+        pending.drainTimeout = setTimeout(() => {
+            if (this.active !== pending || pending.state !== "draining") {
+                return;
+            }
             this.active = null;
-            this.finishCancelled(pending);
+            this.staleForActive = 0;
+            this.cancellationRetirements += 1;
+            this.finish(pending, this.cancelledResult(pending));
             void this.beginRetireWorker().then(() => this.pump());
+        }, this.cancellationGraceMs);
+    }
+
+    private handleDeadline(pending: PendingRequest): void {
+        if (pending.state === "done" || pending.state === "draining") {
+            return;
+        }
+        if (pending.state === "queued") {
+            const index = this.queue.indexOf(pending);
+            if (index >= 0) {
+                this.queue.splice(index, 1);
+                this.queuedSourceCodeUnits -= pending.request.source.length;
+            }
+            this.finish(
+                pending,
+                this.failedResult(pending, "ADAPTER_WORKER_TIMEOUT")
+            );
+            return;
+        }
+        const worker = this.worker;
+        if (this.active === pending && worker !== null) {
+            this.handleFailure(worker, "ADAPTER_WORKER_TIMEOUT");
         }
     }
 
@@ -339,17 +463,20 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
     }
 
     private pump(): void {
-        if (
-            this.disposed ||
-            this.active !== null ||
-            this.retirement !== null
-        ) {
+        if (this.disposed || this.active !== null || this.retirement !== null) {
             return;
         }
         while (this.queue.length > 0) {
             const pending = this.dequeue()!;
             if (pending.observation.isCancelled()) {
-                this.finishCancelled(pending);
+                this.finish(pending, this.cancelledResult(pending));
+                continue;
+            }
+            if (performance.now() >= pending.deadlineAt) {
+                this.finish(
+                    pending,
+                    this.failedResult(pending, "ADAPTER_WORKER_TIMEOUT")
+                );
                 continue;
             }
             this.active = pending;
@@ -362,27 +489,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             }
             pending.generation = worker.generation;
             pending.dispatchedAt = performance.now();
-            const message: WorkerFormatRequestMessage = Object.freeze({
-                kind: "format",
-                requestId: pending.requestId,
-                generation: pending.generation,
-                documentVersion: pending.request.documentVersion,
-                targetId: pending.request.targetId,
-                sourceDigest: pending.digest,
-                source: pending.request.source,
-                options: pending.request.options,
-                mode: pending.request.mode,
-                newline: pending.request.newline,
-            });
-            pending.timeout = setTimeout(() => {
-                if (
-                    this.active === pending &&
-                    this.worker === worker &&
-                    pending.state === "active"
-                ) {
-                    this.handleFailure(worker, "ADAPTER_WORKER_TIMEOUT");
-                }
-            }, this.requestTimeoutMs);
+            const message = this.workerMessage(pending);
             try {
                 worker.connection.postMessage(message);
             } catch {
@@ -392,28 +499,91 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         }
     }
 
+    private workerMessage(pending: PendingRequest): WorkerRequestMessage {
+        if (pending.kind === "batch") {
+            const request = pending.request as StableValidateAndFormatExecutionRequest;
+            const message: WorkerBatchRequestMessage = Object.freeze({
+                kind: "validate-and-format",
+                requestId: pending.requestId,
+                generation: pending.generation,
+                documentVersion: request.documentVersion,
+                sourceDigest: pending.digest,
+                source: request.source,
+                options: request.options,
+                targets: request.targets,
+                newline: request.newline,
+            });
+            return message;
+        }
+        const request = pending.request as StableFormatExecutionRequest;
+        const message: WorkerFormatRequestMessage = Object.freeze({
+            kind: "format",
+            requestId: pending.requestId,
+            generation: pending.generation,
+            documentVersion: request.documentVersion,
+            targetId: request.targetId,
+            sourceDigest: pending.digest,
+            source: request.source,
+            options: request.options,
+            mode: request.mode,
+            newline: request.newline,
+        });
+        return message;
+    }
+
+    private responseMatches(
+        response: WorkerResponseMessage,
+        pending: PendingRequest
+    ): boolean {
+        if (
+            response.requestId !== pending.requestId ||
+            response.generation !== pending.generation ||
+            response.documentVersion !== pending.request.documentVersion ||
+            response.sourceDigest !== pending.digest ||
+            response.runtimeDigest !== this.runtimeDigest
+        ) {
+            return false;
+        }
+        if (pending.kind === "batch") {
+            return response.kind === "batch-result";
+        }
+        const request = pending.request as StableFormatExecutionRequest;
+        return response.kind === "result" && response.targetId === request.targetId;
+    }
+
+    private snapshotResponseResult(
+        response: WorkerResponseMessage,
+        pending: PendingRequest
+    ): ExecutionResult | null {
+        if (pending.kind === "batch") {
+            if (response.kind !== "batch-result") {
+                return null;
+            }
+            return snapshotFormatBatchExecutionResult(
+                response.result,
+                pending.request as StableValidateAndFormatExecutionRequest
+            );
+        }
+        if (response.kind !== "result") {
+            return null;
+        }
+        const result = snapshotFormatResult(response.result);
+        return result !== null &&
+            isFormatResultSafeForSource(result, pending.request.source)
+            ? result
+            : null;
+    }
+
     private handleMessage(state: WorkerState, value: unknown): void {
         if (this.worker !== state || state.retired || this.active === null) {
             return;
         }
         const response = snapshotWorkerResponseMessage(value);
         const pending = this.active;
-        if (pending.observation.isCancelled()) {
-            this.active = null;
-            this.staleForActive = 0;
-            this.finishCancelled(pending);
-            void this.beginRetireWorker().then(() => this.pump());
-            return;
+        if (pending.observation.isCancelled() && pending.state === "active") {
+            this.beginCancellationDrain(pending);
         }
-        if (
-            response === null ||
-            response.requestId !== pending.requestId ||
-            response.generation !== pending.generation ||
-            response.documentVersion !== pending.request.documentVersion ||
-            response.targetId !== pending.request.targetId ||
-            response.sourceDigest !== pending.digest ||
-            response.runtimeDigest !== this.runtimeDigest
-        ) {
+        if (response === null || !this.responseMatches(response, pending)) {
             this.staleResponses += 1;
             this.staleForActive += 1;
             if (this.staleForActive >= this.maxStaleResponses) {
@@ -421,8 +591,8 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             }
             return;
         }
-        const result = snapshotFormatResult(response.result);
-        if (result === null || !isFormatResultSafeForSource(result, pending.request.source)) {
+        const result = this.snapshotResponseResult(response, pending);
+        if (result === null) {
             this.handleFailure(state, "ADAPTER_WORKER_RESULT_CONTRACT");
             return;
         }
@@ -431,8 +601,15 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         this.consecutiveFailures = 0;
         this.lastFormattingMs = response.formattingMs;
         this.lastRoundTripMs = performance.now() - pending.dispatchedAt;
-        this.lastTransferMs = Math.max(0, this.lastRoundTripMs - response.formattingMs);
-        this.finish(pending, result);
+        this.lastTransferMs = Math.max(
+            0,
+            this.lastRoundTripMs - response.formattingMs
+        );
+        const wasDraining = pending.state === "draining";
+        this.finish(pending, wasDraining ? this.cancelledResult(pending) : result);
+        if (wasDraining) {
+            this.cancellationReuses += 1;
+        }
         this.pump();
     }
 
@@ -448,14 +625,10 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         this.staleForActive = 0;
         this.consecutiveFailures += 1;
         if (pending !== null) {
-            this.finish(
-                pending,
-                failedFormatResult(
-                    pending.request.source,
-                    code,
-                    "Formatter worker failed"
-                )
-            );
+            if (pending.state === "draining") {
+                this.cancellationRetirements += 1;
+            }
+            this.finish(pending, this.failedResult(pending, code));
         }
         void this.beginRetireWorker().then(() => this.resumeAfterFailure());
     }
@@ -468,11 +641,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         if (pending !== null) {
             this.finish(
                 pending,
-                failedFormatResult(
-                    pending.request.source,
-                    "ADAPTER_WORKER_UNAVAILABLE",
-                    "Formatter worker is unavailable"
-                )
+                this.failedResult(pending, "ADAPTER_WORKER_UNAVAILABLE")
             );
         }
         if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
@@ -487,11 +656,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             const pending = this.dequeue()!;
             this.finish(
                 pending,
-                failedFormatResult(
-                    pending.request.source,
-                    "ADAPTER_WORKER_UNAVAILABLE",
-                    "Formatter worker is unavailable"
-                )
+                this.failedResult(pending, "ADAPTER_WORKER_UNAVAILABLE")
             );
         }
     }

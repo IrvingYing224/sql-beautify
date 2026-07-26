@@ -502,6 +502,22 @@ function assertOnlyEol(text, newline) {
         'select  1',
         'failed'
     );
+
+    var exactLimit = new Array(524289).join(' ');
+    var exactLimitResult = formatApi.formatSql(exactLimit, { dialect: 'hive' });
+    assert.strictEqual(exactLimitResult.text, exactLimit,
+        'the exact 512 Ki code-unit boundary must remain accepted');
+    assert.strictEqual(
+        exactLimitResult.diagnostics.some(function(item) {
+            return item.code === 'FMT_INPUT_LIMIT';
+        }),
+        false
+    );
+    var overLimit = exactLimit + 'x';
+    var overLimitResult = formatApi.formatSql(overLimit, { dialect: 'hive' });
+    assertSafeOriginal(overLimitResult, overLimit, 'preserved');
+    assert.strictEqual(overLimitResult.diagnostics[0].code, 'FMT_INPUT_LIMIT',
+        '524289 UTF-16 code units must preserve the complete original input');
 })();
 
 (function testCanonicalPlanCannotBeClonedIntoCompiler() {

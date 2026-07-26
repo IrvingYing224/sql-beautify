@@ -78,6 +78,7 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
 
     FMT_SOURCE_TYPE: "Formatter input must be SQL text",
     FMT_PARSE_MODE: "Formatter parse mode is invalid",
+    FMT_INPUT_LIMIT: "SQL input exceeds the supported 512 Ki code-unit limit",
     FMT_UNSUPPORTED_BAIL_OUT: "Formatting stopped at an unsupported SQL construct",
     FMT_TOKEN_EQUIVALENCE: "Formatted SQL did not pass token-equivalence validation",
     FMT_INTERNAL: "Formatter failed safely during internal processing",
@@ -144,6 +145,7 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     ADAPTER_HOST_FAILED: "The editor transaction failed safely",
     ADAPTER_EXECUTION_REQUEST: "The formatter execution request is invalid",
     ADAPTER_EXECUTOR_FAILED: "The formatter executor failed safely",
+    ADAPTER_INPUT_LIMIT: "SQL input exceeds the supported 512 Ki code-unit limit",
     ADAPTER_RESULT_SNAPSHOT: "The formatter result could not be inspected safely",
     ADAPTER_RESULT_CONTRACT: "The formatter result violated the adapter contract",
     ADAPTER_DIAGNOSTIC_CONTRACT: "A formatter diagnostic violated the adapter contract",

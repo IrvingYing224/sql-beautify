@@ -65,6 +65,19 @@ const MESSAGES: Readonly<Record<RangeValidationCode, string>> = Object.freeze({
     ADAPTER_RANGE_OWNERSHIP:
         "Formatter fragment does not match a complete syntax boundary.",
 });
+const RANGE_VALIDATION_CODES: ReadonlySet<string> = new Set(
+    Object.keys(MESSAGES)
+);
+
+export function isRangeValidationCode(
+    value: unknown
+): value is RangeValidationCode {
+    return typeof value === "string" && RANGE_VALIDATION_CODES.has(value);
+}
+
+export function rangeValidationMessage(code: RangeValidationCode): string {
+    return MESSAGES[code];
+}
 
 interface ContentBoundary {
     readonly start: number;

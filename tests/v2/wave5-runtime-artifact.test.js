@@ -11,6 +11,7 @@ var ddlPath = path.join(dist, 'hive-ddl.cjs');
 var workerPath = path.join(dist, 'formatter-worker.cjs');
 var extensionPath = path.join(dist, 'extension.cjs');
 var legacyBridgePath = path.join(dist, 'v2-format-bridge.cjs');
+var runtimeSourcePath = path.join(root, 'src', 'runtime', 'internal.ts');
 
 assert.ok(fs.existsSync(runtimePath), 'Wave 5 runtime artifact must be built');
 assert.ok(fs.existsSync(formatterPath), 'Wave 5 public formatter facade must be built');
@@ -54,6 +55,12 @@ assert.ok(fs.readFileSync(extensionPath, 'utf8').indexOf('runtime.cjs') >= 0,
     'extension host wiring must load the shared runtime artifact');
 assert.ok(fs.readFileSync(runtimePath, 'utf8').indexOf('require("vscode")') < 0,
     'shared runtime must remain independent from the VS Code host module');
+var runtimeSource = fs.readFileSync(runtimeSourcePath, 'utf8');
+assert.ok(runtimeSource.indexOf('readFileSync(workerPath)') < 0,
+    'worker artifact probing must not read the complete bundle into memory');
+assert.ok(runtimeSource.indexOf('statSync(workerPath).isFile()') >= 0 &&
+    runtimeSource.indexOf('accessSync(workerPath, constants.R_OK)') >= 0,
+    'worker artifact probing must verify a readable regular file');
 
 var directModule = require('../../.tmp/v2-core/adapters/executor/direct');
 var runtimeDigest = crypto.createHash('sha256')

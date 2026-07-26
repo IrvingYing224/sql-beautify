@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { accessSync, constants, readFileSync, statSync } from "node:fs";
 
+import { executeFormatBatch } from "../adapters/executor/batch";
 import { DirectFormatterExecutor } from "../adapters/executor/direct";
 import { PersistentWorkerExecutor } from "../adapters/executor/persistent-worker";
 import {
@@ -10,8 +11,11 @@ import {
 } from "../adapters/executor/routed";
 import { createNodeWorkerFactory } from "../adapters/executor/worker-connection";
 import type {
+    FormatBatchExecutionResult,
     FormatExecutionRequest,
+    FormatTarget,
     FormatterExecutor,
+    ValidateAndFormatExecutionRequest,
 } from "../adapters/transaction/types";
 import { runExperimentalDdlTransaction } from "../adapters/transaction/experimental-ddl";
 import { runHostTransaction } from "../adapters/transaction/host-transaction";
@@ -19,7 +23,9 @@ import { prepareFormatTransaction } from "../adapters/transaction/prepare";
 import { formatSql as formatSqlTarget } from "../core/api/format";
 import { formatSql } from "../core/api/public-format";
 import { resolveFormatOptions } from "../core/config/resolve-options";
+import type { CanonicalFormatOptions } from "../core/config/options";
 import { lexSql } from "../core/lexer/lossless-lexer";
+import type { RenderNewline } from "../core/renderer/environment";
 import { extractDdl, formatHiveDdl } from "../experimental/ddl";
 
 declare const __filename: string;
@@ -35,6 +41,20 @@ export {
     runExperimentalDdlTransaction,
     runHostTransaction,
 };
+
+/** Internal worker entry; it is not re-exported by either public facade. */
+export function validateAndFormatTargets(
+    source: string,
+    options: CanonicalFormatOptions,
+    targets: readonly FormatTarget[],
+    documentVersion: number,
+    newline: RenderNewline
+): FormatBatchExecutionResult {
+    return executeFormatBatch(
+        Object.freeze({ source, options, targets, documentVersion, newline }),
+        formatSqlTarget
+    );
+}
 
 export interface ProductionFormatterExecutorOptions {
     readonly runtimePath: string;
@@ -78,7 +98,10 @@ export function createProductionFormatterExecutor(
     let digest: string;
     try {
         digest = runtimeDigest(runtimePath);
-        readFileSync(workerPath);
+        if (!statSync(workerPath).isFile()) {
+            throw new TypeError("Formatter worker artifact is not a file");
+        }
+        accessSync(workerPath, constants.R_OK);
     } catch {
         throw new TypeError("Production formatter runtime artifacts are unavailable");
     }
@@ -93,6 +116,9 @@ export function createProductionFormatterExecutor(
         runtimeDigest: digest,
         format(request: FormatExecutionRequest) {
             return routed.format(request);
+        },
+        validateAndFormat(request: ValidateAndFormatExecutionRequest) {
+            return routed.validateAndFormat(request);
         },
         lastRoute() {
             return routed.lastRoute();
