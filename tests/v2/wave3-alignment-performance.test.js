@@ -21,12 +21,31 @@ function commentSource(count) {
     return 'select ' + items.join('\n, ') + ' from t';
 }
 
+function sparseAliasSource(count) {
+    var items = ['a as x', 'long_column_name as y'];
+    for (var index = 2; index < count; index++) {
+        items.push('column_' + index);
+    }
+    return 'select ' + items.join(', ') + ' from t';
+}
+
+function sparseFalsePositiveSource(count) {
+    var items = [
+        'case when a=1 then 1 else 2 end as x',
+        'case when b=1 then 1 else 2 end as y'
+    ];
+    for (var index = 2; index < count; index++) {
+        items.push('column_' + index);
+    }
+    return 'select ' + items.join(', ') + ' from t';
+}
+
 function median(values) {
     var sorted = values.slice().sort(function(left, right) { return left - right; });
     return sorted[Math.floor(sorted.length / 2)];
 }
 
-function alignmentTargetCount(source, options) {
+function prepareAlignment(source, options) {
     var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
     var alignmentApi = require('../../.tmp/v2-core/core/layout/alignment-policy.js');
     var compilerApi = require('../../.tmp/v2-core/core/layout/compiler.js');
@@ -46,13 +65,26 @@ function alignmentTargetCount(source, options) {
     assert.strictEqual(compiled.ok, true);
     var rendered = rendererApi.renderLayoutArtifact(compiled.artifact);
     assert.strictEqual(rendered.ok, true);
-    var alignment = alignmentApi.deriveLayoutAlignmentPlan(
-        analysis,
-        resolved.options,
-        rendered
+    return {
+        alignmentApi: alignmentApi,
+        analysis: analysis,
+        options: resolved.options,
+        rendered: rendered
+    };
+}
+
+function deriveAlignment(prepared) {
+    var alignment = prepared.alignmentApi.deriveLayoutAlignmentPlan(
+        prepared.analysis,
+        prepared.options,
+        prepared.rendered
     );
     assert.ok(alignment);
-    return alignment.targets.length;
+    return alignment;
+}
+
+function alignmentTargetCount(source, options) {
+    return deriveAlignment(prepareAlignment(source, options)).targets.length;
 }
 
 function worker(kind, count) {
@@ -115,8 +147,75 @@ function run(kind, count) {
     return JSON.parse(result.stdout);
 }
 
+function measureAlignmentStage(source, options) {
+    var prepared = prepareAlignment(source, options);
+    var iterations = 8;
+    var samples = [];
+    for (var warmup = 0; warmup < 12; warmup++) {
+        deriveAlignment(prepared);
+    }
+    for (var sample = 0; sample < 9; sample++) {
+        var started = process.hrtime.bigint();
+        for (var iteration = 0; iteration < iterations; iteration++) {
+            deriveAlignment(prepared);
+        }
+        samples.push(
+            Number(process.hrtime.bigint() - started) / 1e6 / iterations
+        );
+    }
+    return {
+        medianMs: median(samples),
+        samplesMs: samples,
+        targetCount: deriveAlignment(prepared).targets.length,
+        leafCount: prepared.analysis.leaves.length,
+        sourceCodeUnits: prepared.analysis.source.length
+    };
+}
+
+function alignmentStageWorker(count) {
+    var options = {
+        dialect: 'hive',
+        commaStyle: 'leading',
+        maxAlignWidth: 150,
+        keywordCase: 'upper'
+    };
+    process.stdout.write(JSON.stringify({
+        sparseFalsePositive: measureAlignmentStage(
+            sparseFalsePositiveSource(count),
+            options
+        ),
+        sparseTrueTarget: measureAlignmentStage(
+            sparseAliasSource(count),
+            options
+        ),
+        denseTrueTarget: measureAlignmentStage(
+            aliasSource(count),
+            options
+        )
+    }));
+}
+
+function runAlignmentStage(count) {
+    var result = childProcess.spawnSync(
+        process.execPath,
+        [__filename, '--alignment-stage-worker', String(count)],
+        {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            maxBuffer: 2 * 1024 * 1024,
+            timeout: 30000
+        }
+    );
+    assert.strictEqual(result.status, 0,
+        'candidate-scoped alignment worker failed:\n' +
+        result.stdout + '\n' + result.stderr);
+    return JSON.parse(result.stdout);
+}
+
 if (process.argv[2] === '--worker') {
     worker(process.argv[3], Number(process.argv[4]));
+} else if (process.argv[2] === '--alignment-stage-worker') {
+    alignmentStageWorker(Number(process.argv[3]));
 } else {
     var reports = ['alias', 'comment'].map(function(kind) {
         return [100, 800, 1200].map(function(count) { return run(kind, count); });
@@ -156,8 +255,26 @@ if (process.argv[2] === '--worker') {
         assert.ok(ratio1200 / 12 <= 1.5,
             scale[0].kind + ' alignment 1200 normalized ratio');
     });
+    var stage = runAlignmentStage(1200);
+    assert.strictEqual(stage.sparseFalsePositive.targetCount, 0,
+        'structural false-positive sample must not emit an alignment target');
+    assert.ok(stage.sparseTrueTarget.targetCount > 0,
+        'sparse true-target sample must emit an alignment target');
+    assert.ok(stage.denseTrueTarget.targetCount > 0,
+        'dense true-target sample must emit alignment targets');
+    assert.ok(
+        stage.sparseFalsePositive.medianMs <
+            stage.denseTrueTarget.medianMs * 0.2,
+        'false-positive alignment work must stay candidate-scoped'
+    );
+    assert.ok(
+        stage.sparseTrueTarget.medianMs <
+            stage.denseTrueTarget.medianMs * 0.2,
+        'true-target alignment work must stay candidate-scoped'
+    );
     console.log('v2 Wave 3 alignment performance ' + JSON.stringify({
         reports: reports,
+        candidateScopedStage: stage,
         normalizedRatios: reports.map(function(scale) {
             return {
                 kind: scale[0].kind,

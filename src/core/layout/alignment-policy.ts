@@ -5,12 +5,13 @@ import { isCanonicalFormatOptions } from "../config/resolve-options";
 import type {
     ListItemNode,
     ListNode,
-    SyntaxNode,
 } from "../syntax/node";
+import type { LeafRange } from "../syntax/leaf-range";
 import { measureDisplayText } from "../renderer/display-width";
 import { canonicalLayoutArtifactForRenderSuccess } from "../renderer/render";
 import type { RenderSuccess } from "../renderer/types";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
+import type { DominatingVerbatimClaims } from "./verbatim-claims";
 
 export interface LayoutAlignmentTarget {
     readonly leafId: number;
@@ -40,11 +41,9 @@ interface ItemOutputShape {
     readonly hasVerbatim: boolean;
 }
 
-interface ItemOutputShapeProjection {
-    readonly firstLineByNodeId: Int32Array;
-    readonly lastLineByNodeId: Int32Array;
-    readonly lastSyntaxLeafByNodeId: Int32Array;
-    readonly multilineSyntaxByNodeId: Uint8Array;
+interface AlignmentCandidateScope {
+    readonly itemIds: ReadonlySet<number>;
+    readonly leafRanges: readonly LeafRange[];
 }
 
 interface CanonicalAlignmentProof {
@@ -86,39 +85,69 @@ export function isCanonicalLayoutAlignmentPlan(
         (optionsValue === undefined || proof.options === optionsValue);
 }
 
+function firstSourceMapEntryAfter(
+    entries: RenderSuccess["sourceMap"]["entries"],
+    sourceOffset: number
+): number {
+    let low = 0;
+    let high = entries.length;
+    while (low < high) {
+        const middle = low + Math.floor((high - low) / 2);
+        if (entries[middle]!.source.end <= sourceOffset) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return low;
+}
+
 function sourceLeafOutputStarts(
     analysis: AnalyzedArtifact,
-    rendered: RenderSuccess
-): Int32Array | null {
-    const starts = new Int32Array(analysis.leaves.length);
-    starts.fill(-1);
+    rendered: RenderSuccess,
+    leafRanges: readonly LeafRange[]
+): ReadonlyMap<number, number> | null {
+    const starts = new Map<number, number>();
     const entries = rendered.sourceMap.entries;
-    let entryIndex = 0;
-    for (const leaf of analysis.leaves) {
-        while (
-            entryIndex < entries.length &&
-            entries[entryIndex]!.source.end <= leaf.span.start
-        ) {
-            entryIndex += 1;
-        }
-        const entry = entries[entryIndex];
-        if (
-            entry === undefined ||
-            entry.source.start > leaf.span.start ||
-            entry.source.end < leaf.span.end
-        ) {
-            continue;
-        }
-        const outputStart =
-            entry.output.start + leaf.span.start - entry.source.start;
-        if (
-            outputStart < 0 ||
-            outputStart > rendered.text.length -
-                (leaf.span.end - leaf.span.start)
-        ) {
+    for (const range of leafRanges) {
+        const firstLeaf = analysis.leaves[range.start];
+        if (firstLeaf === undefined) {
             return null;
         }
-        starts[leaf.id] = outputStart;
+        let entryIndex = firstSourceMapEntryAfter(
+            entries,
+            firstLeaf.span.start
+        );
+        for (let leafId = range.start; leafId < range.end; leafId++) {
+            const leaf = analysis.leaves[leafId];
+            if (leaf === undefined) {
+                return null;
+            }
+            while (
+                entryIndex < entries.length &&
+                entries[entryIndex]!.source.end <= leaf.span.start
+            ) {
+                entryIndex += 1;
+            }
+            const entry = entries[entryIndex];
+            if (
+                entry === undefined ||
+                entry.source.start > leaf.span.start ||
+                entry.source.end < leaf.span.end
+            ) {
+                continue;
+            }
+            const outputStart =
+                entry.output.start + leaf.span.start - entry.source.start;
+            if (
+                outputStart < 0 ||
+                outputStart > rendered.text.length -
+                    (leaf.span.end - leaf.span.start)
+            ) {
+                return null;
+            }
+            starts.set(leaf.id, outputStart);
+        }
     }
     return starts;
 }
@@ -141,23 +170,17 @@ function outputLineStarts(text: string): readonly number[] {
 function outputPositions(
     text: string,
     lineStarts: readonly number[],
-    outputStarts: Int32Array
+    outputStarts: ReadonlyMap<number, number>
 ): ReadonlyMap<number, OutputPosition> | null {
     const positions = new Map<number, OutputPosition>();
-    let previousOffset = -1;
+    const offsets = Array.from(new Set(outputStarts.values()))
+        .sort((left, right) => left - right);
     let line = 0;
     let cursor = 0;
     let column = 0;
-    for (const offset of outputStarts) {
-        if (offset < 0) {
-            continue;
-        }
-        if (offset < previousOffset || offset > text.length) {
+    for (const offset of offsets) {
+        if (offset < 0 || offset > text.length) {
             return null;
-        }
-        previousOffset = offset;
-        if (positions.has(offset)) {
-            continue;
         }
         while (
             line + 1 < lineStarts.length &&
@@ -184,123 +207,76 @@ function outputPositions(
     return positions;
 }
 
-function buildItemOutputShapeProjection(
+function buildCandidateItemShapes(
     analysis: AnalyzedArtifact,
-    outputStarts: Int32Array,
+    items: readonly ListItemNode[],
+    outputStarts: ReadonlyMap<number, number>,
     positionOf: (offset: number) => OutputPosition | null
-): ItemOutputShapeProjection | null {
-    const nodes = analysis.index.nodes();
-    const firstLeafByNodeId = new Int32Array(nodes.length);
-    const lastLeafByNodeId = new Int32Array(nodes.length);
-    const firstLineByNodeId = new Int32Array(nodes.length);
-    const lastLineByNodeId = new Int32Array(nodes.length);
-    const multilineSyntaxByNodeId = new Uint8Array(nodes.length);
-    firstLeafByNodeId.fill(-1);
-    lastLeafByNodeId.fill(-1);
-    firstLineByNodeId.fill(-1);
-    lastLineByNodeId.fill(-1);
-
-    for (let leafId = 0; leafId < analysis.leaves.length; leafId++) {
-        const facts = analysis.index.leafContext(leafId);
-        if (facts.syntax === null) {
-            continue;
+): ReadonlyMap<number, Omit<ItemOutputShape, "hasVerbatim">> | null {
+    const shapes = new Map<number, Omit<ItemOutputShape, "hasVerbatim">>();
+    for (const item of items) {
+        let firstLine = -1;
+        let lastLine = -1;
+        let lastSyntaxLeafId = -1;
+        let hasMultilineSyntax = false;
+        for (
+            let leafId = item.leafRange.start;
+            leafId < item.leafRange.end;
+            leafId++
+        ) {
+            if (analysis.index.leafContext(leafId).syntax === null) {
+                continue;
+            }
+            const outputStart = outputStarts.get(leafId);
+            const position = outputStart === undefined
+                ? null
+                : positionOf(outputStart);
+            if (position === null) {
+                return null;
+            }
+            if (firstLine < 0) {
+                firstLine = position.line;
+            }
+            lastLine = position.line;
+            lastSyntaxLeafId = leafId;
+            hasMultilineSyntax ||=
+                analysis.index.leafContainsLineBreak(leafId);
         }
-        const ownerNodeId = facts.syntax.directOwnerNodeId;
-        if (ownerNodeId < 0 || ownerNodeId >= nodes.length) {
+        if (firstLine < 0 || lastLine < 0 || lastSyntaxLeafId < 0) {
             return null;
         }
-        const outputStart = outputStarts[leafId]!;
-        if (outputStart < 0) {
-            return null;
-        }
-        const position = positionOf(outputStart);
-        if (position === null) {
-            return null;
-        }
-        if (firstLeafByNodeId[ownerNodeId]! < 0) {
-            firstLeafByNodeId[ownerNodeId] = leafId;
-            firstLineByNodeId[ownerNodeId] = position.line;
-        }
-        lastLeafByNodeId[ownerNodeId] = leafId;
-        lastLineByNodeId[ownerNodeId] = position.line;
-        if (analysis.index.leafContainsLineBreak(leafId)) {
-            multilineSyntaxByNodeId[ownerNodeId] = 1;
-        }
+        shapes.set(item.id, Object.freeze({
+            firstLine,
+            lastLine,
+            lastSyntaxLeafId,
+            hasMultilineSyntax,
+        }));
     }
-
-    const order: SyntaxNode[] = [];
-    const work: SyntaxNode[] = [analysis.root];
-    while (work.length > 0) {
-        const node = work.pop()!;
-        order.push(node);
-        const children = analysis.index.childrenOf(node.id);
-        for (let index = children.length - 1; index >= 0; index--) {
-            work.push(children[index]!);
-        }
-    }
-    if (order.length !== nodes.length) {
-        return null;
-    }
-    for (let index = order.length - 1; index >= 0; index--) {
-        const node = order[index]!;
-        for (const child of analysis.index.childrenOf(node.id)) {
-            const childFirstLeaf = firstLeafByNodeId[child.id]!;
-            if (
-                childFirstLeaf >= 0 &&
-                (firstLeafByNodeId[node.id]! < 0 ||
-                    childFirstLeaf < firstLeafByNodeId[node.id]!)
-            ) {
-                firstLeafByNodeId[node.id] = childFirstLeaf;
-                firstLineByNodeId[node.id] = firstLineByNodeId[child.id]!;
-            }
-            const childLastLeaf = lastLeafByNodeId[child.id]!;
-            if (childLastLeaf > lastLeafByNodeId[node.id]!) {
-                lastLeafByNodeId[node.id] = childLastLeaf;
-                lastLineByNodeId[node.id] = lastLineByNodeId[child.id]!;
-            }
-            if (multilineSyntaxByNodeId[child.id] === 1) {
-                multilineSyntaxByNodeId[node.id] = 1;
-            }
-        }
-    }
-    return Object.freeze({
-        firstLineByNodeId,
-        lastLineByNodeId,
-        lastSyntaxLeafByNodeId: lastLeafByNodeId,
-        multilineSyntaxByNodeId,
-    });
+    return shapes;
 }
 
-function itemOutputShape(
-    projection: ItemOutputShapeProjection,
-    item: ListItemNode,
-    verbatimPrefix: Int32Array
-): ItemOutputShape | null {
-    const firstLine = projection.firstLineByNodeId[item.id];
-    const lastLine = projection.lastLineByNodeId[item.id];
-    const lastSyntaxLeafId = projection.lastSyntaxLeafByNodeId[item.id];
-    const hasMultilineSyntax = projection.multilineSyntaxByNodeId[item.id];
-    return firstLine === undefined || firstLine < 0 ||
-        lastLine === undefined || lastLine < 0 ||
-        lastSyntaxLeafId === undefined || lastSyntaxLeafId < 0 ||
-        hasMultilineSyntax === undefined
-        ? null
-        : Object.freeze({
-              firstLine,
-              lastLine,
-              lastSyntaxLeafId,
-              hasMultilineSyntax: hasMultilineSyntax === 1,
-              hasVerbatim:
-                  verbatimPrefix[item.leafRange.end]! -
-                      verbatimPrefix[item.leafRange.start]! >
-                  0,
-          });
+function rangeHasVerbatimClaim(
+    claims: DominatingVerbatimClaims,
+    range: LeafRange
+): boolean {
+    let low = 0;
+    let high = claims.claims.length;
+    while (low < high) {
+        const middle = low + Math.floor((high - low) / 2);
+        if (claims.claims[middle]!.leafRange.end <= range.start) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    const claim = claims.claims[low];
+    return claim !== undefined && claim.leafRange.start < range.end;
 }
 
 function flushCandidateGroup(
     candidates: AlignmentCandidate[],
     maximumColumn: number,
-    targets: Int32Array
+    targets: Map<number, number>
 ): void {
     if (candidates.length < 2) {
         candidates.length = 0;
@@ -313,7 +289,7 @@ function flushCandidateGroup(
     if (targetColumn > 0 && targetColumn < maximumColumn) {
         for (const candidate of candidates) {
             if (candidate.column < targetColumn) {
-                targets[candidate.leafId] = targetColumn;
+                targets.set(candidate.leafId, targetColumn);
             }
         }
     }
@@ -324,7 +300,7 @@ function appendCandidateGroup(
     candidates: AlignmentCandidate[],
     candidate: AlignmentCandidate | null,
     maximumColumn: number,
-    targets: Int32Array
+    targets: Map<number, number>
 ): void {
     if (candidate === null) {
         flushCandidateGroup(candidates, maximumColumn, targets);
@@ -338,20 +314,18 @@ function appendCandidateGroup(
 }
 
 function explicitAliasCandidate(
-    projection: ItemOutputShapeProjection,
-    outputStarts: Int32Array,
+    shape: ItemOutputShape | null,
+    outputStarts: ReadonlyMap<number, number>,
     positionOf: (offset: number) => OutputPosition | null,
     item: ListItemNode,
-    maximumColumn: number,
-    verbatimPrefix: Int32Array
+    maximumColumn: number
 ): AlignmentCandidate | null {
     const asLeafId = item.alias?.keywordLeafId ?? null;
     if (asLeafId === null) {
         return null;
     }
-    const shape = itemOutputShape(projection, item, verbatimPrefix);
-    const outputStart = outputStarts[asLeafId]!;
-    const position = outputStart < 0 ? null : positionOf(outputStart);
+    const outputStart = outputStarts.get(asLeafId);
+    const position = outputStart === undefined ? null : positionOf(outputStart);
     if (
         shape === null ||
         position === null ||
@@ -370,53 +344,24 @@ function explicitAliasCandidate(
     });
 }
 
-function nearestListItemProjection(
-    analysis: AnalyzedArtifact,
-): Int32Array | null {
-    const nodes = analysis.index.nodes();
-    const projection = new Int32Array(nodes.length);
-    projection.fill(-1);
-    const work: Array<readonly [SyntaxNode, number]> = [
-        [analysis.root, -1],
-    ];
-    let visited = 0;
-    while (work.length > 0) {
-        const [node, inheritedListItemId] = work.pop()!;
-        if (node.id < 0 || node.id >= projection.length) {
-            return null;
-        }
-        const listItemId = node.kind === "list-item"
-            ? node.id
-            : inheritedListItemId;
-        projection[node.id] = listItemId;
-        visited += 1;
-        const children = analysis.index.childrenOf(node.id);
-        for (let index = children.length - 1; index >= 0; index--) {
-            work.push([children[index]!, listItemId]);
-        }
-    }
-    return visited === nodes.length ? projection : null;
-}
-
 function trailingCommentsByItem(
     analysis: AnalyzedArtifact
 ): ReadonlyMap<number, readonly CommentBinding[]> | null {
-    const listItemByNodeId = nearestListItemProjection(analysis);
-    if (listItemByNodeId === null) {
-        return null;
-    }
     const mutable = new Map<number, CommentBinding[]>();
     for (const binding of analysis.index.commentBindings()) {
         if (binding.placement !== "trailing") {
             continue;
         }
-        const itemId = listItemByNodeId[binding.ownerNodeId];
-        if (itemId === undefined || itemId < 0) {
+        const owner = analysis.index.nodeById(binding.ownerNodeId);
+        const item = owner.kind === "list-item"
+            ? owner
+            : analysis.index.nearestAncestor(owner.id, "list-item");
+        if (item === null || item.kind !== "list-item") {
             continue;
         }
-        const values = mutable.get(itemId) ?? [];
+        const values = mutable.get(item.id) ?? [];
         values.push(binding);
-        mutable.set(itemId, values);
+        mutable.set(item.id, values);
     }
     const frozen = new Map<number, readonly CommentBinding[]>();
     for (const [itemId, values] of mutable) {
@@ -425,38 +370,81 @@ function trailingCommentsByItem(
     return frozen;
 }
 
-function hasPotentialAlignmentGroup(
-    lists: readonly ListNode[],
-    comments: ReadonlyMap<number, readonly CommentBinding[]>
-): boolean {
-    for (const list of lists) {
-        let aliasRun = 0;
-        let commentRun = 0;
-        for (const item of list.children) {
-            aliasRun =
-                item.alias !== null && item.alias.keywordLeafId !== null
-                    ? aliasRun + 1
-                    : 0;
-            commentRun = comments.get(item.id)?.length === 1
-                ? commentRun + 1
-                : 0;
-            if (aliasRun >= 2 || commentRun >= 2) {
-                return true;
-            }
+function mergedLeafRanges(values: readonly LeafRange[]): readonly LeafRange[] {
+    const sorted = values.slice().sort((left, right) =>
+        left.start - right.start || left.end - right.end
+    );
+    const merged: LeafRange[] = [];
+    for (const range of sorted) {
+        const previous = merged[merged.length - 1];
+        if (previous !== undefined && range.start <= previous.end) {
+            merged[merged.length - 1] = Object.freeze({
+                start: previous.start,
+                end: Math.max(previous.end, range.end),
+            });
+        } else {
+            merged.push(Object.freeze({ ...range }));
         }
     }
-    return false;
+    return Object.freeze(merged);
+}
+
+function candidateScope(
+    lists: readonly ListNode[],
+    comments: ReadonlyMap<number, readonly CommentBinding[]>
+): AlignmentCandidateScope {
+    const itemIds = new Set<number>();
+    const itemsById = new Map<number, ListItemNode>();
+    const flush = (run: ListItemNode[]): void => {
+        if (run.length >= 2) {
+            for (const item of run) {
+                itemIds.add(item.id);
+                itemsById.set(item.id, item);
+            }
+        }
+        run.length = 0;
+    };
+    for (const list of lists) {
+        const aliasRun: ListItemNode[] = [];
+        const commentRun: ListItemNode[] = [];
+        for (const item of list.children) {
+            if (item.alias !== null && item.alias.keywordLeafId !== null) {
+                aliasRun.push(item);
+            } else {
+                flush(aliasRun);
+            }
+            if (comments.get(item.id)?.length === 1) {
+                commentRun.push(item);
+            } else {
+                flush(commentRun);
+            }
+        }
+        flush(aliasRun);
+        flush(commentRun);
+    }
+    const ranges: LeafRange[] = [];
+    for (const item of itemsById.values()) {
+        ranges.push(item.leafRange);
+        for (const binding of comments.get(item.id) ?? []) {
+            ranges.push(Object.freeze({
+                start: binding.commentLeafId,
+                end: binding.commentLeafId + 1,
+            }));
+        }
+    }
+    return Object.freeze({
+        itemIds,
+        leafRanges: mergedLeafRanges(ranges),
+    });
 }
 
 function trailingCommentCandidate(
     analysis: AnalyzedArtifact,
-    projection: ItemOutputShapeProjection,
-    outputStarts: Int32Array,
+    shape: ItemOutputShape | null,
+    outputStarts: ReadonlyMap<number, number>,
     positionOf: (offset: number) => OutputPosition | null,
-    item: ListItemNode,
     bindings: readonly CommentBinding[] | undefined,
-    maximumColumn: number,
-    verbatimPrefix: Int32Array
+    maximumColumn: number
 ): AlignmentCandidate | null {
     if (bindings?.length !== 1) {
         return null;
@@ -465,9 +453,8 @@ function trailingCommentCandidate(
     if (analysis.index.leafContainsLineBreak(binding.commentLeafId)) {
         return null;
     }
-    const shape = itemOutputShape(projection, item, verbatimPrefix);
-    const outputStart = outputStarts[binding.commentLeafId]!;
-    const position = outputStart < 0 ? null : positionOf(outputStart);
+    const outputStart = outputStarts.get(binding.commentLeafId);
+    const position = outputStart === undefined ? null : positionOf(outputStart);
     if (
         shape === null ||
         position === null ||
@@ -514,30 +501,21 @@ export function deriveLayoutAlignmentPlan(
         if (comments === null) {
             return null;
         }
-        if (!hasPotentialAlignmentGroup(lists, comments)) {
+        const scope = candidateScope(lists, comments);
+        if (scope.itemIds.size === 0) {
             return canonicalPlan(analysis, options, []);
         }
-        const outputStarts = sourceLeafOutputStarts(analysis, rendered);
+        const outputStarts = sourceLeafOutputStarts(
+            analysis,
+            rendered,
+            scope.leafRanges
+        );
         if (outputStarts === null) {
             return null;
         }
         const claims = dominatingVerbatimClaims(analysis);
         if (claims === null) {
             return null;
-        }
-        const verbatimDeltas = new Int32Array(analysis.leaves.length + 1);
-        for (const claim of claims.claims) {
-            verbatimDeltas[claim.leafRange.start] =
-                verbatimDeltas[claim.leafRange.start]! + 1;
-            verbatimDeltas[claim.leafRange.end] =
-                verbatimDeltas[claim.leafRange.end]! - 1;
-        }
-        const verbatimPrefix = new Int32Array(analysis.leaves.length + 1);
-        let activeVerbatim = 0;
-        for (let leafId = 0; leafId < analysis.leaves.length; leafId++) {
-            activeVerbatim += verbatimDeltas[leafId]!;
-            verbatimPrefix[leafId + 1] =
-                verbatimPrefix[leafId]! + (activeVerbatim > 0 ? 1 : 0);
         }
         const lineStarts = outputLineStarts(rendered.text);
         const positions = outputPositions(
@@ -550,26 +528,53 @@ export function deriveLayoutAlignmentPlan(
         }
         const positionOf = (offset: number): OutputPosition | null =>
             positions.get(offset) ?? null;
-        const shapeProjection = buildItemOutputShapeProjection(
+        const candidateItems: ListItemNode[] = [];
+        const seenCandidateItemIds = new Set<number>();
+        for (const list of lists) {
+            for (const item of list.children) {
+                if (
+                    scope.itemIds.has(item.id) &&
+                    !seenCandidateItemIds.has(item.id)
+                ) {
+                    candidateItems.push(item);
+                    seenCandidateItemIds.add(item.id);
+                }
+            }
+        }
+        if (candidateItems.length !== scope.itemIds.size) {
+            return null;
+        }
+        const baseShapes = buildCandidateItemShapes(
             analysis,
+            candidateItems,
             outputStarts,
             positionOf
         );
-        if (shapeProjection === null) {
+        if (baseShapes === null) {
             return null;
         }
-        const targets = new Int32Array(analysis.leaves.length);
+        const shapes = new Map<number, ItemOutputShape>();
+        for (const item of candidateItems) {
+            const baseShape = baseShapes.get(item.id);
+            if (baseShape === undefined) {
+                return null;
+            }
+            shapes.set(item.id, Object.freeze({
+                ...baseShape,
+                hasVerbatim: rangeHasVerbatimClaim(claims, item.leafRange),
+            }));
+        }
+        const targets = new Map<number, number>();
         for (const list of lists) {
             const aliasGroup: AlignmentCandidate[] = [];
             const commentGroup: AlignmentCandidate[] = [];
             for (const item of list.children) {
                 const alias = explicitAliasCandidate(
-                    shapeProjection,
+                    shapes.get(item.id) ?? null,
                     outputStarts,
                     positionOf,
                     item,
-                    options.maxAlignWidth,
-                    verbatimPrefix
+                    options.maxAlignWidth
                 );
                 appendCandidateGroup(
                     aliasGroup,
@@ -579,13 +584,11 @@ export function deriveLayoutAlignmentPlan(
                 );
                 const comment = trailingCommentCandidate(
                     analysis,
-                    shapeProjection,
+                    shapes.get(item.id) ?? null,
                     outputStarts,
                     positionOf,
-                    item,
                     comments.get(item.id),
-                    options.maxAlignWidth,
-                    verbatimPrefix
+                    options.maxAlignWidth
                 );
                 appendCandidateGroup(
                     commentGroup,
@@ -597,13 +600,11 @@ export function deriveLayoutAlignmentPlan(
             flushCandidateGroup(aliasGroup, options.maxAlignWidth, targets);
             flushCandidateGroup(commentGroup, options.maxAlignWidth, targets);
         }
-        const values: LayoutAlignmentTarget[] = [];
-        for (let leafId = 0; leafId < targets.length; leafId++) {
-            const targetColumn = targets[leafId]!;
-            if (targetColumn > 0) {
-                values.push({ leafId, targetColumn });
-            }
-        }
+        const values: LayoutAlignmentTarget[] = Array.from(targets)
+            .sort(([leftLeafId], [rightLeafId]) =>
+                leftLeafId - rightLeafId
+            )
+            .map(([leafId, targetColumn]) => ({ leafId, targetColumn }));
         return canonicalPlan(analysis, options, values);
     } catch {
         return null;
