@@ -393,6 +393,50 @@ module.exports = Object.freeze([
         }
     }),
     frozenCase({
+        id: 'protected-insert-into-capability-evidence',
+        source: "insert into table d partition(/*e:insert-into*/ds=1) " +
+            "with q as (select 'x' from s) select 'x' from q",
+        options: { commaStyle: 'leading' },
+        expected: [
+            'INSERT INTO TABLE d',
+            'PARTITION (/*e:insert-into*/ds = 1)',
+            'WITH',
+            '      q AS (',
+            '          SELECT',
+            "                'x'",
+            '          FROM s',
+            '      )',
+            'SELECT',
+            "      'x'",
+            'FROM q'
+        ].join('\n'),
+        capabilities: [
+            'from',
+            'insert-into-partition-select',
+            'subquery',
+            'with-cte'
+        ],
+        evidenceByCapability: {
+            'insert-into-partition-select': {
+                commentRaw: '/*e:insert-into*/'
+            }
+        }
+    }),
+    frozenCase({
+        id: 'protected-set-command-capability-evidence',
+        source: 'set /*e:set-command*/ hive.exec.flag=select MiXeD /*raw*/ x=y',
+        options: { commaStyle: 'leading' },
+        expected: [
+            'SET',
+            '/*e:set-command*/',
+            'hive.exec.flag=select MiXeD /*raw*/ x=y'
+        ].join('\n'),
+        capabilities: ['set-command'],
+        evidenceByCapability: {
+            'set-command': { commentRaw: '/*e:set-command*/' }
+        }
+    }),
+    frozenCase({
         id: 'protected-multi-statement-capability-evidence',
         source: 'select /*e:select2*/ 1; /*e:multi*/ select 2;',
         options: { commaStyle: 'leading' },

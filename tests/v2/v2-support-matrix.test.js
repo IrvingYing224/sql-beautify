@@ -137,6 +137,7 @@ function expectedFacts() {
             'function-call',
             'group-by',
             'having',
+            'insert-into-partition-select',
             'insert-overwrite-partition-select',
             'join',
             'lateral-view',
@@ -145,6 +146,7 @@ function expectedFacts() {
             'order-by',
             'select-without-from',
             'set-operations',
+            'set-command',
             'sort-by',
             'subquery',
             'subquery-expression',
@@ -170,7 +172,7 @@ function expectedFacts() {
     });
     assert.strictEqual(parsed.rows.filter(function(row) {
         return row.states.some(function(state) { return state === 'formatted'; });
-    }).length, 25, 'matrix must contain twenty-five distinct formatted capability rows');
+    }).length, 27, 'matrix must contain twenty-seven distinct formatted capability rows');
 }());
 
 function createIsolatedGeneratorRoot() {

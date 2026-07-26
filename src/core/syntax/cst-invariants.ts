@@ -707,6 +707,68 @@ function validateNodeShape(
             }
             break;
         }
+        case "set-statement": {
+            if (
+                raw.payloadChildId !== null &&
+                !isFiniteNonNegInt(raw.payloadChildId)
+            ) {
+                fail(
+                    failures,
+                    "INV_SHAPE",
+                    `payloadChildId invalid on node ${nodeId}`,
+                    nodeId
+                );
+            }
+            if (!childrenDense) {
+                fail(
+                    failures,
+                    "INV_SHAPE",
+                    `set-statement children must be array on node ${nodeId}`,
+                    nodeId
+                );
+            }
+            break;
+        }
+        case "set-payload": {
+            validateSubRange(
+                raw.keyLeafRange,
+                "keyLeafRange",
+                nodeId,
+                leafRange,
+                leavesLen,
+                failures
+            );
+            if (
+                raw.assignmentLeafId !== null &&
+                !isFiniteNonNegInt(raw.assignmentLeafId)
+            ) {
+                fail(
+                    failures,
+                    "INV_SHAPE",
+                    `assignmentLeafId invalid on node ${nodeId}`,
+                    nodeId
+                );
+            }
+            if (raw.valueLeafRange !== null) {
+                validateSubRange(
+                    raw.valueLeafRange,
+                    "valueLeafRange",
+                    nodeId,
+                    leafRange,
+                    leavesLen,
+                    failures
+                );
+            }
+            if (!childrenDense) {
+                fail(
+                    failures,
+                    "INV_SHAPE",
+                    `set-payload children must be array on node ${nodeId}`,
+                    nodeId
+                );
+            }
+            break;
+        }
         case "query": {
             if (typeof raw.queryKind !== "string" || !QUERY_KINDS.has(raw.queryKind)) {
                 fail(failures, "INV_ENUM", `illegal queryKind on node ${nodeId}`, nodeId);

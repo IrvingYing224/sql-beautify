@@ -25,6 +25,10 @@ export type VerbatimTrigger =
           readonly capabilityId: string;
       }
     | {
+          readonly kind: "bounded-payload";
+          readonly capabilityId: "set-command";
+      }
+    | {
           readonly kind: "operator-capability";
           readonly capabilityId: string;
           readonly operatorId: string;

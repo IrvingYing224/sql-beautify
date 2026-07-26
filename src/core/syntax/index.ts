@@ -25,6 +25,8 @@ export type {
     RelationKind,
     RelationNode,
     RelationNodeFacts,
+    SetPayloadNode,
+    SetStatementNode,
     StatementKind,
     StatementNode,
     StructuredNode,

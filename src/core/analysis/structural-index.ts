@@ -586,6 +586,8 @@ export function buildStructuralIndex(
 
         if (node.kind === "cte") {
             registerNameRange(node.nameLeafRange, node.id, "identifier-name");
+        } else if (node.kind === "set-payload") {
+            registerNameRange(node.keyLeafRange, node.id, "identifier-name");
         } else if (node.kind === "relation" && node.nameLeafRange !== null) {
             if (node.relationKind !== "table") {
                 invariantFailure(`non-table relation ${node.id} must not own a name range`);

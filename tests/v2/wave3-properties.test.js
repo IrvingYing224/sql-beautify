@@ -399,7 +399,7 @@ function deterministicMalformedCases(count) {
 
 (function testCompleteCorpusAndDeterministicFuzzProperties() {
     var corpus = corpusCases();
-    assert.strictEqual(corpus.length, 68, 'Wave 3 complete corpus size');
+    assert.strictEqual(corpus.length, 70, 'Wave 3 complete corpus size');
     var corpusIds = new Set();
     corpus.forEach(function(testCase) {
         assert.strictEqual(corpusIds.has(testCase.id), false,
@@ -576,4 +576,4 @@ function deterministicMalformedCases(count) {
     });
 })();
 
-console.log('v2 Wave 3 properties passed (68 corpus + 128 deterministic fuzz + 48 malformed cases)');
+console.log('v2 Wave 3 properties passed (70 corpus + 128 deterministic fuzz + 48 malformed cases)');

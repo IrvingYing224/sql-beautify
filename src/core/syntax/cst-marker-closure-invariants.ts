@@ -582,6 +582,8 @@ function validateRequiredMarkerClosure(
         case "window-spec":
         case "type-expression":
         case "statement":
+        case "set-statement":
+        case "set-payload":
         case "relation":
         case "list":
         case "list-item":
@@ -596,6 +598,7 @@ function validateRequiredMarkerClosure(
         if (
             nodeKind === "program" ||
             nodeKind === "list" ||
+            nodeKind === "set-payload" ||
             nodeKind === "opaque" ||
             (nodeKind === "query" && raw.queryKind !== "parenthesized")
         ) {
@@ -705,7 +708,12 @@ function validateRequiredMarkerClosure(
         }
     }
 
-    if (nodeKind === "program" || nodeKind === "list" || nodeKind === "opaque") {
+    if (
+        nodeKind === "program" ||
+        nodeKind === "list" ||
+        nodeKind === "set-payload" ||
+        nodeKind === "opaque"
+    ) {
         requireExactMarkerCount(markers, 0, nodeId, failures);
         return;
     }
@@ -1402,6 +1410,45 @@ function validateRequiredMarkerClosure(
             nodeId,
             failures
         );
+        return;
+    }
+
+    if (nodeKind === "set-statement" && isLeafRange(raw.leafRange)) {
+        let setCount = 0;
+        for (
+            let leafId = raw.leafRange.start;
+            leafId < raw.leafRange.end && leafId < leaves.length;
+            leafId++
+        ) {
+            if (leafIdInAnyChild(leafId, directChildren)) {
+                continue;
+            }
+            const leaf = leaves[leafId]!;
+            if (leaf.channel === "code" && leaf.raw.toLowerCase() === "set") {
+                requireExactSyntaxMarker(
+                    markers,
+                    leafId,
+                    "set:head",
+                    setCount,
+                    "syntax-keyword",
+                    true,
+                    nodeId,
+                    "Hive SET command head",
+                    failures
+                );
+                setCount += 1;
+                expectedMarkerCount += 1;
+            }
+        }
+        if (setCount !== 1) {
+            fail(
+                failures,
+                "INV_RELATIONSHIP",
+                `SET command ${nodeId} must own exactly one direct SET marker`,
+                nodeId
+            );
+        }
+        requireExactMarkerCount(markers, expectedMarkerCount, nodeId, failures);
         return;
     }
 

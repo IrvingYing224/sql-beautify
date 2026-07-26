@@ -1,8 +1,10 @@
-import type { LeafRange } from "./leaf-range";
 import type {
     CapabilityIdentity,
     RecoveryAction,
 } from "../diagnostics/diagnostic";
+import { isParserStructuredCapabilityState } from "../dialects/capability-state";
+import { getDialect } from "../dialects/registry";
+import type { LeafRange } from "./leaf-range";
 import type { QueryNode, StatementNode } from "./node";
 import {
     ParserSyntaxError,
@@ -10,6 +12,7 @@ import {
     isCodeWord,
     isSyntaxLeaf,
     lastSyntaxIndex,
+    nextSyntaxIndex,
     nodeFacts,
     syntaxMarkers,
     trimToSyntax,
@@ -37,6 +40,155 @@ function statementFacts(context: ParserContext, range: LeafRange) {
             ? syntaxMarkers([last], "statement-terminator", "punctuation", false)
             : [];
     return nodeFacts(null, "intrinsic-container", terminator);
+}
+
+function setStatementFacts(setLeafId: number) {
+    return nodeFacts(
+        "set-command",
+        "capability",
+        syntaxMarkers([setLeafId], "set:head")
+    );
+}
+
+function setPayloadEnd(context: ParserContext, range: LeafRange): number {
+    const last = lastSyntaxIndex(context.leaves, range);
+    return last !== null &&
+        context.leaves[last]!.channel === "code" &&
+        context.leaves[last]!.raw === ";"
+        ? last
+        : range.end;
+}
+
+function validateSetKey(
+    context: ParserContext,
+    range: LeafRange
+): void {
+    const first = context.leaves[range.start]!;
+    if (first.kind !== "identifier" && first.kind !== "keyword") {
+        throw new ParserSyntaxError(
+            "SYN_UNEXPECTED_TOKEN",
+            range,
+            "SET key must start with an unquoted word",
+            "statement"
+        );
+    }
+    let expectWord = true;
+    for (let leafId = range.start; leafId < range.end; leafId++) {
+        const leaf = context.leaves[leafId]!;
+        const word = leaf.channel === "code" &&
+            (leaf.kind === "identifier" ||
+                leaf.kind === "keyword" ||
+                (leaf.kind === "number" && leafId > range.start));
+        const separator = leaf.channel === "code" &&
+            (leaf.raw === "." || leaf.raw === ":");
+        if ((expectWord && !word) || (!expectWord && !separator)) {
+            throw new ParserSyntaxError(
+                "SYN_UNEXPECTED_TOKEN",
+                range,
+                "SET key must be a dotted or namespaced configuration key",
+                "statement"
+            );
+        }
+        expectWord = !expectWord;
+    }
+    if (expectWord) {
+        throw new ParserSyntaxError(
+            "SYN_UNEXPECTED_TOKEN",
+            range,
+            "SET key must not end with a separator",
+            "statement"
+        );
+    }
+}
+
+function parseSetStatementRange(
+    context: ParserContext,
+    statementRange: LeafRange,
+    bodyRange: LeafRange
+): StatementNode {
+    const capability = getDialect(context.dialect).getCapability("set-command");
+    if (!isParserStructuredCapabilityState(capability?.state)) {
+        throw new ParserSyntaxError(
+            "SYN_UNSUPPORTED_STATEMENT",
+            bodyRange,
+            `${context.dialect} does not declare Hive SET command syntax`
+        );
+    }
+    const setLeafId = bodyRange.start;
+    const payloadStart = nextSyntaxIndex(context, setLeafId, bodyRange.end);
+    const commandEnd = setPayloadEnd(context, statementRange);
+    if (payloadStart === null) {
+        const command = context.factory.createSetStatement(
+            { start: setLeafId, end: commandEnd },
+            null,
+            setStatementFacts(setLeafId)
+        );
+        return context.factory.createStatement(
+            statementRange,
+            "set",
+            command,
+            statementFacts(context, statementRange)
+        );
+    }
+    const payloadEnd = commandEnd;
+    let assignmentLeafId: number | null = null;
+    let current: number | null = payloadStart;
+    while (current !== null && current < payloadEnd) {
+        const leaf = context.leaves[current]!;
+        if (leaf.channel === "code" && leaf.raw === "=") {
+            assignmentLeafId = current;
+            break;
+        }
+        current = nextSyntaxIndex(context, current, payloadEnd);
+    }
+    const keyRange = trimToSyntax(context.leaves, {
+        start: payloadStart,
+        end: assignmentLeafId ?? payloadEnd,
+    });
+    if (keyRange === null) {
+        throw new ParserSyntaxError(
+            "SYN_INCOMPLETE_CLAUSE",
+            { start: payloadStart, end: payloadEnd },
+            "SET requires a key before assignment",
+            "statement"
+        );
+    }
+    validateSetKey(context, keyRange);
+    const valueSyntaxRange = assignmentLeafId === null
+        ? null
+        : trimToSyntax(context.leaves, {
+              start: assignmentLeafId + 1,
+              end: payloadEnd,
+          });
+    if (assignmentLeafId !== null && valueSyntaxRange === null) {
+        throw new ParserSyntaxError(
+            "SYN_INCOMPLETE_CLAUSE",
+            { start: assignmentLeafId, end: payloadEnd },
+            "SET assignment requires a value",
+            "statement"
+        );
+    }
+    const valueRange = assignmentLeafId === null
+        ? null
+        : Object.freeze({ start: assignmentLeafId + 1, end: payloadEnd });
+    const payload = context.factory.createSetPayload(
+        { start: keyRange.start, end: payloadEnd },
+        keyRange,
+        assignmentLeafId,
+        valueRange,
+        nodeFacts(null, "intrinsic-container")
+    );
+    const command = context.factory.createSetStatement(
+        { start: setLeafId, end: payloadEnd },
+        payload,
+        setStatementFacts(setLeafId)
+    );
+    return context.factory.createStatement(
+        statementRange,
+        "set",
+        command,
+        statementFacts(context, statementRange)
+    );
 }
 
 function representsInsertQuery(query: QueryNode): boolean {
@@ -136,6 +288,7 @@ export function parseStatementRange(
     const startsSelect = isCodeWord(context, bodyRange.start, "select");
     const startsWith = isCodeWord(context, bodyRange.start, "with");
     const startsInsert = isCodeWord(context, bodyRange.start, "insert");
+    const startsSet = isCodeWord(context, bodyRange.start, "set");
     const startsParenthesized =
         context.leaves[bodyRange.start]!.channel === "code" &&
         context.leaves[bodyRange.start]!.raw === "(";
@@ -155,6 +308,7 @@ export function parseStatementRange(
         !startsWith &&
         !startsParenthesized &&
         !startsInsert &&
+        !startsSet &&
         unsupported === null
     ) {
         return createOpaqueStatement(
@@ -176,6 +330,9 @@ export function parseStatementRange(
                 "statement",
                 unsupported.signature.capabilityId
             );
+        }
+        if (startsSet) {
+            return parseSetStatementRange(context, range, bodyRange);
         }
         const query = startsInsert
             ? parseInsertQueryRange(context, bodyRange)

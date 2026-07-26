@@ -1638,50 +1638,59 @@ export function parseInsertQueryRange(
             "INSERT range is empty"
         );
     }
+    if (!isCodeWord(context, range.start, "insert")) {
+        throw new ParserSyntaxError(
+            "SYN_UNSUPPORTED_STATEMENT",
+            range,
+            "Only bounded INSERT query statements are structured"
+        );
+    }
+    const operationKeyword = nextSyntaxIndex(context, range.start, range.end);
+    const overwrite =
+        operationKeyword !== null &&
+        isCodeWord(context, operationKeyword, "overwrite");
+    const into =
+        operationKeyword !== null &&
+        isCodeWord(context, operationKeyword, "into");
+    if (!overwrite && !into) {
+        throw new ParserSyntaxError(
+            "SYN_UNSUPPORTED_STATEMENT",
+            range,
+            "Only INSERT OVERWRITE or INSERT INTO query statements are structured"
+        );
+    }
+    const capabilityId = overwrite
+        ? "insert-overwrite-partition-select"
+        : "insert-into-partition-select";
     if (
         !isParserStructuredCapabilityState(
-            getDialect(context.dialect).getCapability(
-                "insert-overwrite-partition-select"
-            )?.state
+            getDialect(context.dialect).getCapability(capabilityId)?.state
         )
     ) {
         throw new ParserSyntaxError(
             "SYN_UNSUPPORTED_STATEMENT",
             range,
-            `${context.dialect} does not declare INSERT OVERWRITE query syntax`
+            `${context.dialect} does not declare ${overwrite ? "INSERT OVERWRITE" : "INSERT INTO"} query syntax`
         );
     }
-    if (!isCodeWord(context, range.start, "insert")) {
-        throw new ParserSyntaxError(
-            "SYN_UNSUPPORTED_STATEMENT",
-            range,
-            "Only INSERT OVERWRITE query statements are structured"
-        );
-    }
-    const overwriteKeyword = nextSyntaxIndex(context, range.start, range.end);
-    if (overwriteKeyword === null || !isCodeWord(context, overwriteKeyword, "overwrite")) {
-        throw new ParserSyntaxError(
-            "SYN_UNSUPPORTED_STATEMENT",
-            range,
-            "Only INSERT OVERWRITE query statements are structured"
-        );
-    }
-    let headLast = overwriteKeyword;
+    let headLast = operationKeyword!;
     const tableKeyword = nextSyntaxIndex(context, headLast, range.end);
-    if (tableKeyword === null || !isCodeWord(context, tableKeyword, "table")) {
+    if (overwrite && (tableKeyword === null || !isCodeWord(context, tableKeyword, "table"))) {
         throw new ParserSyntaxError(
             "SYN_UNSUPPORTED_STATEMENT",
             range,
             "Only INSERT OVERWRITE TABLE query statements are structured"
         );
     }
-    headLast = tableKeyword;
-    const targetStart = nextSyntaxIndex(context, tableKeyword, range.end);
+    if (tableKeyword !== null && isCodeWord(context, tableKeyword, "table")) {
+        headLast = tableKeyword;
+    }
+    const targetStart = nextSyntaxIndex(context, headLast, range.end);
     if (targetStart === null) {
         throw new ParserSyntaxError(
             "SYN_INCOMPLETE_CLAUSE",
             range,
-            "INSERT OVERWRITE requires a target table"
+            `${overwrite ? "INSERT OVERWRITE" : "INSERT INTO"} requires a target table`
         );
     }
     const depth = baseDepth(context, range);
@@ -1723,7 +1732,7 @@ export function parseInsertQueryRange(
         throw new ParserSyntaxError(
             "SYN_INCOMPLETE_CLAUSE",
             range,
-            "INSERT OVERWRITE requires a SELECT query"
+            `${overwrite ? "INSERT OVERWRITE" : "INSERT INTO"} requires a SELECT query`
         );
     }
     const targetEndBoundary = partitionStart ?? selectStart;
@@ -1735,10 +1744,22 @@ export function parseInsertQueryRange(
         throw new ParserSyntaxError(
             "SYN_INCOMPLETE_CLAUSE",
             range,
-            "INSERT OVERWRITE target table is empty"
+            `${overwrite ? "INSERT OVERWRITE" : "INSERT INTO"} target table is empty`
         );
     }
     const target = parseRelationRange(context, targetRange, nestingDepth, parseQueryRange);
+    if (
+        target.relationKind !== "table" ||
+        target.alias !== null ||
+        target.bodyChildId !== null ||
+        target.children.length !== 0
+    ) {
+        throw new ParserSyntaxError(
+            "SYN_UNEXPECTED_TOKEN",
+            targetRange,
+            "INSERT target must be one complete table name"
+        );
+    }
     const insertClause = context.factory.createClause(
         { start: range.start, end: targetRange.end },
         "insert",
@@ -1749,7 +1770,7 @@ export function parseInsertQueryRange(
             context,
             "insert",
             { start: range.start, end: headLast + 1 },
-            "insert-overwrite-partition-select"
+            capabilityId
         )
     );
     const children: SyntaxNode[] = [insertClause];
@@ -1814,7 +1835,7 @@ export function parseInsertQueryRange(
                     context,
                     "partition",
                     { start: partitionStart, end: open + 1 },
-                    "insert-overwrite-partition-select"
+                    capabilityId
                 )
             )
         );
@@ -1825,15 +1846,35 @@ export function parseInsertQueryRange(
         throw new ParserSyntaxError(
             "SYN_INCOMPLETE_CLAUSE",
             range,
-            "INSERT OVERWRITE SELECT body is empty"
+            `${overwrite ? "INSERT OVERWRITE" : "INSERT INTO"} SELECT body is empty`
         );
     }
-    children.push(parseQueryRange(context, selectRange, nestingDepth));
+    const bodyQuery = parseQueryRange(context, selectRange, nestingDepth);
+    const representsNestedInsert = (query: QueryNode): boolean => {
+        const first = query.children[0];
+        if (first?.kind === "clause" && first.clauseKind === "insert") {
+            return true;
+        }
+        return (
+            first?.kind === "clause" &&
+            first.clauseKind === "with" &&
+            query.children[1]?.kind === "query" &&
+            representsNestedInsert(query.children[1])
+        );
+    };
+    if (representsNestedInsert(bodyQuery)) {
+        throw new ParserSyntaxError(
+            "SYN_UNEXPECTED_TOKEN",
+            selectRange,
+            "INSERT source WITH clause must end in SELECT, not another INSERT"
+        );
+    }
+    children.push(bodyQuery);
     return context.factory.createQuery(
         range,
         "select",
         [],
         children,
-        nodeFacts("insert-overwrite-partition-select", "capability")
+        nodeFacts(capabilityId, "capability")
     );
 }

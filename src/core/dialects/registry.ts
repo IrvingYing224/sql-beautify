@@ -216,12 +216,12 @@ const MYSQL_SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArr
     symbol("||", "infix", PRECEDENCE.or, "left"),
 ]);
 
-type HiveQueryCapability = Readonly<{
+type HiveFormattedCapability = Readonly<{
     id: string;
     state: "structured" | "formatted";
 }>;
 
-const HIVE_QUERY_CAPABILITIES: readonly HiveQueryCapability[] = freezeImmutableArray([
+const HIVE_FORMATTED_CAPABILITIES: readonly HiveFormattedCapability[] = freezeImmutableArray([
     ...[
         "multi-statement",
         "with-cte",
@@ -241,7 +241,9 @@ const HIVE_QUERY_CAPABILITIES: readonly HiveQueryCapability[] = freezeImmutableA
         "limit",
         "set-operations",
         "insert-overwrite-partition-select",
-    ].map((id): HiveQueryCapability => Object.freeze({
+        "insert-into-partition-select",
+        "set-command",
+    ].map((id): HiveFormattedCapability => Object.freeze({
         id,
         state: "formatted",
     })),
@@ -777,7 +779,7 @@ function buildRegistry(): DialectCapabilityRegistry {
             buildCapabilityList(
                 [],
                 freezeImmutableArray([
-                    ...HIVE_QUERY_CAPABILITIES,
+                    ...HIVE_FORMATTED_CAPABILITIES,
                     ...HIVE_EXPRESSION_FORMATTED.map((id) => Object.freeze({
                         id,
                         state: "formatted" as const,

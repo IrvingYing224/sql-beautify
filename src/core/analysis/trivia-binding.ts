@@ -37,6 +37,8 @@ interface LineFacts {
 export const TRIVIA_LEADING_PRIORITY: Readonly<Record<SyntaxNode["kind"], number>> = Object.freeze({
     program: 0,
     statement: 100,
+    "set-statement": 98,
+    "set-payload": 80,
     query: 70,
     cte: 90,
     clause: 95,
@@ -53,6 +55,8 @@ export const TRIVIA_LEADING_PRIORITY: Readonly<Record<SyntaxNode["kind"], number
 export const TRIVIA_TRAILING_PRIORITY: Readonly<Record<SyntaxNode["kind"], number>> = Object.freeze({
     program: 0,
     statement: 20,
+    "set-statement": 45,
+    "set-payload": 95,
     query: 40,
     cte: 75,
     clause: 50,

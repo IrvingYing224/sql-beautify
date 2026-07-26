@@ -175,6 +175,15 @@ function copyTrigger(value: VerbatimTrigger): VerbatimTrigger | null {
                 capabilityId,
             });
         }
+        if (kind === "bounded-payload") {
+            if (capabilityId !== "set-command") {
+                return null;
+            }
+            return Object.freeze({
+                kind: "bounded-payload",
+                capabilityId,
+            });
+        }
         const operatorDescriptor = Object.getOwnPropertyDescriptor(
             value,
             "operatorId"

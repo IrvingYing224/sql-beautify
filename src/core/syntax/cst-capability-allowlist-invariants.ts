@@ -11,7 +11,13 @@ import {
 } from "./cst-contextual-invariant-support";
 import { primitiveExpressionCapabilityId } from "./primitive-capability";
 
-const CLAUSE_CAPABILITY_BY_KIND: Readonly<Record<string, string>> = Object.freeze({
+const INSERT_CAPABILITIES: readonly string[] = Object.freeze([
+    "insert-overwrite-partition-select",
+    "insert-into-partition-select",
+]);
+const CLAUSE_CAPABILITY_BY_KIND: Readonly<
+    Record<string, string | readonly string[]>
+> = Object.freeze({
     from: "from",
     where: "where",
     "group-by": "group-by",
@@ -25,8 +31,8 @@ const CLAUSE_CAPABILITY_BY_KIND: Readonly<Record<string, string>> = Object.freez
     "join-on": "join",
     "join-using": "join",
     "lateral-view": "lateral-view",
-    insert: "insert-overwrite-partition-select",
-    partition: "insert-overwrite-partition-select",
+    insert: INSERT_CAPABILITIES,
+    partition: INSERT_CAPABILITIES,
     "set-operation": "set-operations",
 });
 const RELATION_CAPABILITY_BY_KIND: Readonly<Record<string, string>> = Object.freeze({
@@ -194,6 +200,22 @@ function validateRoleCapabilityAllowlist(
                 null
             );
             break;
+        case "set-statement":
+            allowed = matchesRoleCapability(
+                role,
+                capabilityId,
+                "capability",
+                "set-command"
+            );
+            break;
+        case "set-payload":
+            allowed = matchesRoleCapability(
+                role,
+                capabilityId,
+                "intrinsic-container",
+                null
+            );
+            break;
         case "query":
             if (
                 directChildren[0]?.kind === "clause" &&
@@ -213,7 +235,7 @@ function validateRoleCapabilityAllowlist(
                     role,
                     capabilityId,
                     "capability",
-                    "insert-overwrite-partition-select"
+                    INSERT_CAPABILITIES
                 );
             } else if (raw.queryKind === "parenthesized") {
                 allowed = matchesRoleCapability(role, capabilityId, "capability", "subquery");

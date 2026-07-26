@@ -43,7 +43,9 @@ var HIVE_FORMATTED_QUERY_CONSTRUCTS = [
     'sort-by',
     'limit',
     'set-operations',
-    'insert-overwrite-partition-select'
+    'insert-overwrite-partition-select',
+    'insert-into-partition-select',
+    'set-command'
 ];
 
 var HIVE_FORMATTED_EXPRESSION_CONSTRUCTS = [

@@ -31,7 +31,7 @@ node、leaf 和 source-map entry 建 projection。大型查询只在两个 list 
 ## 等价性证据
 
 `scripts/profile-alignment-candidates.js` 同时加载基线提交 `58ffaa5` 和候选 build，对 Wave 3 的完整
-68-case corpus（含当前公开 production corpus）、128 个确定性 fuzz、48 个确定性 malformed case 和
+70-case corpus（含当前公开 production corpus）、128 个确定性 fuzz、48 个确定性 malformed case 和
 12 个 alignment option matrix case 比较：
 
 - 256/256 case 的 analysis 状态、alignment targets 与完整 `FormatResult` 逐项相等；

@@ -190,6 +190,7 @@ function collectNameRangeClaims(
 ): readonly NameRangeClaim[] {
     if (
         raw.kind !== "cte" &&
+        raw.kind !== "set-payload" &&
         raw.kind !== "relation" &&
         raw.kind !== "window-spec" &&
         raw.kind !== "type-expression" &&
@@ -217,6 +218,20 @@ function collectNameRangeClaims(
             readStableNameRange(
                 raw,
                 "nameLeafRange",
+                nodeId,
+                ownerRange,
+                leaves,
+                false,
+                failures,
+                trustedCanonicalShape
+            )
+        );
+    } else if (raw.kind === "set-payload") {
+        add(
+            "keyLeafRange",
+            readStableNameRange(
+                raw,
+                "keyLeafRange",
                 nodeId,
                 ownerRange,
                 leaves,
@@ -678,6 +693,7 @@ export function validateContextualFactShape(
     } = context;
     const ownsNameClaims =
         nodeKind === "cte" ||
+        nodeKind === "set-payload" ||
         nodeKind === "relation" ||
         nodeKind === "window-spec" ||
         nodeKind === "type-expression" ||

@@ -2,6 +2,7 @@ import type {
     ClauseNode,
     CteNode,
     QueryNode,
+    SetStatementNode,
     SyntaxNode,
 } from "../syntax/node";
 import {
@@ -29,6 +30,38 @@ import {
 } from "./trivia-policy";
 
 const INDENT = Object.freeze({ kind: "indent" as const, levels: 1 });
+
+function formatSetStatement(
+    context: QueryLayoutContext,
+    statement: SetStatementNode
+): boolean {
+    const authorityNodeId = authorityForNode(context, statement.id);
+    if (authorityNodeId === null) {
+        return true;
+    }
+    context.statistics.directLookupCount += statement.syntaxMarkers.length;
+    const head = statement.syntaxMarkers.find(
+        (marker) => marker.syntaxId === "set:head"
+    );
+    if (head === undefined) {
+        return false;
+    }
+    if (statement.payloadChildId === null) {
+        return statement.children.length === 0;
+    }
+    const payload = context.analysis.index.nodeById(statement.payloadChildId);
+    context.statistics.directLookupCount += 1;
+    return (
+        payload.kind === "set-payload" &&
+        replaceStructuralGap(
+            context,
+            authorityNodeId,
+            head.leafId + 1,
+            payload.leafRange.start,
+            SPACE
+        )
+    );
+}
 
 function formatClause(
     context: QueryLayoutContext,
@@ -342,6 +375,12 @@ export function applyQueryLayout(
     for (const node of context.analysis.index.nodes()) {
         context.statistics.nodeVisitCount += 1;
         if (node.kind === "query" && !formatQuery(context, node)) {
+            return false;
+        }
+        if (
+            node.kind === "set-statement" &&
+            !formatSetStatement(context, node)
+        ) {
             return false;
         }
         if (node.kind === "clause" && !formatClause(context, node)) {

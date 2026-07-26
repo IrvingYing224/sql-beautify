@@ -265,6 +265,8 @@ function kindLabel(node: SyntaxNode): string {
     switch (node.kind) {
         case "program":
         case "statement":
+        case "set-statement":
+        case "set-payload":
         case "query":
         case "cte":
         case "clause":

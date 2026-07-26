@@ -32,6 +32,7 @@ type NonClauseSyntaxMarkerId = Exclude<SyntaxMarkerId, `clause:${ClauseKind}`>;
 const NON_CLAUSE_MARKER_IDS: Readonly<Record<NonClauseSyntaxMarkerId, true>> =
     Object.freeze({
         "statement-terminator": true,
+        "set:head": true,
         "cte-as": true,
         "alias-as": true,
         "lateral-view-output-as": true,
@@ -65,6 +66,7 @@ const NON_CLAUSE_MARKER_IDS: Readonly<Record<NonClauseSyntaxMarkerId, true>> =
 
 const GRAMMAR_KEYWORD_MARKER_IDS: ReadonlySet<string> = new Set([
     "cte-as",
+    "set:head",
     "alias-as",
     "lateral-view-output-as",
     "join-head",

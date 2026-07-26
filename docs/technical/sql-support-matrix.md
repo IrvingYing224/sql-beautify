@@ -21,6 +21,7 @@ This matrix covers the main `formatSql` pipeline only. The separate experimental
 | `group-by` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `having` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `hive-ddl` | — | `verbatim` | — | — |
+| `insert-into-partition-select` | — | `formatted` | — | — |
 | `insert-overwrite-partition-select` | — | `formatted` | — | — |
 | `join` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `lateral-view` | — | `formatted` | — | — |
@@ -38,6 +39,7 @@ This matrix covers the main `formatSql` pipeline only. The separate experimental
 | `postgres-type-cast` | — | — | — | `structured` |
 | `qualify` | `diagnostic` | `diagnostic` | `diagnostic` | `diagnostic` |
 | `select-without-from` | `formatted` | `formatted` | `formatted` | `formatted` |
+| `set-command` | — | `formatted` | — | — |
 | `set-operations` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `sort-by` | — | `formatted` | — | — |
 | `subquery` | `formatted` | `formatted` | `formatted` | `formatted` |

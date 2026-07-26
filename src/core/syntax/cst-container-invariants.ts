@@ -9,6 +9,7 @@ import {
     isDenseArray,
     isFiniteNonNegInt,
     isLeafRange,
+    isObject,
 } from "./invariant-shared";
 
 const EMPTY_VALUES: readonly unknown[] = Object.freeze([]);
@@ -44,6 +45,68 @@ function failRelationship(
         message,
         isFiniteNonNegInt(raw.id) ? raw.id : undefined
     );
+}
+
+const INSERT_OVERWRITE_CAPABILITY = "insert-overwrite-partition-select";
+const INSERT_INTO_CAPABILITY = "insert-into-partition-select";
+
+function insertCapabilityFromHead(
+    insertClause: Record<string, unknown>,
+    leaves: readonly SourceLeaf[]
+): string | null {
+    if (!isLeafRange(insertClause.headLeafRange)) {
+        return null;
+    }
+    const words: string[] = [];
+    for (
+        let leafId = insertClause.headLeafRange.start;
+        leafId < insertClause.headLeafRange.end && leafId < leaves.length;
+        leafId++
+    ) {
+        const leaf = leaves[leafId]!;
+        if (leaf.channel !== "code" && leaf.channel !== "protected") {
+            continue;
+        }
+        if (leaf.channel !== "code" || !/^[A-Za-z]+$/.test(leaf.raw)) {
+            return null;
+        }
+        words.push(leaf.raw.toLowerCase());
+    }
+    if (words.length === 3 && words.join(" ") === "insert overwrite table") {
+        return INSERT_OVERWRITE_CAPABILITY;
+    }
+    if (
+        (words.length === 2 && words.join(" ") === "insert into") ||
+        (words.length === 3 && words.join(" ") === "insert into table")
+    ) {
+        return INSERT_INTO_CAPABILITY;
+    }
+    return null;
+}
+
+function querySourceBeginsWithInsert(
+    query: Record<string, unknown>,
+    trustedCanonicalShape: boolean
+): boolean {
+    const children = readNodeArray(
+        query,
+        "children",
+        trustedCanonicalShape
+    );
+    const first = children[0];
+    if (!isObject(first) || first.kind !== "clause") {
+        return false;
+    }
+    if (first.clauseKind === "insert") {
+        return true;
+    }
+    if (first.clauseKind !== "with") {
+        return false;
+    }
+    const main = children[1];
+    return isObject(main) &&
+        main.kind === "query" &&
+        querySourceBeginsWithInsert(main, trustedCanonicalShape);
 }
 
 function validateQueryRelationships(
@@ -103,7 +166,9 @@ function validateQueryRelationships(
             raw.queryKind !== "select" ||
             operatorIds.length !== 0 ||
             (directChildren.length !== 2 && !hasPartition) ||
-            query?.kind !== "query"
+            query?.kind !== "query" ||
+            (query !== undefined &&
+                querySourceBeginsWithInsert(query, trustedCanonicalShape))
         ) {
             failRelationship(
                 failures,
@@ -111,14 +176,21 @@ function validateQueryRelationships(
                 `INSERT query ${String(raw.id)} must contain INSERT, optional PARTITION, and one query child`
             );
         }
+        const expectedCapability = insertCapabilityFromHead(first, leaves);
+        const partition = hasPartition ? directChildren[1] : null;
         if (
-            raw.capabilityId !== "insert-overwrite-partition-select" ||
+            expectedCapability === null ||
+            raw.capabilityId !== expectedCapability ||
+            first.capabilityId !== expectedCapability ||
+            (partition !== null &&
+                partition !== undefined &&
+                partition.capabilityId !== expectedCapability) ||
             raw.formatRole !== "capability"
         ) {
             failRelationship(
                 failures,
                 raw,
-                `INSERT query ${String(raw.id)} must use insert-overwrite-partition-select capability authority`
+                `INSERT query ${String(raw.id)} must use the capability proved by its exact head`
             );
         }
         return;
@@ -272,6 +344,225 @@ function validateQueryRelationships(
                 `select query ${String(raw.id)} must use ${expectedCapability} capability authority`
             );
         }
+    }
+}
+
+function validateSetPayloadRelationships(
+    raw: Record<string, unknown>,
+    directChildren: readonly Record<string, unknown>[],
+    leaves: readonly SourceLeaf[],
+    failures: InvariantFailure[]
+): void {
+    if (raw.kind !== "set-payload") {
+        return;
+    }
+    if (
+        directChildren.length !== 0 ||
+        !isLeafRange(raw.leafRange) ||
+        !isLeafRange(raw.keyLeafRange) ||
+        raw.keyLeafRange.start !== raw.leafRange.start ||
+        raw.keyLeafRange.start === raw.keyLeafRange.end
+    ) {
+        failRelationship(
+            failures,
+            raw,
+            `SET payload ${String(raw.id)} must own one non-empty key and no children`
+        );
+        return;
+    }
+    let expectWord = true;
+    for (
+        let leafId = raw.keyLeafRange.start;
+        leafId < raw.keyLeafRange.end && leafId < leaves.length;
+        leafId++
+    ) {
+        const leaf = leaves[leafId]!;
+        const word = leaf.channel === "code" &&
+            (leaf.kind === "identifier" ||
+                leaf.kind === "keyword" ||
+                (leaf.kind === "number" && leafId > raw.keyLeafRange.start));
+        const separator = leaf.channel === "code" &&
+            (leaf.raw === "." || leaf.raw === ":");
+        if ((expectWord && !word) || (!expectWord && !separator)) {
+            failRelationship(
+                failures,
+                raw,
+                `SET payload ${String(raw.id)} key is not a dotted or namespaced word sequence`
+            );
+            return;
+        }
+        expectWord = !expectWord;
+    }
+    if (expectWord) {
+        failRelationship(
+            failures,
+            raw,
+            `SET payload ${String(raw.id)} key ends with a separator`
+        );
+    }
+
+    const assignmentLeafId = raw.assignmentLeafId;
+    const valueLeafRange = raw.valueLeafRange;
+    if (assignmentLeafId === null || assignmentLeafId === undefined) {
+        if (valueLeafRange !== null) {
+            failRelationship(
+                failures,
+                raw,
+                `SET key-only payload ${String(raw.id)} must not own a value range`
+            );
+        }
+        for (
+            let leafId = raw.keyLeafRange.end;
+            leafId < raw.leafRange.end && leafId < leaves.length;
+            leafId++
+        ) {
+            if (leaves[leafId]!.channel === "code" || leaves[leafId]!.channel === "protected") {
+                failRelationship(
+                    failures,
+                    raw,
+                    `SET key-only payload ${String(raw.id)} has unclaimed syntax`
+                );
+                break;
+            }
+        }
+        return;
+    }
+    if (
+        !isFiniteNonNegInt(assignmentLeafId) ||
+        assignmentLeafId < raw.keyLeafRange.end ||
+        assignmentLeafId >= raw.leafRange.end ||
+        leaves[assignmentLeafId]?.channel !== "code" ||
+        leaves[assignmentLeafId]?.raw !== "=" ||
+        !isLeafRange(valueLeafRange) ||
+        valueLeafRange.start !== assignmentLeafId + 1 ||
+        valueLeafRange.end !== raw.leafRange.end
+    ) {
+        failRelationship(
+            failures,
+            raw,
+            `SET assignment payload ${String(raw.id)} has inconsistent key/operator/value bounds`
+        );
+        return;
+    }
+    for (
+        let leafId = raw.keyLeafRange.end;
+        leafId < assignmentLeafId && leafId < leaves.length;
+        leafId++
+    ) {
+        const channel = leaves[leafId]!.channel;
+        if (channel === "code" || channel === "protected") {
+            failRelationship(
+                failures,
+                raw,
+                `SET assignment payload ${String(raw.id)} has unclaimed syntax before its operator`
+            );
+            return;
+        }
+    }
+    let hasValueSyntax = false;
+    for (
+        let leafId = valueLeafRange.start;
+        leafId < valueLeafRange.end && leafId < leaves.length;
+        leafId++
+    ) {
+        const channel = leaves[leafId]!.channel;
+        hasValueSyntax ||= channel === "code" || channel === "protected";
+    }
+    if (!hasValueSyntax) {
+        failRelationship(
+            failures,
+            raw,
+            `SET assignment payload ${String(raw.id)} requires a non-empty value`
+        );
+    }
+}
+
+function validateSetStatementRelationships(
+    raw: Record<string, unknown>,
+    directChildren: readonly Record<string, unknown>[],
+    leaves: readonly SourceLeaf[],
+    failures: InvariantFailure[]
+): void {
+    if (raw.kind !== "set-statement" || !isLeafRange(raw.leafRange)) {
+        return;
+    }
+    const payload = raw.payloadChildId === null
+        ? null
+        : directChildren.find((child) => child.id === raw.payloadChildId) ?? null;
+    if (
+        (raw.payloadChildId === null && directChildren.length !== 0) ||
+        (raw.payloadChildId !== null &&
+            (directChildren.length !== 1 || payload?.kind !== "set-payload"))
+    ) {
+        failRelationship(
+            failures,
+            raw,
+            `SET command ${String(raw.id)} has an invalid payload reference`
+        );
+        return;
+    }
+    let directSetCount = 0;
+    let directSetLeafId: number | null = null;
+    let firstSyntaxLeafId: number | null = null;
+    for (
+        let leafId = raw.leafRange.start;
+        leafId < raw.leafRange.end && leafId < leaves.length;
+        leafId++
+    ) {
+        const leaf = leaves[leafId]!;
+        if (
+            firstSyntaxLeafId === null &&
+            (leaf.channel === "code" || leaf.channel === "protected")
+        ) {
+            firstSyntaxLeafId = leafId;
+        }
+        if (
+            payload !== null &&
+            isLeafRange(payload.leafRange) &&
+            leafId >= payload.leafRange.start &&
+            leafId < payload.leafRange.end
+        ) {
+            continue;
+        }
+        if (leaf.channel !== "code" && leaf.channel !== "protected") {
+            continue;
+        }
+        if (
+            leaf.channel === "code" &&
+            leaf.raw.toLowerCase() === "set" &&
+            directSetCount === 0
+        ) {
+            directSetCount += 1;
+            directSetLeafId = leafId;
+            continue;
+        }
+        failRelationship(
+            failures,
+            raw,
+            `SET command ${String(raw.id)} has unclaimed direct syntax at leaf ${leafId}`
+        );
+        return;
+    }
+    if (directSetCount !== 1) {
+        failRelationship(
+            failures,
+            raw,
+            `SET command ${String(raw.id)} must own exactly one SET head`
+        );
+        return;
+    }
+    if (
+        directSetLeafId === null ||
+        directSetLeafId !== firstSyntaxLeafId ||
+        (payload !== null &&
+            isLeafRange(payload.leafRange) &&
+            directSetLeafId >= payload.leafRange.start)
+    ) {
+        failRelationship(
+            failures,
+            raw,
+            `SET command ${String(raw.id)} head must be its first syntax leaf and precede its payload`
+        );
     }
 }
 
@@ -465,7 +756,13 @@ function validateClauseRelationships(
                 isChild(only, "relation", "relationKind", "lateral-view");
             break;
         case "insert":
-            valid = directChildren.length === 1 && only?.kind === "relation";
+            valid =
+                directChildren.length === 1 &&
+                only?.kind === "relation" &&
+                only.relationKind === "table" &&
+                only.alias === null &&
+                only.bodyChildId === null &&
+                readNodeArray(only, "children", trustedCanonicalShape).length === 0;
             break;
         case "partition":
             valid =
@@ -936,6 +1233,22 @@ export function validateContainerRelationships(
             break;
         case "type-expression":
             validateTypeRelationships(raw, directChildren, failures);
+            break;
+        case "set-payload":
+            validateSetPayloadRelationships(
+                raw,
+                directChildren,
+                leaves,
+                failures
+            );
+            break;
+        case "set-statement":
+            validateSetStatementRelationships(
+                raw,
+                directChildren,
+                leaves,
+                failures
+            );
             break;
         default:
             break;

@@ -32,6 +32,8 @@ import type {
     RelationKind,
     RelationNode,
     RelationNodeFacts,
+    SetPayloadNode,
+    SetStatementNode,
     StatementKind,
     StatementNode,
     SyntaxNode,
@@ -59,9 +61,21 @@ export interface NodeFactory {
     createStatement(
         range: LeafRange,
         statementKind: StatementKind,
-        body: QueryNode | OpaqueNode | null,
+        body: QueryNode | SetStatementNode | OpaqueNode | null,
         facts?: SyntaxNodeFacts
     ): StatementNode;
+    createSetStatement(
+        range: LeafRange,
+        payload: SetPayloadNode | null,
+        facts?: SyntaxNodeFacts
+    ): SetStatementNode;
+    createSetPayload(
+        range: LeafRange,
+        keyLeafRange: LeafRange,
+        assignmentLeafId: number | null,
+        valueLeafRange: LeafRange | null,
+        facts?: SyntaxNodeFacts
+    ): SetPayloadNode;
     createQuery(
         range: LeafRange,
         queryKind: QueryKind,
@@ -503,7 +517,8 @@ function createNodeFactoryInternal(
                 body !== null &&
                 ((statementKind === "opaque" && body.kind !== "opaque") ||
                     ((statementKind === "query" || statementKind === "insert-query") &&
-                        body.kind !== "query"))
+                        body.kind !== "query") ||
+                    (statementKind === "set" && body.kind !== "set-statement"))
             ) {
                 throw new Error(`Invalid ${statementKind} statement body kind: ${body.kind}`);
             }
@@ -519,6 +534,100 @@ function createNodeFactoryInternal(
                 statementKind,
                 bodyChildId: body === null ? null : body.id,
                 children: body === null ? freezeImmutableArray([]) : freezeImmutableArray([body]),
+            });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
+        },
+
+        createSetStatement(range, payload, facts): SetStatementNode {
+            const leafRange = freezeRange(range, leafCount, false);
+            if (
+                payload !== null &&
+                (payload.leafRange.start < leafRange.start ||
+                    payload.leafRange.end > leafRange.end)
+            ) {
+                throw new Error("SET payload must belong to its command");
+            }
+            const span = spanForRange(leafRange);
+            const nodeFacts = freezeFacts(
+                facts,
+                leafRange,
+                leafCount,
+                "intrinsic-container"
+            );
+            const node = Object.freeze({
+                id: allocateId(),
+                kind: "set-statement" as const,
+                span,
+                leafRange,
+                ...nodeFacts,
+                payloadChildId: payload === null ? null : payload.id,
+                children: payload === null
+                    ? freezeImmutableArray([]) as readonly SetPayloadNode[]
+                    : freezeImmutableArray([payload]),
+            });
+            if (grantCanonicalProgramProvenance) {
+                createdNodes[node.id] = node;
+            }
+            return node;
+        },
+
+        createSetPayload(
+            range,
+            keyLeafRange,
+            assignmentLeafId,
+            valueLeafRange,
+            facts
+        ): SetPayloadNode {
+            const leafRange = freezeRange(range, leafCount, false);
+            const frozenKeyRange = freezeRange(keyLeafRange, leafCount, false);
+            if (
+                frozenKeyRange.start < leafRange.start ||
+                frozenKeyRange.end > leafRange.end
+            ) {
+                throw new Error("SET key range must belong to its payload");
+            }
+            if (
+                assignmentLeafId !== null &&
+                (!Number.isInteger(assignmentLeafId) ||
+                    assignmentLeafId < frozenKeyRange.end ||
+                    assignmentLeafId >= leafRange.end)
+            ) {
+                throw new Error("Invalid SET assignment leaf id");
+            }
+            if ((assignmentLeafId === null) !== (valueLeafRange === null)) {
+                throw new Error("SET assignment and value range must appear together");
+            }
+            const frozenValueRange = valueLeafRange === null
+                ? null
+                : freezeRange(valueLeafRange, leafCount, true);
+            if (
+                frozenValueRange !== null &&
+                (assignmentLeafId === null ||
+                    frozenValueRange.start !== assignmentLeafId + 1 ||
+                    frozenValueRange.end !== leafRange.end)
+            ) {
+                throw new Error("SET value range must follow assignment through payload end");
+            }
+            const span = spanForRange(leafRange);
+            const nodeFacts = freezeFacts(
+                facts,
+                leafRange,
+                leafCount,
+                "intrinsic-container"
+            );
+            const node = Object.freeze({
+                id: allocateId(),
+                kind: "set-payload" as const,
+                span,
+                leafRange,
+                ...nodeFacts,
+                keyLeafRange: frozenKeyRange,
+                assignmentLeafId,
+                valueLeafRange: frozenValueRange,
+                children: freezeImmutableArray([]) as readonly [],
             });
             if (grantCanonicalProgramProvenance) {
                 createdNodes[node.id] = node;

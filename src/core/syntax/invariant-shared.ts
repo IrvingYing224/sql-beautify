@@ -36,6 +36,7 @@ export const STATEMENT_KINDS = new Set<StatementKind>([
     "empty",
     "query",
     "insert-query",
+    "set",
     "opaque",
 ]);
 export const QUERY_KINDS = new Set(["select", "set", "parenthesized"]);
@@ -200,6 +201,9 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
                     if (n.statementKind === "query" || n.statementKind === "insert-query") {
                         return ["query"];
                     }
+                    if (n.statementKind === "set") {
+                        return ["set-statement"];
+                    }
                     if (n.statementKind === "opaque") {
                         return ["opaque"];
                     }
@@ -214,6 +218,24 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
             }),
         ]),
         noUnreferencedChildren: true,
+    }),
+    "set-statement": Object.freeze({
+        kind: "set-statement" as const,
+        childKinds: Object.freeze(["set-payload"]),
+        noUnreferencedChildren: true,
+        refs: Object.freeze([
+            Object.freeze({
+                field: "payloadChildId",
+                required: false,
+                allowedKinds: Object.freeze(["set-payload"]),
+            }),
+        ]),
+    }),
+    "set-payload": Object.freeze({
+        kind: "set-payload" as const,
+        childKinds: NO_CHILD_KINDS,
+        noUnreferencedChildren: true,
+        refs: Object.freeze([]),
     }),
     query: Object.freeze({
         kind: "query" as const,
@@ -463,6 +485,8 @@ export const NODE_KIND_REGISTRY: NodeKindRegistry = Object.freeze({
         "statementKind",
         STATEMENT_KINDS
     ),
+    "set-statement": registryEntry(NODE_CONTRACTS["set-statement"], null, null),
+    "set-payload": registryEntry(NODE_CONTRACTS["set-payload"], null, null),
     query: registryEntry(NODE_CONTRACTS.query, "queryKind", QUERY_KINDS),
     cte: registryEntry(NODE_CONTRACTS.cte, null, null),
     clause: registryEntry(NODE_CONTRACTS.clause, "clauseKind", CLAUSE_KINDS),

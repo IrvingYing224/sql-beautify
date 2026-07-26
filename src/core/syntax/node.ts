@@ -28,6 +28,7 @@ export type SyntaxLeafRole =
 export type SyntaxMarkerId =
     | `clause:${ClauseKind}`
     | "statement-terminator"
+    | "set:head"
     | "cte-as"
     | "alias-as"
     | "lateral-view-output-as"
@@ -122,7 +123,7 @@ export interface AliasInfo {
     readonly nameLeafRange: LeafRange;
 }
 
-export type StatementKind = "empty" | "query" | "insert-query" | "opaque";
+export type StatementKind = "empty" | "query" | "insert-query" | "set" | "opaque";
 export type QueryKind = "select" | "set" | "parenthesized";
 export type ClauseKind =
     | "with"
@@ -237,11 +238,27 @@ export interface ProgramNode extends SyntaxNodeBase<"program"> {
 export interface StatementNode extends SyntaxNodeBase<"statement"> {
     readonly statementKind: StatementKind;
     /**
-     * Direct child id of the statement body (query / insert body / opaque),
-     * or null for empty statements.
+     * Direct child id of the statement body (query / insert / SET command /
+     * opaque), or null only for empty statements.
      */
     readonly bodyChildId: number | null;
     readonly children: readonly SyntaxNode[];
+}
+
+export interface SetStatementNode extends SyntaxNodeBase<"set-statement"> {
+    readonly payloadChildId: number | null;
+    readonly children: readonly SetPayloadNode[];
+}
+
+/**
+ * Bounded Hive SET payload. The key and optional value are deliberately not
+ * interpreted as SQL expressions; layout treats the complete range verbatim.
+ */
+export interface SetPayloadNode extends SyntaxNodeBase<"set-payload"> {
+    readonly keyLeafRange: LeafRange;
+    readonly assignmentLeafId: number | null;
+    readonly valueLeafRange: LeafRange | null;
+    readonly children: readonly [];
 }
 
 export interface QueryNode extends SyntaxNodeBase<"query"> {
@@ -342,6 +359,8 @@ export interface OpaqueNode extends SyntaxNodeBase<"opaque"> {
 export type SyntaxNode =
     | ProgramNode
     | StatementNode
+    | SetStatementNode
+    | SetPayloadNode
     | QueryNode
     | CteNode
     | ClauseNode
