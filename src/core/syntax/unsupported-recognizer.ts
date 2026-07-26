@@ -14,6 +14,7 @@ import {
     isCodeWord,
     isDottedNamePart,
     matchesSyntaxWords,
+    nextSyntaxIndex,
     topLevelSyntaxIndexes,
 } from "./parser-context";
 import type { ParserContext } from "./parser-context";
@@ -109,19 +110,37 @@ function candidateSignaturesAt(
     );
 }
 
+function matchWordsAtSameDepth(
+    context: ParserContext,
+    start: number,
+    end: number,
+    words: readonly string[]
+): readonly number[] | null {
+    const matched = matchesSyntaxWords(context, start, end, words);
+    if (matched === null) {
+        return null;
+    }
+    const depth = context.table.depthBefore(start);
+    return matched.every(
+        (index) => context.table.depthBefore(index) === depth
+    )
+        ? matched
+        : null;
+}
+
 function matchAt(
     context: ParserContext,
     range: LeafRange,
     start: number,
     signature: UnsupportedSyntaxSignature
 ): UnsupportedConstructMatch | null {
-    const matched = matchesSyntaxWords(context, start, range.end, signature.words);
-    if (
-        matched === null ||
-        matched.some(
-            (index) => context.table.depthBefore(index) !== context.table.depthBefore(start)
-        )
-    ) {
+    const matched = matchWordsAtSameDepth(
+        context,
+        start,
+        range.end,
+        signature.words
+    );
+    if (matched === null) {
         return null;
     }
     const capability = getDialect(context.dialect).getCapability(signature.capabilityId);
@@ -181,6 +200,181 @@ export function classifyUnsupportedStatementStart(
         if (match !== null) {
             return match;
         }
+    }
+    return null;
+}
+
+function nextQueryClauseStart(
+    context: ParserContext,
+    indexes: readonly number[],
+    after: number,
+    rangeEnd: number,
+    afterOrder: number
+): number {
+    const clauses = getDialect(context.dialect).listQueryClauseSyntax();
+    for (const index of indexes) {
+        if (index < after) {
+            continue;
+        }
+        if (clauses.some(
+            (syntax) =>
+                syntax.order > afterOrder &&
+                matchWordsAtSameDepth(
+                    context,
+                    index,
+                    rangeEnd,
+                    syntax.words
+                ) !== null
+        )) {
+            return index;
+        }
+    }
+    return rangeEnd;
+}
+
+export function classifyUnsupportedGroupBySuffix(
+    context: ParserContext,
+    range: LeafRange,
+    topLevelIndexes: readonly number[] = topLevelSyntaxIndexes(context, range)
+): UnsupportedConstructMatch | null {
+    const view = signatureViewFor(context, "group-by-suffix");
+    let groupByEnd: number | null = null;
+    for (const index of topLevelIndexes) {
+        const matched = matchWordsAtSameDepth(
+            context,
+            index,
+            range.end,
+            ["group", "by"]
+        );
+        if (matched !== null) {
+            groupByEnd = matched[matched.length - 1]! + 1;
+            break;
+        }
+    }
+    if (groupByEnd === null) {
+        return null;
+    }
+    const groupBySegmentEnd = nextQueryClauseStart(
+        context,
+        topLevelIndexes,
+        groupByEnd,
+        range.end,
+        30
+    );
+    for (const index of topLevelIndexes) {
+        if (index <= groupByEnd || index >= groupBySegmentEnd) {
+            continue;
+        }
+        for (const signature of candidateSignaturesAt(context, index, view)) {
+            const match = matchAt(context, range, index, signature);
+            if (match === null) {
+                continue;
+            }
+            const firstGroupExpression = nextSyntaxIndex(
+                context,
+                groupByEnd - 1,
+                match.range.start
+            );
+            const open = nextSyntaxIndex(
+                context,
+                match.range.end - 1,
+                groupBySegmentEnd
+            );
+            if (
+                firstGroupExpression === null ||
+                open === null ||
+                context.leaves[open]?.channel !== "code" ||
+                context.leaves[open]?.raw !== "(" ||
+                context.table.depthBefore(open) !== context.table.depthBefore(index)
+            ) {
+                continue;
+            }
+            const close = context.table.matchingDelimiterIndex(open);
+            if (close === null || close >= groupBySegmentEnd) {
+                continue;
+            }
+            const after = nextSyntaxIndex(context, close, groupBySegmentEnd);
+            if (after !== null && context.leaves[after]?.raw !== ";") {
+                continue;
+            }
+            return match;
+        }
+    }
+    return null;
+}
+
+export function classifyUnsupportedSelectItemPrefix(
+    context: ParserContext,
+    range: LeafRange,
+    topLevelIndexes: readonly number[] = topLevelSyntaxIndexes(context, range)
+): UnsupportedConstructMatch | null {
+    if (
+        topLevelIndexes.length < 2 ||
+        !isCodeWord(context, topLevelIndexes[0]!, "select")
+    ) {
+        return null;
+    }
+    const index = topLevelIndexes[1]!;
+    const view = signatureViewFor(context, "select-item-prefix");
+    for (const signature of candidateSignaturesAt(context, index, view)) {
+        const match = matchAt(context, range, index, signature);
+        if (match === null) {
+            continue;
+        }
+        const open = nextSyntaxIndex(
+            context,
+            match.range.end - 1,
+            range.end
+        );
+        if (
+            open === null ||
+            context.leaves[open]?.channel !== "code" ||
+            context.leaves[open]?.raw !== "(" ||
+            context.table.depthBefore(open) !== context.table.depthBefore(index)
+        ) {
+            continue;
+        }
+        const close = context.table.matchingDelimiterIndex(open);
+        const usingLeaf = close === null
+            ? null
+            : nextSyntaxIndex(context, close, range.end);
+        const commandLeaf = usingLeaf === null
+            ? null
+            : nextSyntaxIndex(context, usingLeaf, range.end);
+        const asLeaf = commandLeaf === null
+            ? null
+            : nextSyntaxIndex(context, commandLeaf, range.end);
+        const outputOpen = asLeaf === null
+            ? null
+            : nextSyntaxIndex(context, asLeaf, range.end);
+        if (
+            close === null ||
+            close >= range.end ||
+            usingLeaf === null ||
+            !isCodeWord(context, usingLeaf, "using") ||
+            commandLeaf === null ||
+            context.leaves[commandLeaf]?.kind !== "string" ||
+            asLeaf === null ||
+            !isCodeWord(context, asLeaf, "as") ||
+            outputOpen === null ||
+            context.leaves[outputOpen]?.channel !== "code" ||
+            context.leaves[outputOpen]?.raw !== "("
+        ) {
+            continue;
+        }
+        const outputClose = context.table.matchingDelimiterIndex(outputOpen);
+        if (outputClose === null || outputClose >= range.end) {
+            continue;
+        }
+        const after = nextSyntaxIndex(context, outputClose, range.end);
+        if (
+            after !== null &&
+            context.leaves[after]?.raw !== ";" &&
+            !isCodeWord(context, after, "from")
+        ) {
+            continue;
+        }
+        return match;
     }
     return null;
 }

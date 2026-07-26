@@ -364,6 +364,13 @@ const SHARED_UNSUPPORTED_SYNTAX: readonly UnsupportedSyntaxSignature[] = freezeI
 
 const HIVE_UNSUPPORTED_SYNTAX: readonly UnsupportedSyntaxSignature[] = freezeImmutableArray([
     ...SHARED_UNSUPPORTED_SYNTAX,
+    ...(["explain", "update", "delete"] as const).map((word) => Object.freeze({
+        capabilityId: word,
+        context: "statement-start" as const,
+        words: freezeImmutableArray([word]),
+        order: null,
+        bodyEvidence: null,
+    })),
     ...["create", "alter", "drop", "truncate"].map((word) => Object.freeze({
         capabilityId: "hive-ddl",
         context: "statement-start" as const,
@@ -371,6 +378,20 @@ const HIVE_UNSUPPORTED_SYNTAX: readonly UnsupportedSyntaxSignature[] = freezeImm
         order: null,
         bodyEvidence: null,
     })),
+    Object.freeze({
+        capabilityId: "grouping-sets",
+        context: "group-by-suffix" as const,
+        words: freezeImmutableArray(["grouping", "sets"]),
+        order: null,
+        bodyEvidence: null,
+    }),
+    Object.freeze({
+        capabilityId: "transform",
+        context: "select-item-prefix" as const,
+        words: freezeImmutableArray(["transform"]),
+        order: null,
+        bodyEvidence: null,
+    }),
 ]);
 
 const SHARED_PRESERVATION_CAPABILITIES: readonly Readonly<{
@@ -388,7 +409,12 @@ const HIVE_PRESERVATION_CAPABILITIES: readonly Readonly<{
     id: string;
     state: "verbatim" | "diagnostic";
 }>[] = freezeImmutableArray([
+    Object.freeze({ id: "delete", state: "verbatim" as const }),
+    Object.freeze({ id: "explain", state: "verbatim" as const }),
+    Object.freeze({ id: "grouping-sets", state: "verbatim" as const }),
     Object.freeze({ id: "hive-ddl", state: "verbatim" as const }),
+    Object.freeze({ id: "transform", state: "verbatim" as const }),
+    Object.freeze({ id: "update", state: "verbatim" as const }),
     ...SHARED_PRESERVATION_CAPABILITIES,
 ]);
 

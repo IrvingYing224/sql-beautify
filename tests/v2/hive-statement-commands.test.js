@@ -162,6 +162,89 @@ function assertFullyStructured(result, source) {
     });
 }());
 
+(function testExplicitHivePreservationCapabilities() {
+    [
+        { capability: 'explain', source: 'EXPLAIN SELECT id FROM src' },
+        {
+            capability: 'grouping-sets',
+            source: 'SELECT region, count(*) FROM sales GROUP BY region GROUPING SETS ((region),())'
+        },
+        {
+            capability: 'transform',
+            source: "SELECT TRANSFORM(payload) USING 'cat' AS (value string) FROM src"
+        },
+        { capability: 'hive-ddl', source: 'CREATE TABLE t (id int)' },
+        { capability: 'update', source: 'UPDATE target SET value=1 WHERE id=2' },
+        { capability: 'delete', source: 'DELETE FROM target WHERE id=2' }
+    ].forEach(function(testCase) {
+        var parsed = parseHive(testCase.source);
+        var statement = parsed.root.children[0];
+        assert.strictEqual(statement.statementKind, 'opaque', testCase.capability);
+        var opaque = flatten(statement).filter(function(node) {
+            return node.kind === 'opaque';
+        })[0];
+        assert.ok(opaque, testCase.capability + ' opaque node');
+        assert.strictEqual(opaque.capabilityId, testCase.capability);
+        assert.ok(parsed.diagnostics.some(function(diagnostic) {
+            return diagnostic.capabilityId === testCase.capability &&
+                (diagnostic.recovery === 'verbatim-node' ||
+                    diagnostic.recovery === 'preserve-statement');
+        }), testCase.capability + ' preservation diagnostic');
+        var formatted = formatApi.formatSql(testCase.source, {
+            dialect: 'hive',
+            keywordCase: 'lower',
+            unsupportedSyntaxPolicy: 'preserve'
+        });
+        assert.strictEqual(formatted.text, testCase.source,
+            testCase.capability + ' must preserve the exact statement');
+        assert.strictEqual(formatted.status, 'unchanged', testCase.capability);
+    });
+}());
+
+(function testPreservationRecognitionRequiresExactHiveEvidence() {
+    [
+        'SELECT transform(payload) FROM src',
+        'SELECT grouping FROM src GROUP BY grouping'
+    ].forEach(function(source) {
+        var result = parseHive(source);
+        assertFullyStructured(result, source);
+        assert.strictEqual(result.root.children[0].statementKind, 'query', source);
+        assert.strictEqual(result.diagnostics.some(function(diagnostic) {
+            return diagnostic.capabilityId === 'transform' ||
+                diagnostic.capabilityId === 'grouping-sets';
+        }), false, source + ' must remain an ordinary modeled query');
+    });
+
+    var isolated = [
+        { capability: 'explain', source: 'EXPLAIN SELECT id FROM src' },
+        {
+            capability: 'grouping-sets',
+            source: 'SELECT region, count(*) FROM sales GROUP BY region GROUPING SETS ((region),())'
+        },
+        {
+            capability: 'transform',
+            source: "SELECT TRANSFORM(payload) USING 'cat' AS (value string) FROM src"
+        },
+        { capability: 'hive-ddl', source: 'CREATE TABLE t (id int)' },
+        { capability: 'update', source: 'UPDATE target SET value=1' },
+        { capability: 'delete', source: 'DELETE FROM target' }
+    ];
+    ['generic', 'postgresql', 'mysql'].forEach(function(dialect) {
+        isolated.forEach(function(testCase) {
+            var result = parser.parseSql(testCase.source, {
+                dialect: dialect,
+                mode: 'document'
+            });
+            assert.strictEqual(flatten(result.root).some(function(node) {
+                return node.capabilityId === testCase.capability;
+            }), false, dialect + ' node capability isolation: ' + testCase.capability);
+            assert.strictEqual(result.diagnostics.some(function(diagnostic) {
+                return diagnostic.capabilityId === testCase.capability;
+            }), false, dialect + ' diagnostic capability isolation: ' + testCase.capability);
+        });
+    });
+}());
+
 (function testHiveCommandDialectIsolation() {
     ['generic', 'postgresql', 'mysql'].forEach(function(dialect) {
         [

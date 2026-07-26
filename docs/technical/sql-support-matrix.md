@@ -14,11 +14,14 @@ This matrix covers the main `formatSql` pipeline only. The separate experimental
 | `cast-type` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `cluster-by` | — | `formatted` | — | — |
 | `collection-expression` | — | `formatted` | — | — |
+| `delete` | — | `verbatim` | — | — |
 | `distribute-by` | — | `formatted` | — | — |
+| `explain` | — | `verbatim` | — | — |
 | `from` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `function-call` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `generic-array-subset` | `structured` | — | — | — |
 | `group-by` | `formatted` | `formatted` | `formatted` | `formatted` |
+| `grouping-sets` | — | `verbatim` | — | — |
 | `having` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `hive-ddl` | — | `verbatim` | — | — |
 | `insert-into-partition-select` | — | `formatted` | — | — |
@@ -46,7 +49,9 @@ This matrix covers the main `formatSql` pipeline only. The separate experimental
 | `subquery-expression` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `table-function` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `template-parameter` | — | `structured` | — | — |
+| `transform` | — | `verbatim` | — | — |
 | `unpivot` | `diagnostic` | `diagnostic` | `diagnostic` | `diagnostic` |
+| `update` | — | `verbatim` | — | — |
 | `where` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `window` | `formatted` | `formatted` | `formatted` | `formatted` |
 | `window-expression` | `formatted` | `formatted` | `formatted` | `formatted` |

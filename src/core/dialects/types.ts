@@ -107,7 +107,9 @@ export interface JoinSyntax {
 export type UnsupportedSyntaxContext =
     | "statement-start"
     | "query-clause"
-    | "relation-suffix";
+    | "relation-suffix"
+    | "group-by-suffix"
+    | "select-item-prefix";
 
 /** Registry-owned signature for a recognized construct not yet structured. */
 export interface UnsupportedSyntaxSignature {

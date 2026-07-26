@@ -10,6 +10,8 @@ import { parseList } from "./list-parser";
 import { parseExpressionRange } from "./expression-parser";
 import { parseWindowDeclaration } from "./window-parser";
 import {
+    classifyUnsupportedGroupBySuffix,
+    classifyUnsupportedSelectItemPrefix,
     classifyUnsupportedStatementStart,
     findUnsupportedQueryClauseCandidates,
 } from "./unsupported-recognizer";
@@ -1497,6 +1499,18 @@ function parseSelectQuery(
     topLevelIndexes: readonly number[],
     nestingDepth: number
 ): QueryNode {
+    const preservedConstruct =
+        classifyUnsupportedSelectItemPrefix(context, range, topLevelIndexes) ??
+        classifyUnsupportedGroupBySuffix(context, range, topLevelIndexes);
+    if (preservedConstruct !== null) {
+        throw new ParserSyntaxError(
+            "SYN_UNMODELED_CONSTRUCT",
+            { start: preservedConstruct.range.start, end: range.end },
+            `${context.dialect} ${preservedConstruct.signature.capabilityId.toUpperCase()} construct is recognized but not structured`,
+            "statement",
+            preservedConstruct.signature.capabilityId
+        );
+    }
     const markers = findClauseMarkers(context, range, topLevelIndexes);
     rejectProvenUnsupportedQueryClauses(
         context,

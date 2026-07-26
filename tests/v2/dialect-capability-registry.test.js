@@ -82,12 +82,17 @@ var SHARED_FORMATTED_CONSTRUCTS = [
 ];
 
 var HIVE_PRESERVATION_CAPABILITIES = {
+    'delete': 'verbatim',
+    'explain': 'verbatim',
+    'grouping-sets': 'verbatim',
     'hive-ddl': 'verbatim',
     'merge': 'diagnostic',
     'match-recognize': 'diagnostic',
     'pivot': 'diagnostic',
     'qualify': 'diagnostic',
-    'unpivot': 'diagnostic'
+    'transform': 'verbatim',
+    'unpivot': 'diagnostic',
+    'update': 'verbatim'
 };
 var formattedPairs = [];
 
@@ -336,7 +341,13 @@ CANONICAL.forEach(function(dialectId) {
     unsupported.forEach(function(signature) {
         assert.ok(Object.isFrozen(signature), 'unsupported signature frozen');
         assertImmutableArray(signature.words, 'unsupported signature words');
-        assert.ok(['statement-start', 'query-clause', 'relation-suffix']
+        assert.ok([
+            'statement-start',
+            'query-clause',
+            'relation-suffix',
+            'group-by-suffix',
+            'select-item-prefix'
+        ]
             .indexOf(signature.context) >= 0);
         var capability = view.getCapability(signature.capabilityId);
         assert.ok(capability, 'unsupported signature capability must exist');
