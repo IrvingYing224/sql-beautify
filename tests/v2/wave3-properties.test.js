@@ -1,8 +1,6 @@
 'use strict';
 
 var assert = require('assert');
-var fs = require('fs');
-var path = require('path');
 
 var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
 var alignmentApi = require('../../.tmp/v2-core/core/layout/alignment-policy.js');
@@ -20,8 +18,7 @@ var queryCases = require('../fixtures/v2-wave3c-hive-query-cases');
 var expressionCases = require('../fixtures/v2-wave3d-expression-cases');
 var parserCases = require('../fixtures/v2-sql-corpus-cases');
 var closureCases = require('../fixtures/v2-wave3-corpus-cases');
-
-var root = path.join(__dirname, '..', '..');
+var productionCorpus = require('./helpers/production-corpus');
 
 function normalizedOptions(value) {
 	return Object.assign({}, value || {});
@@ -298,18 +295,11 @@ function corpusCases() {
         };
     });
 
-    var corpusRoot = path.join(root, 'tests', 'fixtures', 'production-corpus', 'public');
-    fs.readdirSync(corpusRoot).filter(function(fileName) {
-        return fileName.endsWith('.sql');
-    }).sort().forEach(function(fileName) {
-        var baseName = fileName.slice(0, -4);
-        var optionsPath = path.join(corpusRoot, baseName + '.options.json');
+    productionCorpus.load_public_cases().forEach(function(testCase) {
         cases.push({
-            id: 'production/' + baseName,
-            source: fs.readFileSync(path.join(corpusRoot, fileName), 'utf8'),
-            options: fs.existsSync(optionsPath)
-                ? JSON.parse(fs.readFileSync(optionsPath, 'utf8'))
-                : { dialect: 'hive' },
+            id: 'production/' + testCase.name,
+            source: testCase.sql,
+            options: testCase.options,
             expectedOutcome: 'safe'
         });
     });
@@ -399,7 +389,7 @@ function deterministicMalformedCases(count) {
 
 (function testCompleteCorpusAndDeterministicFuzzProperties() {
     var corpus = corpusCases();
-    assert.strictEqual(corpus.length, 70, 'Wave 3 complete corpus size');
+    assert.strictEqual(corpus.length, 85, 'Wave 3 complete corpus size');
     var corpusIds = new Set();
     corpus.forEach(function(testCase) {
         assert.strictEqual(corpusIds.has(testCase.id), false,
@@ -576,4 +566,4 @@ function deterministicMalformedCases(count) {
     });
 })();
 
-console.log('v2 Wave 3 properties passed (70 corpus + 128 deterministic fuzz + 48 malformed cases)');
+console.log('v2 Wave 3 properties passed (85 corpus + 128 deterministic fuzz + 48 malformed cases)');

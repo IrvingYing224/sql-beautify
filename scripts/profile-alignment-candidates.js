@@ -1,7 +1,6 @@
 'use strict';
 
 var assert = require('assert');
-var fs = require('fs');
 var path = require('path');
 
 function argument(name) {
@@ -190,18 +189,18 @@ function comparisonCases(repositoryRoot) {
         function(value) { return value.options; }
     );
 
-    var publicRoot = path.join(fixtureRoot, 'production-corpus', 'public');
-    fs.readdirSync(publicRoot).filter(function(fileName) {
-        return fileName.endsWith('.sql');
-    }).sort().forEach(function(fileName) {
-        var baseName = fileName.slice(0, -4);
-        var optionsPath = path.join(publicRoot, baseName + '.options.json');
+    var productionCorpus = require(path.join(
+        repositoryRoot,
+        'tests',
+        'v2',
+        'helpers',
+        'production-corpus.js'
+    ));
+    productionCorpus.load_public_cases().forEach(function(testCase) {
         output.push({
-            id: 'production/' + baseName,
-            source: fs.readFileSync(path.join(publicRoot, fileName), 'utf8'),
-            options: fs.existsSync(optionsPath)
-                ? JSON.parse(fs.readFileSync(optionsPath, 'utf8'))
-                : { dialect: 'hive' }
+            id: 'production/' + testCase.name,
+            source: testCase.sql,
+            options: testCase.options
         });
     });
 

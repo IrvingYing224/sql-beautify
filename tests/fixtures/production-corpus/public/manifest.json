@@ -1,0 +1,126 @@
+{
+    "version": 1,
+    "cases": [
+        {
+            "id": "cjk-identifier-generic",
+            "file": "cjk-identifier-generic.sql",
+            "options": { "dialect": "generic" },
+            "expected": { "status": "formatted", "codes": ["SYN_UNEXPECTED_TOKEN", "SYN_UNEXPECTED_TOKEN", "SYN_UNMODELED_CONSTRUCT", "SYN_UNEXPECTED_TOKEN"], "capabilities": [] }
+        },
+        {
+            "id": "cjk-identifier-hive",
+            "file": "cjk-identifier-hive.sql",
+            "options": { "dialect": "hive" },
+            "expected": { "status": "formatted", "codes": ["SYN_UNEXPECTED_TOKEN", "SYN_UNEXPECTED_TOKEN", "SYN_UNMODELED_CONSTRUCT", "SYN_UNEXPECTED_TOKEN"], "capabilities": [] }
+        },
+        {
+            "id": "cjk-identifier-mysql",
+            "file": "cjk-identifier-mysql.sql",
+            "options": { "dialect": "mysql" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "cjk-identifier-postgresql",
+            "file": "cjk-identifier-postgresql.sql",
+            "options": { "dialect": "postgresql" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-crlf-bom-comments",
+            "file": "hive-crlf-bom-comments.sql",
+            "options": { "dialect": "hive" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-cte-window-comments",
+            "file": "hive-cte-window-comments.sql",
+            "options": { "dialect": "hive" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-insert-into",
+            "file": "hive-insert-into.sql",
+            "options": { "dialect": "hive" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-large-cte-window-case",
+            "file": "hive-large-cte-window-case.sql",
+            "minimumBytes": 4096,
+            "options": { "dialect": "hive", "commaStyle": "leading" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-preserve-ddl",
+            "file": "hive-preserve-ddl.sql",
+            "options": { "dialect": "hive", "keywordCase": "lower" },
+            "expected": { "status": "unchanged", "codes": ["SYN_UNSUPPORTED_STATEMENT"], "capabilities": ["hive-ddl"], "exactText": true }
+        },
+        {
+            "id": "hive-preserve-delete",
+            "file": "hive-preserve-delete.sql",
+            "options": { "dialect": "hive", "keywordCase": "lower" },
+            "expected": { "status": "unchanged", "codes": ["SYN_UNSUPPORTED_STATEMENT"], "capabilities": ["delete"], "exactText": true }
+        },
+        {
+            "id": "hive-preserve-explain",
+            "file": "hive-preserve-explain.sql",
+            "options": { "dialect": "hive", "keywordCase": "lower" },
+            "expected": { "status": "unchanged", "codes": ["SYN_UNSUPPORTED_STATEMENT"], "capabilities": ["explain"], "exactText": true }
+        },
+        {
+            "id": "hive-preserve-grouping-sets",
+            "file": "hive-preserve-grouping-sets.sql",
+            "options": { "dialect": "hive", "keywordCase": "lower" },
+            "expected": { "status": "unchanged", "codes": ["SYN_UNMODELED_CONSTRUCT", "SYN_UNMODELED_CONSTRUCT"], "capabilities": ["grouping-sets", "grouping-sets"], "exactText": true }
+        },
+        {
+            "id": "hive-preserve-transform",
+            "file": "hive-preserve-transform.sql",
+            "options": { "dialect": "hive", "keywordCase": "lower" },
+            "expected": { "status": "unchanged", "codes": ["SYN_UNMODELED_CONSTRUCT", "SYN_UNMODELED_CONSTRUCT"], "capabilities": ["transform", "transform"], "exactText": true }
+        },
+        {
+            "id": "hive-preserve-update",
+            "file": "hive-preserve-update.sql",
+            "options": { "dialect": "hive", "keywordCase": "lower" },
+            "expected": { "status": "unchanged", "codes": ["SYN_UNSUPPORTED_STATEMENT"], "capabilities": ["update"], "exactText": true }
+        },
+        {
+            "id": "hive-set",
+            "file": "hive-set.sql",
+            "options": { "dialect": "hive" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-template-variables",
+            "file": "hive-template-variables.sql",
+            "options": { "dialect": "hive" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-trailing-comma-line-comment",
+            "file": "hive-trailing-comma-line-comment.sql",
+            "options": { "dialect": "hive", "commaStyle": "trailing" },
+            "expected": { "status": "formatted", "codes": ["SYN_UNEXPECTED_TOKEN"], "capabilities": [] }
+        },
+        {
+            "id": "postgres-json-dollar",
+            "file": "postgres-json-dollar.sql",
+            "options": { "dialect": "postgresql" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "unsupported-match-recognize",
+            "file": "unsupported-match-recognize.sql",
+            "options": { "dialect": "generic", "unsupportedSyntaxPolicy": "warn" },
+            "expected": { "status": "unchanged", "codes": ["SYN_UNMODELED_CONSTRUCT", "SYN_UNMODELED_CONSTRUCT"], "capabilities": ["match-recognize", "match-recognize"], "exactText": true }
+        },
+        {
+            "id": "unsupported-pivot-qualify-safety",
+            "file": "unsupported-pivot-qualify-safety.sql",
+            "options": { "dialect": "generic", "unsupportedSyntaxPolicy": "warn" },
+            "expected": { "status": "formatted", "codes": ["SYN_UNMODELED_CONSTRUCT", "SYN_UNMODELED_CONSTRUCT"], "capabilities": ["pivot", "pivot"] }
+        }
+    ]
+}
