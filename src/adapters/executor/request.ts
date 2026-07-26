@@ -23,6 +23,7 @@ const REQUEST_KEYS: ReadonlySet<string> = new Set([
     "targetId",
     "newline",
     "cancellation",
+    "debugEnabled",
 ]);
 const BATCH_REQUEST_KEYS: ReadonlySet<string> = new Set([
     "source",
@@ -31,6 +32,7 @@ const BATCH_REQUEST_KEYS: ReadonlySet<string> = new Set([
     "documentVersion",
     "newline",
     "cancellation",
+    "debugEnabled",
 ]);
 const TARGET_KEYS: ReadonlySet<string> = new Set([
     "id",
@@ -47,6 +49,7 @@ export interface StableFormatExecutionRequest {
     readonly targetId: string;
     readonly newline: RenderNewline;
     readonly cancellation?: CancellationToken;
+    readonly debugEnabled: boolean;
 }
 
 export interface StableValidateAndFormatExecutionRequest {
@@ -56,6 +59,7 @@ export interface StableValidateAndFormatExecutionRequest {
     readonly documentVersion: number;
     readonly newline: RenderNewline;
     readonly cancellation?: CancellationToken;
+    readonly debugEnabled: boolean;
 }
 
 export function snapshotFormatExecutionSource(value: unknown): string {
@@ -79,7 +83,8 @@ export function snapshotFormatExecutionRequest(
         !Number.isSafeInteger(raw.documentVersion) ||
         (raw.documentVersion as number) < 0 ||
         typeof raw.targetId !== "string" ||
-        raw.targetId.length === 0
+        raw.targetId.length === 0 ||
+        (raw.debugEnabled !== undefined && typeof raw.debugEnabled !== "boolean")
     ) {
         return null;
     }
@@ -98,6 +103,7 @@ export function snapshotFormatExecutionRequest(
         documentVersion: raw.documentVersion as number,
         targetId: raw.targetId,
         newline,
+        debugEnabled: raw.debugEnabled === true,
         ...(cancellation === undefined ? {} : { cancellation }),
     });
 }
@@ -119,7 +125,8 @@ export function snapshotValidateAndFormatExecutionRequest(
         raw === null ||
         typeof raw.source !== "string" ||
         !Number.isSafeInteger(raw.documentVersion) ||
-        (raw.documentVersion as number) < 0
+        (raw.documentVersion as number) < 0 ||
+        (raw.debugEnabled !== undefined && typeof raw.debugEnabled !== "boolean")
     ) {
         return null;
     }
@@ -191,6 +198,7 @@ export function snapshotValidateAndFormatExecutionRequest(
         targets: Object.freeze(targets),
         documentVersion: raw.documentVersion as number,
         newline,
+        debugEnabled: raw.debugEnabled === true,
         ...(cancellation === undefined ? {} : { cancellation }),
     });
 }
@@ -205,6 +213,7 @@ export function executionRequestForCore(
         documentVersion: request.documentVersion,
         targetId: request.targetId,
         newline: request.newline,
+        debugEnabled: request.debugEnabled,
         ...(request.cancellation === undefined
             ? {}
             : { cancellation: request.cancellation }),

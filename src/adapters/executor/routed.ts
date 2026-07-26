@@ -1,7 +1,12 @@
 import type { FormatResult } from "../../core/api/format-result";
+import {
+    formatExecutionOutcome,
+    snapshotFormatExecutionOutcome,
+} from "../boundary/execution-outcome-snapshot";
 import { lexSql } from "../../core/lexer/lossless-lexer";
 import type {
     FormatBatchExecutionResult,
+    FormatExecutionOutcome,
     FormatExecutionRequest,
     FormatterExecutor,
     ValidateAndFormatExecutionRequest,
@@ -64,19 +69,32 @@ export class RoutedFormatterExecutor implements FormatterExecutor {
     }
 
     async format(request: FormatExecutionRequest): Promise<FormatResult> {
+        return (await this.execute(request)).result;
+    }
+
+    async execute(
+        request: FormatExecutionRequest
+    ): Promise<FormatExecutionOutcome> {
         const snapshot = snapshotFormatExecutionRequest(request);
         if (snapshot === null) {
             this.route = "direct";
-            return await this.direct.format(request);
+            return typeof this.direct.execute === "function"
+                ? await this.direct.execute(request)
+                : formatExecutionOutcome(await this.direct.format(request));
         }
         const useWorker = this.useWorkerFor(
             snapshot.source,
             snapshot.options.dialect
         );
         this.route = useWorker ? "worker" : "direct";
-        return await (useWorker ? this.worker : this.direct).format(
-            executionRequestForCore(snapshot)
-        );
+        const selected = useWorker ? this.worker : this.direct;
+        const stableRequest = executionRequestForCore(snapshot);
+        if (typeof selected.execute === "function") {
+            return await selected.execute(stableRequest);
+        }
+        const raw = await selected.format(stableRequest);
+        return snapshotFormatExecutionOutcome(raw, snapshot.source) ??
+            formatExecutionOutcome(raw);
     }
 
     async validateAndFormat(

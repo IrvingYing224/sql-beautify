@@ -459,6 +459,63 @@ async function run() {
     assert.strictEqual(tamperedDigest.code, 'ADAPTER_WORKER_STALE_RESPONSE',
         'a changed batch source digest must fail closed');
 
+    var debugFactory = fakeFactory(function() {});
+    var debugExecutor = new persistentModule.PersistentWorkerExecutor({
+        workerFactory: debugFactory.create,
+        runtimeDigest: RUNTIME_DIGEST
+    });
+    var debugRequest = request(31);
+    debugRequest.debugEnabled = true;
+    var debugPromise = debugExecutor.execute(debugRequest);
+    var debugMessage = debugFactory.workers[0].messages[0];
+    var debugText = debugMessage.source;
+    debugFactory.workers[0].respond(debugMessage, {
+        result: {
+            result: {
+                status: 'unchanged', text: debugText, diagnostics: [],
+                sourceMap: sourceMap(debugText.length)
+            },
+            debugEvents: [{
+                phase: 'worker', code: 'ADAPTER_WORKER_FORMAT_FAILED',
+                errorName: 'Error', message: 'bounded private detail',
+                frames: ['at worker.js:1:1']
+            }]
+        }
+    });
+    var debugOutcome = await debugPromise;
+    assert.strictEqual(debugOutcome.debugEvents.length, 1,
+        'valid worker debug events must survive strict protocol validation');
+    assert.strictEqual(debugOutcome.debugEvents[0].message, 'bounded private detail');
+    await debugExecutor.dispose();
+
+    var hostileDebugFactory = fakeFactory(function() {});
+    var hostileDebugExecutor = new persistentModule.PersistentWorkerExecutor({
+        workerFactory: hostileDebugFactory.create,
+        runtimeDigest: RUNTIME_DIGEST
+    });
+    var hostileDebugRequest = request(32);
+    hostileDebugRequest.debugEnabled = true;
+    var hostileDebugPromise = hostileDebugExecutor.execute(hostileDebugRequest);
+    var hostileDebugMessage = hostileDebugFactory.workers[0].messages[0];
+    hostileDebugFactory.workers[0].respond(hostileDebugMessage, {
+        result: {
+            result: {
+                status: 'unchanged', text: hostileDebugMessage.source, diagnostics: [],
+                sourceMap: sourceMap(hostileDebugMessage.source.length)
+            },
+            debugEvents: [{
+                phase: 'worker', code: 'ADAPTER_WORKER_FORMAT_FAILED',
+                errorName: 'Error', message: new Array(515).join('x'), frames: []
+            }]
+        }
+    });
+    var hostileDebugOutcome = await hostileDebugPromise;
+    assert.strictEqual(hostileDebugOutcome.result.diagnostics[0].code,
+        'ADAPTER_WORKER_RESULT_CONTRACT',
+        'oversized worker debug events must fail the complete response closed');
+    assert.deepStrictEqual(hostileDebugOutcome.debugEvents, []);
+    await hostileDebugExecutor.dispose();
+
     var disposeFirst = staleExecutor.format(request(8));
     var disposeSecond = staleExecutor.format(request(9));
     await staleExecutor.dispose();

@@ -1,13 +1,20 @@
 import type { FormatResult } from "../../core/api/format-result";
 import type { FormatOptions } from "../../core/config/options";
 import type { RenderNewline } from "../../core/renderer/environment";
+import { createDebugEvent } from "../../core/diagnostics/debug-event";
 import {
     failedFormatResult,
-    isFormatResultSafeForSource,
-    snapshotFormatResult,
 } from "../boundary/format-result-snapshot";
+import {
+    formatExecutionOutcome,
+    snapshotFormatExecutionOutcome,
+} from "../boundary/execution-outcome-snapshot";
 import { observeCancellation } from "../transaction/cancellation";
-import type { FormatterExecutor, FormatExecutionRequest } from "../transaction/types";
+import type {
+    FormatExecutionOutcome,
+    FormatterExecutor,
+    FormatExecutionRequest,
+} from "../transaction/types";
 import type {
     FormatBatchExecutionResult,
     ValidateAndFormatExecutionRequest,
@@ -23,8 +30,9 @@ export type TargetFormatter = (
     source: string,
     options: FormatOptions,
     mode: "document" | "fragment",
-    newline: RenderNewline
-) => FormatResult;
+    newline: RenderNewline,
+    debugEnabled?: boolean
+) => unknown;
 
 /** Synchronous target invocation behind the common executor contract. */
 export class DirectFormatterExecutor implements FormatterExecutor {
@@ -38,51 +46,76 @@ export class DirectFormatterExecutor implements FormatterExecutor {
     }
 
     async format(request: FormatExecutionRequest): Promise<FormatResult> {
+        return (await this.execute(request)).result;
+    }
+
+    async execute(
+        request: FormatExecutionRequest
+    ): Promise<FormatExecutionOutcome> {
         const snapshot = snapshotFormatExecutionRequest(request);
         if (snapshot === null) {
-            return failedFormatResult(
-                snapshotFormatExecutionSource(request),
-                "ADAPTER_EXECUTION_REQUEST",
-                "Formatter execution request is invalid"
+            return formatExecutionOutcome(
+                failedFormatResult(
+                    snapshotFormatExecutionSource(request),
+                    "ADAPTER_EXECUTION_REQUEST",
+                    "Formatter execution request is invalid"
+                )
             );
         }
         const cancellation = observeCancellation(snapshot.cancellation);
         try {
             if (cancellation.isCancelled()) {
-                return failedFormatResult(
-                    snapshot.source,
-                    "ADAPTER_CANCELLED",
-                    "Formatting was cancelled",
-                    "warning"
+                return formatExecutionOutcome(
+                    failedFormatResult(
+                        snapshot.source,
+                        "ADAPTER_CANCELLED",
+                        "Formatting was cancelled",
+                        "warning"
+                    )
                 );
             }
-            const rawResult = this.formatTarget(
+            const rawOutcome = this.formatTarget(
                 snapshot.source,
                 snapshot.options,
                 snapshot.mode,
-                snapshot.newline
+                snapshot.newline,
+                snapshot.debugEnabled
             );
             if (cancellation.isCancelled()) {
-                return failedFormatResult(
-                    snapshot.source,
-                    "ADAPTER_CANCELLED",
-                    "Formatting was cancelled",
-                    "warning"
+                return formatExecutionOutcome(
+                    failedFormatResult(
+                        snapshot.source,
+                        "ADAPTER_CANCELLED",
+                        "Formatting was cancelled",
+                        "warning"
+                    )
                 );
             }
-            const result = snapshotFormatResult(rawResult);
-            return result !== null && isFormatResultSafeForSource(result, snapshot.source)
-                ? result
-                : failedFormatResult(
-                      snapshot.source,
-                      "ADAPTER_RESULT_CONTRACT",
-                      "Formatter result violated the executor contract"
-                  );
-        } catch {
-            return failedFormatResult(
+            const outcome = snapshotFormatExecutionOutcome(
+                rawOutcome,
+                snapshot.source
+            );
+            return outcome ?? formatExecutionOutcome(failedFormatResult(
                 snapshot.source,
-                "ADAPTER_EXECUTOR_FAILED",
-                "Formatter executor failed"
+                "ADAPTER_RESULT_CONTRACT",
+                "Formatter result violated the executor contract"
+            ));
+        } catch (error) {
+            return formatExecutionOutcome(
+                failedFormatResult(
+                    snapshot.source,
+                    "ADAPTER_EXECUTOR_FAILED",
+                    "Formatter executor failed"
+                ),
+                snapshot.debugEnabled
+                    ? Object.freeze([
+                          createDebugEvent(
+                              "executor",
+                              "ADAPTER_EXECUTOR_FAILED",
+                              error
+                          ),
+                      ])
+                    : Object.freeze([])
             );
         } finally {
             cancellation.dispose();

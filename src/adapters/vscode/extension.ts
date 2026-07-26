@@ -405,6 +405,11 @@ export function createVscodeExtension(
             status: result.status,
             diagnosticCodes: Object.freeze({ ...counts }),
         }));
+        if ("debugEvents" in result && Array.isArray(result.debugEvents)) {
+            for (const event of result.debugEvents) {
+                console.warn("[SQL Beautify debug]", event);
+            }
+        }
     }
 
     function publishDiagnostics(
@@ -615,6 +620,7 @@ export function createVscodeExtension(
                 targets: Object.freeze([target]),
                 options: current.options,
                 newline: documentRenderNewline(vscode, document, capturedSource),
+                debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor);
         } catch {
@@ -756,6 +762,7 @@ export function createVscodeExtension(
                     editor.document,
                     expected.source
                 ),
+                debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor, queryCommit(editor, editor.document));
         } catch {
@@ -874,6 +881,7 @@ export function createVscodeExtension(
                 selections: selectionSet.selections,
                 options: current.options,
                 newline: documentRenderNewline(vscode, document, expected.source),
+                debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor);
         } catch {

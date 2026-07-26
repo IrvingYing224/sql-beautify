@@ -21,6 +21,7 @@ const FORMAT_REQUEST_KEYS: ReadonlySet<string> = new Set([
     "options",
     "mode",
     "newline",
+    "debugEnabled",
 ]);
 const BATCH_REQUEST_KEYS: ReadonlySet<string> = new Set([
     "kind",
@@ -32,6 +33,7 @@ const BATCH_REQUEST_KEYS: ReadonlySet<string> = new Set([
     "options",
     "targets",
     "newline",
+    "debugEnabled",
 ]);
 const FORMAT_RESPONSE_KEYS: ReadonlySet<string> = new Set([
     "kind",
@@ -66,6 +68,7 @@ export interface WorkerFormatRequestMessage {
     readonly options: CanonicalFormatOptions;
     readonly mode: "document" | "fragment";
     readonly newline: RenderNewline;
+    readonly debugEnabled: boolean;
 }
 
 export interface WorkerFormatResponseMessage {
@@ -90,6 +93,7 @@ export interface WorkerBatchRequestMessage {
     readonly options: CanonicalFormatOptions;
     readonly targets: readonly FormatTarget[];
     readonly newline: RenderNewline;
+    readonly debugEnabled: boolean;
 }
 
 export interface WorkerBatchResponseMessage {
@@ -129,6 +133,7 @@ export function snapshotWorkerRequestMessage(
         "options",
         "mode",
         "newline",
+        "debugEnabled",
     ]);
     if (
         raw === null ||
@@ -145,7 +150,8 @@ export function snapshotWorkerRequestMessage(
         !/^[a-f0-9]{64}$/.test(raw.sourceDigest) ||
         typeof raw.source !== "string" ||
         (raw.mode !== "document" && raw.mode !== "fragment") ||
-        !isRenderNewline(raw.newline)
+        !isRenderNewline(raw.newline) ||
+        typeof raw.debugEnabled !== "boolean"
     ) {
         const batchRaw = snapshotDataProperties(value, BATCH_REQUEST_KEYS, [
             "kind",
@@ -157,6 +163,7 @@ export function snapshotWorkerRequestMessage(
             "options",
             "targets",
             "newline",
+            "debugEnabled",
         ]);
         if (
             batchRaw === null ||
@@ -171,6 +178,7 @@ export function snapshotWorkerRequestMessage(
             !/^[a-f0-9]{64}$/.test(batchRaw.sourceDigest) ||
             typeof batchRaw.source !== "string" ||
             !isRenderNewline(batchRaw.newline) ||
+            typeof batchRaw.debugEnabled !== "boolean" ||
             sourceDigest(batchRaw.source) !== batchRaw.sourceDigest
         ) {
             return null;
@@ -181,6 +189,7 @@ export function snapshotWorkerRequestMessage(
             targets: batchRaw.targets,
             documentVersion: batchRaw.documentVersion,
             newline: batchRaw.newline,
+            debugEnabled: batchRaw.debugEnabled,
         });
         if (batch === null) {
             return null;
@@ -195,6 +204,7 @@ export function snapshotWorkerRequestMessage(
             options: batch.options,
             targets: batch.targets,
             newline: batch.newline,
+            debugEnabled: batch.debugEnabled,
         });
     }
     const options = resolveFormatOptions(raw.options);
@@ -212,6 +222,7 @@ export function snapshotWorkerRequestMessage(
         options: options.options,
         mode: raw.mode,
         newline: raw.newline,
+        debugEnabled: raw.debugEnabled,
     });
 }
 

@@ -1,6 +1,8 @@
 var assert = require('assert');
 var performance = require('perf_hooks').performance;
 var transaction = require('../../.tmp/v2-core/adapters/transaction/prepare');
+var resultBoundary = require('../../.tmp/v2-core/adapters/boundary/format-result-snapshot');
+var safeReport = require('../../.tmp/v2-core/adapters/vscode/safe-report');
 
 function diagnostic(source, code) {
     return {
@@ -510,6 +512,62 @@ async function run() {
     assert.strictEqual(overLimit.diagnostics[0].code, 'ADAPTER_INPUT_LIMIT');
     assert.strictEqual(limitCalls, 1,
         '524289 UTF-16 code units must be rejected before executor dispatch');
+
+    var rawSnapshotInput = {
+        status: 'unchanged', text: 'select 1', diagnostics: [],
+        sourceMap: sourceMap(8, 8)
+    };
+    var firstSnapshot = resultBoundary.snapshotFormatResult(rawSnapshotInput);
+    var secondSnapshot = resultBoundary.snapshotFormatResult(firstSnapshot);
+    assert.notStrictEqual(firstSnapshot, rawSnapshotInput,
+        'the first boundary crossing must deep-snapshot an untrusted result');
+    assert.strictEqual(secondSnapshot, firstSnapshot,
+        'a module-branded snapshot must retain identity at the second boundary');
+    var forgedFrozen = Object.freeze({
+        status: 'unchanged', text: 'select 1', diagnostics: Object.freeze([]),
+        sourceMap: Object.freeze({ entries: Object.freeze([]) })
+    });
+    assert.notStrictEqual(resultBoundary.snapshotFormatResult(forgedFrozen), forgedFrozen,
+        'freezing an external object must not forge the private snapshot brand');
+    var clonedSnapshot = structuredClone(firstSnapshot);
+    assert.notStrictEqual(resultBoundary.snapshotFormatResult(clonedSnapshot), clonedSnapshot,
+        'structured clone must not carry the private snapshot brand');
+    assert.strictEqual(
+        resultBoundary.isFormatResultSafeForSource(firstSnapshot, 'different'),
+        false,
+        'snapshot provenance must not bypass current-source validation'
+    );
+    var brandedFailure = resultBoundary.failedFormatResult(
+        'select 1', 'ADAPTER_TEST', 'test failure'
+    );
+    assert.strictEqual(resultBoundary.snapshotFormatResult(brandedFailure), brandedFailure,
+        'adapter-generated failures may use the same private brand fast path');
+
+    var debugSecret = 'select hidden_value from secret_table /private/debug.sql';
+    var debugExecutor = new (require(
+        '../../.tmp/v2-core/adapters/executor/direct'
+    ).DirectFormatterExecutor)(function() {
+        throw new Error(debugSecret);
+    });
+    var debugTransaction = await transaction.prepareFormatTransaction({
+        source: 'select 1',
+        documentVersion: 17,
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }],
+        debugEnabled: true
+    }, debugExecutor);
+    assert.strictEqual(debugTransaction.status, 'rejected');
+    assert.strictEqual(debugTransaction.debugEvents.length, 1,
+        'transaction results must carry validated opt-in execution events');
+    assert.ok(debugTransaction.debugEvents[0].message.indexOf('hidden_value') >= 0);
+    var report = safeReport.renderSafeDiagnosticReport({
+        extensionVersion: '3.0.0', dialect: 'hive', sourceCodeUnits: 8,
+        resultStatus: debugTransaction.status,
+        diagnostics: debugTransaction.diagnostics,
+        debugEvents: debugTransaction.debugEvents
+    });
+    assert.ok(report.indexOf('hidden_value') < 0 && report.indexOf('/private/debug.sql') < 0,
+        'safe clipboard reports must ignore the opt-in internal debug channel');
+    await debugExecutor.dispose();
 
     console.log('v2 Wave 4A transaction tests passed');
 }

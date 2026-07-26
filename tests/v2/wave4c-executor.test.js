@@ -193,6 +193,33 @@ async function run() {
         'ADAPTER_EXECUTION_REQUEST'
     );
 
+    var privateFailure = 'select secret_value from private_table /private/path.sql';
+    var throwingDirect = new directModule.DirectFormatterExecutor(function() {
+        throw new Error(privateFailure);
+    });
+    var quietFailure = await throwingDirect.execute(Object.assign(
+        request('select 1'),
+        { debugEnabled: false }
+    ));
+    assert.deepStrictEqual(quietFailure.debugEvents, [],
+        'debug events must not be collected when the opt-in flag is disabled');
+    var debugFailure = await throwingDirect.execute(Object.assign(
+        request('select 1'),
+        { debugEnabled: true }
+    ));
+    assert.strictEqual(debugFailure.result.diagnostics[0].code,
+        'ADAPTER_EXECUTOR_FAILED');
+    assert.ok(debugFailure.result.diagnostics[0].message.indexOf('secret_value') < 0,
+        'safe formatter diagnostics must not expose the internal exception');
+    assert.strictEqual(debugFailure.debugEvents.length, 1);
+    assert.ok(debugFailure.debugEvents[0].message.indexOf('secret_value') >= 0,
+        'the opt-in internal channel must retain bounded troubleshooting context');
+    assert.ok(debugFailure.debugEvents[0].message.length <= 512);
+    assert.ok(debugFailure.debugEvents[0].frames.every(function(frame) {
+        return /^at\s/.test(frame) && frame.length <= 512;
+    }), 'debug stacks must contain only bounded call frames without the Error header');
+    await throwingDirect.dispose();
+
     await routed.dispose();
     await persistent.dispose();
     await direct.dispose();

@@ -1,7 +1,10 @@
 import type { FormatResult } from "../../core/api/format-result";
 import { MAX_FORMAT_SOURCE_CODE_UNITS } from "../../core/api/limits";
+import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import type { FormatOptions } from "../../core/config/options";
 import type { RenderNewline } from "../../core/renderer/environment";
+import { snapshotFormatExecutionOutcome } from "../boundary/execution-outcome-snapshot";
+import { snapshotDebugEvents } from "../boundary/debug-event-snapshot";
 import {
     isFormatResultSafeForSource,
     snapshotFormatResult,
@@ -24,22 +27,37 @@ export type BatchTargetFormatter = (
     source: string,
     options: FormatOptions,
     mode: "document" | "fragment",
-    newline: RenderNewline
-) => FormatResult;
+    newline: RenderNewline,
+    debugEnabled?: boolean
+) => unknown;
 
 const RESULT_KEYS: ReadonlySet<string> = new Set([
     "status",
     "results",
     "code",
     "targetId",
+    "debugEvents",
 ]);
 const TARGET_RESULT_KEYS: ReadonlySet<string> = new Set([
     "targetId",
     "result",
 ]);
 
-function failed(code: string): FormatBatchExecutionResult {
-    return Object.freeze({ status: "failed" as const, code });
+function debugProperties(debugEvents: readonly DebugEvent[]): Readonly<{
+    readonly debugEvents?: readonly DebugEvent[];
+}> {
+    return debugEvents.length === 0 ? Object.freeze({}) : { debugEvents };
+}
+
+function failed(
+    code: string,
+    debugEvents: readonly DebugEvent[] = Object.freeze([])
+): FormatBatchExecutionResult {
+    return Object.freeze({
+        status: "failed" as const,
+        code,
+        ...debugProperties(debugEvents),
+    });
 }
 
 function emptyResult(): FormatResult {
@@ -55,6 +73,7 @@ export function executeFormatBatch(
     request: StableValidateAndFormatExecutionRequest,
     formatTarget: BatchTargetFormatter
 ): FormatBatchExecutionResult {
+    const debugEvents: DebugEvent[] = [];
     try {
         if (request.source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
             return failed("ADAPTER_INPUT_LIMIT");
@@ -80,20 +99,30 @@ export function executeFormatBatch(
                       source,
                       request.options,
                       target.mode,
-                      request.newline
+                      request.newline,
+                      request.debugEnabled
                   );
-            const result = snapshotFormatResult(raw);
-            if (result === null || !isFormatResultSafeForSource(result, source)) {
-                return failed("ADAPTER_RESULT_CONTRACT");
+            const outcome = snapshotFormatExecutionOutcome(raw, source);
+            if (outcome === null) {
+                return failed("ADAPTER_RESULT_CONTRACT", Object.freeze(debugEvents));
             }
-            results.push(Object.freeze({ targetId: target.id, result }));
+            debugEvents.push(...outcome.debugEvents);
+            results.push(Object.freeze({ targetId: target.id, result: outcome.result }));
         }
         return Object.freeze({
             status: "completed" as const,
             results: Object.freeze(results),
+            ...debugProperties(Object.freeze(debugEvents)),
         });
-    } catch {
-        return failed("ADAPTER_EXECUTOR_FAILED");
+    } catch (error) {
+        if (request.debugEnabled) {
+            debugEvents.push(createDebugEvent(
+                "executor",
+                "ADAPTER_EXECUTOR_FAILED",
+                error
+            ));
+        }
+        return failed("ADAPTER_EXECUTOR_FAILED", Object.freeze(debugEvents));
     }
 }
 
@@ -103,6 +132,12 @@ export function snapshotFormatBatchExecutionResult(
 ): FormatBatchExecutionResult | null {
     const raw = snapshotDataProperties(value, RESULT_KEYS, ["status"]);
     if (raw === null) {
+        return null;
+    }
+    const debugEvents = raw.debugEvents === undefined
+        ? Object.freeze([])
+        : snapshotDebugEvents(raw.debugEvents);
+    if (debugEvents === null) {
         return null;
     }
     if (raw.status === "invalid") {
@@ -119,6 +154,7 @@ export function snapshotFormatBatchExecutionResult(
             status: "invalid" as const,
             code: raw.code,
             targetId: raw.targetId as string | null,
+            ...debugProperties(debugEvents),
         });
     }
     if (raw.status === "failed") {
@@ -130,7 +166,11 @@ export function snapshotFormatBatchExecutionResult(
         ) {
             return null;
         }
-        return Object.freeze({ status: "failed" as const, code: raw.code });
+        return Object.freeze({
+            status: "failed" as const,
+            code: raw.code,
+            ...debugProperties(debugEvents),
+        });
     }
     if (
         raw.status !== "completed" ||
@@ -164,5 +204,6 @@ export function snapshotFormatBatchExecutionResult(
     return Object.freeze({
         status: "completed" as const,
         results: Object.freeze(results),
+        ...debugProperties(debugEvents),
     });
 }

@@ -5,6 +5,7 @@ import {
     isRenderNewline,
 } from "../../core/renderer/environment";
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
+import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import { resolveFormatOptions } from "../../core/config/resolve-options";
 import type { SourceMap } from "../../core/source/source-map";
 import {
@@ -15,6 +16,7 @@ import {
     isFormatResultSafeForSource,
     snapshotFormatResult,
 } from "../boundary/format-result-snapshot";
+import { snapshotFormatExecutionOutcome } from "../boundary/execution-outcome-snapshot";
 import { snapshotFormatBatchExecutionResult } from "../executor/batch";
 import { snapshotValidateAndFormatExecutionRequest } from "../executor/request";
 import { mapSelectionThroughSourceMap } from "./cursor";
@@ -78,11 +80,23 @@ function targetDiagnostic(
     });
 }
 
-function cancelled(documentVersion: number): CancelledFormatTransaction {
+function debugProperties(debugEvents: readonly DebugEvent[]): Readonly<{
+    readonly debugEvents?: readonly DebugEvent[];
+}> {
+    return debugEvents.length === 0
+        ? Object.freeze({})
+        : { debugEvents: Object.freeze(Array.from(debugEvents)) };
+}
+
+function cancelled(
+    documentVersion: number,
+    debugEvents: readonly DebugEvent[] = Object.freeze([])
+): CancelledFormatTransaction {
     return Object.freeze({
         status: "cancelled",
         documentVersion,
         diagnostics: Object.freeze([]) as readonly [],
+        ...debugProperties(debugEvents),
     });
 }
 
@@ -96,12 +110,14 @@ function optionSnapshot(value: FormatTransactionRequest["options"]): FormatTrans
 
 function rejected(
     documentVersion: number,
-    diagnostics: readonly TransactionDiagnostic[]
+    diagnostics: readonly TransactionDiagnostic[],
+    debugEvents: readonly DebugEvent[] = Object.freeze([])
 ): RejectedFormatTransaction {
     return Object.freeze({
         status: "rejected",
         documentVersion,
         diagnostics: sortDiagnostics(diagnostics),
+        ...debugProperties(debugEvents),
     });
 }
 
@@ -374,6 +390,7 @@ async function prepareFormatTransactionInternal(
     const selectionsValue = request.selections;
     const optionsValue = optionSnapshot(request.options);
     const requestedNewline = request.newline;
+    const debugEnabledValue = request.debugEnabled;
     const sourceLength =
         typeof sourceValue === "string" ? sourceValue.length : 0;
     if (optionsValue === null ||
@@ -381,7 +398,8 @@ async function prepareFormatTransactionInternal(
         !Number.isSafeInteger(documentVersionValue) ||
         documentVersionValue < 0 ||
         !Array.isArray(targetsValue) ||
-        (requestedNewline !== undefined && !isRenderNewline(requestedNewline))
+        (requestedNewline !== undefined && !isRenderNewline(requestedNewline)) ||
+        (debugEnabledValue !== undefined && typeof debugEnabledValue !== "boolean")
     ) {
         return rejected(
             Number.isSafeInteger(documentVersionValue)
@@ -434,6 +452,7 @@ async function prepareFormatTransactionInternal(
         ]);
     }
     const targetById = new Map(targets.map((target) => [target.id, target]));
+    const debugEvents: DebugEvent[] = [];
     let batchResultByTargetId: ReadonlyMap<string, FormatResult> | null = null;
     const requiresDocumentValidation = targets.some(
         (target) => target.mode === "fragment" && target.start !== target.end
@@ -451,6 +470,7 @@ async function prepareFormatTransactionInternal(
             ...(cancellationValue === undefined
                 ? {}
                 : { cancellation: cancellationValue }),
+            debugEnabled: debugEnabledValue === true,
         });
         if (batchRequest === null) {
             return rejected(documentVersionValue, [
@@ -491,6 +511,7 @@ async function prepareFormatTransactionInternal(
                 ),
             ]);
         }
+        debugEvents.push(...(batchResult.debugEvents ?? []));
         if (batchResult.status === "invalid") {
             const rangeTarget = batchResult.targetId === null
                 ? null
@@ -507,7 +528,7 @@ async function prepareFormatTransactionInternal(
                           batchResult.targetId
                       )
                     : targetDiagnostic(rangeTarget, batchResult.code, message),
-            ]);
+            ], debugEvents);
         }
         if (batchResult.status === "failed") {
             return rejected(documentVersionValue, [
@@ -516,7 +537,7 @@ async function prepareFormatTransactionInternal(
                     batchResult.code,
                     "Formatter executor failed"
                 ),
-            ]);
+            ], debugEvents);
         }
         batchResultByTargetId = new Map(
             batchResult.results.map((value) => [value.targetId, value.result])
@@ -553,7 +574,7 @@ async function prepareFormatTransactionInternal(
     const computed: ComputedTarget[] = [];
     for (const target of targets) {
         if (isCancelledNow()) {
-            return cancelled(documentVersionValue);
+            return cancelled(documentVersionValue, debugEvents);
         }
         const targetSource = sourceValue.slice(target.start, target.end);
         if (target.start === target.end) {
@@ -587,19 +608,48 @@ async function prepareFormatTransactionInternal(
                         ? {}
                         : { cancellation: cancellationValue }),
                 };
-                result = await executor.format(executionRequest);
-            } catch {
+                if (typeof executor.execute === "function") {
+                    const rawOutcome = await executor.execute({
+                        ...executionRequest,
+                        debugEnabled: debugEnabledValue === true,
+                    });
+                    const outcome = snapshotFormatExecutionOutcome(
+                        rawOutcome,
+                        targetSource
+                    );
+                    if (outcome === null) {
+                        return rejected(documentVersionValue, [
+                            targetDiagnostic(
+                                target,
+                                "ADAPTER_RESULT_SNAPSHOT",
+                                "Formatter execution outcome could not be inspected safely"
+                            ),
+                        ], debugEvents);
+                    }
+                    debugEvents.push(...outcome.debugEvents);
+                    result = outcome.result;
+                } else {
+                    result = await executor.format(executionRequest);
+                }
+            } catch (error) {
+                if (debugEnabledValue === true) {
+                    debugEvents.push(createDebugEvent(
+                        "executor",
+                        "ADAPTER_EXECUTOR_FAILED",
+                        error
+                    ));
+                }
                 return rejected(documentVersionValue, [
                     targetDiagnostic(
                         target,
                         "ADAPTER_EXECUTOR_FAILED",
                         "Formatter executor failed"
                     ),
-                ]);
+                ], debugEvents);
             }
         }
         if (isCancelledNow()) {
-            return cancelled(documentVersionValue);
+            return cancelled(documentVersionValue, debugEvents);
         }
         let snapshot: FormatResult;
         try {
@@ -615,7 +665,7 @@ async function prepareFormatTransactionInternal(
                     "ADAPTER_RESULT_SNAPSHOT",
                     "Formatter result could not be inspected safely"
                 ),
-            ]);
+            ], debugEvents);
         }
         if (!isFormatResultSafeForSource(snapshot, targetSource)) {
             return rejected(documentVersionValue, [
@@ -624,7 +674,7 @@ async function prepareFormatTransactionInternal(
                     "ADAPTER_RESULT_CONTRACT",
                     "Formatter result violated the transaction contract"
                 ),
-            ]);
+            ], debugEvents);
         }
         computed.push(
             Object.freeze({
@@ -645,11 +695,11 @@ async function prepareFormatTransactionInternal(
         }
     }
     if (diagnostics.some((item) => item.severity === "error")) {
-        return rejected(documentVersionValue, diagnostics);
+        return rejected(documentVersionValue, diagnostics, debugEvents);
     }
     for (const value of computed) {
         if (value.result.status === "failed" || value.result.status === "preserved") {
-            return rejected(documentVersionValue, diagnostics);
+            return rejected(documentVersionValue, diagnostics, debugEvents);
         }
     }
 
@@ -681,7 +731,7 @@ async function prepareFormatTransactionInternal(
                 "ADAPTER_SELECTION_MAP",
                 "Formatter selections could not be mapped safely"
             ),
-        ]);
+        ], debugEvents);
     }
     const selections: TransactionSelection[] = [];
     const computedByTargetId = new Map(
@@ -723,7 +773,7 @@ async function prepareFormatTransactionInternal(
                     "ADAPTER_SELECTION_MAP",
                     "Formatter selection could not be mapped safely"
                 ),
-            ]);
+            ], debugEvents);
         }
         selections.push(freezeSelection(
             selection.id,
@@ -741,6 +791,7 @@ async function prepareFormatTransactionInternal(
             edits: Object.freeze([]) as readonly [],
             selections: frozenSelections,
             diagnostics: frozenDiagnostics,
+            ...debugProperties(debugEvents),
         });
     }
     return Object.freeze({
@@ -749,6 +800,7 @@ async function prepareFormatTransactionInternal(
         edits: Object.freeze(edits),
         selections: frozenSelections,
         diagnostics: frozenDiagnostics,
+        ...debugProperties(debugEvents),
     });
 }
 

@@ -3,8 +3,9 @@ import { readFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { parentPort, workerData } from "node:worker_threads";
 
-import type { FormatResult } from "../../core/api/format-result";
+import type { FormatSqlExecution } from "../../core/api/format";
 import type { CanonicalFormatOptions, FormatOptions } from "../../core/config/options";
+import { createDebugEvent } from "../../core/diagnostics/debug-event";
 import type { RenderNewline } from "../../core/renderer/environment";
 import { failedFormatResult } from "../boundary/format-result-snapshot";
 import type {
@@ -18,18 +19,20 @@ import {
 } from "./protocol";
 
 interface FormatterRuntime {
-    formatSqlTarget(
+    executeFormatSql(
         source: string,
         options: FormatOptions,
         mode: "document" | "fragment",
-        newline: RenderNewline
-    ): FormatResult;
+        newline: RenderNewline,
+        debugEnabled: boolean
+    ): FormatSqlExecution;
     validateAndFormatTargets(
         source: string,
         options: CanonicalFormatOptions,
         targets: readonly FormatTarget[],
         documentVersion: number,
-        newline: RenderNewline
+        newline: RenderNewline,
+        debugEnabled: boolean
     ): FormatBatchExecutionResult;
 }
 
@@ -50,7 +53,7 @@ const runtimeDigest = createHash("sha256")
     .digest("hex");
 const runtime = require(runtimePath) as Partial<FormatterRuntime>;
 if (
-    typeof runtime.formatSqlTarget !== "function" ||
+    typeof runtime.executeFormatSql !== "function" ||
     typeof runtime.validateAndFormatTargets !== "function"
 ) {
     throw new Error("Formatter worker runtime is invalid");
@@ -70,12 +73,24 @@ port.on("message", (value: unknown) => {
                 request.options,
                 request.targets,
                 request.documentVersion,
-                request.newline
+                request.newline,
+                request.debugEnabled
             );
-        } catch {
+        } catch (error) {
             result = Object.freeze({
                 status: "failed" as const,
                 code: "ADAPTER_WORKER_FORMAT_FAILED",
+                ...(request.debugEnabled
+                    ? {
+                          debugEvents: Object.freeze([
+                              createDebugEvent(
+                                  "worker",
+                                  "ADAPTER_WORKER_FORMAT_FAILED",
+                                  error
+                              ),
+                          ]),
+                      }
+                    : {}),
             });
         }
         const response: WorkerBatchResponseMessage = Object.freeze({
@@ -91,20 +106,32 @@ port.on("message", (value: unknown) => {
         port.postMessage(response);
         return;
     }
-    let result: FormatResult;
+    let result: FormatSqlExecution;
     try {
-        result = runtime.formatSqlTarget!(
+        result = runtime.executeFormatSql!(
             request.source,
             request.options,
             request.mode,
-            request.newline
+            request.newline,
+            request.debugEnabled
         );
-    } catch {
-        result = failedFormatResult(
-            request.source,
-            "ADAPTER_WORKER_FORMAT_FAILED",
-            "Formatter worker failed"
-        );
+    } catch (error) {
+        result = Object.freeze({
+            result: failedFormatResult(
+                request.source,
+                "ADAPTER_WORKER_FORMAT_FAILED",
+                "Formatter worker failed"
+            ),
+            debugEvents: request.debugEnabled
+                ? Object.freeze([
+                      createDebugEvent(
+                          "worker",
+                          "ADAPTER_WORKER_FORMAT_FAILED",
+                          error
+                      ),
+                  ])
+                : Object.freeze([]),
+        });
     }
     const response: WorkerFormatResponseMessage = Object.freeze({
         kind: "result",

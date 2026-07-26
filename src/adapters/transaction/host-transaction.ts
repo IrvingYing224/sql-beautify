@@ -24,6 +24,7 @@ export interface HostTransactionRequest {
     readonly options?: FormatOptions;
     readonly newline?: RenderNewline;
     readonly cancellation?: CancellationToken;
+    readonly debugEnabled?: boolean;
 }
 
 export interface HostCommit {
@@ -38,7 +39,8 @@ function rejected(
     version: number,
     code: string,
     message: string,
-    severity: "warning" | "error" = "error"
+    severity: "warning" | "error" = "error",
+    debugEvents: FormatTransactionResult["debugEvents"] = undefined
 ): FormatTransactionResult {
     return Object.freeze({
         status: "rejected" as const,
@@ -54,6 +56,7 @@ function rejected(
                 targetId: null,
             }),
         ]),
+        ...(debugEvents === undefined ? {} : { debugEvents }),
     });
 }
 
@@ -78,6 +81,9 @@ async function runHostTransactionInternal(
                 : { selections: request.selections }),
             ...(request.options === undefined ? {} : { options: request.options }),
             ...(request.newline === undefined ? {} : { newline: request.newline }),
+            ...(request.debugEnabled === undefined
+                ? {}
+                : { debugEnabled: request.debugEnabled }),
             ...(cancellationValue === undefined
                 ? {}
                 : { cancellation: cancellationValue }),
@@ -90,6 +96,9 @@ async function runHostTransactionInternal(
                 status: "cancelled" as const,
                 documentVersion: expected.version,
                 diagnostics: Object.freeze([]) as readonly [],
+                ...(transaction.debugEvents === undefined
+                    ? {}
+                    : { debugEvents: transaction.debugEvents }),
             });
         }
         if (!sameDocument(expected, snapshotDocument(commit.currentDocument()))) {
@@ -97,7 +106,8 @@ async function runHostTransactionInternal(
                 expected.version,
                 "ADAPTER_STALE_DOCUMENT",
                 "Document changed before formatting could be applied",
-                "warning"
+                "warning",
+                transaction.debugEvents
             );
         }
         if (cancellation.isCancelled()) {
@@ -105,6 +115,9 @@ async function runHostTransactionInternal(
                 status: "cancelled" as const,
                 documentVersion: expected.version,
                 diagnostics: Object.freeze([]) as readonly [],
+                ...(transaction.debugEvents === undefined
+                    ? {}
+                    : { debugEvents: transaction.debugEvents }),
             });
         }
         let applied: boolean;
@@ -114,14 +127,18 @@ async function runHostTransactionInternal(
             return rejected(
                 expected.version,
                 "ADAPTER_EDIT_REJECTED",
-                "Host rejected the formatting edit"
+                "Host rejected the formatting edit",
+                "error",
+                transaction.debugEvents
             );
         }
         if (applied !== true) {
             return rejected(
                 expected.version,
                 "ADAPTER_EDIT_REJECTED",
-                "Host rejected the formatting edit"
+                "Host rejected the formatting edit",
+                "error",
+                transaction.debugEvents
             );
         }
         return transaction;

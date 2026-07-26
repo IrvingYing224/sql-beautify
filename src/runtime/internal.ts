@@ -20,7 +20,10 @@ import type {
 import { runExperimentalDdlTransaction } from "../adapters/transaction/experimental-ddl";
 import { runHostTransaction } from "../adapters/transaction/host-transaction";
 import { prepareFormatTransaction } from "../adapters/transaction/prepare";
-import { formatSql as formatSqlTarget } from "../core/api/format";
+import {
+    executeFormatSql,
+    formatSql as formatSqlTarget,
+} from "../core/api/format";
 import { formatSql } from "../core/api/public-format";
 import { resolveFormatOptions } from "../core/config/resolve-options";
 import type { CanonicalFormatOptions } from "../core/config/options";
@@ -32,6 +35,7 @@ declare const __filename: string;
 
 export {
     extractDdl,
+    executeFormatSql,
     formatHiveDdl,
     formatSql,
     formatSqlTarget,
@@ -48,11 +52,19 @@ export function validateAndFormatTargets(
     options: CanonicalFormatOptions,
     targets: readonly FormatTarget[],
     documentVersion: number,
-    newline: RenderNewline
+    newline: RenderNewline,
+    debugEnabled = false
 ): FormatBatchExecutionResult {
     return executeFormatBatch(
-        Object.freeze({ source, options, targets, documentVersion, newline }),
-        formatSqlTarget
+        Object.freeze({
+            source,
+            options,
+            targets,
+            documentVersion,
+            newline,
+            debugEnabled,
+        }),
+        executeFormatSql
     );
 }
 
@@ -106,7 +118,7 @@ export function createProductionFormatterExecutor(
         throw new TypeError("Production formatter runtime artifacts are unavailable");
     }
 
-    const direct = new DirectFormatterExecutor(formatSqlTarget);
+    const direct = new DirectFormatterExecutor(executeFormatSql);
     const worker = new PersistentWorkerExecutor({
         workerFactory: createNodeWorkerFactory(workerPath, runtimePath),
         runtimeDigest: digest,
@@ -116,6 +128,9 @@ export function createProductionFormatterExecutor(
         runtimeDigest: digest,
         format(request: FormatExecutionRequest) {
             return routed.format(request);
+        },
+        execute(request: FormatExecutionRequest) {
+            return routed.execute(request);
         },
         validateAndFormat(request: ValidateAndFormatExecutionRequest) {
             return routed.validateAndFormat(request);

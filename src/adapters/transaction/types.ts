@@ -1,5 +1,6 @@
 import type { FormatOptions } from "../../core/config/options";
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
+import type { DebugEvent } from "../../core/diagnostics/debug-event";
 import type { FormatResult } from "../../core/api/format-result";
 import type { SourceMap } from "../../core/source/source-map";
 import type { RenderNewline } from "../../core/renderer/environment";
@@ -32,6 +33,12 @@ export interface FormatExecutionRequest {
     readonly targetId: string;
     readonly newline?: RenderNewline;
     readonly cancellation?: CancellationToken;
+    readonly debugEnabled?: boolean;
+}
+
+export interface FormatExecutionOutcome {
+    readonly result: FormatResult;
+    readonly debugEvents: readonly DebugEvent[];
 }
 
 export interface ValidateAndFormatExecutionRequest {
@@ -41,6 +48,7 @@ export interface ValidateAndFormatExecutionRequest {
     readonly documentVersion: number;
     readonly newline?: RenderNewline;
     readonly cancellation?: CancellationToken;
+    readonly debugEnabled?: boolean;
 }
 
 export interface FormatBatchTargetResult {
@@ -51,17 +59,20 @@ export interface FormatBatchTargetResult {
 export interface CompletedFormatBatchExecution {
     readonly status: "completed";
     readonly results: readonly FormatBatchTargetResult[];
+    readonly debugEvents?: readonly DebugEvent[];
 }
 
 export interface InvalidFormatBatchExecution {
     readonly status: "invalid";
     readonly code: string;
     readonly targetId: string | null;
+    readonly debugEvents?: readonly DebugEvent[];
 }
 
 export interface FailedFormatBatchExecution {
     readonly status: "failed";
     readonly code: string;
+    readonly debugEvents?: readonly DebugEvent[];
 }
 
 export type FormatBatchExecutionResult =
@@ -71,6 +82,7 @@ export type FormatBatchExecutionResult =
 
 export interface FormatterExecutor {
     format(request: FormatExecutionRequest): Promise<FormatResult>;
+    execute?(request: FormatExecutionRequest): Promise<FormatExecutionOutcome>;
     validateAndFormat?(
         request: ValidateAndFormatExecutionRequest
     ): Promise<FormatBatchExecutionResult>;
@@ -85,6 +97,7 @@ export interface FormatTransactionRequest {
     readonly options?: FormatOptions;
     readonly newline?: RenderNewline;
     readonly cancellation?: CancellationToken;
+    readonly debugEnabled?: boolean;
 }
 
 export interface TransactionDiagnostic extends Diagnostic {
@@ -108,6 +121,7 @@ export interface TransactionSelection {
 interface FormatTransactionResultBase<S extends string> {
     readonly status: S;
     readonly documentVersion: number;
+    readonly debugEvents?: readonly DebugEvent[];
 }
 
 export interface ReadyFormatTransaction

@@ -433,6 +433,42 @@ async function main() {
     host.setConfiguration('unsupportedSyntaxPolicy', 'warn');
     runtime.prepareFormatTransaction = stablePrepare;
 
+    host.setConfiguration('debugDiagnostics', true);
+    var debugRequestEnabled = false;
+    runtime.prepareFormatTransaction = async function(request) {
+        debugRequestEnabled = request.debugEnabled;
+        return {
+            status: 'rejected', documentVersion: request.documentVersion,
+            diagnostics: [],
+            debugEvents: [{
+                phase: 'format', code: 'FMT_INTERNAL', errorName: 'Error',
+                message: 'opt-in private detail', frames: ['at formatter.js:1:1']
+            }]
+        };
+    };
+    var originalConsoleWarn = console.warn;
+    var debugConsoleValues = [];
+    console.warn = function() {
+        debugConsoleValues.push(Array.prototype.slice.call(arguments));
+    };
+    try {
+        await host.providers[0].provider.provideDocumentFormattingEdits(
+            document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
+                return { dispose: function() {} };
+            } }
+        );
+    } finally {
+        console.warn = originalConsoleWarn;
+    }
+    assert.strictEqual(debugRequestEnabled, true,
+        'debugDiagnostics must opt the execution request into the internal channel');
+    assert.ok(debugConsoleValues.some(function(values) {
+        return values[0] === '[SQL Beautify debug]' &&
+            values[1].message === 'opt-in private detail';
+    }), 'validated debug events must be emitted only to the extension host console');
+    host.setConfiguration('debugDiagnostics', false);
+    runtime.prepareFormatTransaction = stablePrepare;
+
     var releaseStale;
     runtime.prepareFormatTransaction = function(request) {
         return new Promise(function(resolve) {

@@ -1,17 +1,19 @@
 import { performance } from "node:perf_hooks";
 
 import type { FormatResult } from "../../core/api/format-result";
+import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
+import { failedFormatResult } from "../boundary/format-result-snapshot";
 import {
-    failedFormatResult,
-    isFormatResultSafeForSource,
-    snapshotFormatResult,
-} from "../boundary/format-result-snapshot";
+    formatExecutionOutcome,
+    snapshotFormatExecutionOutcome,
+} from "../boundary/execution-outcome-snapshot";
 import {
     observeCancellation,
     type CancellationObservation,
 } from "../transaction/cancellation";
 import type {
     FormatBatchExecutionResult,
+    FormatExecutionOutcome,
     FormatExecutionRequest,
     FormatterExecutor,
     ValidateAndFormatExecutionRequest,
@@ -63,7 +65,7 @@ export interface PersistentWorkerStatistics {
 type StableExecutionRequest =
     | StableFormatExecutionRequest
     | StableValidateAndFormatExecutionRequest;
-type ExecutionResult = FormatResult | FormatBatchExecutionResult;
+type ExecutionResult = FormatExecutionOutcome | FormatBatchExecutionResult;
 
 interface PendingRequest {
     readonly kind: "format" | "batch";
@@ -88,8 +90,15 @@ interface WorkerState {
     retired: boolean;
 }
 
-function failedBatch(code: string): FormatBatchExecutionResult {
-    return Object.freeze({ status: "failed" as const, code });
+function failedBatch(
+    code: string,
+    debugEvents: readonly DebugEvent[] = Object.freeze([])
+): FormatBatchExecutionResult {
+    return Object.freeze({
+        status: "failed" as const,
+        code,
+        ...(debugEvents.length === 0 ? {} : { debugEvents }),
+    });
 }
 
 export class PersistentWorkerExecutor implements FormatterExecutor {
@@ -152,20 +161,30 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
     }
 
     async format(request: FormatExecutionRequest): Promise<FormatResult> {
+        return (await this.execute(request)).result;
+    }
+
+    async execute(
+        request: FormatExecutionRequest
+    ): Promise<FormatExecutionOutcome> {
         const snapshot = snapshotFormatExecutionRequest(request);
         if (snapshot === null) {
-            return failedFormatResult(
-                snapshotFormatExecutionSource(request),
-                "ADAPTER_EXECUTION_REQUEST",
-                "Formatter execution request is invalid"
+            return formatExecutionOutcome(
+                failedFormatResult(
+                    snapshotFormatExecutionSource(request),
+                    "ADAPTER_EXECUTION_REQUEST",
+                    "Formatter execution request is invalid"
+                )
             );
         }
         if (this.disposed) {
-            return this.failedFormat(snapshot.source, "ADAPTER_CANCELLED");
+            return formatExecutionOutcome(
+                this.failedFormat(snapshot.source, "ADAPTER_CANCELLED")
+            );
         }
-        return await new Promise<FormatResult>((resolve) => {
+        return await new Promise<FormatExecutionOutcome>((resolve) => {
             this.enqueue("format", snapshot, (result) => {
-                resolve(result as FormatResult);
+                resolve(result as FormatExecutionOutcome);
             });
         });
     }
@@ -293,10 +312,20 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         );
     }
 
-    private failedResult(pending: PendingRequest, code: string): ExecutionResult {
+    private failedResult(
+        pending: PendingRequest,
+        code: string,
+        error: unknown = undefined
+    ): ExecutionResult {
+        const debugEvents = pending.request.debugEnabled && error !== undefined
+            ? Object.freeze([createDebugEvent("worker", code, error)])
+            : Object.freeze([]);
         return pending.kind === "batch"
-            ? failedBatch(code)
-            : this.failedFormat(pending.request.source, code);
+            ? failedBatch(code, debugEvents)
+            : formatExecutionOutcome(
+                  this.failedFormat(pending.request.source, code),
+                  debugEvents
+              );
     }
 
     private cancelledResult(pending: PendingRequest): ExecutionResult {
@@ -420,11 +449,11 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
                         this.handleMessage(state!, value);
                     }
                 },
-                error: () => {
+                error: (error) => {
                     if (initializing) {
                         failedDuringInitialization = true;
                     } else {
-                        this.handleFailure(state!);
+                        this.handleFailure(state!, "ADAPTER_WORKER_CRASH", error);
                     }
                 },
                 exit: () => {
@@ -492,8 +521,8 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             const message = this.workerMessage(pending);
             try {
                 worker.connection.postMessage(message);
-            } catch {
-                this.handleFailure(worker);
+            } catch (error) {
+                this.handleFailure(worker, "ADAPTER_WORKER_CRASH", error);
             }
             return;
         }
@@ -512,6 +541,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
                 options: request.options,
                 targets: request.targets,
                 newline: request.newline,
+                debugEnabled: request.debugEnabled,
             });
             return message;
         }
@@ -527,6 +557,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             options: request.options,
             mode: request.mode,
             newline: request.newline,
+            debugEnabled: request.debugEnabled,
         });
         return message;
     }
@@ -567,11 +598,10 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         if (response.kind !== "result") {
             return null;
         }
-        const result = snapshotFormatResult(response.result);
-        return result !== null &&
-            isFormatResultSafeForSource(result, pending.request.source)
-            ? result
-            : null;
+        return snapshotFormatExecutionOutcome(
+            response.result,
+            pending.request.source
+        );
     }
 
     private handleMessage(state: WorkerState, value: unknown): void {
@@ -615,7 +645,8 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
 
     private handleFailure(
         state: WorkerState,
-        code: string = "ADAPTER_WORKER_CRASH"
+        code: string = "ADAPTER_WORKER_CRASH",
+        error: unknown = undefined
     ): void {
         if (this.worker !== state || state.retired) {
             return;
@@ -628,7 +659,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             if (pending.state === "draining") {
                 this.cancellationRetirements += 1;
             }
-            this.finish(pending, this.failedResult(pending, code));
+            this.finish(pending, this.failedResult(pending, code, error));
         }
         void this.beginRetireWorker().then(() => this.resumeAfterFailure());
     }

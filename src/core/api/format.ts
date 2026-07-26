@@ -8,6 +8,10 @@ import { analyzeSql } from "../analysis/analyze";
 import type { AnalyzedArtifact } from "../analysis/types";
 import type { FormatOptions } from "../config/options";
 import type { Diagnostic } from "../diagnostics/diagnostic";
+import {
+    createDebugEvent,
+    type DebugEvent,
+} from "../diagnostics/debug-event";
 import { resolveFormatOptions } from "../config/resolve-options";
 import { lexSql } from "../lexer/lossless-lexer";
 import type { SourceLeaf } from "../lexer/token";
@@ -62,6 +66,11 @@ export interface FormatPipelineRun {
     readonly statistics: FormatPipelineStatistics;
 }
 
+export interface FormatSqlExecution {
+    readonly result: FormatResult;
+    readonly debugEvents: readonly DebugEvent[];
+}
+
 interface TokenEquivalenceStatistics {
     readonly inputCodeUnits: number;
     readonly diagnosticVisitCount: number;
@@ -76,14 +85,6 @@ interface TokenEquivalenceCheck {
     readonly statistics: TokenEquivalenceStatistics;
 }
 
-interface FormatClosureStatistics {
-    readonly metricsDocVisitCount: number;
-    readonly metricsSummaryLookupCount: number;
-    readonly renderDocVisitCount: number;
-    readonly renderMetricsLookupCount: number;
-    readonly equivalence: TokenEquivalenceStatistics;
-}
-
 const ZERO_EQUIVALENCE_STATISTICS: TokenEquivalenceStatistics = Object.freeze({
     inputCodeUnits: 0,
     diagnosticVisitCount: 0,
@@ -91,14 +92,6 @@ const ZERO_EQUIVALENCE_STATISTICS: TokenEquivalenceStatistics = Object.freeze({
     outputLeafVisitCount: 0,
     comparisonCount: 0,
     directLookupCount: 0,
-});
-
-const ZERO_CLOSURE_STATISTICS: FormatClosureStatistics = Object.freeze({
-    metricsDocVisitCount: 0,
-    metricsSummaryLookupCount: 0,
-    renderDocVisitCount: 0,
-    renderMetricsLookupCount: 0,
-    equivalence: ZERO_EQUIVALENCE_STATISTICS,
 });
 
 function spanForSource(source: string) {
@@ -163,74 +156,150 @@ function safeResult(
           });
 }
 
-function statistics(
-    sourceCodeUnits: number,
-    outputCodeUnits = sourceCodeUnits,
-    leafCount = 0,
-    syntaxNodeCount = 0,
-    planActionCount = 0,
-    maxPlanActions = 0,
-    leafVisitCount = 0,
-    leafEmissionCount = 0,
-    directLookupCount = 0,
-    docNodeCount = 0,
-    scopeActionCount = 0,
-    scopeActionVisitCount = 0,
-    policyNodeVisitCount = 0,
-    policyLeafVisitCount = 0,
-    policyDirectLookupCount = 0,
-    closure: FormatClosureStatistics = ZERO_CLOSURE_STATISTICS
-): FormatPipelineStatistics {
-    return Object.freeze({
+type MutableFormatPipelineStatistics = {
+    -readonly [Key in keyof FormatPipelineStatistics]: FormatPipelineStatistics[Key];
+};
+
+function statisticsAccumulator(
+    sourceCodeUnits: number
+): MutableFormatPipelineStatistics {
+    return {
         sourceCodeUnits,
-        outputCodeUnits,
-        leafCount,
-        syntaxNodeCount,
-        planActionCount,
-        maxPlanActions,
-        leafVisitCount,
-        leafEmissionCount,
-        directLookupCount,
-        docNodeCount,
-        scopeActionCount,
-        scopeActionVisitCount,
-        policyNodeVisitCount,
-        policyLeafVisitCount,
-        policyDirectLookupCount,
-        metricsDocVisitCount: closure.metricsDocVisitCount,
-        metricsSummaryLookupCount: closure.metricsSummaryLookupCount,
-        renderDocVisitCount: closure.renderDocVisitCount,
-        renderMetricsLookupCount: closure.renderMetricsLookupCount,
-        equivalenceInputCodeUnits: closure.equivalence.inputCodeUnits,
-        equivalenceDiagnosticVisitCount:
-            closure.equivalence.diagnosticVisitCount,
-        equivalenceSourceLeafVisitCount:
-            closure.equivalence.sourceLeafVisitCount,
-        equivalenceOutputLeafVisitCount:
-            closure.equivalence.outputLeafVisitCount,
-        equivalenceComparisonCount: closure.equivalence.comparisonCount,
-        equivalenceDirectLookupCount: closure.equivalence.directLookupCount,
-    });
+        outputCodeUnits: sourceCodeUnits,
+        leafCount: 0,
+        syntaxNodeCount: 0,
+        planActionCount: 0,
+        maxPlanActions: 0,
+        leafVisitCount: 0,
+        leafEmissionCount: 0,
+        directLookupCount: 0,
+        docNodeCount: 0,
+        scopeActionCount: 0,
+        scopeActionVisitCount: 0,
+        policyNodeVisitCount: 0,
+        policyLeafVisitCount: 0,
+        policyDirectLookupCount: 0,
+        metricsDocVisitCount: 0,
+        metricsSummaryLookupCount: 0,
+        renderDocVisitCount: 0,
+        renderMetricsLookupCount: 0,
+        equivalenceInputCodeUnits: 0,
+        equivalenceDiagnosticVisitCount: 0,
+        equivalenceSourceLeafVisitCount: 0,
+        equivalenceOutputLeafVisitCount: 0,
+        equivalenceComparisonCount: 0,
+        equivalenceDirectLookupCount: 0,
+    };
+}
+
+function freezeStatistics(
+    value: MutableFormatPipelineStatistics
+): FormatPipelineStatistics {
+    return Object.freeze({ ...value });
+}
+
+function recordAnalysisStatistics(
+    value: MutableFormatPipelineStatistics,
+    leafCount: number,
+    syntaxNodeCount: number
+): void {
+    value.leafCount = leafCount;
+    value.syntaxNodeCount = syntaxNodeCount;
+}
+
+function recordPlanStatistics(
+    value: MutableFormatPipelineStatistics,
+    plan: LayoutPlan
+): void {
+    const planStatistics = plan.statistics;
+    value.planActionCount = planStatistics.actionCount;
+    value.maxPlanActions = plan.budget.maxPlanActions;
+    value.leafVisitCount =
+        planStatistics.leafVisitCount + planStatistics.policyLeafVisitCount;
+    value.leafEmissionCount = 0;
+    value.directLookupCount =
+        planStatistics.directLookupCount +
+        planStatistics.policyDirectLookupCount;
+    value.docNodeCount = 0;
+    value.scopeActionCount = planStatistics.scopeActionCount;
+    value.scopeActionVisitCount = 0;
+    value.policyNodeVisitCount = planStatistics.policyNodeVisitCount;
+    value.policyLeafVisitCount = planStatistics.policyLeafVisitCount;
+    value.policyDirectLookupCount = planStatistics.policyDirectLookupCount;
+    value.metricsDocVisitCount = 0;
+    value.metricsSummaryLookupCount = 0;
+    value.renderDocVisitCount = 0;
+    value.renderMetricsLookupCount = 0;
+    recordEquivalenceStatistics(value, ZERO_EQUIVALENCE_STATISTICS);
+}
+
+function recordCompiledStatistics(
+    value: MutableFormatPipelineStatistics,
+    plan: LayoutPlan,
+    compiled: Readonly<{
+        leafVisitCount: number;
+        leafEmissionCount: number;
+        directLookupCount: number;
+        scopeActionVisitCount: number;
+    }>
+): void {
+    recordPlanStatistics(value, plan);
+    value.leafVisitCount += compiled.leafVisitCount;
+    value.leafEmissionCount = compiled.leafEmissionCount;
+    value.directLookupCount += compiled.directLookupCount;
+    value.scopeActionVisitCount = compiled.scopeActionVisitCount;
+}
+
+function recordRenderedStatistics(
+    value: MutableFormatPipelineStatistics,
+    plan: LayoutPlan,
+    compiled: Readonly<{
+        leafVisitCount: number;
+        leafEmissionCount: number;
+        directLookupCount: number;
+        scopeActionVisitCount: number;
+    }>,
+    rendered: RenderStatistics
+): void {
+    recordCompiledStatistics(value, plan, compiled);
+    value.docNodeCount = rendered.docVisitCount;
+    value.metricsDocVisitCount = rendered.metricsDocVisitCount;
+    value.metricsSummaryLookupCount = rendered.metricsSummaryLookupCount;
+    value.renderDocVisitCount = rendered.docVisitCount;
+    value.renderMetricsLookupCount = rendered.metricsLookupCount;
+}
+
+function recordEquivalenceStatistics(
+    value: MutableFormatPipelineStatistics,
+    equivalence: TokenEquivalenceStatistics
+): void {
+    value.equivalenceInputCodeUnits = equivalence.inputCodeUnits;
+    value.equivalenceDiagnosticVisitCount = equivalence.diagnosticVisitCount;
+    value.equivalenceSourceLeafVisitCount = equivalence.sourceLeafVisitCount;
+    value.equivalenceOutputLeafVisitCount = equivalence.outputLeafVisitCount;
+    value.equivalenceComparisonCount = equivalence.comparisonCount;
+    value.equivalenceDirectLookupCount = equivalence.directLookupCount;
+}
+
+function recordCompletedStatistics(
+    value: MutableFormatPipelineStatistics,
+    rendered: RenderStatistics,
+    equivalence: TokenEquivalenceStatistics
+): void {
+    value.leafVisitCount +=
+        equivalence.sourceLeafVisitCount + equivalence.outputLeafVisitCount;
+    value.directLookupCount +=
+        rendered.metricsSummaryLookupCount +
+        rendered.metricsLookupCount +
+        equivalence.directLookupCount;
+    recordEquivalenceStatistics(value, equivalence);
 }
 
 function run(
     result: FormatResult,
-    value: FormatPipelineStatistics
+    value: MutableFormatPipelineStatistics
 ): FormatPipelineRun {
-    return Object.freeze({ result, statistics: value });
-}
-
-function closureStatistics(
-    rendered: RenderStatistics,
-    equivalence: TokenEquivalenceStatistics = ZERO_EQUIVALENCE_STATISTICS
-): FormatClosureStatistics {
-    return Object.freeze({
-        metricsDocVisitCount: rendered.metricsDocVisitCount,
-        metricsSummaryLookupCount: rendered.metricsSummaryLookupCount,
-        renderDocVisitCount: rendered.docVisitCount,
-        renderMetricsLookupCount: rendered.metricsLookupCount,
-        equivalence,
-    });
+    return Object.freeze({ result, statistics: freezeStatistics(value) });
 }
 
 function tokenEquivalenceCheck(
@@ -338,9 +407,11 @@ export function formatSqlWithStatistics(
     sourceValue: string,
     optionsValue: FormatOptions | unknown = undefined,
     modeValue: ParseMode | unknown = "document",
-    environmentValue: RenderEnvironment | RenderNewline | unknown = undefined
+    environmentValue: RenderEnvironment | RenderNewline | unknown = undefined,
+    debugEvents: DebugEvent[] | undefined = undefined
 ): FormatPipelineRun {
     const source = typeof sourceValue === "string" ? sourceValue : "";
+    const statistics = statisticsAccumulator(source.length);
     try {
         if (typeof sourceValue !== "string") {
             const value = diagnostic(
@@ -348,10 +419,7 @@ export function formatSqlWithStatistics(
                 "FMT_SOURCE_TYPE",
                 "Formatter source must be a primitive string"
             );
-            return run(
-                originalResult("failed", source, [value]),
-                statistics(source.length)
-            );
+            return run(originalResult("failed", source, [value]), statistics);
         }
         if (!validMode(modeValue)) {
             const value = diagnostic(
@@ -359,10 +427,7 @@ export function formatSqlWithStatistics(
                 "FMT_PARSE_MODE",
                 "Formatter parse mode is invalid"
             );
-            return run(
-                originalResult("failed", source, [value]),
-                statistics(source.length)
-            );
+            return run(originalResult("failed", source, [value]), statistics);
         }
         const environment = environmentValue === undefined
             ? inferRenderEnvironment(source)
@@ -375,18 +440,12 @@ export function formatSqlWithStatistics(
                 "RENDER_NEWLINE_CONTRACT",
                 "Formatter render environment is invalid"
             );
-            return run(
-                originalResult("failed", source, [value]),
-                statistics(source.length)
-            );
+            return run(originalResult("failed", source, [value]), statistics);
         }
         const resolved = resolveFormatOptions(optionsValue);
         if (!resolved.ok) {
             const value = diagnostic(source, resolved.code, resolved.message);
-            return run(
-                originalResult("failed", source, [value]),
-                statistics(source.length)
-            );
+            return run(originalResult("failed", source, [value]), statistics);
         }
         if (source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
             const value = diagnostic(
@@ -395,10 +454,7 @@ export function formatSqlWithStatistics(
                 "Formatter source exceeds the supported input limit",
                 "warning"
             );
-            return run(
-                originalResult("preserved", source, [value]),
-                statistics(source.length)
-            );
+            return run(originalResult("preserved", source, [value]), statistics);
         }
         const options = resolved.options;
         const analysis = analyzeSql(source, {
@@ -407,26 +463,17 @@ export function formatSqlWithStatistics(
         });
         const leafCount = analysis.leaves.length;
         const syntaxNodeCount = analysis.index?.nodes().length ?? 0;
+        recordAnalysisStatistics(statistics, leafCount, syntaxNodeCount);
         if (analysis.status === "failed") {
             return run(
                 originalResult("failed", source, analysis.diagnostics),
-                statistics(
-                    source.length,
-                    source.length,
-                    leafCount,
-                    syntaxNodeCount
-                )
+                statistics
             );
         }
         if (analysis.status === "preserved") {
             return run(
                 originalResult("preserved", source, analysis.diagnostics),
-                statistics(
-                    source.length,
-                    source.length,
-                    leafCount,
-                    syntaxNodeCount
-                )
+                statistics
             );
         }
         if (
@@ -445,12 +492,7 @@ export function formatSqlWithStatistics(
                     source,
                     frozenDiagnostics(analysis.diagnostics, bail)
                 ),
-                statistics(
-                    source.length,
-                    source.length,
-                    leafCount,
-                    syntaxNodeCount
-                )
+                statistics
             );
         }
 
@@ -463,14 +505,10 @@ export function formatSqlWithStatistics(
                     source,
                     frozenDiagnostics(analysis.diagnostics, value)
                 ),
-                statistics(
-                    source.length,
-                    source.length,
-                    leafCount,
-                    syntaxNodeCount
-                )
+                statistics
             );
         }
+        recordPlanStatistics(statistics, planned.plan);
         let compiled = compileLayoutPlan(planned.plan);
         if (!compiled.ok) {
             const value = diagnostic(source, compiled.code, compiled.message);
@@ -480,36 +518,11 @@ export function formatSqlWithStatistics(
                     source,
                     frozenDiagnostics(analysis.diagnostics, value)
                 ),
-                statistics(
-                    source.length,
-                    source.length,
-                    leafCount,
-                    syntaxNodeCount,
-                    planned.plan.statistics.actionCount,
-                    planned.plan.budget.maxPlanActions,
-                    planned.plan.statistics.leafVisitCount +
-                        planned.plan.statistics.policyLeafVisitCount,
-                    0,
-                    planned.plan.statistics.directLookupCount +
-                        planned.plan.statistics.policyDirectLookupCount,
-                    0,
-                    planned.plan.statistics.scopeActionCount,
-                    0,
-                    planned.plan.statistics.policyNodeVisitCount,
-                    planned.plan.statistics.policyLeafVisitCount,
-                    planned.plan.statistics.policyDirectLookupCount
-                )
+                statistics
             );
         }
+        recordCompiledStatistics(statistics, planned.plan, compiled.statistics);
         let rendered = renderLayoutArtifact(compiled.artifact, environment);
-        let leafVisitCount =
-            planned.plan.statistics.leafVisitCount +
-            planned.plan.statistics.policyLeafVisitCount +
-            compiled.statistics.leafVisitCount;
-        let directLookupCount =
-            planned.plan.statistics.directLookupCount +
-            planned.plan.statistics.policyDirectLookupCount +
-            compiled.statistics.directLookupCount;
         if (!rendered.ok) {
             const value = diagnostic(source, rendered.code, rendered.message);
             return run(
@@ -518,25 +531,15 @@ export function formatSqlWithStatistics(
                     source,
                     frozenDiagnostics(analysis.diagnostics, value)
                 ),
-                statistics(
-                    source.length,
-                    source.length,
-                    leafCount,
-                    syntaxNodeCount,
-                    planned.plan.statistics.actionCount,
-                    planned.plan.budget.maxPlanActions,
-                    leafVisitCount,
-                    compiled.statistics.leafEmissionCount,
-                    directLookupCount,
-                    0,
-                    planned.plan.statistics.scopeActionCount,
-                    compiled.statistics.scopeActionVisitCount,
-                    planned.plan.statistics.policyNodeVisitCount,
-                    planned.plan.statistics.policyLeafVisitCount,
-                    planned.plan.statistics.policyDirectLookupCount
-                )
+                statistics
             );
         }
+        recordRenderedStatistics(
+            statistics,
+            planned.plan,
+            compiled.statistics,
+            rendered.statistics
+        );
         {
             const alignmentPlan = deriveLayoutAlignmentPlan(
                 analysis,
@@ -555,37 +558,20 @@ export function formatSqlWithStatistics(
                         source,
                         frozenDiagnostics(analysis.diagnostics, value)
                     ),
-                    statistics(
-                        source.length,
-                        source.length,
-                        leafCount,
-                        syntaxNodeCount,
-                        planned.plan.statistics.actionCount,
-                        planned.plan.budget.maxPlanActions,
-                        leafVisitCount,
-                        compiled.statistics.leafEmissionCount,
-                        directLookupCount,
-                        rendered.statistics.docVisitCount,
-                        planned.plan.statistics.scopeActionCount,
-                        compiled.statistics.scopeActionVisitCount,
-                        planned.plan.statistics.policyNodeVisitCount,
-                        planned.plan.statistics.policyLeafVisitCount,
-                        planned.plan.statistics.policyDirectLookupCount,
-                        closureStatistics(rendered.statistics)
-                    )
+                    statistics
                 );
             }
             if (alignmentPlan.targets.length > 0) {
-                planned = buildLayoutPlan(
+                const alignedPlan = buildLayoutPlan(
                     analysis,
                     options,
                     alignmentPlan
                 );
-                if (!planned.ok) {
+                if (!alignedPlan.ok) {
                     const value = diagnostic(
                         source,
-                        planned.code,
-                        planned.message
+                        alignedPlan.code,
+                        alignedPlan.message
                     );
                     return run(
                         originalResult(
@@ -593,15 +579,15 @@ export function formatSqlWithStatistics(
                             source,
                             frozenDiagnostics(analysis.diagnostics, value)
                         ),
-                        statistics(source.length)
+                        statistics
                     );
                 }
-                compiled = compileLayoutPlan(planned.plan);
-                if (!compiled.ok) {
+                const alignedCompiled = compileLayoutPlan(alignedPlan.plan);
+                if (!alignedCompiled.ok) {
                     const value = diagnostic(
                         source,
-                        compiled.code,
-                        compiled.message
+                        alignedCompiled.code,
+                        alignedCompiled.message
                     );
                     return run(
                         originalResult(
@@ -609,15 +595,18 @@ export function formatSqlWithStatistics(
                             source,
                             frozenDiagnostics(analysis.diagnostics, value)
                         ),
-                        statistics(source.length)
+                        statistics
                     );
                 }
-                rendered = renderLayoutArtifact(compiled.artifact, environment);
-                if (!rendered.ok) {
+                const alignedRendered = renderLayoutArtifact(
+                    alignedCompiled.artifact,
+                    environment
+                );
+                if (!alignedRendered.ok) {
                     const value = diagnostic(
                         source,
-                        rendered.code,
-                        rendered.message
+                        alignedRendered.code,
+                        alignedRendered.message
                     );
                     return run(
                         originalResult(
@@ -625,17 +614,18 @@ export function formatSqlWithStatistics(
                             source,
                             frozenDiagnostics(analysis.diagnostics, value)
                         ),
-                        statistics(source.length)
+                        statistics
                     );
                 }
-                leafVisitCount =
-                    planned.plan.statistics.leafVisitCount +
-                    planned.plan.statistics.policyLeafVisitCount +
-                    compiled.statistics.leafVisitCount;
-                directLookupCount =
-                    planned.plan.statistics.directLookupCount +
-                    planned.plan.statistics.policyDirectLookupCount +
-                    compiled.statistics.directLookupCount;
+                planned = alignedPlan;
+                compiled = alignedCompiled;
+                rendered = alignedRendered;
+                recordRenderedStatistics(
+                    statistics,
+                    planned.plan,
+                    compiled.statistics,
+                    rendered.statistics
+                );
             }
         }
         const equivalence = tokenEquivalent(
@@ -644,19 +634,11 @@ export function formatSqlWithStatistics(
             options.keywordCase,
             planned.plan
         );
-        const completedClosure = closureStatistics(
+        recordCompletedStatistics(
+            statistics,
             rendered.statistics,
             equivalence.statistics
         );
-        const completedLeafVisitCount =
-            leafVisitCount +
-            equivalence.statistics.sourceLeafVisitCount +
-            equivalence.statistics.outputLeafVisitCount;
-        const completedDirectLookupCount =
-            directLookupCount +
-            rendered.statistics.metricsSummaryLookupCount +
-            rendered.statistics.metricsLookupCount +
-            equivalence.statistics.directLookupCount;
         if (!equivalence.equivalent) {
             const value = diagnostic(
                 source,
@@ -669,24 +651,7 @@ export function formatSqlWithStatistics(
                     source,
                     frozenDiagnostics(analysis.diagnostics, value)
                 ),
-                statistics(
-                    source.length,
-                    source.length,
-                    leafCount,
-                    syntaxNodeCount,
-                    planned.plan.statistics.actionCount,
-                    planned.plan.budget.maxPlanActions,
-                    completedLeafVisitCount,
-                    compiled.statistics.leafEmissionCount,
-                    completedDirectLookupCount,
-                    rendered.statistics.docVisitCount,
-                    planned.plan.statistics.scopeActionCount,
-                    compiled.statistics.scopeActionVisitCount,
-                    planned.plan.statistics.policyNodeVisitCount,
-                    planned.plan.statistics.policyLeafVisitCount,
-                    planned.plan.statistics.policyDirectLookupCount,
-                    completedClosure
-                )
+                statistics
             );
         }
         const result = safeResult(
@@ -695,38 +660,39 @@ export function formatSqlWithStatistics(
             analysis.diagnostics,
             rendered.sourceMap
         );
-        return run(
-            result,
-            statistics(
-                source.length,
-                rendered.text.length,
-                leafCount,
-                syntaxNodeCount,
-                planned.plan.statistics.actionCount,
-                planned.plan.budget.maxPlanActions,
-                completedLeafVisitCount,
-                compiled.statistics.leafEmissionCount,
-                completedDirectLookupCount,
-                rendered.statistics.docVisitCount,
-                planned.plan.statistics.scopeActionCount,
-                compiled.statistics.scopeActionVisitCount,
-                planned.plan.statistics.policyNodeVisitCount,
-                planned.plan.statistics.policyLeafVisitCount,
-                planned.plan.statistics.policyDirectLookupCount,
-                completedClosure
-            )
-        );
-    } catch {
+        statistics.outputCodeUnits = rendered.text.length;
+        return run(result, statistics);
+    } catch (error) {
+        debugEvents?.push(createDebugEvent("format", "FMT_INTERNAL", error));
         const value = diagnostic(
             source,
             "FMT_INTERNAL",
             "Formatter internal boundary failed"
         );
-        return run(
-            originalResult("failed", source, [value]),
-            statistics(source.length)
-        );
+        return run(originalResult("failed", source, [value]), statistics);
     }
+}
+
+/** Internal executor entry; the public formatter continues to return FormatResult. */
+export function executeFormatSql(
+    source: string,
+    options: FormatOptions | unknown = undefined,
+    mode: ParseMode | unknown = "document",
+    environment: RenderEnvironment | RenderNewline | unknown = undefined,
+    debugEnabled = false
+): FormatSqlExecution {
+    const debugEvents: DebugEvent[] = [];
+    const result = formatSqlWithStatistics(
+        source,
+        options,
+        mode,
+        environment,
+        debugEnabled ? debugEvents : undefined
+    ).result;
+    return Object.freeze({
+        result,
+        debugEvents: Object.freeze(debugEvents),
+    });
 }
 
 export function formatSql(

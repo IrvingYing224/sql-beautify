@@ -26,6 +26,12 @@ const DIAGNOSTIC_KEYS: ReadonlySet<string> = new Set([
 const SPAN_KEYS: ReadonlySet<string> = new Set(["start", "end"]);
 const SOURCE_MAP_KEYS: ReadonlySet<string> = new Set(["entries"]);
 const SOURCE_MAP_ENTRY_KEYS: ReadonlySet<string> = new Set(["source", "output"]);
+const SNAPSHOT_BRAND = new WeakSet<object>();
+
+function brandFormatResult(result: FormatResult): FormatResult {
+    SNAPSHOT_BRAND.add(result);
+    return result;
+}
 
 function snapshotSpan(value: unknown): Readonly<{ start: number; end: number }> | null {
     const raw = snapshotDataProperties(value, SPAN_KEYS, ["start", "end"]);
@@ -90,6 +96,14 @@ function snapshotSourceMap(value: unknown): SourceMap | null {
 }
 
 export function snapshotFormatResult(value: unknown): FormatResult | null {
+    if (
+        (typeof value === "object" && value !== null) ||
+        typeof value === "function"
+    ) {
+        if (SNAPSHOT_BRAND.has(value)) {
+            return value as FormatResult;
+        }
+    }
     const raw = snapshotDataProperties(value, RESULT_KEYS, ["status", "text", "diagnostics"]);
     if (raw === null) {
         return null;
@@ -116,9 +130,11 @@ export function snapshotFormatResult(value: unknown): FormatResult | null {
         if (sourceMap === null) {
             return null;
         }
-        return Object.freeze({ ...base, sourceMap }) as FormatResult;
+        return brandFormatResult(
+            Object.freeze({ ...base, sourceMap }) as FormatResult
+        );
     }
-    return Object.freeze(base) as FormatResult;
+    return brandFormatResult(Object.freeze(base) as FormatResult);
 }
 
 export function isFormatResultSafeForSource(
@@ -177,7 +193,7 @@ export function failedFormatResult(
     message: string,
     severity: DiagnosticSeverity = "error"
 ): FormatResult {
-    return Object.freeze({
+    return brandFormatResult(Object.freeze({
         status: "failed" as const,
         text: source,
         diagnostics: Object.freeze([
@@ -190,5 +206,5 @@ export function failedFormatResult(
                 recovery: "preserve-target" as const,
             }),
         ]),
-    });
+    }));
 }
