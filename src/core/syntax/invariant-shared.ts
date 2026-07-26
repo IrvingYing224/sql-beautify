@@ -32,22 +32,6 @@ export const CHANNEL_BY_KIND: Readonly<Record<TokenKind, TokenChannel>> = Object
 
 export const TOKEN_KINDS = new Set<string>(Object.keys(CHANNEL_BY_KIND));
 
-export const SYNTAX_KINDS = new Set([
-    "program",
-    "statement",
-    "query",
-    "cte",
-    "clause",
-    "relation",
-    "list",
-    "list-item",
-    "expression",
-    "case-branch",
-    "window-spec",
-    "type-expression",
-    "opaque",
-]);
-
 export const STATEMENT_KINDS = new Set<StatementKind>([
     "empty",
     "query",
@@ -418,6 +402,118 @@ export const NODE_CONTRACTS: NodeContractsMap = Object.freeze({
         refs: Object.freeze([]),
     }),
 });
+
+export type InvariantValidatorFamily =
+    | "shape"
+    | "relationship"
+    | "container"
+    | "contextual-facts"
+    | "capability"
+    | "marker-closure";
+
+export interface NodeKindRegistryEntry {
+    readonly kind: SyntaxNode["kind"];
+    readonly relationship: NodeContract;
+    readonly subtype: Readonly<{
+        readonly field: string;
+        readonly values: ReadonlySet<string>;
+    }> | null;
+    readonly validatorFamilies: readonly InvariantValidatorFamily[];
+}
+
+type NodeKindRegistry = {
+    readonly [Kind in SyntaxNode["kind"]]: NodeKindRegistryEntry;
+};
+
+const ALL_NODE_VALIDATOR_FAMILIES: readonly InvariantValidatorFamily[] =
+    Object.freeze([
+        "shape",
+        "relationship",
+        "container",
+        "contextual-facts",
+        "capability",
+        "marker-closure",
+    ]);
+
+function registryEntry(
+    relationship: NodeContract,
+    subtypeField: string | null,
+    subtypeValues: ReadonlySet<string> | null
+): NodeKindRegistryEntry {
+    return Object.freeze({
+        kind: relationship.kind,
+        relationship,
+        subtype: subtypeField === null || subtypeValues === null
+            ? null
+            : Object.freeze({ field: subtypeField, values: subtypeValues }),
+        validatorFamilies: ALL_NODE_VALIDATOR_FAMILIES,
+    });
+}
+
+/**
+ * Exhaustive node-kind authority. Adding a SyntaxNode kind must update this
+ * registry and therefore explicitly assign its subtype and every invariant
+ * validator family; the relationship contract remains the single child-ref
+ * authority rather than being duplicated here.
+ */
+export const NODE_KIND_REGISTRY: NodeKindRegistry = Object.freeze({
+    program: registryEntry(NODE_CONTRACTS.program, null, null),
+    statement: registryEntry(
+        NODE_CONTRACTS.statement,
+        "statementKind",
+        STATEMENT_KINDS
+    ),
+    query: registryEntry(NODE_CONTRACTS.query, "queryKind", QUERY_KINDS),
+    cte: registryEntry(NODE_CONTRACTS.cte, null, null),
+    clause: registryEntry(NODE_CONTRACTS.clause, "clauseKind", CLAUSE_KINDS),
+    relation: registryEntry(
+        NODE_CONTRACTS.relation,
+        "relationKind",
+        RELATION_KINDS
+    ),
+    list: registryEntry(NODE_CONTRACTS.list, "listRole", LIST_ROLES),
+    "list-item": registryEntry(
+        NODE_CONTRACTS["list-item"],
+        "itemRole",
+        LIST_ITEM_ROLES
+    ),
+    expression: registryEntry(
+        NODE_CONTRACTS.expression,
+        "expressionKind",
+        EXPRESSION_KINDS
+    ),
+    "case-branch": registryEntry(
+        NODE_CONTRACTS["case-branch"],
+        "branchKind",
+        CASE_BRANCH_KINDS
+    ),
+    "window-spec": registryEntry(NODE_CONTRACTS["window-spec"], null, null),
+    "type-expression": registryEntry(
+        NODE_CONTRACTS["type-expression"],
+        null,
+        null
+    ),
+    opaque: registryEntry(NODE_CONTRACTS.opaque, "boundary", OPAQUE_BOUNDARIES),
+});
+
+export const SYNTAX_KINDS: ReadonlySet<string> = new Set(
+    Object.keys(NODE_KIND_REGISTRY)
+);
+
+export function nodeKindRegistryEntry(
+    kind: unknown
+): NodeKindRegistryEntry | null {
+    return typeof kind === "string" && kind in NODE_KIND_REGISTRY
+        ? (NODE_KIND_REGISTRY as Readonly<Record<string, NodeKindRegistryEntry>>)[kind] ?? null
+        : null;
+}
+
+export function hasInvariantValidatorFamily(
+    entry: NodeKindRegistryEntry,
+    family: InvariantValidatorFamily
+): boolean {
+    return entry.validatorFamilies.includes(family);
+}
 
 /**
  * Owner-kind → allowed direct OpaqueNode boundaries for free-form children

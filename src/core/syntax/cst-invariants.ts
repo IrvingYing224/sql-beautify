@@ -35,7 +35,7 @@ import {
     FREE_FORM_OPAQUE_BOUNDARIES,
     LIST_ITEM_ROLES,
     LIST_ROLES,
-    NODE_CONTRACTS,
+    NODE_KIND_REGISTRY,
     OPAQUE_BOUNDARIES,
     QUERY_KINDS,
     RELATION_KINDS,
@@ -51,6 +51,8 @@ import {
     isObject,
     isSourceSpan,
     isSyntaxChannel,
+    hasInvariantValidatorFamily,
+    nodeKindRegistryEntry,
     rangesOverlap,
     resultOf,
 } from "./invariant-shared";
@@ -631,7 +633,7 @@ function validateNodeShape(
         );
         return;
     }
-    if (!(raw.kind in NODE_CONTRACTS)) {
+    if (!(raw.kind in NODE_KIND_REGISTRY)) {
         fail(failures, "INV_SHAPE", `no contract for kind ${raw.kind}`, nodeId);
     }
     if (!isSourceSpan(raw.span)) {
@@ -1041,11 +1043,12 @@ function enforceRelationships(
     if (typeof raw.kind !== "string" || !isFiniteNonNegInt(raw.id)) {
         return;
     }
-    const contract = (NODE_CONTRACTS as Readonly<Record<string, NodeContract>>)[raw.kind];
-    if (!contract) {
+    const registry = nodeKindRegistryEntry(raw.kind);
+    if (registry === null) {
         fail(failures, "INV_RELATIONSHIP", `no relationship contract for kind ${raw.kind}`, raw.id);
         return;
     }
+    const contract: NodeContract = registry.relationship;
     const nodeId = raw.id;
     validateEmptyStatementContent(raw, leaves, failures);
     const refs = contract.refs ?? [];
@@ -1244,23 +1247,27 @@ function enforceRelationships(
         }
     }
 
-    validateContextualNodeFacts(
-        raw,
-        directChildren,
-        leaves,
-        failures,
-        dialectContext,
-        trustedCanonicalShape,
-        contextualScratch
-    );
-    validateContainerRelationships(
-        raw,
-        directChildren,
-        leaves,
-        failures,
-        dialectContext,
-        trustedCanonicalShape
-    );
+    if (hasInvariantValidatorFamily(registry, "contextual-facts")) {
+        validateContextualNodeFacts(
+            raw,
+            directChildren,
+            leaves,
+            failures,
+            dialectContext,
+            trustedCanonicalShape,
+            contextualScratch
+        );
+    }
+    if (hasInvariantValidatorFamily(registry, "container")) {
+        validateContainerRelationships(
+            raw,
+            directChildren,
+            leaves,
+            failures,
+            dialectContext,
+            trustedCanonicalShape
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

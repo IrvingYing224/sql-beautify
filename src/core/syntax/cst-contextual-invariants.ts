@@ -8,6 +8,10 @@ import {
 import { validateContextualFactShape } from "./cst-contextual-fact-invariants";
 import { validateExactMarkerClosure } from "./cst-marker-closure-invariants";
 import type { InvariantFailure } from "./invariant-types";
+import {
+    hasInvariantValidatorFamily,
+    nodeKindRegistryEntry,
+} from "./invariant-shared";
 
 export function validateContextualNodeFacts(
     raw: Record<string, unknown>,
@@ -30,7 +34,15 @@ export function validateContextualNodeFacts(
     if (context === null) {
         return;
     }
-    validateCapabilityAllowlist(context);
+    const registry = nodeKindRegistryEntry(context.nodeKind);
+    if (registry === null) {
+        return;
+    }
+    if (hasInvariantValidatorFamily(registry, "capability")) {
+        validateCapabilityAllowlist(context);
+    }
     const facts = validateContextualFactShape(context);
-    validateExactMarkerClosure(context, facts);
+    if (hasInvariantValidatorFamily(registry, "marker-closure")) {
+        validateExactMarkerClosure(context, facts);
+    }
 }

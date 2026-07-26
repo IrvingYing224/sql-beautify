@@ -20,3 +20,11 @@ export type {
 
 export { validateSyntaxInvariants } from "./cst-invariants";
 export { validateTokenTableInvariants } from "./token-table-invariants";
+export {
+    NODE_KIND_REGISTRY,
+    SYNTAX_KINDS,
+} from "./invariant-shared";
+export type {
+    InvariantValidatorFamily,
+    NodeKindRegistryEntry,
+} from "./invariant-shared";

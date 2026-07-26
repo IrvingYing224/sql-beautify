@@ -189,7 +189,7 @@
 		"test:v2:lexer": "npm run build:v2-core && node tests/v2/lossless-lexer.test.js",
 		"test:v2:lexer-performance": "npm run build:v2-core && node tests/v2/lossless-lexer-performance.test.js",
 		"test:v2:wave1": "npm run build:v2-core && node tests/v2/sql-corpus-contract.test.js && node tests/v2/lossless-lexer.test.js && node tests/v2/lossless-lexer-performance.test.js",
-		"test:v2:wave2-foundation": "npm run build:v2-core && node tests/v2/dialect-capability-registry.test.js && node tests/v2/syntax-token-table.test.js && node tests/v2/syntax-invariants.test.js && node tests/v2/wave2a-hardening.test.js && node tests/v2/wave2a-cst-hardening.test.js && node tests/v2/wave2a-token-table-hardening.test.js && node tests/v2/syntax-invariants-performance.test.js",
+		"test:v2:wave2-foundation": "npm run build:v2-core && node scripts/check-syntax-node-registry.js && node tests/v2/dialect-capability-registry.test.js && node tests/v2/syntax-token-table.test.js && node tests/v2/syntax-invariants.test.js && node tests/v2/wave2a-hardening.test.js && node tests/v2/wave2a-cst-hardening.test.js && node tests/v2/wave2a-token-table-hardening.test.js && node tests/v2/syntax-invariants-performance.test.js",
 		"test:v2:hive-cst": "npm run build:v2-core && node tests/v2/hive-cst-parser.test.js",
 		"test:v2:wave2-corpus": "npm run build:v2-core && node tests/v2/wave2-corpus.test.js",
 		"test:v2:wave2-performance": "npm run build:v2-core && node tests/v2/wave2-performance.test.js",
