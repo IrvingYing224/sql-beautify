@@ -1,6 +1,6 @@
 # SQL Formatter Architecture
 
-This document defines the maintained SQL Beautify 2.x architecture. User-facing behavior belongs in `README.md`; breaking upgrade steps belong in `docs/migration-to-2.0.md`.
+This document defines the maintained SQL Beautify 3.x architecture. User-facing behavior belongs in `README.md`; breaking upgrade steps belong in `docs/migration-to-3.0.md`.
 
 ## Source and dependency boundaries
 
@@ -31,7 +31,7 @@ flowchart LR
     I --> J["structured FormatResult"]
 ```
 
-Leaves partition the original JavaScript string by end-exclusive UTF-16 code-unit offsets. Comments, strings, quoted identifiers, parameters, dialect literals, and opaque/verbatim structures retain their exact source slices. No global whitespace or SQL regular-expression pass is allowed after rendering.
+Leaves partition the original JavaScript string by end-exclusive UTF-16 code-unit offsets. Comments, strings, quoted identifiers, parameters, dialect literals, and opaque/verbatim structures retain their exact source slices. Offset-zero BOM is an immutable trivia leaf. One request-level render environment owns generated LF, CRLF, or lone-CR line breaks; verbatim slices retain their original line endings. No global whitespace or SQL regular-expression pass is allowed after rendering.
 
 Parser recovery is deliberately bounded. When the formatter can prove a construct boundary, it may preserve that range verbatim; when it can only prove a statement or target boundary, it preserves the broader unit. It never guesses through an unbounded malformed structure.
 
@@ -47,6 +47,8 @@ Analysis constructs parent/ancestor, statement/clause, list/separator, trivia, o
 - `failed`: exact original text and diagnostics, without a source map.
 
 Canonical options are `dialect`, `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `caseLayout`, and `unsupportedSyntaxPolicy`. The default dialect is `hive`; the default unsupported policy is `warn`. Proxies, accessors, exotic option objects, unknown keys, and invalid values fail closed.
+
+One complete formatting document or target may contain at most 524,288 JavaScript UTF-16 code units. The public formatter returns `preserved` with exact input and `FMT_INPUT_LIMIT` above that boundary; adapters reject the complete transaction with `ADAPTER_INPUT_LIMIT`. This is not a UTF-8 byte limit. Verbatim ranges are atomic source emissions and never participate in keyword-case rewriting.
 
 The public package exports are intentionally narrow:
 
@@ -68,9 +70,17 @@ Document, range, and multi-selection formatting share one transaction sequence:
 
 Range formatting only accepts complete, structurally safe fragments. Any cancellation, stale state, preservation, failure, malformed executor response, or host rejection returns no partial edits. Selection direction is preserved through the validated source map.
 
-Small requests use the direct executor. Large requests use one persistent worker selected by explicit source/leaf thresholds. Both load `dist/runtime.cjs`; requests bind identity, generation, version, target, source digest, and runtime digest. Timeout, crash, malformed or stale responses, backpressure, cancellation, and disposal fail closed.
+Requests with fewer than 8,192 source code units and fewer than 2,000 leaves may use the direct executor. Other supported requests use one persistent worker. Range validation and target formatting share the same routed executor; a worker validates the complete document before formatting any fragments. Both paths load `dist/runtime.cjs`; requests bind identity, generation, version, target, source digest, and runtime digest. The worker uses an enqueue-based 60-second deadline and a 200 ms active-cancellation drain grace. Timeout, crash, malformed or stale responses, backpressure, cancellation, and disposal fail closed.
 
-The VS Code adapter only handles the explicit `sql` and `hive-sql` language IDs. It reads `sqlBeautify.*` at the document/language scope, publishes safe diagnostics, and registers only the four `sqlBeautify.*` commands declared in `package.json`.
+The VS Code adapter only handles the explicit `sql` and `hive-sql` language IDs. It reads `sqlBeautify.*` at the document/language scope, publishes safe diagnostics, and registers only the four `sqlBeautify.*` commands declared in `package.json`. With `unsupportedSyntaxPolicy=preserve`, capability diagnostics remain absent from the editor; only the explicit Format SQL command may show one aggregate information message when no safe edit is available. Providers and format-on-save never show that message.
+
+`debugDiagnostics` is an opt-in internal execution channel. Bounded debug events may contain exception messages, stack frames, SQL fragments embedded by an exception, and local file paths; they are written only to the local extension-host console. They never extend public `FormatResult`, editor diagnostics, or the safe clipboard report.
+
+## Main Hive capability boundary
+
+The main formatter has dedicated layout capability for bounded `INSERT INTO [TABLE] ... [PARTITION (...)] SELECT/WITH ...` and `SET` statements. A SET assignment payload is one bounded verbatim claim and is not interpreted as an SQL expression.
+
+Hive `EXPLAIN`, `GROUPING SETS`, `TRANSFORM`, DDL, `UPDATE`, and `DELETE` are recognized as whole-statement or proven-construct verbatim capabilities. They retain exact text and do not receive keyword-case rewriting. The generated support matrix is the capability authority; recognition must not be described as formatting support.
 
 ## Experimental Hive DDL
 
@@ -78,7 +88,7 @@ The DDL formatter accepts only a fully consumed Hive `CREATE TABLE` subset. It p
 
 Extract DDL consumes query CST ownership and requires one complete, unambiguous projection schema. Wildcards, unresolved expressions without aliases, duplicate Hive output names, malformed aliases, and set-branch schema mismatches reject the entire operation. The only wildcard scalar accepted by projection safety is exact `count(*)`. No type inference is claimed; the default output type is `__TYPE_REQUIRED__`.
 
-DDL command batches use their own all-or-nothing transaction. Only diagnostic-free, non-empty `formatted`/`unchanged` or `extracted` results reach the host commit.
+DDL command batches use their own all-or-nothing transaction. Only diagnostic-free, non-empty `formatted`/`unchanged` or `extracted` results reach the host commit. DDL has no semantic source map: selection recovery uses an explicit offset/delta/clamp mapping and must not be described as equivalent to query source-map recovery.
 
 ## Production artifacts and packaging
 

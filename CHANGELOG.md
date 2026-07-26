@@ -4,6 +4,17 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 3.0.0 (2026/07/26)
+* 为 CRLF、lone CR、BOM 和 trailing comma + 行尾注释建立 lossless、幂等且 source-map 单调的格式化边界
+* 将主 formatter 的单个完整文档或 target 上限固定为 524,288 个 UTF-16 code units，并以源码长度与 leaf 数双阈值路由 direct / persistent worker
+* 把 range 全文结构校验移入 executor，收紧 worker 排队 deadline、取消 drain、runtime digest、snapshot 和 all-or-nothing 事务契约
+* 增加安全诊断码表、`preserve` 手动命令汇总提示和 opt-in 内部 debug event；公开 `FormatResult` 与安全诊断报告不扩张
+* 建立 node-kind invariant registry、candidate-scoped alignment 和 source-map 独立内存/clone 归因门，保持 source/output 双单调契约
+* 按方言限定裸标识符字符集并合并连续 unknown run，收紧 Hive/generic、PostgreSQL 和 MySQL 的词法边界
+* 支持有界的 Hive `INSERT INTO [TABLE] ... [PARTITION (...)] SELECT/WITH ...` 与 `SET`；明确保留 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、DDL、`UPDATE` 和 `DELETE`
+* 将公开生产语料扩为 20-case manifest，覆盖多 KB 查询、CJK、CRLF/BOM、注释、四方言和 formatted/verbatim capability
+* 完整升级行为与兼容边界见 `docs/migration-to-3.0.md`
+
 ### 2.0.1 (2026/07/26)
 * 修正文档中的旧 `extractddl` 名称、Experimental Hive DDL 支持边界、support matrix 作用域和 2.0.0 实际发布日期
 * 删除已完成且已被现役架构文档、ADR 和测试取代的 Wave 0–5 阶段设计与实施计划

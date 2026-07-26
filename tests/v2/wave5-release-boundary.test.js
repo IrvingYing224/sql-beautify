@@ -12,13 +12,15 @@ var packageLock = require(path.join(root, 'package-lock.json'));
 var workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'build-vsix.yml'), 'utf8');
 var readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 var changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
-var migration = fs.readFileSync(path.join(root, 'docs', 'migration-to-2.0.md'), 'utf8');
+var migrationVersion = packageJson.version.split('.').slice(0, 2).join('.');
+var migrationPath = path.join(root, 'docs', 'migration-to-' + migrationVersion + '.md');
+var migration = fs.readFileSync(migrationPath, 'utf8');
 var architecture = fs.readFileSync(
     path.join(root, 'docs', 'technical', 'sql-formatter-architecture.md'),
     'utf8'
 );
 
-assert.strictEqual(packageJson.version, '2.0.1');
+assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
 assert.strictEqual(packageLock.version, packageJson.version);
 assert.strictEqual(packageLock.packages[''].version, packageJson.version);
 assert.strictEqual(packageJson.scripts.prepack, 'npm run build:v2-runtime');
@@ -45,11 +47,21 @@ assert.doesNotMatch(readme, /demo\.gif/,
     'current README must not embed the obsolete 1.x demo');
 assert.match(readme, /Hive `CREATE TABLE` 子集/,
     'README must state the bounded experimental Hive DDL contract');
+assert.match(readme, /524,288 个 UTF-16 code units/,
+    'README must state the formatter input boundary and its unit');
+assert.match(readme, /verbatim 区域.*keywordCase|keywordCase.*verbatim 区域/,
+    'README must state that verbatim content does not receive keyword case');
+assert.match(readme, /手动执行 `SQL Beautify: Format SQL`.*汇总提示/,
+    'README must state preserve feedback for the explicit command');
+assert.match(readme, /debugDiagnostics=true.*SQL 片段.*本地文件路径/,
+    'README must disclose opt-in debug console content');
+assert.match(readme, /INSERT INTO.*`SET`|`SET`.*INSERT INTO/,
+    'README must describe the new bounded Hive command support');
 assert.match(packageJson.description, /Hive-first SQL formatter with lossless token handling/,
     'Marketplace description must describe the current formatter');
 assert.match(readme, new RegExp(
     '/blob/v' + packageJson.version.replace(/\./g, '\\.') +
-    '/docs/migration-to-' + packageJson.version.split('.').slice(0, 2).join('\\.') + '\\.md'
+    '/docs/migration-to-' + migrationVersion.replace(/\./g, '\\.') + '\\.md'
 ));
 assert.match(readme, /`sqlBeautify\.unsupportedSyntaxPolicy` \| `preserve` \/ `warn` \/ `bail_out` \| `warn`/);
 [
@@ -61,12 +73,24 @@ assert.match(readme, /`sqlBeautify\.unsupportedSyntaxPolicy` \| `preserve` \/ `w
     'postgresql',
     'formatted',
     'preserved',
-    '__TYPE_REQUIRED__'
+    '__TYPE_REQUIRED__',
+    '524,288',
+    'UTF-16',
+    'verbatim',
+    'keywordCase',
+    'debugDiagnostics',
+    'INSERT INTO',
+    'SET'
 ].forEach(function(value) {
     assert.ok(migration.indexOf(value) >= 0, 'migration guide must mention ' + value);
 });
 assert.match(architecture, /src\/core\/lexer/);
 assert.match(architecture, /dist\/runtime\.cjs/);
+assert.match(architecture, /524,288 JavaScript UTF-16 code units/);
+assert.match(architecture, /fewer than 8,192 source code units and fewer than 2,000 leaves/);
+assert.match(architecture, /`debugDiagnostics` is an opt-in internal execution channel/);
+assert.match(architecture, /DDL has no semantic source map/);
+assert.match(architecture, /Hive `EXPLAIN`, `GROUPING SETS`, `TRANSFORM`, DDL, `UPDATE`, and `DELETE`/);
 assert.doesNotMatch(architecture, /`lib\//);
 assert.doesNotMatch(architecture, /vkbeautify/);
 

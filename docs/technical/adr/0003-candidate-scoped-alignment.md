@@ -41,7 +41,7 @@ node、leaf 和 source-map entry 建 projection。大型查询只在两个 list 
 复现命令（两个 root 必须分别来自上述固定提交的 `.tmp/v2-core` build；不要用后续 live build 替代候选）：
 
 ```bash
-node scripts/profile-alignment-candidates.js \
+node /path/to/candidate/scripts/profile-alignment-candidates.js \
     --baseline-root /path/to/baseline/.tmp/v2-core \
     --candidate-root /path/to/candidate/.tmp/v2-core
 ```

@@ -2,11 +2,11 @@
 
 ## 项目结构与模块组织
 
-该仓库是 Hive-first 的 SQL Beautify 2.x VS Code 扩展。`src/` 是唯一源码来源：`src/core/` 依次包含 lossless lexer、formatter-oriented CST、analysis、Layout IR、renderer、diagnostics 与 public API；`src/adapters/` 负责事务、direct/worker executor 和 VS Code host；`src/experimental/ddl/` 隔离 experimental Hive DDL / Extract DDL。`src/extension.ts` 是源码入口。
+该仓库是 Hive-first 的 SQL Beautify 3.x VS Code 扩展。`src/` 是唯一源码来源：`src/core/` 依次包含 lossless lexer、formatter-oriented CST、analysis、Layout IR、renderer、diagnostics 与 public API；`src/adapters/` 负责事务、direct/worker executor 和 VS Code host；`src/experimental/ddl/` 隔离 experimental Hive DDL / Extract DDL。`src/extension.ts` 是源码入口。
 
 `npm run build:v2-runtime` 生成五个被 Git 忽略的生产 artifact：`dist/runtime.cjs`、`dist/sql-formatter.cjs`、`dist/hive-ddl.cjs`、`dist/formatter-worker.cjs`、`dist/extension.cjs`。不得恢复根 `extension.js`、`vkbeautify.js`、`lib/**`、旧 bridge、root shim 或第二套生产 formatter。
 
-用户文档位于 `README.md`、`CHANGELOG.md` 和 `docs/migration-to-2.0.md`；维护者契约位于 `docs/technical/`。`docs/technical/sql-support-matrix.md` 是由 dialect registry 生成的唯一能力矩阵。
+用户文档位于 `README.md`、`CHANGELOG.md` 和 `docs/migration-to-3.0.md`；维护者契约位于 `docs/technical/`。`docs/technical/sql-support-matrix.md` 是由 dialect registry 生成的唯一能力矩阵。
 
 ## 构建、测试与开发命令
 
@@ -41,7 +41,7 @@ VS Code 只读取 `sqlBeautify.*`；仅注册 `sqlBeautify.formatSql`、`sqlBeau
 
 Experimental Hive DDL 不是通用 DDL parser。格式化器只接受完整消费的已建模 `CREATE TABLE` 子集；Extract DDL 只接受完整且不歧义的 projection schema，不推断真实类型。任何非成功结果必须保留完整原文，批量 DDL 任一目标失败时整批不提交。
 
-README 只写最终用户的安装、使用、配置和风险信息。迁移细节写入 `docs/migration-to-2.0.md`；架构与内部契约写入 `docs/technical/`；不要把阶段性实现计划复制回 README。
+README 只写最终用户的安装、使用、配置和风险信息。迁移细节写入 `docs/migration-to-3.0.md`；架构与内部契约写入 `docs/technical/`；不要把阶段性实现计划复制回 README。
 
 ## 测试指南
 

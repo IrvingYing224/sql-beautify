@@ -6,6 +6,7 @@ var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
 var packageJson = require(path.join(root, 'package.json'));
+var packageLock = require(path.join(root, 'package-lock.json'));
 var lockText = fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8');
 
 var expectedArtifacts = [
@@ -44,7 +45,9 @@ var expectedConfigurationKeys = [
     'sqlBeautify.unsupportedSyntaxPolicy'
 ];
 
-assert.strictEqual(packageJson.version, '2.0.1');
+assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
+assert.strictEqual(packageLock.version, packageJson.version);
+assert.strictEqual(packageLock.packages[''].version, packageJson.version);
 assert.strictEqual(packageJson.main, './dist/extension.cjs');
 assert.deepStrictEqual(packageJson.exports, {
     './formatter': './dist/sql-formatter.cjs',
