@@ -6,6 +6,11 @@ import type {
 } from "../../experimental/ddl/types";
 import { snapshotDataProperties, snapshotDenseDataArray } from "../boundary/data-snapshot";
 import { convertDiagnostic, sortDiagnostics } from "../diagnostics/convert";
+import {
+    buildTextLineIndex,
+    lineBoundsAtOffset,
+    type TextLineIndex,
+} from "../text/line-index";
 import { observeCancellation } from "./cancellation";
 import {
     sameDocument,
@@ -210,18 +215,18 @@ function sortedTargets(
     return Object.freeze(targets);
 }
 
-function linePrefixIsWhitespace(source: string, offset: number): boolean {
-    const lineStart = Math.max(
-        source.lastIndexOf("\n", Math.max(0, offset - 1)),
-        source.lastIndexOf("\r", Math.max(0, offset - 1))
-    ) + 1;
-    return /^[ \t]*$/.test(source.slice(lineStart, offset));
-}
-
-function lineSuffixIsWhitespace(source: string, offset: number): boolean {
-    const newline = source.slice(offset).search(/[\r\n]/);
-    const lineEnd = newline < 0 ? source.length : offset + newline;
-    return /^[ \t]*$/.test(source.slice(offset, lineEnd));
+function isHorizontalWhitespaceRange(
+    source: string,
+    start: number,
+    end: number
+): boolean {
+    for (let index = start; index < end; index++) {
+        const code = source.charCodeAt(index);
+        if (code !== 0x20 && code !== 0x09) {
+            return false;
+        }
+    }
+    return true;
 }
 
 type DdlTargetValidation =
@@ -234,13 +239,18 @@ const CANCELLED_DDL_TARGETS: DdlTargetValidation = Object.freeze({ status: "canc
 
 function invalidDdlLineRange(
     source: string,
-    target: ExperimentalDdlTarget
+    target: ExperimentalDdlTarget,
+    lineIndex: TextLineIndex
 ): boolean {
-    return target.start === target.end ||
-        (source[target.start - 1] === "\r" && source[target.start] === "\n") ||
-        (source[target.end - 1] === "\r" && source[target.end] === "\n") ||
-        !linePrefixIsWhitespace(source, target.start) ||
-        !lineSuffixIsWhitespace(source, target.end);
+    if (target.start === target.end) {
+        return true;
+    }
+    const startLine = lineBoundsAtOffset(lineIndex, target.start);
+    const endLine = lineBoundsAtOffset(lineIndex, target.end);
+    return startLine === null ||
+        endLine === null ||
+        !isHorizontalWhitespaceRange(source, startLine.start, target.start) ||
+        !isHorizontalWhitespaceRange(source, target.end, endLine.end);
 }
 
 function validateDdlTargets(
@@ -256,20 +266,18 @@ function validateDdlTargets(
         if (isCancelled()) {
             return CANCELLED_DDL_TARGETS;
         }
-        const protectedLeaves = lexical.leaves.filter((leaf) =>
-            leaf.channel === "protected" ||
-            leaf.kind === "line-comment" ||
-            leaf.kind === "block-comment"
-        );
-        const codeLeaves = lexical.leaves.filter((leaf) => leaf.channel === "code");
+        const lineIndex = buildTextLineIndex(source);
+        if (isCancelled()) {
+            return CANCELLED_DDL_TARGETS;
+        }
         let diagnosticIndex = 0;
-        let protectedIndex = 0;
-        let codeIndex = 0;
+        let leafIndex = 0;
+        let visitedLeaves = 0;
         for (const target of targets) {
             if (isCancelled()) {
                 return CANCELLED_DDL_TARGETS;
             }
-            if (invalidDdlLineRange(source, target)) {
+            if (invalidDdlLineRange(source, target, lineIndex)) {
                 return Object.freeze({ status: "invalid", target });
             }
 
@@ -278,6 +286,10 @@ function validateDdlTargets(
                 lexical.diagnostics[diagnosticIndex]!.span.end <= target.start
             ) {
                 diagnosticIndex += 1;
+                visitedLeaves += 1;
+                if ((visitedLeaves & 2047) === 0 && isCancelled()) {
+                    return CANCELLED_DDL_TARGETS;
+                }
             }
             const overlappingDiagnostic = lexical.diagnostics[diagnosticIndex];
             if (
@@ -289,46 +301,50 @@ function validateDdlTargets(
             }
 
             while (
-                protectedIndex < protectedLeaves.length &&
-                protectedLeaves[protectedIndex]!.span.end <= target.start
+                leafIndex < lexical.leaves.length &&
+                lexical.leaves[leafIndex]!.span.end <= target.start
             ) {
-                protectedIndex += 1;
+                leafIndex += 1;
+                visitedLeaves += 1;
+                if ((visitedLeaves & 2047) === 0 && isCancelled()) {
+                    return CANCELLED_DDL_TARGETS;
+                }
             }
-            const startLeaf = protectedLeaves[protectedIndex];
-            if (
-                startLeaf !== undefined &&
-                startLeaf.span.start < target.start &&
-                target.start < startLeaf.span.end
+            let scanIndex = leafIndex;
+            let containsCode = false;
+            while (
+                scanIndex < lexical.leaves.length &&
+                lexical.leaves[scanIndex]!.span.start < target.end
             ) {
-                return Object.freeze({ status: "invalid", target });
+                const leaf = lexical.leaves[scanIndex]!;
+                const protectedBoundary = leaf.channel === "protected" ||
+                    leaf.kind === "line-comment" ||
+                    leaf.kind === "block-comment";
+                if (protectedBoundary && (
+                    (leaf.span.start < target.start && target.start < leaf.span.end) ||
+                    (leaf.span.start < target.end && target.end < leaf.span.end)
+                )) {
+                    return Object.freeze({ status: "invalid", target });
+                }
+                if (
+                    leaf.channel === "code" &&
+                    leaf.span.end > target.start
+                ) {
+                    containsCode = true;
+                }
+                scanIndex += 1;
+                visitedLeaves += 1;
+                if ((visitedLeaves & 2047) === 0 && isCancelled()) {
+                    return CANCELLED_DDL_TARGETS;
+                }
             }
             while (
-                protectedIndex < protectedLeaves.length &&
-                protectedLeaves[protectedIndex]!.span.end <= target.end
+                leafIndex < scanIndex &&
+                lexical.leaves[leafIndex]!.span.end <= target.end
             ) {
-                protectedIndex += 1;
+                leafIndex += 1;
             }
-            const endLeaf = protectedLeaves[protectedIndex];
-            if (
-                endLeaf !== undefined &&
-                endLeaf.span.start < target.end &&
-                target.end < endLeaf.span.end
-            ) {
-                return Object.freeze({ status: "invalid", target });
-            }
-
-            while (
-                codeIndex < codeLeaves.length &&
-                codeLeaves[codeIndex]!.span.end <= target.start
-            ) {
-                codeIndex += 1;
-            }
-            const codeLeaf = codeLeaves[codeIndex];
-            if (
-                codeLeaf === undefined ||
-                codeLeaf.span.start >= target.end ||
-                codeLeaf.span.end <= target.start
-            ) {
+            if (!containsCode) {
                 return Object.freeze({ status: "invalid", target });
             }
         }

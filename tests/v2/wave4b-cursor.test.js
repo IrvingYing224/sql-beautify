@@ -1,6 +1,37 @@
 var assert = require('assert');
 var cursor = require('../../.tmp/v2-core/adapters/transaction/cursor');
+var edits = require('../../.tmp/v2-core/adapters/transaction/edit-preview');
+var lines = require('../../.tmp/v2-core/adapters/text/line-index');
 var transaction = require('../../.tmp/v2-core/adapters/transaction/prepare');
+
+var lineIndex = lines.buildTextLineIndex('a\r\nb\rc\nd');
+assert.deepStrictEqual(lines.positionAtOffset(lineIndex, 0), { line: 0, character: 0 });
+assert.deepStrictEqual(lines.positionAtOffset(lineIndex, 3), { line: 1, character: 0 });
+assert.deepStrictEqual(lines.positionAtOffset(lineIndex, 5), { line: 2, character: 0 });
+assert.deepStrictEqual(lines.positionAtOffset(lineIndex, 7), { line: 3, character: 0 });
+assert.strictEqual(lines.positionAtOffset(lineIndex, 2), null,
+    'the midpoint of CRLF is not a valid editor position');
+
+var preview = edits.previewTextEdits('0123456789', [
+    { start: 6, end: 8, text: 'XYZ' },
+    { start: 1, end: 4, text: 'A' }
+]);
+assert.strictEqual(preview.output, '0A45XYZ89',
+    'edit preview must sort, validate and construct output with one chunks/join pass');
+assert.strictEqual(edits.mapOffsetThroughEdits(preview, 0), 0);
+assert.strictEqual(edits.mapOffsetThroughEdits(preview, 1), 1);
+assert.strictEqual(edits.mapOffsetThroughEdits(preview, 3), 2,
+    'offsets inside replacements use relative clamp mapping');
+assert.strictEqual(edits.mapOffsetThroughEdits(preview, 4), 2,
+    'exact edit end maps to replacement end');
+assert.strictEqual(edits.mapOffsetThroughEdits(preview, 10), preview.output.length);
+assert.deepStrictEqual(edits.mapOffsetsThroughEdits(preview, [10, 1, 3, 4, 0]), [
+    preview.output.length, 1, 2, 2, 0
+], 'batch offset mapping must preserve input order while scanning edits once');
+assert.strictEqual(edits.previewTextEdits('abc', [
+    { start: 0, end: 2, text: 'x' },
+    { start: 1, end: 3, text: 'y' }
+]), null, 'overlapping host edits must fail before editor.edit');
 
 assert.deepStrictEqual(cursor.mapSelectionThroughSourceMap({ anchor: 4, active: 4 }, {
     entries: [

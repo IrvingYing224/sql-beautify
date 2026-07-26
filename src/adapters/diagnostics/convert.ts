@@ -1,16 +1,7 @@
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import type { TransactionDiagnostic } from "../transaction/types";
 import { snapshotDiagnostic } from "../boundary/format-result-snapshot";
-
-const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
-    CFG_OPTIONS_TYPE: "Formatter options are invalid",
-    CFG_OPTIONS_PROXY: "Formatter options are invalid",
-    CFG_OPTIONS_SHAPE: "Formatter options are invalid",
-    CFG_UNKNOWN_OPTION: "Formatter options contain an unsupported key",
-    CFG_OPTION_ACCESSOR: "Formatter options contain an unsupported accessor",
-    CFG_OPTION_VALUE: "Formatter options contain an invalid value",
-    CFG_OPTIONS_READ: "Formatter options could not be inspected",
-});
+import { safeDiagnosticMessage } from "./safe-messages";
 
 const RECOVERIES: ReadonlySet<string> = new Set([
     "none",
@@ -21,16 +12,6 @@ const RECOVERIES: ReadonlySet<string> = new Set([
 
 function compareString(left: string, right: string): number {
     return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function safeMessage(code: string): string {
-    const configured = SAFE_MESSAGE_BY_CODE[code];
-    if (configured !== undefined) {
-        return configured;
-    }
-    return /^[A-Z][A-Z0-9_]{1,119}$/.test(code)
-        ? "Formatter reported a recoverable diagnostic"
-        : "Formatter diagnostic is unavailable";
 }
 
 export function convertDiagnostic(
@@ -70,7 +51,10 @@ export function convertDiagnostic(
         return Object.freeze({
             code: snapshot.code,
             severity: snapshot.severity,
-            message: safeMessage(snapshot.code),
+            message: safeDiagnosticMessage(
+                snapshot.code,
+                snapshot.capabilityId
+            ),
             capabilityId: snapshot.capabilityId,
             span: Object.freeze({
                 start: targetStart + snapshot.span.start,

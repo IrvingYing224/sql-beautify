@@ -1,6 +1,7 @@
 'use strict';
 
 var assert = require('assert');
+var performance = require('perf_hooks').performance;
 var adapter = require('../../.tmp/v2-core/adapters/vscode/extension');
 var cancellation = require('../../.tmp/v2-core/adapters/vscode/cancellation');
 var report = require('../../.tmp/v2-core/adapters/vscode/safe-report');
@@ -37,6 +38,7 @@ function Diagnostic(range, message, severity) {
 
 function Document(text, eol) {
     this.text = text;
+    this.getTextCalls = 0;
     this.version = 1;
     this.languageId = 'hive-sql';
     this.eol = eol === undefined ? 1 : eol;
@@ -44,6 +46,7 @@ function Document(text, eol) {
 }
 
 Document.prototype.getText = function(range) {
+    this.getTextCalls += 1;
     if (!range) {
         return this.text;
     }
@@ -112,6 +115,7 @@ function createVscode(document, editor) {
     var providers = [];
     var diagnosticValues = [];
     var documentChangeListeners = [];
+    var documentCloseListeners = [];
     var disposedRegistrations = 0;
     var configurationValues = {
         dialect: 'hive',
@@ -147,6 +151,16 @@ function createVscode(document, editor) {
                     var index = documentChangeListeners.indexOf(listener);
                     if (index >= 0) {
                         documentChangeListeners.splice(index, 1);
+                    }
+                    disposedRegistrations += 1;
+                } };
+            },
+            onDidCloseTextDocument: function(listener) {
+                documentCloseListeners.push(listener);
+                return { dispose: function() {
+                    var index = documentCloseListeners.indexOf(listener);
+                    if (index >= 0) {
+                        documentCloseListeners.splice(index, 1);
                     }
                     disposedRegistrations += 1;
                 } };
@@ -211,6 +225,9 @@ function createVscode(document, editor) {
     };
     return { vscode: vscode, commands: commandHandlers, providers: providers,
         diagnosticValues: diagnosticValues,
+        closeDocument: function(closedDocument) {
+            documentCloseListeners.forEach(function(listener) { listener(closedDocument); });
+        },
         setConfiguration: function(key, value) { configurationValues[key] = value; },
         disposedRegistrations: function() { return disposedRegistrations; } };
 }
@@ -233,12 +250,15 @@ async function main() {
         new Selection(document.positionAt(18), document.positionAt(10))
     ]);
     var host = createVscode(document, editor);
-    var calls = { prepare: 0, host: 0, ddl: 0, prepareNewlines: [], hostNewlines: [] };
+    var calls = { prepare: 0, host: 0, ddl: 0, prepareNewlines: [],
+        prepareDialects: [], hostNewlines: [], ddlCommitMode: false,
+        ddlRejectMode: false };
     var runtime = {
         resolveFormatOptions: function(input) { return { ok: true, options: input }; },
         prepareFormatTransaction: async function(request) {
             calls.prepare += 1;
             calls.prepareNewlines.push(request.newline);
+            calls.prepareDialects.push(request.options.dialect);
             return {
                 status: 'ready', documentVersion: request.documentVersion,
                 edits: [{ targetId: request.targets[0].id, start: request.targets[0].start,
@@ -278,6 +298,23 @@ async function main() {
             assert.strictEqual(request.targets.length, 1);
             assert.ok(request.cancellation,
                 'DDL progress cancellation must reach DDL transaction');
+            if (calls.ddlRejectMode) {
+                return { status: 'rejected', documentVersion: request.document.version,
+                    diagnostics: [{ code: 'DDL_UNSUPPORTED_STATEMENT', severity: 'warning',
+                        message: 'safe', capabilityId: null, span: { start: 0, end: 0 },
+                        recovery: 'preserve-target', targetId: request.targets[0].id }] };
+            }
+            if (calls.ddlCommitMode) {
+                var ddlTarget = request.targets[0];
+                var ddlText = 'CREATE TABLE formatted (a INT);\n';
+                var readyDdl = {
+                    status: 'ready', documentVersion: request.document.version,
+                    edits: [{ targetId: ddlTarget.id, start: ddlTarget.start,
+                        end: ddlTarget.end, text: ddlText }], diagnostics: []
+                };
+                assert.strictEqual(await commit.apply(readyDdl, request.document), true);
+                return readyDdl;
+            }
             return {
                 status: 'unchanged', documentVersion: request.document.version,
                 edits: [], diagnostics: []
@@ -316,6 +353,16 @@ async function main() {
     assert.strictEqual(calls.prepareNewlines[0], '\n',
         'physical LF must determine the provider render environment');
 
+    host.setConfiguration('dialect', 'mysql');
+    await host.providers[0].provider.provideDocumentFormattingEdits(
+        document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
+            return { dispose: function() {} };
+        } }
+    );
+    assert.strictEqual(calls.prepareDialects[calls.prepareDialects.length - 1], 'mysql',
+        'resource-scoped sqlBeautify.dialect must be the only dialect authority');
+    host.setConfiguration('dialect', 'hive');
+
     var crlfFallbackDocument = new Document('select a,b from t', 2);
     var crlfFallbackEdits = await host.providers[0].provider.provideDocumentFormattingEdits(
         crlfFallbackDocument, {}, {
@@ -331,7 +378,10 @@ async function main() {
         return { status: 'rejected', documentVersion: request.documentVersion,
             diagnostics: [
                 { code: 'CAPABILITY_WARNING', severity: 'warning', message: 'safe',
-                    capabilityId: 'qualify', span: { start: 0, end: 0 },
+                    capabilityId: 'qualify', span: { start: 0, end: document.text.length },
+                    recovery: 'verbatim-node', targetId: null },
+                { code: 'CAPABILITY_WARNING', severity: 'warning', message: 'safe',
+                    capabilityId: 'qualify', span: { start: 2, end: 5 },
                     recovery: 'verbatim-node', targetId: null },
                 { code: 'STRUCTURAL_WARNING', severity: 'warning', message: 'safe',
                     capabilityId: null, span: { start: 0, end: 0 },
@@ -343,6 +393,7 @@ async function main() {
         lastPolicyNewline = request.newline;
         return policyDiagnosticResult(request);
     };
+    var policyGetTextStart = document.getTextCalls;
     await host.providers[0].provider.provideDocumentFormattingEdits(
         document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
             return { dispose: function() {} };
@@ -352,10 +403,14 @@ async function main() {
         host.diagnosticValues[host.diagnosticValues.length - 1].values.map(function(value) {
             return value.code;
         }),
-        ['CAPABILITY_WARNING', 'STRUCTURAL_WARNING'],
+        ['STRUCTURAL_WARNING', 'CAPABILITY_WARNING'],
         'warn policy must publish capability and non-capability warnings'
     );
+    var policyGetTextCount = document.getTextCalls - policyGetTextStart;
+    assert.ok(policyGetTextCount <= 4,
+        'diagnostic publication must not call getText once per diagnostic');
     host.setConfiguration('unsupportedSyntaxPolicy', 'preserve');
+    var infosBeforeProviderPreserve = host.vscode.window.infos.length;
     await host.providers[0].provider.provideDocumentFormattingEdits(
         document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
             return { dispose: function() {} };
@@ -368,10 +423,12 @@ async function main() {
         ['STRUCTURAL_WARNING'],
         'preserve policy must suppress only editor capability warnings'
     );
+    assert.strictEqual(host.vscode.window.infos.length, infosBeforeProviderPreserve,
+        'provider preserve diagnostics must never show command popups');
     await host.commands['sqlBeautify.copySafeDiagnosticReport']();
     assert.strictEqual(lastPolicyNewline, '\n',
         'safe diagnostic preparation must pass the document render environment');
-    assert.ok(host.vscode.env.clipboard.value.indexOf('CAPABILITY_WARNING:1') >= 0,
+    assert.ok(host.vscode.env.clipboard.value.indexOf('CAPABILITY_WARNING:2') >= 0,
         'safe reports must retain capability evidence under preserve policy');
     host.setConfiguration('unsupportedSyntaxPolicy', 'warn');
     runtime.prepareFormatTransaction = stablePrepare;
@@ -448,6 +505,22 @@ async function main() {
         host.diagnosticValues[host.diagnosticValues.length - 1].values[0].code,
         'NEW_RESULT'
     );
+
+    var closedProvider = host.providers[0].provider.provideDocumentFormattingEdits(
+        document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
+            return { dispose: function() {} };
+        } }
+    );
+    var closedDeferred = deferredProviders[2];
+    host.closeDocument(document);
+    var diagnosticWritesAfterClose = host.diagnosticValues.length;
+    assert.deepStrictEqual(host.diagnosticValues[diagnosticWritesAfterClose - 1].values, [],
+        'closing a document must clear its diagnostic collection entry');
+    closedDeferred.resolve(diagnosticResult(closedDeferred.request, 'CLOSED_RESULT'));
+    assert.deepStrictEqual(await closedProvider, [],
+        'a result completing after document close must be discarded');
+    assert.strictEqual(host.diagnosticValues.length, diagnosticWritesAfterClose,
+        'a closed document generation must not be recreated by stale async work');
     runtime.prepareFormatTransaction = stablePrepare;
 
     var stableRunHost = runtime.runHostTransaction;
@@ -465,6 +538,9 @@ async function main() {
         ['STRUCTURAL_WARNING'],
         'explicit command preserve policy must control editor diagnostics'
     );
+    assert.ok(host.vscode.window.infos.some(function(value) {
+        return /1 SQL region\(s\) are not modeled/.test(value);
+    }), 'explicit preserve command must report one safe capability summary');
     runtime.runHostTransaction = stableRunHost;
 
     editor.selections = [
@@ -499,8 +575,55 @@ async function main() {
     assert.strictEqual(document.offsetAt(editor.selections[0].anchor), 2);
     assert.strictEqual(document.offsetAt(editor.selections[1].anchor), 12);
 
+    var sourceBeforeHostPerformance = document.text;
+    document.text = new Array(505001).join('a');
+    document.version += 1;
+    editor.selections = [];
+    for (var selectionIndex = 0; selectionIndex < 50; selectionIndex++) {
+        var selectionStart = selectionIndex * 1000;
+        editor.selections.push(new Selection(
+            new Position(0, selectionStart),
+            new Position(0, selectionStart + 100)
+        ));
+    }
+    var hostPerformanceStarted = performance.now();
+    await host.commands['sqlBeautify.formatSql']({ keywordCase: 'lower' });
+    var hostPerformanceElapsed = performance.now() - hostPerformanceStarted;
+    assert.strictEqual(editor.selections.length, 50);
+    assert.ok(hostPerformanceElapsed < 1000,
+        '505 KB / 50-selection host preview and mapping must remain below 1000ms, got ' +
+        hostPerformanceElapsed + 'ms');
+    document.text = sourceBeforeHostPerformance;
+    document.version += 1;
+    editor.selections = [new Selection(document.positionAt(18), document.positionAt(10))];
+
     await host.commands['sqlBeautify.formatHiveDdl']();
     assert.strictEqual(calls.ddl, 1);
+    calls.ddlRejectMode = true;
+    await host.commands['sqlBeautify.formatHiveDdl']();
+    calls.ddlRejectMode = false;
+    assert.ok(host.vscode.window.warnings.some(function(value) {
+        return /supported experimental subset/.test(value);
+    }), 'rejected DDL commands must provide a dedicated safe hint');
+
+    var querySourceBeforeDdlCommit = document.text;
+    document.text = 'create table t(a int);';
+    document.version += 1;
+    editor.selections = [new Selection(
+        document.positionAt(document.text.length),
+        document.positionAt(0)
+    )];
+    calls.ddlCommitMode = true;
+    await host.commands['sqlBeautify.formatHiveDdl']();
+    calls.ddlCommitMode = false;
+    assert.strictEqual(document.text, 'CREATE TABLE formatted (a INT);\n');
+    assert.strictEqual(document.offsetAt(editor.selections[0].anchor), document.text.length,
+        'DDL offset mapping must map an exact target end to replacement end');
+    assert.strictEqual(document.offsetAt(editor.selections[0].active), 0,
+        'DDL offset mapping must preserve backward selection direction');
+    document.text = querySourceBeforeDdlCommit;
+    document.version += 1;
+    editor.selections = [new Selection(document.positionAt(18), document.positionAt(10))];
 
     var defaultWithProgress = host.vscode.window.withProgress;
     var reportToken = {

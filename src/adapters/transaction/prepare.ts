@@ -159,6 +159,7 @@ function snapshotSelections(
         return null;
     }
     const ids = new Set<string>();
+    const targetById = new Map(targets.map((target) => [target.id, target]));
     const selections: FormatSelection[] = [];
     for (const rawSelection of rawSelections) {
         const raw = snapshotDataProperties(
@@ -168,7 +169,7 @@ function snapshotSelections(
         );
         const targetId = raw?.targetId;
         const target = typeof targetId === "string"
-            ? targets.find((value) => value.id === targetId) ?? null
+            ? targetById.get(targetId) ?? null
             : null;
         if (
             raw === null ||
@@ -573,10 +574,13 @@ async function prepareFormatTransactionInternal(
         ]);
     }
     const selections: TransactionSelection[] = [];
+    const computedByTargetId = new Map(
+        computed.map((value) => [value.target.id, value])
+    );
     for (const selection of requestedSelections) {
         const target = selection.targetId === null
             ? null
-            : computed.find((value) => value.target.id === selection.targetId) ?? null;
+            : computedByTargetId.get(selection.targetId) ?? null;
         const targetOutputStart = target === null
             ? null
             : outputStartByTargetId.get(target.target.id) ?? null;

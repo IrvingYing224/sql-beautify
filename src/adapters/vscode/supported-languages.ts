@@ -1,6 +1,5 @@
 export interface SupportedLanguage {
     readonly languageId: "sql" | "hive-sql";
-    readonly dialect: "hive";
     readonly supportsQueryFormatting: true;
     readonly supportsExperimentalDdl: boolean;
 }
@@ -8,13 +7,11 @@ export interface SupportedLanguage {
 export const SUPPORTED_LANGUAGES: readonly SupportedLanguage[] = Object.freeze([
     Object.freeze({
         languageId: "sql",
-        dialect: "hive",
         supportsQueryFormatting: true,
         supportsExperimentalDdl: true,
     }),
     Object.freeze({
         languageId: "hive-sql",
-        dialect: "hive",
         supportsQueryFormatting: true,
         supportsExperimentalDdl: true,
     }),

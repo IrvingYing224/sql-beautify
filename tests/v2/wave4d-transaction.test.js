@@ -341,8 +341,10 @@ async function main() {
     var largeValues = [];
     var largeTargets = [];
     var largeOffset = 0;
+    var largePadding = new Array(390).join('x');
     for (var largeIndex = 0; largeIndex < 1200; largeIndex++) {
-        var statement = 'CREATE TABLE t' + largeIndex + ' (c INT);';
+        var statement = 'CREATE TABLE t' + largeIndex +
+            " (c INT COMMENT '" + largePadding + "');";
         largeValues.push(statement);
         largeTargets.push(target(
             '',
@@ -364,6 +366,8 @@ async function main() {
     }, undefined, largeTargets);
     var largeElapsed = performance.now() - largeStarted;
     assert.strictEqual(largeBatch.result.status, 'unchanged');
+    assert.ok(largeSource.length > 500000,
+        'DDL host performance fixture must exercise a production-sized document');
     assert.ok(largeElapsed < 1000,
         '1200-target DDL validation must remain below 1000ms, got ' + largeElapsed + 'ms');
 

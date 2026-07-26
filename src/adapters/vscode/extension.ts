@@ -10,6 +10,16 @@ import {
     inferRenderNewline,
     type RenderNewline,
 } from "../../core/renderer/environment";
+import { diagnosticsForEditor } from "../diagnostics/presentation";
+import {
+    buildTextLineIndex,
+    positionAtOffset,
+} from "../text/line-index";
+import {
+    mapOffsetsThroughEdits,
+    previewTextEdits,
+    type TextEditPreview,
+} from "../transaction/edit-preview";
 import type { ExperimentalDdlOperation } from "../transaction/experimental-ddl";
 import type {
     ExperimentalDdlTransactionRequest,
@@ -105,18 +115,13 @@ function snapshotDocument(document: Vscode.TextDocument): DocumentSnapshot | nul
     }
 }
 
-function documentTarget(document: Vscode.TextDocument): FormatTarget | null {
-    try {
-        const sourceLength = document.getText().length;
-        return Object.freeze({
-            id: "document",
-            start: 0,
-            end: sourceLength,
-            mode: "document" as const,
-        });
-    } catch {
-        return null;
-    }
+function documentTarget(sourceLength: number): FormatTarget {
+    return Object.freeze({
+        id: "document",
+        start: 0,
+        end: sourceLength,
+        mode: "document" as const,
+    });
 }
 
 interface SelectionTargetSet {
@@ -124,53 +129,78 @@ interface SelectionTargetSet {
     readonly selections: readonly FormatSelection[];
 }
 
-function selectionTargets(editor: Vscode.TextEditor): SelectionTargetSet | null {
+function selectionTargets(
+    editor: Vscode.TextEditor,
+    sourceLength: number
+): SelectionTargetSet | null {
     try {
         const selections = Array.from(editor.selections);
-        const nonEmpty = selections.filter((selection) => !selection.isEmpty);
+        const records = selections.map((selection, index) => {
+            const anchor = editor.document.offsetAt(selection.anchor);
+            const active = editor.document.offsetAt(selection.active);
+            return {
+                index,
+                anchor,
+                active,
+                start: Math.min(anchor, active),
+                end: Math.max(anchor, active),
+                isEmpty: selection.isEmpty,
+            };
+        });
+        const nonEmpty = records.filter((record) => !record.isEmpty);
         if (nonEmpty.length === 0) {
-            const target = documentTarget(editor.document);
-            if (target === null) {
-                return null;
-            }
+            const target = documentTarget(sourceLength);
             return Object.freeze({
                 targets: Object.freeze([target]),
-                selections: Object.freeze(selections.map((selection, index) =>
+                selections: Object.freeze(records.map((record) =>
                     Object.freeze({
-                        id: `cursor:${String(index)}`,
+                        id: `cursor:${String(record.index)}`,
                         targetId: target.id,
-                        anchor: editor.document.offsetAt(selection.anchor),
-                        active: editor.document.offsetAt(selection.active),
+                        anchor: record.anchor,
+                        active: record.active,
                     })
                 )),
             });
         }
-        const targets = nonEmpty.map((selection, index) => {
-            const start = editor.document.offsetAt(selection.start);
-            const end = editor.document.offsetAt(selection.end);
-            return Object.freeze({
+        const targets = nonEmpty.map((record, index) => Object.freeze({
                 id: `selection:${String(index)}`,
-                start,
-                end,
+                start: record.start,
+                end: record.end,
                 mode: "fragment" as const,
-            });
-        });
+            })).sort((left, right) =>
+                left.start - right.start ||
+                left.end - right.end ||
+                left.id.localeCompare(right.id)
+            );
+        const orderedRecords = records.slice().sort((left, right) =>
+            left.end - right.end || left.start - right.start || left.index - right.index
+        );
+        const ownerBySelectionIndex = new Map<number, string>();
+        let targetIndex = 0;
+        for (const record of orderedRecords) {
+            while (
+                targetIndex < targets.length &&
+                targets[targetIndex]!.end < record.end
+            ) {
+                targetIndex += 1;
+            }
+            const target = targets[targetIndex];
+            if (
+                target !== undefined &&
+                target.start <= record.start &&
+                record.end <= target.end
+            ) {
+                ownerBySelectionIndex.set(record.index, target.id);
+            }
+        }
         return Object.freeze({
             targets: Object.freeze(targets),
-            selections: Object.freeze(selections.map((selection, index) => {
-                const anchor = editor.document.offsetAt(selection.anchor);
-                const active = editor.document.offsetAt(selection.active);
-                const owner = targets.find((target) =>
-                    target.start <= anchor && anchor <= target.end &&
-                    target.start <= active && active <= target.end
-                );
-                return Object.freeze({
-                    id: `cursor:${String(index)}`,
-                    targetId: owner?.id ?? null,
-                    anchor,
-                    active,
-                });
-            })),
+            selections: Object.freeze(records.map((record) => Object.freeze({
+                id: `cursor:${String(record.index)}`,
+                targetId: ownerBySelectionIndex.get(record.index) ?? null,
+                anchor: record.anchor,
+                active: record.active,
+            }))),
         });
     } catch {
         return null;
@@ -235,47 +265,6 @@ function rejectedDdlTransaction(
     });
 }
 
-function applyTransactionEdits(
-    source: string,
-    edits: readonly { readonly start: number; readonly end: number; readonly text: string }[]
-): string | null {
-    let output = source;
-    const ordered = Array.from(edits).sort((left, right) => right.start - left.start);
-    let previousStart = source.length + 1;
-    for (const edit of ordered) {
-        if (
-            !Number.isSafeInteger(edit.start) ||
-            !Number.isSafeInteger(edit.end) ||
-            edit.start < 0 ||
-            edit.end < edit.start ||
-            edit.end > source.length ||
-            edit.end > previousStart
-        ) {
-            return null;
-        }
-        output = output.slice(0, edit.start) + edit.text + output.slice(edit.end);
-        previousStart = edit.start;
-    }
-    return output;
-}
-
-function positionAtText(
-    vscode: typeof Vscode,
-    source: string,
-    offset: number
-): Vscode.Position {
-    let line = 0;
-    let lineStart = 0;
-    const bounded = Math.max(0, Math.min(offset, source.length));
-    for (let index = 0; index < bounded; index += 1) {
-        if (source[index] === "\n") {
-            line += 1;
-            lineStart = index + 1;
-        }
-    }
-    return new vscode.Position(line, bounded - lineStart);
-}
-
 export function createVscodeExtension(
     vscode: typeof Vscode,
     runtime: V2ExtensionRuntime,
@@ -318,6 +307,22 @@ export function createVscodeExtension(
             } catch {
                 return;
             }
+        }
+    }
+
+    function closeDiagnostics(document: Vscode.TextDocument): void {
+        if (disposed) {
+            return;
+        }
+        const key = documentKey(document);
+        if (key === null) {
+            return;
+        }
+        latestDiagnosticGeneration.delete(key);
+        try {
+            diagnostics.delete(document.uri);
+        } catch {
+            return;
         }
     }
 
@@ -414,25 +419,31 @@ export function createVscodeExtension(
         if (!isCurrentDiagnosticRequest(document, generation)) {
             return;
         }
-        const converted: Vscode.Diagnostic[] = [];
-        for (const item of result.diagnostics) {
-            if (
-                unsupportedSyntaxPolicy === "preserve" &&
-                item.severity === "warning" &&
-                item.capabilityId !== null
-            ) {
-                continue;
+        let sourceLength = 0;
+        if (sourceStable) {
+            try {
+                sourceLength = document.getText().length;
+            } catch {
+                return;
             }
+        }
+        const visible = diagnosticsForEditor(result.diagnostics.filter((item) => !(
+            unsupportedSyntaxPolicy === "preserve" &&
+            item.severity === "warning" &&
+            item.capabilityId !== null
+        )));
+        const converted: Vscode.Diagnostic[] = [];
+        for (const item of visible) {
             const severity = item.severity === "error"
                 ? vscode.DiagnosticSeverity.Error
                 : item.severity === "warning"
                     ? vscode.DiagnosticSeverity.Warning
                     : vscode.DiagnosticSeverity.Information;
             const start = sourceStable
-                ? Math.max(0, Math.min(item.span.start, document.getText().length))
+                ? Math.max(0, Math.min(item.span.start, sourceLength))
                 : 0;
             const end = sourceStable
-                ? Math.max(start, Math.min(item.span.end, document.getText().length))
+                ? Math.max(start, Math.min(item.span.end, sourceLength))
                 : 0;
             const diagnostic = new vscode.Diagnostic(
                 new vscode.Range(document.positionAt(start), document.positionAt(end)),
@@ -447,7 +458,29 @@ export function createVscodeExtension(
         debugSummary(document, result, debugDiagnostics, phase);
     }
 
-    function reportCommandFailure(result: AnyTransactionResult): void {
+    function reportQueryCommandResult(
+        result: FormatTransactionResult,
+        unsupportedSyntaxPolicy: UnsupportedSyntaxPolicy
+    ): void {
+        if (
+            unsupportedSyntaxPolicy === "preserve" &&
+            (result.status === "unchanged" || result.status === "rejected")
+        ) {
+            const capabilities = diagnosticsForEditor(result.diagnostics.filter((item) =>
+                item.capabilityId !== null
+            ));
+            if (capabilities.length > 0) {
+                const containsHiveDdl = capabilities.some((item) =>
+                    item.capabilityId === "hive-ddl"
+                );
+                void vscode.window.showInformationMessage(
+                    containsHiveDdl
+                        ? "SQL Beautify preserved Hive DDL. Use the dedicated Format Hive DDL command for the supported experimental subset."
+                        : `SQL Beautify made no changes because ${String(capabilities.length)} SQL region(s) are not modeled.`
+                );
+                return;
+            }
+        }
         if (result.status === "rejected") {
             void vscode.window.showWarningMessage(
                 "SQL Beautify did not modify the document because formatting was not safe."
@@ -455,9 +488,113 @@ export function createVscodeExtension(
         }
     }
 
+    function reportDdlCommandResult(result: ExperimentalDdlTransactionResult): void {
+        if (result.status === "rejected") {
+            void vscode.window.showWarningMessage(
+                "SQL Beautify did not modify the document because the selected DDL is outside the supported experimental subset."
+            );
+        }
+    }
+
+    function selectionPositions(
+        preview: TextEditPreview,
+        selections: readonly {
+            readonly anchor: number;
+            readonly active: number;
+        }[],
+        offsetsAreOutput: boolean
+    ): Vscode.Selection[] | null {
+        const lineIndex = buildTextLineIndex(preview.output);
+        const offsets = selections.flatMap((selection) => [
+            selection.anchor,
+            selection.active,
+        ]);
+        const mappedOffsets = offsetsAreOutput
+            ? offsets
+            : mapOffsetsThroughEdits(preview, offsets);
+        if (mappedOffsets === null) {
+            return null;
+        }
+        const mapped: Vscode.Selection[] = [];
+        for (let index = 0; index < selections.length; index += 1) {
+            const anchor = mappedOffsets[index * 2]!;
+            const active = mappedOffsets[index * 2 + 1]!;
+            const anchorPosition = positionAtOffset(lineIndex, anchor);
+            const activePosition = positionAtOffset(lineIndex, active);
+            if (anchorPosition === null || activePosition === null) {
+                return null;
+            }
+            mapped.push(new vscode.Selection(
+                new vscode.Position(anchorPosition.line, anchorPosition.character),
+                new vscode.Position(activePosition.line, activePosition.character)
+            ));
+        }
+        return mapped;
+    }
+
+    async function applyHostEdits(
+        editor: Vscode.TextEditor,
+        document: Vscode.TextDocument,
+        expected: DocumentSnapshot,
+        edits: readonly {
+            readonly start: number;
+            readonly end: number;
+            readonly text: string;
+        }[],
+        selections: readonly {
+            readonly anchor: number;
+            readonly active: number;
+        }[],
+        offsetsAreOutput: boolean
+    ): Promise<boolean> {
+        const preview = previewTextEdits(expected.source, edits);
+        if (preview === null) {
+            return false;
+        }
+        let ranges: Array<Readonly<{
+            readonly range: Vscode.Range;
+            readonly text: string;
+        }>>;
+        let mappedSelections: Vscode.Selection[] | null;
+        try {
+            ranges = preview.edits.map((edit) => Object.freeze({
+                range: new vscode.Range(
+                    document.positionAt(edit.start),
+                    document.positionAt(edit.end)
+                ),
+                text: edit.text,
+            }));
+            mappedSelections = selectionPositions(
+                preview,
+                selections,
+                offsetsAreOutput
+            );
+        } catch {
+            return false;
+        }
+        if (mappedSelections === null) {
+            return false;
+        }
+        const applied = await editor.edit((builder) => {
+            for (const edit of ranges) {
+                builder.replace(edit.range, edit.text);
+            }
+        });
+        if (applied === true && mappedSelections.length > 0) {
+            try {
+                editor.selections = mappedSelections;
+            } catch {
+                void vscode.window.showWarningMessage(
+                    "SQL Beautify formatted the document but could not restore the selection."
+                );
+            }
+        }
+        return applied;
+    }
+
     async function prepareProvider(
         document: Vscode.TextDocument,
-        target: FormatTarget,
+        requestedTarget: FormatTarget | null,
         token: Vscode.CancellationToken,
         phase: string
     ): Promise<Vscode.TextEdit[]> {
@@ -468,6 +605,7 @@ export function createVscodeExtension(
         const generation = beginDiagnosticRequest(document);
         const capturedSource = document.getText();
         const capturedVersion = document.version;
+        const target = requestedTarget ?? documentTarget(capturedSource.length);
         const cancellation = wrapVscodeCancellationToken(token);
         let result: FormatTransactionResult;
         try {
@@ -540,58 +678,24 @@ export function createVscodeExtension(
             apply: async (
                 result: Extract<FormatTransactionResult, { readonly status: "ready" }>,
                 expected: DocumentSnapshot
-            ) => {
-                const outputSource = applyTransactionEdits(expected.source, result.edits);
-                if (outputSource === null) {
-                    return false;
-                }
-                if (result.selections.some((selection) =>
-                    !Number.isSafeInteger(selection.selectionAnchor) ||
-                    !Number.isSafeInteger(selection.selectionActive) ||
-                    selection.selectionAnchor < 0 ||
-                    selection.selectionActive < 0 ||
-                    selection.selectionAnchor > outputSource.length ||
-                    selection.selectionActive > outputSource.length
-                )) {
-                    return false;
-                }
-                let mappedSelections: Vscode.Selection[];
-                try {
-                    mappedSelections = result.selections.map((selection) => new vscode.Selection(
-                        positionAtText(vscode, outputSource, selection.selectionAnchor),
-                        positionAtText(vscode, outputSource, selection.selectionActive)
-                    ));
-                } catch {
-                    return false;
-                }
-                const applied = await editor.edit((builder) => {
-                    for (const edit of result.edits) {
-                        builder.replace(
-                            new vscode.Range(
-                                document.positionAt(edit.start),
-                                document.positionAt(edit.end)
-                            ),
-                            edit.text
-                        );
-                    }
-                });
-                if (applied === true) {
-                    try {
-                        editor.selections = mappedSelections;
-                    } catch {
-                        void vscode.window.showWarningMessage(
-                            "SQL Beautify formatted the document but could not restore the selection."
-                        );
-                    }
-                }
-                return applied;
-            },
+            ) => await applyHostEdits(
+                editor,
+                document,
+                expected,
+                result.edits,
+                result.selections.map((selection) => Object.freeze({
+                    anchor: selection.selectionAnchor,
+                    active: selection.selectionActive,
+                })),
+                true
+            ),
         });
     }
 
     function ddlCommit(
         editor: Vscode.TextEditor,
-        document: Vscode.TextDocument
+        document: Vscode.TextDocument,
+        selections: readonly FormatSelection[]
     ): {
         readonly currentDocument: () => DocumentSnapshot | null;
         readonly apply: (
@@ -601,17 +705,17 @@ export function createVscodeExtension(
     } {
         return Object.freeze({
             currentDocument: () => currentDocument(editor, document),
-            apply: async (result) => await editor.edit((builder) => {
-                for (const edit of result.edits) {
-                    builder.replace(
-                        new vscode.Range(
-                            document.positionAt(edit.start),
-                            document.positionAt(edit.end)
-                        ),
-                        edit.text
-                    );
-                }
-            }),
+            apply: async (result, expected) => await applyHostEdits(
+                editor,
+                document,
+                expected,
+                result.edits,
+                selections.map((selection) => Object.freeze({
+                    anchor: selection.anchor,
+                    active: selection.active,
+                })),
+                false
+            ),
         });
     }
 
@@ -625,7 +729,9 @@ export function createVscodeExtension(
             return null;
         }
         const expected = snapshotDocument(editor.document);
-        const selectionSet = selectionTargets(editor);
+        const selectionSet = expected === null
+            ? null
+            : selectionTargets(editor, expected.source.length);
         const current = configuration(editor.document);
         if (expected === null || selectionSet === null || current === null) {
             void vscode.window.showErrorMessage("SQL Beautify could not read the editor state safely.");
@@ -671,7 +777,10 @@ export function createVscodeExtension(
             publishedGeneration,
             !(result.status === "ready" && result.edits.length > 0)
         );
-        reportCommandFailure(result);
+        reportQueryCommandResult(
+            result,
+            commandOptionsValue.unsupportedSyntaxPolicy
+        );
         return result;
     }
 
@@ -693,7 +802,9 @@ export function createVscodeExtension(
             return null;
         }
         const expected = snapshotDocument(editor.document);
-        const selectionSet = selectionTargets(editor);
+        const selectionSet = expected === null
+            ? null
+            : selectionTargets(editor, expected.source.length);
         const current = configuration(editor.document);
         if (expected === null || selectionSet === null || current === null) {
             void vscode.window.showErrorMessage("SQL Beautify could not read the editor state safely.");
@@ -707,7 +818,11 @@ export function createVscodeExtension(
                 document: expected,
                 targets: ddlTargets(selectionSet.targets),
                 ...(cancellation === undefined ? {} : { cancellation }),
-            }, operation, ddlCommit(editor, editor.document));
+            }, operation, ddlCommit(
+                editor,
+                editor.document,
+                selectionSet.selections
+            ));
         } catch {
             result = rejectedDdlTransaction(
                 expected.version,
@@ -727,7 +842,7 @@ export function createVscodeExtension(
             publishedGeneration,
             !(result.status === "ready" && result.edits.length > 0)
         );
-        reportCommandFailure(result);
+        reportDdlCommandResult(result);
         return result;
     }
 
@@ -741,7 +856,9 @@ export function createVscodeExtension(
         }
         const document = editor.document;
         const expected = snapshotDocument(document);
-        const selectionSet = selectionTargets(editor);
+        const selectionSet = expected === null
+            ? null
+            : selectionTargets(editor, expected.source.length);
         const current = configuration(document);
         if (expected === null || selectionSet === null || current === null) {
             void vscode.window.showErrorMessage("SQL Beautify could not read the editor state safely.");
@@ -815,14 +932,19 @@ export function createVscodeExtension(
                 registrations.push(vscode.workspace.onDidChangeTextDocument((event) => {
                     invalidateDiagnostics(event.document);
                 }));
+                registrations.push(vscode.workspace.onDidCloseTextDocument((document) => {
+                    closeDiagnostics(document);
+                }));
                 registrations.push(vscode.languages.registerDocumentFormattingEditProvider(
                     FORMATTER_SELECTOR,
                     {
                         provideDocumentFormattingEdits: async (document, _formattingOptions, token) => {
-                            const target = documentTarget(document);
-                            return target === null
-                                ? []
-                                : await prepareProvider(document, target, token, "document-format");
+                            return await prepareProvider(
+                                document,
+                                null,
+                                token,
+                                "document-format"
+                            );
                         },
                     }
                 ));
@@ -896,6 +1018,7 @@ export function createVscodeExtension(
                 return;
             }
             disposed = true;
+            latestDiagnosticGeneration.clear();
             diagnostics.dispose();
             await executor.dispose();
         },
