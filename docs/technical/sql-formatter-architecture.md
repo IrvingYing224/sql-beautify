@@ -1,6 +1,6 @@
 # SQL Formatter Architecture
 
-This document defines the maintained SQL Beautify 3.x architecture. User-facing behavior belongs in `README.md`; breaking upgrade steps belong in `docs/migration-to-3.0.md`.
+This document defines the maintained SQL Beautify 2.x architecture. User-facing behavior belongs in `README.md`; upgrade steps belong in `docs/migration-to-2.1.md`.
 
 ## Source and dependency boundaries
 

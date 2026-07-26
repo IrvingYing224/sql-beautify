@@ -2,7 +2,7 @@
 	"name": "vscode-sql-beautify",
 	"displayName": "SQL Beautify",
 	"description": "Hive-first SQL formatter with lossless token handling, fail-closed edits, and experimental Hive DDL tools / Hive 优先的安全 SQL 格式化器",
-	"version": "3.0.0",
+	"version": "2.1.0",
 	"publisher": "clarkyu",
 	"maintainers": [
 		"IrvingYing224"

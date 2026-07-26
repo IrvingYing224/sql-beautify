@@ -8,7 +8,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 
 最低支持 VS Code `1.90.0`。
 
-从 1.x 或 2.x 升级时，请先阅读 [3.0 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v3.0.0/docs/migration-to-3.0.md)。
+从 1.x 或 2.0.x 升级时，请先阅读 [2.1 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.1.0/docs/migration-to-2.1.md)。
 
 ## 这个扩展做什么
 

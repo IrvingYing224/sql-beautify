@@ -253,7 +253,7 @@ function runGenerator(generatorRoot, args) {
         }), false, 'package files allowlist must exclude ' + directory);
     });
     assert.strictEqual(path.basename(documentPath), 'sql-support-matrix.md',
-        '3.x must own the single canonical support matrix');
+        '2.x must own the single canonical support matrix');
     assert.strictEqual(
         fs.existsSync(path.join(root, 'docs', 'technical', 'sql-formatter-v2-support-matrix.md')),
         false,

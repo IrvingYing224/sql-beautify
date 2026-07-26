@@ -1,8 +1,8 @@
-# Migrating to SQL Beautify 3.0
+# Migrating to SQL Beautify 2.1
 
-SQL Beautify 3.0 收紧 2.x formatter 的输入、执行器、诊断和方言边界，并新增有界的 Hive `INSERT INTO` 与 `SET` 支持。公开 Node.js 函数名和 subpath export 保持不变，但格式化行为与资源上限有意发生变化，因此应先在版本控制中复核输出再批量升级。
+SQL Beautify 2.1 延续 2.0 的 lossless formatter 架构，收紧输入、执行器、诊断和方言边界，并新增有界的 Hive `INSERT INTO` 与 `SET` 支持。公开 Node.js 函数名和 subpath export 保持不变，但格式化行为与资源上限有意发生变化，因此应先在版本控制中复核输出再批量升级。
 
-## 从 2.x 升级
+## 从 2.0.x 升级
 
 ### 输入与输出边界
 
@@ -19,7 +19,7 @@ verbatim 区域是原文保留边界，不参与 `keywordCase`。因此同一输
 
 ### Hive 与方言能力
 
-3.0 新增以下 `hive` formatted capability：
+2.1 新增以下 `hive` formatted capability：
 
 - `INSERT INTO [TABLE] target [PARTITION (...)] SELECT/WITH ...`；
 - `SET`、`SET key` 和 `SET key=value`，其中 payload 作为有界 verbatim assignment 保留，不推断变量或表达式语义。
@@ -54,8 +54,8 @@ const { formatHiveDdl, extractDdl } = require('vscode-sql-beautify/experimental/
 
 1.x 的 `extension.beautifySql`、`extension.beautifySqlddl`、`extension.extractDdl` 命令已经移除；请分别使用 `sqlBeautify.formatSql`、`sqlBeautify.formatHiveDdl`、`sqlBeautify.extractHiveDdl`。`postgres` 配置值应改为 `postgresql`。
 
-package root、`vkbeautify.js`、positional API、`lib/**` require 路径和 `extractddl()` 不会恢复。完整 1.x → 2.0 cutover 背景仍保留在 [2.0 历史迁移指南](migration-to-2.0.md)；升级到 3.0 时还必须应用本文的输入与行为边界。
+package root、`vkbeautify.js`、positional API、`lib/**` require 路径和 `extractddl()` 不会恢复。完整 1.x → 2.0 cutover 背景仍保留在 [2.0 历史迁移指南](migration-to-2.0.md)；升级到 2.1 时还必须应用本文的输入与行为边界。
 
 ## 回退
 
-3.0 没有切换回旧 formatter 的兼容开关。如现有工作流依赖超过 524,288 code units 的单次格式化、2.x 的 `preserve` 静默行为或旧的方言 tokenization，请先拆分输入或固定安装 `2.0.1` VSIX，再单独评估迁移。最低支持 VS Code 版本仍为 `1.90.0`。
+2.1 没有切换回旧 formatter 的兼容开关。如现有工作流依赖超过 524,288 code units 的单次格式化、2.0.x 的 `preserve` 静默行为或旧的方言 tokenization，请先拆分输入或固定安装 `2.0.1` VSIX，再单独评估迁移。最低支持 VS Code 版本仍为 `1.90.0`。

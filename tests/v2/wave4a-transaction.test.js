@@ -560,7 +560,7 @@ async function run() {
         'transaction results must carry validated opt-in execution events');
     assert.ok(debugTransaction.debugEvents[0].message.indexOf('hidden_value') >= 0);
     var report = safeReport.renderSafeDiagnosticReport({
-        extensionVersion: '3.0.0', dialect: 'hive', sourceCodeUnits: 8,
+        extensionVersion: '2.1.0', dialect: 'hive', sourceCodeUnits: 8,
         resultStatus: debugTransaction.status,
         diagnostics: debugTransaction.diagnostics,
         debugEvents: debugTransaction.debugEvents
