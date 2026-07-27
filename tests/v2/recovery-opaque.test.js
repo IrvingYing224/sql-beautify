@@ -561,11 +561,84 @@ function assertOpaqueDiagnostics(parsed, source) {
         return node.boundary === 'statement';
     }), 'exhausted proof budget must fail closed at the statement boundary');
     assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
-        return diagnostic.recovery === 'preserve-statement' &&
+        return diagnostic.code === 'SYN_PROOF_BUDGET' &&
+            diagnostic.recovery === 'preserve-statement' &&
+            diagnostic.capabilityId === 'qualify' &&
             /proof budget/i.test(diagnostic.message);
     }));
     assert.ok(elapsedMs < 1500,
         'ambiguous unsupported proofs must be capped, elapsed=' + elapsedMs + 'ms');
+}());
+
+(function testNestedUnsupportedClauseProofsShareARequestBudget() {
+    var depth = 22;
+    var source = 'SELECT 1';
+    for (var index = 0; index < depth; index++) {
+        source = 'SELECT * FROM (' + source + ') q QUALIFY flag';
+    }
+    var started = process.hrtime.bigint();
+    var parsed = parse(source);
+    var elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.deepStrictEqual(parsed.result.root.children.map(function(statement) {
+        return statement.statementKind;
+    }), ['opaque']);
+    assert.strictEqual(parsed.result.diagnostics.some(function(diagnostic) {
+        return diagnostic.code === 'SYN_INTERNAL_INVARIANT';
+    }), false, 'nested proofs must not reach the parser internal fallback');
+    assert.ok(parsed.result.diagnostics.some(function(diagnostic) {
+        return diagnostic.code === 'SYN_PROOF_BUDGET' &&
+            diagnostic.recovery === 'preserve-statement' &&
+            diagnostic.capabilityId === 'qualify';
+    }), 'nested proof exhaustion must preserve the QUALIFY capability identity');
+    assert.ok(elapsedMs < 750,
+        'nested unsupported-clause proofs must stay bounded, elapsed=' + elapsedMs + 'ms');
+}());
+
+(function testUndeclaredDialectSuffixesKeepExactPreservationBoundaries() {
+    var cases = [
+        {
+            source: 'SELECT a FROM t ORDER BY a NULLS LAST',
+            statementKind: 'query',
+            opaque: 'a NULLS LAST'
+        },
+        {
+            source: 'SELECT a FROM t LIMIT 10 OFFSET 2',
+            statementKind: 'query',
+            opaque: '10 OFFSET 2'
+        },
+        {
+            source: 'SELECT a FROM t MINUS SELECT a FROM u',
+            statementKind: 'opaque',
+            opaque: 'SELECT a FROM t MINUS SELECT a FROM u'
+        },
+        {
+            source: 'INSERT INTO dst VALUES (1)',
+            statementKind: 'opaque',
+            opaque: 'INSERT INTO dst VALUES (1)'
+        }
+    ];
+    ['hive', 'generic', 'postgresql', 'mysql'].forEach(function(dialect) {
+        var registry = dialects.getDialect(dialect);
+        assert.strictEqual(registry.listSetOperatorSyntax().some(function(syntax) {
+            return syntax.word === 'minus';
+        }), false, dialect + ' must not claim an undeclared MINUS operator');
+        assert.strictEqual(registry.listQueryClauseSyntax().some(function(syntax) {
+            return syntax.id === 'offset';
+        }), false, dialect + ' must not claim an undeclared OFFSET clause');
+        cases.forEach(function(testCase) {
+            var parsed = parse(testCase.source, undefined, dialect);
+            assert.deepStrictEqual(parsed.result.root.children.map(function(statement) {
+                return statement.statementKind;
+            }), [testCase.statementKind], dialect + ' ' + testCase.source);
+            assert.deepStrictEqual(opaqueNodes(parsed).map(function(node) {
+                return slice(testCase.source, node);
+            }), [testCase.opaque], dialect + ' exact preserve boundary: ' + testCase.source);
+            assert.ok(opaqueNodes(parsed).every(function(node) {
+                return node.capabilityId === null;
+            }), dialect + ' must not fabricate capability identity: ' + testCase.source);
+            assertOpaqueDiagnostics(parsed, testCase.source);
+        });
+    });
 }());
 
 (function testLegalRelationAliasesDoNotConsumeTheQualifyProofBudget() {

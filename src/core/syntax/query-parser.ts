@@ -24,6 +24,9 @@ import type {
     SyntaxNode,
 } from "./node";
 import {
+    abandonParserTrial,
+    beginParserTrial,
+    completeParserTrial,
     ParserSyntaxError,
     baseDepth,
     firstSyntaxOrdinalInRange,
@@ -41,7 +44,7 @@ import {
     topLevelSyntaxIndexes,
     trimToSyntax,
 } from "./parser-context";
-import type { ParserContext } from "./parser-context";
+import type { ParserContext, ParserTrialKey } from "./parser-context";
 import { hasAsciiKeywordCaseShape } from "./contextual-fact-contract";
 import { assertParserDepth, descendParserDepth } from "./parser-depth";
 import {
@@ -1192,26 +1195,36 @@ function containsOpaque(
 
 function trialIsFullyStructured(
     context: ParserContext,
-    build: () => SyntaxNode,
-    allowBoundedRelationAliasLists: boolean = false,
-    nestingDepth: number = 0
+    key: ParserTrialKey,
+    build: () => SyntaxNode
 ): boolean {
+    const claim = beginParserTrial(context, key);
+    if (claim.kind === "cached") {
+        return claim.result;
+    }
     const checkpoint = createParserCheckpoint(context);
     try {
         const node = build();
         const structured = !containsOpaque(
             context,
             node,
-            allowBoundedRelationAliasLists,
-            nestingDepth
+            key.allowBoundedRelationAliasLists,
+            key.nestingDepth
         );
         rollbackParserCheckpoint(context, checkpoint);
+        completeParserTrial(context, claim, structured);
         return structured;
     } catch (error) {
         rollbackParserCheckpoint(context, checkpoint);
         if (error instanceof ParserSyntaxError) {
+            if (error.code === "SYN_PROOF_BUDGET") {
+                abandonParserTrial(context, claim);
+                throw error;
+            }
+            completeParserTrial(context, claim, false);
             return false;
         }
+        abandonParserTrial(context, claim);
         throw error;
     }
 }
@@ -1453,26 +1466,40 @@ function rejectProvenUnsupportedQueryClauses(
             }
             if (proofCount >= MAX_UNSUPPORTED_CLAUSE_PROOFS) {
                 throw new ParserSyntaxError(
-                    "SYN_UNMODELED_CONSTRUCT",
+                    "SYN_PROOF_BUDGET",
                     { start: candidate.range.start, end: range.end },
                     "Unsupported query-clause recognition proof budget exceeded",
-                    "statement"
+                    "statement",
+                    candidate.signature.capabilityId
                 );
             }
             proofCount += 1;
             const prefixStructured = trialIsFullyStructured(
                 context,
+                Object.freeze({
+                    purpose: "unsupported-clause-prefix",
+                    range: { start: marker.start, end: prefixLast + 1 },
+                    nestingDepth,
+                    allowBoundedRelationAliasLists: marker.syntax.id === "from",
+                    capabilityId: candidate.signature.capabilityId,
+                }),
                 () => buildSelectClause(
                     context,
                     marker,
                     prefixLast + 1,
                     nestingDepth
-                ),
-                marker.syntax.id === "from",
-                nestingDepth
+                )
             );
-            const suffixStructured = trialIsFullyStructured(context, () =>
-                parseExpressionRange(
+            const suffixStructured = trialIsFullyStructured(
+                context,
+                Object.freeze({
+                    purpose: "unsupported-clause-suffix",
+                    range: suffix,
+                    nestingDepth,
+                    allowBoundedRelationAliasLists: false,
+                    capabilityId: candidate.signature.capabilityId,
+                }),
+                () => parseExpressionRange(
                     context,
                     suffix,
                     parseQueryRange,

@@ -441,12 +441,22 @@ function scanTemplateParameter(state: ScannerState): boolean {
     }
     const start = state.cursor;
     let end = start + 2;
+    let depth = 1;
     let terminated = false;
     while (end < state.length) {
+        if (startsWith(state, "${", end)) {
+            depth += 1;
+            end += 2;
+            continue;
+        }
         if (charAt(state, end) === "}") {
             end += 1;
-            terminated = true;
-            break;
+            depth -= 1;
+            if (depth === 0) {
+                terminated = true;
+                break;
+            }
+            continue;
         }
         end += codePointWidth(codePointAt(state.source, end) ?? 0);
     }
@@ -740,6 +750,7 @@ function hasColonParameterLeftBoundary(state: ScannerState): boolean {
         return true;
     }
     return (
+        previous.raw !== ":" &&
         previous.kind !== "identifier" &&
         previous.kind !== "keyword" &&
         previous.kind !== "quoted-identifier"
@@ -778,9 +789,11 @@ function scanNamedParameter(state: ScannerState): boolean {
     }
 
     if (state.profile.parameters.has("@name") && ch === "@") {
-        const next = charAt(state, state.cursor + 1);
+        const systemVariable = charAt(state, state.cursor + 1) === "@";
+        const nameStart = state.cursor + (systemVariable ? 2 : 1);
+        const next = charAt(state, nameStart);
         if (isIdentifierStart(next)) {
-            let end = state.cursor + 2;
+            let end = nameStart + 1;
             while (end < state.length && isIdentifierContinue(charAt(state, end))) {
                 end += 1;
             }

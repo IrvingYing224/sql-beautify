@@ -10,6 +10,7 @@ import type { LeafRange } from "./leaf-range";
 import { createOpaqueWithDiagnostic } from "./recovery";
 import {
     addDiagnostic,
+    createParserTrialState,
     finalizeDiagnostics,
     nodeFacts,
 } from "./parser-context";
@@ -85,6 +86,7 @@ function createContext(
         table,
         factory: createParserNodeFactory(table, dialect),
         diagnostics,
+        trialState: createParserTrialState(table.syntaxLeafCount()),
     });
 }
 

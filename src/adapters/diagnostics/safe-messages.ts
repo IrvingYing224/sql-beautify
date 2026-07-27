@@ -44,6 +44,7 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     SYN_INCOMPLETE_CLAUSE: "SQL contains an incomplete clause",
     SYN_UNMATCHED_DELIMITER: "SQL contains an unmatched delimiter",
     SYN_MAX_DEPTH_EXCEEDED: "SQL nesting exceeds the supported depth",
+    SYN_PROOF_BUDGET: "SQL structure proof exceeded its resource budget",
     SYN_INTERNAL_INVARIANT: "SQL structure failed an internal safety check",
 
     ...entries([

@@ -536,7 +536,7 @@ function assertNoOpaque(parsed, label) {
         return slice(postgresSource, node) === 'ARRAY[1, 2]';
     }), 'PostgreSQL ARRAY subset must be structured');
 
-    var mysqlSource = "SELECT @name, _utf8mb4'abc', json_col->>'$.x', map('x', 1)";
+    var mysqlSource = "SELECT @name, @@session, _utf8mb4'abc', json_col->>'$.x', map('x', 1)";
     var mysql = parse(mysqlSource, 'mysql');
     assertNoOpaque(mysql, mysqlSource);
     var mysqlVariable = nodesOf(
@@ -550,6 +550,17 @@ function assertNoOpaque(parsed, label) {
     assert.ok(mysqlVariable, 'MySQL variable must be structured as one parameter');
     assert.strictEqual(mysqlVariable.capabilityId, 'mysql-variables');
     assert.strictEqual(mysqlVariable.formatRole, 'capability');
+    var mysqlSystemVariable = nodesOf(
+        mysql,
+        'expression',
+        'expressionKind',
+        'parameter'
+    ).find(function(node) {
+        return slice(mysqlSource, node) === '@@session';
+    });
+    assert.ok(mysqlSystemVariable, 'MySQL system variable must be one parameter');
+    assert.strictEqual(mysqlSystemVariable.capabilityId, 'mysql-variables');
+    assert.strictEqual(mysqlSystemVariable.formatRole, 'capability');
     var mysqlPrefixedLiteral = nodesOf(
         mysql,
         'expression',
@@ -987,6 +998,25 @@ function assertNoOpaque(parsed, label) {
         dialects.getDialect('generic').getCapability('generic-array-subset').state,
         'structured'
     );
+}());
+
+(function testProtectedSingleLeafCalleesDoNotEnterCodeWordLookup() {
+    var cases = [
+        { dialect: 'hive', source: 'SELECT `max`(x) FROM t', callee: '`max`(x)' },
+        { dialect: 'hive', source: 'SELECT ${fn}(x) FROM t', callee: '${fn}(x)' },
+        { dialect: 'hive', source: "SELECT 'name'('value') FROM t", callee: "'name'('value')" },
+        { dialect: 'postgresql', source: 'SELECT "max"(x) FROM t', callee: '"max"(x)' }
+    ];
+    cases.forEach(function(testCase) {
+        var parsed = parse(testCase.source, testCase.dialect);
+        assertNoOpaque(parsed, testCase.source);
+        assert.ok(nodesOf(parsed, 'expression', 'expressionKind', 'function-call').some(function(node) {
+            return slice(testCase.source, node) === testCase.callee;
+        }), testCase.source + ' must remain an ordinary function call');
+        assert.strictEqual(parsed.result.diagnostics.some(function(diagnostic) {
+            return diagnostic.code === 'SYN_INTERNAL_INVARIANT';
+        }), false, testCase.source + ' must not reach the internal fallback');
+    });
 }());
 
 console.log('v2 Wave 2C expression parser tests passed');

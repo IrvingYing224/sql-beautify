@@ -27,7 +27,31 @@ export type SyntaxDiagnosticCode =
     | "SYN_INCOMPLETE_CLAUSE"
     | "SYN_UNMATCHED_DELIMITER"
     | "SYN_MAX_DEPTH_EXCEEDED"
+    | "SYN_PROOF_BUDGET"
     | "SYN_INTERNAL_INVARIANT";
+
+export type ParserTrialPurpose =
+    | "unsupported-clause-prefix"
+    | "unsupported-clause-suffix";
+
+export interface ParserTrialKey {
+    readonly purpose: ParserTrialPurpose;
+    readonly range: LeafRange;
+    readonly nestingDepth: number;
+    readonly allowBoundedRelationAliasLists: boolean;
+    readonly capabilityId: CapabilityIdentity;
+}
+
+interface ParserTrialState {
+    readonly workBudget: number;
+    workUsed: number;
+    readonly results: Map<string, boolean>;
+    readonly inProgress: Set<string>;
+}
+
+export type ParserTrialClaim =
+    | Readonly<{ readonly kind: "cached"; readonly result: boolean }>
+    | Readonly<{ readonly kind: "execute"; readonly cacheKey: string }>;
 
 export interface ParserContext {
     readonly dialect: Dialect;
@@ -36,6 +60,79 @@ export interface ParserContext {
     readonly table: StructuralTokenTable;
     readonly factory: NodeFactory;
     readonly diagnostics: Diagnostic[];
+    readonly trialState: ParserTrialState;
+}
+
+const MIN_PARSER_TRIAL_WORK_BUDGET = 64;
+const PARSER_TRIAL_WORK_PER_SYNTAX_LEAF = 8;
+
+export function createParserTrialState(syntaxLeafCount: number): ParserTrialState {
+    if (!Number.isInteger(syntaxLeafCount) || syntaxLeafCount < 0) {
+        throw new TypeError("Parser trial state requires a non-negative syntax leaf count");
+    }
+    return {
+        workBudget: Math.max(
+            MIN_PARSER_TRIAL_WORK_BUDGET,
+            syntaxLeafCount * PARSER_TRIAL_WORK_PER_SYNTAX_LEAF
+        ),
+        workUsed: 0,
+        results: new Map<string, boolean>(),
+        inProgress: new Set<string>(),
+    };
+}
+
+function parserTrialCacheKey(key: ParserTrialKey): string {
+    return [
+        key.purpose,
+        key.range.start,
+        key.range.end,
+        key.nestingDepth,
+        key.allowBoundedRelationAliasLists ? 1 : 0,
+        key.capabilityId ?? "",
+    ].join(":");
+}
+
+export function beginParserTrial(
+    context: ParserContext,
+    key: ParserTrialKey
+): ParserTrialClaim {
+    const cacheKey = parserTrialCacheKey(key);
+    const cached = context.trialState.results.get(cacheKey);
+    if (cached !== undefined) {
+        return Object.freeze({ kind: "cached", result: cached });
+    }
+    const rangeWork = Math.max(1, key.range.end - key.range.start);
+    if (
+        context.trialState.inProgress.has(cacheKey) ||
+        rangeWork > context.trialState.workBudget - context.trialState.workUsed
+    ) {
+        throw new ParserSyntaxError(
+            "SYN_PROOF_BUDGET",
+            key.range,
+            "Unsupported query-clause recognition proof budget exceeded",
+            "statement",
+            key.capabilityId
+        );
+    }
+    context.trialState.workUsed += rangeWork;
+    context.trialState.inProgress.add(cacheKey);
+    return Object.freeze({ kind: "execute", cacheKey });
+}
+
+export function completeParserTrial(
+    context: ParserContext,
+    claim: Extract<ParserTrialClaim, { readonly kind: "execute" }>,
+    result: boolean
+): void {
+    context.trialState.inProgress.delete(claim.cacheKey);
+    context.trialState.results.set(claim.cacheKey, result);
+}
+
+export function abandonParserTrial(
+    context: ParserContext,
+    claim: Extract<ParserTrialClaim, { readonly kind: "execute" }>
+): void {
+    context.trialState.inProgress.delete(claim.cacheKey);
 }
 
 const EMPTY_SYNTAX_MARKERS: readonly SyntaxMarker[] = Object.freeze([]);

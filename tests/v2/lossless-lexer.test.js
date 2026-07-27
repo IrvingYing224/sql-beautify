@@ -431,6 +431,13 @@ test('line comments exclude newline', function() {
     assert.strictEqual(findLeaf(output, '\n').kind, 'newline');
 });
 
+test('SQL physical line comments do not terminate at Unicode separators', function() {
+    ['\u0085', '\u2028', '\u2029'].forEach(function(separator) {
+        var raw = '-- left' + separator + 'right';
+        assertSingleLeaf('SELECT 1 ' + raw, 'hive', raw, 'line-comment', 'trivia');
+    });
+});
+
 test('MySQL hash line comments', function() {
     assertSingleLeaf('SELECT 1 # c', 'mysql', '# c', 'line-comment', 'trivia');
 });
@@ -466,6 +473,13 @@ test('Hive template parameters', function() {
         'parameter',
         'protected'
     );
+    assertSingleLeaf(
+        'SELECT ${hiveconf:${hivevar:key}}',
+        'hive',
+        '${hiveconf:${hivevar:key}}',
+        'parameter',
+        'protected'
+    );
 });
 
 test('named and positional parameters', function() {
@@ -473,6 +487,7 @@ test('named and positional parameters', function() {
     assertSingleLeaf('SELECT :id', 'mysql', ':id', 'parameter', 'protected');
     assertSingleLeaf('SELECT :id', 'generic', ':id', 'parameter', 'protected');
     assertSingleLeaf('SELECT @user_id', 'mysql', '@user_id', 'parameter', 'protected');
+    assertSingleLeaf('SELECT @@session', 'mysql', '@@session', 'parameter', 'protected');
     assertSingleLeaf('SELECT ?', 'mysql', '?', 'parameter', 'protected');
 
     ['hive', 'postgresql'].forEach(function(dialect) {
@@ -489,6 +504,11 @@ test('parameter vs operator precedence', function() {
     assertSingleLeaf('SET @a := 1', 'mysql', ':=', 'operator', 'code');
     assertSingleLeaf("SELECT x ?| ARRAY['a']", 'postgresql', '?|', 'operator', 'code');
     assertSingleLeaf('SELECT payload @> x', 'postgresql', '@>', 'operator', 'code');
+    var genericCast = lexSql("SELECT 'x'::int", { dialect: 'generic' });
+    assertConservesSource("SELECT 'x'::int", genericCast);
+    assert.strictEqual(genericCast.leaves.some(function(leaf) {
+        return leaf.kind === 'parameter' && leaf.raw === ':int';
+    }), false, 'generic :: suffix must not become a named parameter');
 });
 
 test('prefixed literals', function() {
@@ -550,6 +570,12 @@ test('unterminated dollar string diagnostic', function() {
 
 test('unterminated template diagnostic', function() {
     assertUnterminated('SELECT ${open', 'hive', 'LEX_UNTERMINATED_TEMPLATE', '${');
+    assertUnterminated(
+        'SELECT ${outer:${inner}',
+        'hive',
+        'LEX_UNTERMINATED_TEMPLATE',
+        '${'
+    );
 });
 
 test('unknown leaf does not produce diagnostic', function() {

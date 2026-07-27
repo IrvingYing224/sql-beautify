@@ -627,8 +627,12 @@ class PrattParser {
                 )
             );
         }
+        const calleeLeaf = this.context.leaves[callee.leafRange.start];
         const calleeWord =
-            callee.leafRange.end === callee.leafRange.start + 1
+            callee.leafRange.end === callee.leafRange.start + 1 &&
+            calleeLeaf !== undefined &&
+            calleeLeaf.channel === "code" &&
+            (calleeLeaf.kind === "identifier" || calleeLeaf.kind === "keyword")
                 ? this.context.table.normalizedWord(callee.leafRange.start)
                 : null;
         this.position = closePosition + 1;

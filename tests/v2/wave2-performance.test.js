@@ -9,6 +9,12 @@ var path = require('path');
 var root = path.join(__dirname, '..', '..');
 var currentCoreRoot = path.join(root, '.tmp', 'v2-core');
 var parser = require(path.join(currentCoreRoot, 'core', 'syntax', 'parser.js'));
+var parserContext = require(path.join(
+    currentCoreRoot,
+    'core',
+    'syntax',
+    'parser-context.js'
+));
 var analysis = require(path.join(currentCoreRoot, 'core', 'analysis', 'index.js'));
 var invariants = require(path.join(currentCoreRoot, 'core', 'syntax', 'invariants.js'));
 var tokenTable = require(path.join(currentCoreRoot, 'core', 'syntax', 'token-table.js'));
@@ -378,6 +384,79 @@ function measureDeepBinaryChains() {
     return Number(process.hrtime.bigint() - started) / 1e6;
 }
 
+function measureNestedUnsupportedProofWork() {
+    var originalBeginParserTrial = parserContext.beginParserTrial;
+    var current = null;
+    var reports = [];
+    parserContext.beginParserTrial = function(context, key) {
+        current.calls += 1;
+        try {
+            var claim = originalBeginParserTrial(context, key);
+            if (claim.kind === 'execute') {
+                current.chargedRangeWork += Math.max(1, key.range.end - key.range.start);
+            }
+            return claim;
+        } catch (error) {
+            current.rejectedRangeWork += Math.max(1, key.range.end - key.range.start);
+            throw error;
+        }
+    };
+    try {
+        [8, 10, 14, 18, 22].forEach(function(depth) {
+            var source = 'SELECT 1';
+            for (var index = 0; index < depth; index++) {
+                source = 'SELECT * FROM (' + source + ') q QUALIFY flag';
+            }
+            current = {
+                calls: 0,
+                chargedRangeWork: 0,
+                rejectedRangeWork: 0
+            };
+            var started = process.hrtime.bigint();
+            var result = parser.parseSql(source, {
+                dialect: 'hive',
+                mode: 'document'
+            });
+            var elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+            var syntaxLeafCount = result.leaves.filter(function(leaf) {
+                return leaf.channel === 'code' || leaf.channel === 'protected';
+            }).length;
+            var workBudget = Math.max(64, syntaxLeafCount * 8);
+            assert.ok(current.chargedRangeWork <= workBudget,
+                'trial range work must stay inside the linear request budget at depth ' +
+                    depth + ': ' + current.chargedRangeWork + ' > ' + workBudget);
+            assert.ok(current.calls <= result.leaves.length,
+                'trial call count must stay linear at depth ' + depth + ': ' +
+                    current.calls + ' > ' + result.leaves.length);
+            assert.strictEqual(result.diagnostics.some(function(diagnostic) {
+                return diagnostic.code === 'SYN_INTERNAL_INVARIANT';
+            }), false, 'depth ' + depth + ' must not reach the internal fallback');
+            if (depth >= 10) {
+                assert.ok(result.diagnostics.some(function(diagnostic) {
+                    return diagnostic.code === 'SYN_PROOF_BUDGET' &&
+                        diagnostic.capabilityId === 'qualify';
+                }), 'depth ' + depth + ' must retain bounded QUALIFY recovery');
+            }
+            reports.push({
+                depth: depth,
+                sourceChars: source.length,
+                syntaxLeaves: syntaxLeafCount,
+                calls: current.calls,
+                chargedRangeWork: current.chargedRangeWork,
+                rejectedRangeWork: current.rejectedRangeWork,
+                workBudget: workBudget,
+                elapsedMs: elapsedMs
+            });
+        });
+    } finally {
+        parserContext.beginParserTrial = originalBeginParserTrial;
+    }
+    assert.ok(reports.reduce(function(total, report) {
+        return total + report.elapsedMs;
+    }, 0) < 1500, 'nested proof catastrophe gate exceeded 1500ms');
+    return reports;
+}
+
 function measureScaleInChild(
     mode,
     statementCount,
@@ -560,6 +639,7 @@ var aliases800 = measureAliasColumnLists(800);
 var aliasRatio400 = aliases400.medianMs / aliases100.medianMs;
 var aliasRatio800 = aliases800.medianMs / aliases100.medianMs;
 var deepBinaryChainsMs = measureDeepBinaryChains();
+var nestedUnsupportedProofs = measureNestedUnsupportedProofWork();
 var analysisScales = measureScales('analysis', currentCoreRoot);
 var analysis100 = analysisScales[0];
 var analysis800 = analysisScales[1];
@@ -619,6 +699,18 @@ var performanceReport = {
     aliasListRatio400To100: Number(aliasRatio400.toFixed(2)),
     aliasListRatio800To100: Number(aliasRatio800.toFixed(2)),
     deepBinaryChainsMs: Number(deepBinaryChainsMs.toFixed(2)),
+    nestedUnsupportedProofs: nestedUnsupportedProofs.map(function(item) {
+        return {
+            depth: item.depth,
+            sourceChars: item.sourceChars,
+            syntaxLeaves: item.syntaxLeaves,
+            calls: item.calls,
+            chargedRangeWork: item.chargedRangeWork,
+            rejectedRangeWork: item.rejectedRangeWork,
+            workBudget: item.workBudget,
+            elapsedMs: Number(item.elapsedMs.toFixed(2))
+        };
+    }),
     analysisSamples: [analysis100, analysis800, analysis1200].map(function(item) {
         return {
             statements: item.statementCount,
