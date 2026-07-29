@@ -189,7 +189,11 @@ async function run() {
     var cancellationLatencyMs = performance.now() - cancelStarted;
     assert.strictEqual(cancelledResult.diagnostics[0].code, 'ADAPTER_CANCELLED');
     assert.ok(cancellationLatencyMs < 500, 'worker cancellation latency gate');
+    await new Promise(function(resolve) { setTimeout(resolve, 20); });
     var stats = worker.statistics();
+    assert.strictEqual(stats.cancellationReuses, 1,
+        '100 KiB-class request must complete inside its measured size-aware drain grace');
+    assert.strictEqual(stats.cancellationRetirements, 0);
     assert.ok(stats.workerStartMs >= 0);
     assert.ok(stats.lastFormattingMs >= 0);
     assert.ok(stats.lastRoundTripMs >= 0);
@@ -204,6 +208,11 @@ async function run() {
         specialReport: specialReport,
         directCalibration: directCalibration,
         cancellationLatencyMs: cancellationLatencyMs,
+        cancellationGraceMs: {
+            source8KiB: persistentModule.cancellationDrainGraceMs(8 * 1024),
+            source100k: persistentModule.cancellationDrainGraceMs(100000),
+            source512KiB: persistentModule.cancellationDrainGraceMs(512 * 1024)
+        },
         stats: stats
     }));
 }

@@ -1,5 +1,37 @@
 import { isProxy } from "node:util/types";
 
+export interface DataPropertySnapshot {
+    readonly value: unknown;
+}
+
+export function snapshotDataProperty(
+    value: unknown,
+    key: string
+): DataPropertySnapshot | null {
+    try {
+        if (
+            typeof value !== "object" ||
+            value === null ||
+            isProxy(value) ||
+            Array.isArray(value)
+        ) {
+            return null;
+        }
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== Object.prototype && prototype !== null) {
+            return null;
+        }
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        return descriptor !== undefined &&
+            descriptor.enumerable === true &&
+            "value" in descriptor
+            ? Object.freeze({ value: descriptor.value })
+            : null;
+    } catch {
+        return null;
+    }
+}
+
 export function snapshotDataProperties(
     value: unknown,
     allowedKeys: ReadonlySet<string>,

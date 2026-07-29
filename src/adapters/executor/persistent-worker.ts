@@ -28,10 +28,12 @@ import {
 } from "./request";
 import {
     snapshotWorkerResponseMessage,
+    snapshotWorkerResponseIdentity,
     sourceDigest,
     type WorkerBatchRequestMessage,
     type WorkerFormatRequestMessage,
     type WorkerRequestMessage,
+    type WorkerResponseIdentity,
     type WorkerResponseMessage,
 } from "./protocol";
 import type {
@@ -60,6 +62,16 @@ export interface PersistentWorkerStatistics {
     readonly lastFormattingMs: number;
     readonly lastRoundTripMs: number;
     readonly lastTransferMs: number;
+}
+
+export function cancellationDrainGraceMs(sourceCodeUnits: number): number {
+    if (!Number.isSafeInteger(sourceCodeUnits) || sourceCodeUnits < 0) {
+        return 200;
+    }
+    return Math.min(
+        2_000,
+        200 + Math.ceil(sourceCodeUnits / 1_024) * 3
+    );
 }
 
 type StableExecutionRequest =
@@ -107,7 +119,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
     private readonly maxConsecutiveFailures: number;
     private readonly maxStaleResponses: number;
     private readonly requestTimeoutMs: number;
-    private readonly cancellationGraceMs: number;
+    private readonly cancellationGraceMs: number | null;
     private readonly maxQueueSize: number;
     private readonly maxQueuedSourceCodeUnits: number;
     private readonly queue: PendingRequest[] = [];
@@ -136,7 +148,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         this.maxConsecutiveFailures = options.maxConsecutiveFailures ?? 3;
         this.maxStaleResponses = options.maxStaleResponses ?? 8;
         this.requestTimeoutMs = options.requestTimeoutMs ?? 60_000;
-        this.cancellationGraceMs = options.cancellationGraceMs ?? 200;
+        this.cancellationGraceMs = options.cancellationGraceMs ?? null;
         this.maxQueueSize = options.maxQueueSize ?? 64;
         this.maxQueuedSourceCodeUnits =
             options.maxQueuedSourceCodeUnits ?? 4 * 1024 * 1024;
@@ -149,8 +161,10 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             this.maxStaleResponses < 1 ||
             !Number.isSafeInteger(this.requestTimeoutMs) ||
             this.requestTimeoutMs < 1 ||
-            !Number.isSafeInteger(this.cancellationGraceMs) ||
-            this.cancellationGraceMs < 1 ||
+            (this.cancellationGraceMs !== null && (
+                !Number.isSafeInteger(this.cancellationGraceMs) ||
+                this.cancellationGraceMs < 1
+            )) ||
             !Number.isSafeInteger(this.maxQueueSize) ||
             this.maxQueueSize < 1 ||
             !Number.isSafeInteger(this.maxQueuedSourceCodeUnits) ||
@@ -394,7 +408,8 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             this.cancellationRetirements += 1;
             this.finish(pending, this.cancelledResult(pending));
             void this.beginRetireWorker().then(() => this.pump());
-        }, this.cancellationGraceMs);
+        }, this.cancellationGraceMs ??
+            cancellationDrainGraceMs(pending.request.source.length));
     }
 
     private handleDeadline(pending: PendingRequest): void {
@@ -416,6 +431,17 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         const worker = this.worker;
         if (this.active === pending && worker !== null) {
             this.handleFailure(worker, "ADAPTER_WORKER_TIMEOUT");
+            return;
+        }
+        if (this.active === pending) {
+            this.active = null;
+            this.staleForActive = 0;
+            this.consecutiveFailures += 1;
+            this.finish(
+                pending,
+                this.failedResult(pending, "ADAPTER_WORKER_TIMEOUT")
+            );
+            void this.beginRetireWorker().then(() => this.resumeAfterFailure());
         }
     }
 
@@ -564,24 +590,25 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
         return message;
     }
 
-    private responseMatches(
-        response: WorkerResponseMessage,
+    private responseIdentityMatches(
+        response: WorkerResponseIdentity,
         pending: PendingRequest
     ): boolean {
         if (
             response.requestId !== pending.requestId ||
             response.generation !== pending.generation ||
             response.documentVersion !== pending.request.documentVersion ||
-            response.sourceDigest !== pending.digest ||
-            response.runtimeDigest !== this.runtimeDigest
+            response.sourceDigest !== pending.digest
         ) {
             return false;
         }
         if (pending.kind === "batch") {
-            return response.kind === "batch-result";
+            return response.requestKind === "validate-and-format" &&
+                response.targetId === null;
         }
         const request = pending.request as StableFormatExecutionRequest;
-        return response.kind === "result" && response.targetId === request.targetId;
+        return response.requestKind === "format" &&
+            response.targetId === request.targetId;
     }
 
     private snapshotResponseResult(
@@ -611,16 +638,33 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             return;
         }
         const response = snapshotWorkerResponseMessage(value);
+        const identity = snapshotWorkerResponseIdentity(value);
         const pending = this.active;
         if (pending.observation.isCancelled() && pending.state === "active") {
             this.beginCancellationDrain(pending);
         }
-        if (response === null || !this.responseMatches(response, pending)) {
+        if (identity === null) {
+            this.handleFailure(state, "ADAPTER_WORKER_RESULT_CONTRACT");
+            return;
+        }
+        if (!this.responseIdentityMatches(identity, pending)) {
             this.staleResponses += 1;
             this.staleForActive += 1;
             if (this.staleForActive >= this.maxStaleResponses) {
                 this.handleFailure(state, "ADAPTER_WORKER_STALE_RESPONSE");
             }
+            return;
+        }
+        if (identity.runtimeDigest !== this.runtimeDigest) {
+            this.handleFailure(state, "ADAPTER_WORKER_RUNTIME_MISMATCH");
+            return;
+        }
+        if (response === null) {
+            this.handleFailure(state, "ADAPTER_WORKER_RESULT_CONTRACT");
+            return;
+        }
+        if (response.kind === "protocol-error") {
+            this.handleFailure(state, response.code);
             return;
         }
         const result = this.snapshotResponseResult(response, pending);

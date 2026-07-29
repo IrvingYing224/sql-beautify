@@ -1,4 +1,8 @@
-import type { DebugEvent, DebugPhase } from "../../core/diagnostics/debug-event";
+import {
+    normalizeDebugFramePath,
+    type DebugEvent,
+    type DebugPhase,
+} from "../../core/diagnostics/debug-event";
 import {
     snapshotDataProperties,
     snapshotDenseDataArray,
@@ -20,6 +24,25 @@ const PHASES: ReadonlySet<string> = new Set([
     "executor",
     "worker",
 ]);
+export const MAX_DEBUG_EVENT_COUNT = 64;
+const DEBUG_EVENTS_TRUNCATED: DebugEvent = Object.freeze({
+    phase: "executor",
+    code: "ADAPTER_DEBUG_EVENTS_TRUNCATED",
+    errorName: "DebugEventLimit",
+    message: "Additional debug events were truncated",
+    frames: Object.freeze([]),
+});
+
+export function limitDebugEvents(
+    values: readonly DebugEvent[]
+): readonly DebugEvent[] {
+    return values.length <= MAX_DEBUG_EVENT_COUNT
+        ? Object.freeze(Array.from(values))
+        : Object.freeze([
+              ...values.slice(0, MAX_DEBUG_EVENT_COUNT - 1),
+              DEBUG_EVENTS_TRUNCATED,
+          ]);
+}
 
 function isPhase(value: unknown): value is DebugPhase {
     return typeof value === "string" && PHASES.has(value);
@@ -27,7 +50,7 @@ function isPhase(value: unknown): value is DebugPhase {
 
 export function snapshotDebugEvents(value: unknown): readonly DebugEvent[] | null {
     const rawEvents = snapshotDenseDataArray(value);
-    if (rawEvents === null || rawEvents.length > 64) {
+    if (rawEvents === null || rawEvents.length > MAX_DEBUG_EVENT_COUNT) {
         return null;
     }
     const events: DebugEvent[] = [];
@@ -75,7 +98,7 @@ export function snapshotDebugEvents(value: unknown): readonly DebugEvent[] | nul
             if (totalLength > 2_048) {
                 return null;
             }
-            frames.push(frame);
+            frames.push(normalizeDebugFramePath(frame));
         }
         events.push(Object.freeze({
             phase: raw.phase,

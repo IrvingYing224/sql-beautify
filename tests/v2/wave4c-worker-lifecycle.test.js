@@ -100,6 +100,19 @@ FakeWorker.prototype.respondBatch = function(message, overrides, resultOverride)
     }, overrides || {});
     this.handlers.message(response);
 };
+FakeWorker.prototype.respondProtocolError = function(message) {
+    this.handlers.message({
+        kind: 'protocol-error',
+        requestKind: message.kind,
+        requestId: message.requestId,
+        generation: message.generation,
+        documentVersion: message.documentVersion,
+        targetId: message.kind == 'format' ? message.targetId : null,
+        sourceDigest: message.sourceDigest,
+        runtimeDigest: RUNTIME_DIGEST,
+        code: 'ADAPTER_WORKER_PROTOCOL'
+    });
+};
 FakeWorker.prototype.crash = function() {
     var handlers = this.handlers;
     handlers.error(new Error('worker crash'));
@@ -124,6 +137,10 @@ async function tick() {
 }
 
 async function run() {
+    assert.strictEqual(persistentModule.cancellationDrainGraceMs(8 * 1024), 224);
+    assert.strictEqual(persistentModule.cancellationDrainGraceMs(100000), 494);
+    assert.strictEqual(persistentModule.cancellationDrainGraceMs(512 * 1024), 1736);
+
     var queuedFactory = fakeFactory(function() {});
     var queuedExecutor = new persistentModule.PersistentWorkerExecutor({
         workerFactory: queuedFactory.create, runtimeDigest: RUNTIME_DIGEST
@@ -198,16 +215,50 @@ async function run() {
     staleFactory.workers[0].respond(staleMessage, {
         sourceDigest: new Array(65).join('0')
     });
-    staleFactory.workers[0].respond(staleMessage, {
-        runtimeDigest: new Array(65).join('0')
-    });
     var settled = false;
     stalePromise.then(function() { settled = true; });
     await tick();
     assert.strictEqual(settled, false, 'stale response must not resolve the active request');
-    staleFactory.workers[0].respond(staleMessage);
-    assert.strictEqual((await stalePromise).status, 'unchanged');
-    assert.strictEqual(staleExecutor.statistics().staleResponses, 6);
+    staleFactory.workers[0].respond(staleMessage, {
+        runtimeDigest: new Array(65).join('0')
+    });
+    assert.strictEqual((await stalePromise).diagnostics[0].code,
+        'ADAPTER_WORKER_RUNTIME_MISMATCH',
+        'runtime skew must fail immediately instead of waiting for the request timeout');
+    assert.strictEqual(staleExecutor.statistics().staleResponses, 5,
+        'runtime skew is a protocol failure, not a stale response');
+    await tick();
+
+    var protocolFactory = fakeFactory(function() {});
+    var protocolExecutor = new persistentModule.PersistentWorkerExecutor({
+        workerFactory: protocolFactory.create,
+        runtimeDigest: RUNTIME_DIGEST,
+        requestTimeoutMs: 1000
+    });
+    var protocolPromise = protocolExecutor.format(request(70));
+    protocolFactory.workers[0].respondProtocolError(
+        protocolFactory.workers[0].messages[0]
+    );
+    assert.strictEqual((await protocolPromise).diagnostics[0].code,
+        'ADAPTER_WORKER_PROTOCOL',
+        'an identified protocol rejection must fail the active request immediately');
+    await protocolExecutor.dispose();
+
+    var malformedFactory = fakeFactory(function() {});
+    var malformedExecutor = new persistentModule.PersistentWorkerExecutor({
+        workerFactory: malformedFactory.create,
+        runtimeDigest: RUNTIME_DIGEST,
+        requestTimeoutMs: 1000
+    });
+    var malformedPromise = malformedExecutor.format(request(71));
+    var malformedMessage = malformedFactory.workers[0].messages[0];
+    malformedFactory.workers[0].respond(malformedMessage, {
+        formattingMs: 'invalid'
+    });
+    assert.strictEqual((await malformedPromise).diagnostics[0].code,
+        'ADAPTER_WORKER_RESULT_CONTRACT',
+        'a malformed response with current identity must fail immediately');
+    await malformedExecutor.dispose();
 
     var timeoutFactory = fakeFactory(function() {});
     var timeoutExecutor = new persistentModule.PersistentWorkerExecutor({
@@ -396,6 +447,21 @@ async function run() {
     assert.strictEqual(queuedDeadlineExecutor.statistics().cancellationReuses, 1);
     await queuedDeadlineExecutor.dispose();
 
+    var missingWorkerFactory = fakeFactory(function() {});
+    var missingWorkerExecutor = new persistentModule.PersistentWorkerExecutor({
+        workerFactory: missingWorkerFactory.create,
+        runtimeDigest: RUNTIME_DIGEST,
+        requestTimeoutMs: 20
+    });
+    var missingWorkerPromise = missingWorkerExecutor.format(request(26));
+    var detachedWorkerState = missingWorkerExecutor.worker;
+    missingWorkerExecutor.worker = null;
+    assert.strictEqual((await missingWorkerPromise).diagnostics[0].code,
+        'ADAPTER_WORKER_TIMEOUT',
+        'deadline fallback must settle an active request even if worker state is absent');
+    missingWorkerExecutor.worker = detachedWorkerState;
+    await missingWorkerExecutor.dispose();
+
     var batchFactory = fakeFactory(function() {});
     var batchExecutor = new persistentModule.PersistentWorkerExecutor({
         workerFactory: batchFactory.create,
@@ -478,7 +544,7 @@ async function run() {
             debugEvents: [{
                 phase: 'worker', code: 'ADAPTER_WORKER_FORMAT_FAILED',
                 errorName: 'Error', message: 'bounded private detail',
-                frames: ['at worker.js:1:1']
+                frames: ['at worker (/Users/private/workspace/worker.js:1:1)']
             }]
         }
     });
@@ -486,6 +552,9 @@ async function run() {
     assert.strictEqual(debugOutcome.debugEvents.length, 1,
         'valid worker debug events must survive strict protocol validation');
     assert.strictEqual(debugOutcome.debugEvents[0].message, 'bounded private detail');
+    assert.deepStrictEqual(debugOutcome.debugEvents[0].frames,
+        ['at worker (<path>/worker.js:1:1)'],
+        'hostile worker frame paths must be normalized at the consumer boundary');
     await debugExecutor.dispose();
 
     var hostileDebugFactory = fakeFactory(function() {});

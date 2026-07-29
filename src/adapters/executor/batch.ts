@@ -7,7 +7,10 @@ import {
     type RenderEnvironment,
 } from "../../core/renderer/environment";
 import { snapshotFormatExecutionOutcome } from "../boundary/execution-outcome-snapshot";
-import { snapshotDebugEvents } from "../boundary/debug-event-snapshot";
+import {
+    limitDebugEvents,
+    snapshotDebugEvents,
+} from "../boundary/debug-event-snapshot";
 import {
     isFormatResultSafeForSource,
     snapshotFormatResult,
@@ -49,7 +52,8 @@ const TARGET_RESULT_KEYS: ReadonlySet<string> = new Set([
 function debugProperties(debugEvents: readonly DebugEvent[]): Readonly<{
     readonly debugEvents?: readonly DebugEvent[];
 }> {
-    return debugEvents.length === 0 ? Object.freeze({}) : { debugEvents };
+    const bounded = limitDebugEvents(debugEvents);
+    return bounded.length === 0 ? Object.freeze({}) : { debugEvents: bounded };
 }
 
 function failed(

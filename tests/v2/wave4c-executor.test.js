@@ -2,6 +2,7 @@ var assert = require('assert');
 var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
+var Worker = require('worker_threads').Worker;
 
 var root = path.join(__dirname, '..', '..');
 var directModule = require('../../.tmp/v2-core/adapters/executor/direct');
@@ -10,6 +11,7 @@ var persistentModule = require('../../.tmp/v2-core/adapters/executor/persistent-
 var connectionModule = require('../../.tmp/v2-core/adapters/executor/worker-connection');
 var routedModule = require('../../.tmp/v2-core/adapters/executor/routed');
 var debugEventModule = require('../../.tmp/v2-core/core/diagnostics/debug-event');
+var batchModule = require('../../.tmp/v2-core/adapters/executor/batch');
 
 function digest(file) {
     return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -30,6 +32,22 @@ function request(source, newline, tabSize) {
         value.tabSize = tabSize;
     }
     return value;
+}
+
+function nextWorkerMessage(worker, timeoutMs) {
+    return new Promise(function(resolve, reject) {
+        var timeout = setTimeout(function() {
+            reject(new Error('worker message timeout'));
+        }, timeoutMs);
+        worker.once('message', function(value) {
+            clearTimeout(timeout);
+            resolve(value);
+        });
+        worker.once('error', function(error) {
+            clearTimeout(timeout);
+            reject(error);
+        });
+    });
 }
 
 function countingExecutor(label) {
@@ -57,6 +75,45 @@ async function run() {
     var workerPath = path.join(root, 'dist', 'formatter-worker.cjs');
     assert.ok(fs.existsSync(workerPath), 'production worker bundle must be built');
     var runtimeDigest = digest(runtimePath);
+
+    var protocolSource = 'select 1';
+    var protocolWorker = new Worker(workerPath, {
+        workerData: { runtimePath: runtimePath }
+    });
+    var protocolResponsePromise = nextWorkerMessage(protocolWorker, 1000);
+    protocolWorker.postMessage({
+        kind: 'format', requestId: 900, generation: 1, documentVersion: 1,
+        targetId: 'protocol',
+        sourceDigest: crypto.createHash('sha256').update(protocolSource).digest('hex'),
+        source: protocolSource, options: { dialect: 'hive' }, mode: 'invalid',
+        newline: '\n', tabSize: 4, debugEnabled: false
+    });
+    var protocolResponse = await protocolResponsePromise;
+    assert.strictEqual(protocolResponse.kind, 'protocol-error');
+    assert.strictEqual(protocolResponse.code, 'ADAPTER_WORKER_PROTOCOL');
+    assert.strictEqual(protocolResponse.requestId, 900,
+        'invalid payload with safe identity must receive a bounded negative response');
+    await protocolWorker.terminate();
+
+    var invalidIdentityWorker = new Worker(workerPath, {
+        workerData: { runtimePath: runtimePath }
+    });
+    var invalidIdentityEvent = new Promise(function(resolve) {
+        var timeout = setTimeout(function() { resolve('timeout'); }, 1000);
+        invalidIdentityWorker.once('error', function() {
+            clearTimeout(timeout);
+            resolve('error');
+        });
+        invalidIdentityWorker.once('exit', function() {
+            clearTimeout(timeout);
+            resolve('exit');
+        });
+    });
+    invalidIdentityWorker.postMessage({ kind: 'unknown' });
+    assert.notStrictEqual(await invalidIdentityEvent, 'timeout',
+        'a request without a safe identity must terminate instead of hanging silently');
+    await invalidIdentityWorker.terminate();
+
     var direct = new directModule.DirectFormatterExecutor(targetCore.formatSql);
     var persistent = new persistentModule.PersistentWorkerExecutor({
         workerFactory: connectionModule.createNodeWorkerFactory(workerPath, runtimePath),
@@ -155,6 +212,25 @@ async function run() {
     assert.strictEqual(routed.lastRoute(), 'worker');
     assert.strictEqual(directCounter.calls, 1);
     assert.strictEqual(workerCounter.calls, 1);
+
+    var hostileLegacy = {
+        format: async function() {
+            return { status: 'formatted', text: { hostile: true }, diagnostics: [] };
+        },
+        dispose: async function() {}
+    };
+    var legacyRouter = new routedModule.RoutedFormatterExecutor(
+        hostileLegacy,
+        hostileLegacy,
+        { sourceCodeUnits: 1000, leafCount: 1000 }
+    );
+    var legacySource = 'select preserve_me';
+    var legacyResult = await legacyRouter.format(request(legacySource));
+    assert.strictEqual(legacyResult.status, 'failed');
+    assert.strictEqual(legacyResult.text, legacySource,
+        'legacy fallback validation failure must preserve the snapshotted source');
+    assert.strictEqual(legacyResult.diagnostics[0].code, 'ADAPTER_RESULT_CONTRACT');
+    await legacyRouter.dispose();
 
     var defaultRouteDirect = countingExecutor('DEFAULT_DIRECT');
     var defaultRouteWorker = countingExecutor('DEFAULT_WORKER');
@@ -273,6 +349,56 @@ async function run() {
         ],
         'debug frames must redact absolute POSIX, file URL, and Windows paths'
     );
+
+    var debugBatchLines = [];
+    var debugBatchTargets = [];
+    var debugBatchOffset = 0;
+    for (var debugIndex = 0; debugIndex < 65; debugIndex++) {
+        var debugLine = 'select ' + debugIndex + ';\n';
+        debugBatchLines.push(debugLine);
+        debugBatchTargets.push({
+            id: 'debug:' + debugIndex,
+            start: debugBatchOffset,
+            end: debugBatchOffset + debugLine.length - 1,
+            mode: 'fragment'
+        });
+        debugBatchOffset += debugLine.length;
+    }
+    var debugBatchSource = debugBatchLines.join('');
+    var stableDebugBatchRequest = {
+        source: debugBatchSource,
+        options: { dialect: 'hive' },
+        targets: debugBatchTargets,
+        documentVersion: 90,
+        newline: '\n',
+        tabSize: 4,
+        debugEnabled: true
+    };
+    var debugBatch = batchModule.executeFormatBatch(
+        stableDebugBatchRequest,
+        function(value) {
+            return {
+                result: {
+                    status: 'unchanged', text: value, diagnostics: [],
+                    sourceMap: { entries: value.length === 0 ? [] : [{
+                        source: { start: 0, end: value.length },
+                        output: { start: 0, end: value.length }
+                    }] }
+                },
+                debugEvents: [{
+                    phase: 'executor', code: 'ADAPTER_EXECUTOR_FAILED',
+                    errorName: 'Error', message: 'bounded event', frames: []
+                }]
+            };
+        }
+    );
+    assert.strictEqual(debugBatch.debugEvents.length, 64);
+    assert.strictEqual(debugBatch.debugEvents[63].code,
+        'ADAPTER_DEBUG_EVENTS_TRUNCATED');
+    assert.ok(batchModule.snapshotFormatBatchExecutionResult(
+        debugBatch,
+        stableDebugBatchRequest
+    ), 'producer-side debug truncation must remain valid at the consumer boundary');
     await throwingDirect.dispose();
 
     await routed.dispose();

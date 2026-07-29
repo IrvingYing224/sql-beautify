@@ -11,14 +11,17 @@ import {
     type RenderTabSize,
 } from "../../core/renderer/environment";
 import { failedFormatResult } from "../boundary/format-result-snapshot";
+import { limitDebugEvents } from "../boundary/debug-event-snapshot";
 import type {
     FormatBatchExecutionResult,
     FormatTarget,
 } from "../transaction/types";
 import {
     snapshotWorkerRequestMessage,
+    snapshotWorkerRequestIdentity,
     type WorkerBatchResponseMessage,
     type WorkerFormatResponseMessage,
+    type WorkerProtocolErrorResponseMessage,
 } from "./protocol";
 
 interface FormatterRuntime {
@@ -64,9 +67,42 @@ if (
     throw new Error("Formatter worker runtime is invalid");
 }
 
+function boundedFormatExecution(value: FormatSqlExecution): FormatSqlExecution {
+    return Object.freeze({
+        result: value.result,
+        debugEvents: limitDebugEvents(value.debugEvents),
+    });
+}
+
+function boundedBatchResult(
+    value: FormatBatchExecutionResult
+): FormatBatchExecutionResult {
+    const debugEvents = limitDebugEvents(value.debugEvents ?? Object.freeze([]));
+    return Object.freeze({
+        ...value,
+        debugEvents,
+    });
+}
+
 port.on("message", (value: unknown) => {
     const request = snapshotWorkerRequestMessage(value);
     if (request === null) {
+        const identity = snapshotWorkerRequestIdentity(value);
+        if (identity === null) {
+            throw new TypeError("Formatter worker request identity is invalid");
+        }
+        const response: WorkerProtocolErrorResponseMessage = Object.freeze({
+            kind: "protocol-error",
+            requestKind: identity.requestKind,
+            requestId: identity.requestId,
+            generation: identity.generation,
+            documentVersion: identity.documentVersion,
+            targetId: identity.targetId,
+            sourceDigest: identity.sourceDigest,
+            runtimeDigest,
+            code: "ADAPTER_WORKER_PROTOCOL",
+        });
+        port.postMessage(response);
         return;
     }
     const startedAt = performance.now();
@@ -107,7 +143,7 @@ port.on("message", (value: unknown) => {
             sourceDigest: request.sourceDigest,
             runtimeDigest,
             formattingMs: performance.now() - startedAt,
-            result,
+            result: boundedBatchResult(result),
         });
         port.postMessage(response);
         return;
@@ -149,7 +185,7 @@ port.on("message", (value: unknown) => {
         sourceDigest: request.sourceDigest,
         runtimeDigest,
         formattingMs: performance.now() - startedAt,
-        result,
+        result: boundedFormatExecution(result),
     });
     port.postMessage(response);
 });

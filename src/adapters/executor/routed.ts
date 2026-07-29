@@ -3,6 +3,7 @@ import {
     formatExecutionOutcome,
     snapshotFormatExecutionOutcome,
 } from "../boundary/execution-outcome-snapshot";
+import { failedFormatResult } from "../boundary/format-result-snapshot";
 import { lexSql } from "../../core/lexer/lossless-lexer";
 import type {
     FormatBatchExecutionResult,
@@ -92,9 +93,22 @@ export class RoutedFormatterExecutor implements FormatterExecutor {
         if (typeof selected.execute === "function") {
             return await selected.execute(stableRequest);
         }
-        const raw = await selected.format(stableRequest);
+        let raw: unknown;
+        try {
+            raw = await selected.format(stableRequest);
+        } catch {
+            return formatExecutionOutcome(failedFormatResult(
+                snapshot.source,
+                "ADAPTER_EXECUTOR_FAILED",
+                "Formatter executor failed"
+            ));
+        }
         return snapshotFormatExecutionOutcome(raw, snapshot.source) ??
-            formatExecutionOutcome(raw);
+            formatExecutionOutcome(failedFormatResult(
+                snapshot.source,
+                "ADAPTER_RESULT_CONTRACT",
+                "Formatter result violated the executor contract"
+            ));
     }
 
     async validateAndFormat(

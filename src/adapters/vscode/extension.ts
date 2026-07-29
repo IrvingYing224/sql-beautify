@@ -48,7 +48,6 @@ import type {
     TransactionDiagnostic,
 } from "../transaction/types";
 import { createRejectedTransaction } from "../transaction/rejected";
-import { isRangeValidationCode } from "../transaction/range";
 import { wrapVscodeCancellationToken } from "./cancellation";
 import {
     mergeExplicitFormatOptions,
@@ -101,10 +100,22 @@ const WORKER_REJECTION_CODES: ReadonlySet<string> = new Set([
     "ADAPTER_WORKER_BACKPRESSURE",
     "ADAPTER_WORKER_CRASH",
     "ADAPTER_WORKER_FORMAT_FAILED",
+    "ADAPTER_WORKER_PROTOCOL",
     "ADAPTER_WORKER_RESULT_CONTRACT",
+    "ADAPTER_WORKER_RUNTIME_MISMATCH",
     "ADAPTER_WORKER_STALE_RESPONSE",
     "ADAPTER_WORKER_TIMEOUT",
     "ADAPTER_WORKER_UNAVAILABLE",
+]);
+const RANGE_REJECTION_CODES: ReadonlySet<string> = new Set([
+    "ADAPTER_RANGE_TARGET",
+    "ADAPTER_RANGE_DOCUMENT",
+    "ADAPTER_RANGE_LINE",
+    "ADAPTER_RANGE_PROTECTED",
+    "ADAPTER_RANGE_EMPTY",
+    "ADAPTER_RANGE_ANALYSIS",
+    "ADAPTER_RANGE_OPAQUE",
+    "ADAPTER_RANGE_OWNERSHIP",
 ]);
 
 interface ExtensionConfigurationSuccess {
@@ -562,7 +573,7 @@ export function createVscodeExtension(
                 );
                 return;
             }
-            if (Array.from(codes).some(isRangeValidationCode)) {
+            if (Array.from(codes).some((code) => RANGE_REJECTION_CODES.has(code))) {
                 void vscode.window.showWarningMessage(
                     messages.text("rangeRejected")
                 );

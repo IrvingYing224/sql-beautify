@@ -8,7 +8,10 @@ import {
     type RenderNewline,
     type RenderTabSize,
 } from "../../core/renderer/environment";
-import { snapshotDataProperties } from "../boundary/data-snapshot";
+import {
+    snapshotDataProperties,
+    snapshotDataProperty,
+} from "../boundary/data-snapshot";
 import type { FormatTarget } from "../transaction/types";
 import { snapshotValidateAndFormatExecutionRequest } from "./request";
 
@@ -59,6 +62,17 @@ const BATCH_RESPONSE_KEYS: ReadonlySet<string> = new Set([
     "runtimeDigest",
     "formattingMs",
     "result",
+]);
+const PROTOCOL_ERROR_RESPONSE_KEYS: ReadonlySet<string> = new Set([
+    "kind",
+    "requestKind",
+    "requestId",
+    "generation",
+    "documentVersion",
+    "targetId",
+    "sourceDigest",
+    "runtimeDigest",
+    "code",
 ]);
 
 export interface WorkerFormatRequestMessage {
@@ -113,21 +127,97 @@ export interface WorkerBatchResponseMessage {
     readonly result: unknown;
 }
 
+export type WorkerRequestKind = "format" | "validate-and-format";
+
+export interface WorkerRequestIdentity {
+    readonly requestKind: WorkerRequestKind;
+    readonly requestId: number;
+    readonly generation: number;
+    readonly documentVersion: number;
+    readonly targetId: string | null;
+    readonly sourceDigest: string;
+}
+
+export interface WorkerProtocolErrorResponseMessage {
+    readonly kind: "protocol-error";
+    readonly requestKind: WorkerRequestKind;
+    readonly requestId: number;
+    readonly generation: number;
+    readonly documentVersion: number;
+    readonly targetId: string | null;
+    readonly sourceDigest: string;
+    readonly runtimeDigest: string;
+    readonly code: "ADAPTER_WORKER_PROTOCOL";
+}
+
+export interface WorkerResponseIdentity extends WorkerRequestIdentity {
+    readonly runtimeDigest: string;
+}
+
 export type WorkerRequestMessage =
     | WorkerFormatRequestMessage
     | WorkerBatchRequestMessage;
 
 export type WorkerResponseMessage =
     | WorkerFormatResponseMessage
-    | WorkerBatchResponseMessage;
+    | WorkerBatchResponseMessage
+    | WorkerProtocolErrorResponseMessage;
+
+function validPositiveInteger(value: unknown): value is number {
+    return Number.isSafeInteger(value) && (value as number) >= 1;
+}
+
+function validDocumentVersion(value: unknown): value is number {
+    return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function validDigest(value: unknown): value is string {
+    return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function validFormattingMs(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
 
 export function sourceDigest(source: string): string {
     return createHash("sha256").update(source, "utf8").digest("hex");
 }
 
-export function snapshotWorkerRequestMessage(
+export function snapshotWorkerRequestIdentity(
     value: unknown
-): WorkerRequestMessage | null {
+): WorkerRequestIdentity | null {
+    const kind = snapshotDataProperty(value, "kind")?.value;
+    if (kind !== "format" && kind !== "validate-and-format") {
+        return null;
+    }
+    const requestId = snapshotDataProperty(value, "requestId")?.value;
+    const generation = snapshotDataProperty(value, "generation")?.value;
+    const documentVersion = snapshotDataProperty(value, "documentVersion")?.value;
+    const digest = snapshotDataProperty(value, "sourceDigest")?.value;
+    const targetId = kind === "format"
+        ? snapshotDataProperty(value, "targetId")?.value
+        : null;
+    if (
+        !validPositiveInteger(requestId) ||
+        !validPositiveInteger(generation) ||
+        !validDocumentVersion(documentVersion) ||
+        !validDigest(digest) ||
+        (kind === "format" &&
+            (typeof targetId !== "string" || targetId.length === 0))
+    ) {
+        return null;
+    }
+    return Object.freeze({
+        requestKind: kind,
+        requestId,
+        generation,
+        documentVersion,
+        targetId: kind === "format" ? targetId as string : null,
+        sourceDigest: digest,
+    });
+}
+
+function snapshotFormatRequest(value: unknown): WorkerFormatRequestMessage | null {
     const raw = snapshotDataProperties(value, FORMAT_REQUEST_KEYS, [
         "kind",
         "requestId",
@@ -145,89 +235,29 @@ export function snapshotWorkerRequestMessage(
     if (
         raw === null ||
         raw.kind !== "format" ||
-        !Number.isSafeInteger(raw.requestId) ||
-        (raw.requestId as number) < 1 ||
-        !Number.isSafeInteger(raw.generation) ||
-        (raw.generation as number) < 1 ||
-        !Number.isSafeInteger(raw.documentVersion) ||
-        (raw.documentVersion as number) < 0 ||
+        !validPositiveInteger(raw.requestId) ||
+        !validPositiveInteger(raw.generation) ||
+        !validDocumentVersion(raw.documentVersion) ||
         typeof raw.targetId !== "string" ||
         raw.targetId.length === 0 ||
-        typeof raw.sourceDigest !== "string" ||
-        !/^[a-f0-9]{64}$/.test(raw.sourceDigest) ||
+        !validDigest(raw.sourceDigest) ||
         typeof raw.source !== "string" ||
         (raw.mode !== "document" && raw.mode !== "fragment") ||
         !isRenderNewline(raw.newline) ||
         !isRenderTabSize(raw.tabSize) ||
         typeof raw.debugEnabled !== "boolean"
     ) {
-        const batchRaw = snapshotDataProperties(value, BATCH_REQUEST_KEYS, [
-            "kind",
-            "requestId",
-            "generation",
-            "documentVersion",
-            "sourceDigest",
-            "source",
-            "options",
-            "targets",
-            "newline",
-            "tabSize",
-            "debugEnabled",
-        ]);
-        if (
-            batchRaw === null ||
-            batchRaw.kind !== "validate-and-format" ||
-            !Number.isSafeInteger(batchRaw.requestId) ||
-            (batchRaw.requestId as number) < 1 ||
-            !Number.isSafeInteger(batchRaw.generation) ||
-            (batchRaw.generation as number) < 1 ||
-            !Number.isSafeInteger(batchRaw.documentVersion) ||
-            (batchRaw.documentVersion as number) < 0 ||
-            typeof batchRaw.sourceDigest !== "string" ||
-            !/^[a-f0-9]{64}$/.test(batchRaw.sourceDigest) ||
-            typeof batchRaw.source !== "string" ||
-            !isRenderNewline(batchRaw.newline) ||
-            !isRenderTabSize(batchRaw.tabSize) ||
-            typeof batchRaw.debugEnabled !== "boolean" ||
-            sourceDigest(batchRaw.source) !== batchRaw.sourceDigest
-        ) {
-            return null;
-        }
-        const batch = snapshotValidateAndFormatExecutionRequest({
-            source: batchRaw.source,
-            options: batchRaw.options,
-            targets: batchRaw.targets,
-            documentVersion: batchRaw.documentVersion,
-            newline: batchRaw.newline,
-            tabSize: batchRaw.tabSize,
-            debugEnabled: batchRaw.debugEnabled,
-        });
-        if (batch === null) {
-            return null;
-        }
-        return Object.freeze({
-            kind: "validate-and-format" as const,
-            requestId: batchRaw.requestId as number,
-            generation: batchRaw.generation as number,
-            documentVersion: batch.documentVersion,
-            sourceDigest: batchRaw.sourceDigest,
-            source: batch.source,
-            options: batch.options,
-            targets: batch.targets,
-            newline: batch.newline,
-            tabSize: batch.tabSize,
-            debugEnabled: batch.debugEnabled,
-        });
+        return null;
     }
     const options = resolveFormatOptions(raw.options);
     if (!options.ok || sourceDigest(raw.source) !== raw.sourceDigest) {
         return null;
     }
     return Object.freeze({
-        kind: "format" as const,
-        requestId: raw.requestId as number,
-        generation: raw.generation as number,
-        documentVersion: raw.documentVersion as number,
+        kind: "format",
+        requestId: raw.requestId,
+        generation: raw.generation,
+        documentVersion: raw.documentVersion,
         targetId: raw.targetId,
         sourceDigest: raw.sourceDigest,
         source: raw.source,
@@ -239,9 +269,99 @@ export function snapshotWorkerRequestMessage(
     });
 }
 
-export function snapshotWorkerResponseMessage(
+function snapshotBatchRequest(value: unknown): WorkerBatchRequestMessage | null {
+    const raw = snapshotDataProperties(value, BATCH_REQUEST_KEYS, [
+        "kind",
+        "requestId",
+        "generation",
+        "documentVersion",
+        "sourceDigest",
+        "source",
+        "options",
+        "targets",
+        "newline",
+        "tabSize",
+        "debugEnabled",
+    ]);
+    if (
+        raw === null ||
+        raw.kind !== "validate-and-format" ||
+        !validPositiveInteger(raw.requestId) ||
+        !validPositiveInteger(raw.generation) ||
+        !validDocumentVersion(raw.documentVersion) ||
+        !validDigest(raw.sourceDigest) ||
+        typeof raw.source !== "string" ||
+        !isRenderNewline(raw.newline) ||
+        !isRenderTabSize(raw.tabSize) ||
+        typeof raw.debugEnabled !== "boolean" ||
+        sourceDigest(raw.source) !== raw.sourceDigest
+    ) {
+        return null;
+    }
+    const batch = snapshotValidateAndFormatExecutionRequest({
+        source: raw.source,
+        options: raw.options,
+        targets: raw.targets,
+        documentVersion: raw.documentVersion,
+        newline: raw.newline,
+        tabSize: raw.tabSize,
+        debugEnabled: raw.debugEnabled,
+    });
+    if (batch === null) {
+        return null;
+    }
+    return Object.freeze({
+        kind: "validate-and-format",
+        requestId: raw.requestId,
+        generation: raw.generation,
+        documentVersion: batch.documentVersion,
+        sourceDigest: raw.sourceDigest,
+        source: batch.source,
+        options: batch.options,
+        targets: batch.targets,
+        newline: batch.newline,
+        tabSize: batch.tabSize,
+        debugEnabled: batch.debugEnabled,
+    });
+}
+
+export function snapshotWorkerRequestMessage(
     value: unknown
-): WorkerResponseMessage | null {
+): WorkerRequestMessage | null {
+    const kind = snapshotDataProperty(value, "kind")?.value;
+    return kind === "format"
+        ? snapshotFormatRequest(value)
+        : kind === "validate-and-format"
+            ? snapshotBatchRequest(value)
+            : null;
+}
+
+function snapshotCommonResponse(
+    raw: Readonly<Record<string, unknown>> | null
+): Readonly<{
+    requestId: number;
+    generation: number;
+    documentVersion: number;
+    sourceDigest: string;
+    runtimeDigest: string;
+}> | null {
+    return raw !== null &&
+        validPositiveInteger(raw.requestId) &&
+        validPositiveInteger(raw.generation) &&
+        validDocumentVersion(raw.documentVersion) &&
+        validDigest(raw.sourceDigest) &&
+        validDigest(raw.runtimeDigest)
+        ? Object.freeze({
+              requestId: raw.requestId,
+              generation: raw.generation,
+              documentVersion: raw.documentVersion,
+              sourceDigest: raw.sourceDigest,
+              runtimeDigest: raw.runtimeDigest,
+          })
+        : null;
+}
+
+function snapshotFormatResponse(value: unknown): WorkerFormatResponseMessage | null {
     const raw = snapshotDataProperties(value, FORMAT_RESPONSE_KEYS, [
         "kind",
         "requestId",
@@ -253,74 +373,150 @@ export function snapshotWorkerResponseMessage(
         "formattingMs",
         "result",
     ]);
+    const common = snapshotCommonResponse(raw);
     if (
         raw === null ||
+        common === null ||
         raw.kind !== "result" ||
-        !Number.isSafeInteger(raw.requestId) ||
-        (raw.requestId as number) < 1 ||
-        !Number.isSafeInteger(raw.generation) ||
-        (raw.generation as number) < 1 ||
-        !Number.isSafeInteger(raw.documentVersion) ||
-        (raw.documentVersion as number) < 0 ||
         typeof raw.targetId !== "string" ||
         raw.targetId.length === 0 ||
-        typeof raw.sourceDigest !== "string" ||
-        !/^[a-f0-9]{64}$/.test(raw.sourceDigest) ||
-        typeof raw.runtimeDigest !== "string" ||
-        !/^[a-f0-9]{64}$/.test(raw.runtimeDigest) ||
-        typeof raw.formattingMs !== "number" ||
-        !Number.isFinite(raw.formattingMs) ||
-        raw.formattingMs < 0
+        !validFormattingMs(raw.formattingMs)
     ) {
-        const batchRaw = snapshotDataProperties(value, BATCH_RESPONSE_KEYS, [
-            "kind",
-            "requestId",
-            "generation",
-            "documentVersion",
-            "sourceDigest",
-            "runtimeDigest",
-            "formattingMs",
-            "result",
-        ]);
-        if (
-            batchRaw === null ||
-            batchRaw.kind !== "batch-result" ||
-            !Number.isSafeInteger(batchRaw.requestId) ||
-            (batchRaw.requestId as number) < 1 ||
-            !Number.isSafeInteger(batchRaw.generation) ||
-            (batchRaw.generation as number) < 1 ||
-            !Number.isSafeInteger(batchRaw.documentVersion) ||
-            (batchRaw.documentVersion as number) < 0 ||
-            typeof batchRaw.sourceDigest !== "string" ||
-            !/^[a-f0-9]{64}$/.test(batchRaw.sourceDigest) ||
-            typeof batchRaw.runtimeDigest !== "string" ||
-            !/^[a-f0-9]{64}$/.test(batchRaw.runtimeDigest) ||
-            typeof batchRaw.formattingMs !== "number" ||
-            !Number.isFinite(batchRaw.formattingMs) ||
-            batchRaw.formattingMs < 0
-        ) {
-            return null;
-        }
-        return Object.freeze({
-            kind: "batch-result" as const,
-            requestId: batchRaw.requestId as number,
-            generation: batchRaw.generation as number,
-            documentVersion: batchRaw.documentVersion as number,
-            sourceDigest: batchRaw.sourceDigest,
-            runtimeDigest: batchRaw.runtimeDigest,
-            formattingMs: batchRaw.formattingMs,
-            result: batchRaw.result,
-        });
+        return null;
     }
     return Object.freeze({
-        kind: "result" as const,
-        requestId: raw.requestId as number,
-        generation: raw.generation as number,
-        documentVersion: raw.documentVersion as number,
+        kind: "result",
+        ...common,
         targetId: raw.targetId,
-        sourceDigest: raw.sourceDigest,
-        runtimeDigest: raw.runtimeDigest,
         formattingMs: raw.formattingMs,
         result: raw.result,
+    });
+}
+
+function snapshotBatchResponse(value: unknown): WorkerBatchResponseMessage | null {
+    const raw = snapshotDataProperties(value, BATCH_RESPONSE_KEYS, [
+        "kind",
+        "requestId",
+        "generation",
+        "documentVersion",
+        "sourceDigest",
+        "runtimeDigest",
+        "formattingMs",
+        "result",
+    ]);
+    const common = snapshotCommonResponse(raw);
+    if (
+        raw === null ||
+        common === null ||
+        raw.kind !== "batch-result" ||
+        !validFormattingMs(raw.formattingMs)
+    ) {
+        return null;
+    }
+    return Object.freeze({
+        kind: "batch-result",
+        ...common,
+        formattingMs: raw.formattingMs,
+        result: raw.result,
+    });
+}
+
+function snapshotProtocolErrorResponse(
+    value: unknown
+): WorkerProtocolErrorResponseMessage | null {
+    const raw = snapshotDataProperties(value, PROTOCOL_ERROR_RESPONSE_KEYS, [
+        "kind",
+        "requestKind",
+        "requestId",
+        "generation",
+        "documentVersion",
+        "targetId",
+        "sourceDigest",
+        "runtimeDigest",
+        "code",
+    ]);
+    const common = snapshotCommonResponse(raw);
+    if (
+        raw === null ||
+        common === null ||
+        raw.kind !== "protocol-error" ||
+        (raw.requestKind !== "format" &&
+            raw.requestKind !== "validate-and-format") ||
+        raw.code !== "ADAPTER_WORKER_PROTOCOL" ||
+        (raw.requestKind === "format"
+            ? typeof raw.targetId !== "string" || raw.targetId.length === 0
+            : raw.targetId !== null)
+    ) {
+        return null;
+    }
+    return Object.freeze({
+        kind: "protocol-error",
+        requestKind: raw.requestKind,
+        ...common,
+        targetId: raw.targetId as string | null,
+        code: "ADAPTER_WORKER_PROTOCOL",
+    });
+}
+
+export function snapshotWorkerResponseMessage(
+    value: unknown
+): WorkerResponseMessage | null {
+    const kind = snapshotDataProperty(value, "kind")?.value;
+    return kind === "result"
+        ? snapshotFormatResponse(value)
+        : kind === "batch-result"
+            ? snapshotBatchResponse(value)
+            : kind === "protocol-error"
+                ? snapshotProtocolErrorResponse(value)
+                : null;
+}
+
+export function snapshotWorkerResponseIdentity(
+    value: unknown
+): WorkerResponseIdentity | null {
+    const kind = snapshotDataProperty(value, "kind")?.value;
+    let requestKind: WorkerRequestKind;
+    let targetId: unknown;
+    if (kind === "result") {
+        requestKind = "format";
+        targetId = snapshotDataProperty(value, "targetId")?.value;
+    } else if (kind === "batch-result") {
+        requestKind = "validate-and-format";
+        targetId = null;
+    } else if (kind === "protocol-error") {
+        const requested = snapshotDataProperty(value, "requestKind")?.value;
+        if (requested !== "format" && requested !== "validate-and-format") {
+            return null;
+        }
+        requestKind = requested;
+        targetId = snapshotDataProperty(value, "targetId")?.value;
+    } else {
+        return null;
+    }
+    const requestId = snapshotDataProperty(value, "requestId")?.value;
+    const generation = snapshotDataProperty(value, "generation")?.value;
+    const documentVersion = snapshotDataProperty(value, "documentVersion")?.value;
+    const digest = snapshotDataProperty(value, "sourceDigest")?.value;
+    const runtimeDigest = snapshotDataProperty(value, "runtimeDigest")?.value;
+    if (
+        !validPositiveInteger(requestId) ||
+        !validPositiveInteger(generation) ||
+        !validDocumentVersion(documentVersion) ||
+        !validDigest(digest) ||
+        !validDigest(runtimeDigest) ||
+        (requestKind === "format"
+            ? typeof targetId !== "string" || targetId.length === 0
+            : targetId !== null)
+    ) {
+        return null;
+    }
+    return Object.freeze({
+        requestKind,
+        requestId,
+        generation,
+        documentVersion,
+        targetId: targetId as string | null,
+        sourceDigest: digest,
+        runtimeDigest,
     });
 }
