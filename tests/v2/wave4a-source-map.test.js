@@ -40,6 +40,15 @@ assert.strictEqual(sourceMapModule.mapSourceOffset(invalid, 1, 4, 6, 'exact'), n
     'overlapping source map entries must fail closed');
 assert.strictEqual(sourceMapModule.mapSourceOffset({ entries: [] }, 1, 1, 1, 'left'), null,
     'a non-empty target without mapping evidence must fail closed');
+['exact', 'left', 'right'].forEach(function(affinity) {
+    [0, 1].forEach(function(offset) {
+        assert.strictEqual(
+            sourceMapModule.mapSourceOffset({ entries: [] }, offset, 1, 1, affinity),
+            null,
+            'empty non-empty map must reject ' + affinity + ' at ' + offset
+        );
+    });
+});
 assert.strictEqual(sourceMapModule.mapSourceOffset({ entries: [] }, 0, 0, 0, 'exact'), 0,
     'the empty source/output cursor maps to zero');
 
@@ -97,5 +106,49 @@ Object.defineProperty(changingEntriesMap, 'entries', {
 assert.strictEqual(sourceMapModule.mapSourceOffset(changingEntriesMap, 1, 3, 3, 'exact'), 1,
     'source-map mapping must consume one stable entries snapshot');
 assert.strictEqual(changingEntriesReads, 1, 'source-map entries getter must be read once');
+
+var mapperEntriesReads = 0;
+var mapperMap = {};
+Object.defineProperty(mapperMap, 'entries', {
+    enumerable: true,
+    get: function() {
+        mapperEntriesReads += 1;
+        return map.entries;
+    }
+});
+var mapper = sourceMapModule.createSourceOffsetMapper(mapperMap, 10, 12);
+assert.ok(mapper, 'one operation must create a stable source-offset mapper');
+assert.strictEqual(mapper.map(2, 'exact'), 2);
+assert.strictEqual(mapper.map(4, 'left'), 3);
+assert.strictEqual(mapper.map(4, 'right'), 6);
+assert.strictEqual(mapperEntriesReads, 1,
+    'repeated operation queries must share one hostile-map snapshot');
+
+var selectionEntriesReads = 0;
+var selectionMap = {};
+Object.defineProperty(selectionMap, 'entries', {
+    enumerable: true,
+    get: function() {
+        selectionEntriesReads += 1;
+        return map.entries;
+    }
+});
+assert.deepStrictEqual(
+    cursorModule.mapSelectionThroughSourceMap(
+        { anchor: 4, active: 4 }, selectionMap, 10, 12
+    ),
+    { anchor: 3, active: 3 },
+    'collapsed gap cursor uses exact then left affinity on one mapper'
+);
+assert.strictEqual(selectionEntriesReads, 1,
+    'selection endpoints and affinity fallback must share one map snapshot');
+
+var canonical = sourceMapModule.canonicalSourceMapSnapshot(map, 10, 12);
+assert.ok(canonical);
+assert.strictEqual(
+    sourceMapModule.createSourceOffsetMapper(canonical, 10, 12),
+    sourceMapModule.createSourceOffsetMapper(canonical, 10, 12),
+    'canonical source maps must reuse their cached binary mapper'
+);
 
 console.log('v2 Wave 4A source map tests passed');

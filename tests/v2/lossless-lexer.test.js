@@ -783,6 +783,17 @@ test('profile lookups do not expose mutators and cannot alter lexSql', function(
     assert.strictEqual(typeof profile.parameters.add, 'undefined');
     assert.strictEqual(typeof profile.prefixedLiterals.add, 'undefined');
     assert.ok(Object.isFrozen(profile.operators), 'operators array must be frozen');
+    assert.strictEqual(typeof profile.operatorsFor, 'function');
+    profile.operators.forEach(function(operator) {
+        var bucket = profile.operatorsFor(operator.charAt(0));
+        assert.ok(Object.isFrozen(bucket), 'operator bucket must be frozen');
+        assert.ok(bucket.indexOf(operator) >= 0,
+            'operator bucket must contain ' + operator);
+        assert.ok(bucket.every(function(value) {
+            return value.charAt(0) === operator.charAt(0);
+        }), 'operator bucket must not scan unrelated first characters');
+    });
+    assert.deepStrictEqual(profile.operatorsFor('z'), []);
     assert.ok(Object.isFrozen(profile.identifierCharacters));
     assert.strictEqual(typeof profile.identifierCharacters.isStart, 'function');
     assert.strictEqual(typeof profile.identifierCharacters.isContinue, 'function');
@@ -813,6 +824,23 @@ test('profile lookups do not expose mutators and cannot alter lexSql', function(
     );
     assert.ok(profile.keywords.has('SELECT'));
     assert.ok(!profile.keywords.has('NOT_A_REAL_KEYWORD_XYZ'));
+});
+
+test('keyword folding is ASCII-only', function() {
+    [
+        ['postgresql', 'ſelect'],
+        ['postgresql', 'ſELECT'],
+        ['mysql', 'ſelect']
+    ].forEach(function(value) {
+        var output = lexSql(value[1], { dialect: value[0] });
+        assertConservesSource(value[1], output);
+        assert.strictEqual(output.leaves[0].kind, 'identifier',
+            value[0] + ' must not Unicode-fold ' + value[1] + ' into SELECT');
+    });
+    ['select', 'SeLeCt', 'SELECT'].forEach(function(raw) {
+        assert.strictEqual(lexSql(raw, { dialect: 'postgresql' }).leaves[0].kind,
+            'keyword', 'ASCII keyword fold must preserve ' + raw);
+    });
 });
 
 test('root public API only exposes approved value exports', function() {

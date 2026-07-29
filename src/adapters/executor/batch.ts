@@ -2,7 +2,10 @@ import type { FormatResult } from "../../core/api/format-result";
 import { MAX_FORMAT_SOURCE_CODE_UNITS } from "../../core/api/limits";
 import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import type { FormatOptions } from "../../core/config/options";
-import type { RenderNewline } from "../../core/renderer/environment";
+import {
+    renderEnvironmentForNewline,
+    type RenderEnvironment,
+} from "../../core/renderer/environment";
 import { snapshotFormatExecutionOutcome } from "../boundary/execution-outcome-snapshot";
 import { snapshotDebugEvents } from "../boundary/debug-event-snapshot";
 import {
@@ -27,7 +30,7 @@ export type BatchTargetFormatter = (
     source: string,
     options: FormatOptions,
     mode: "document" | "fragment",
-    newline: RenderNewline,
+    environment: RenderEnvironment,
     debugEnabled?: boolean
 ) => unknown;
 
@@ -99,7 +102,10 @@ export function executeFormatBatch(
                       source,
                       request.options,
                       target.mode,
-                      request.newline,
+                      renderEnvironmentForNewline(
+                          request.newline,
+                          request.tabSize
+                      ),
                       request.debugEnabled
                   );
             const outcome = snapshotFormatExecutionOutcome(raw, source);

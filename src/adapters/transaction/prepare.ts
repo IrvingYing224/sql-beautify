@@ -1,13 +1,18 @@
 import type { FormatResult } from "../../core/api/format-result";
 import { MAX_FORMAT_SOURCE_CODE_UNITS } from "../../core/api/limits";
 import {
+    DEFAULT_RENDER_TAB_SIZE,
     inferRenderNewline,
     isRenderNewline,
+    isRenderTabSize,
 } from "../../core/renderer/environment";
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import { resolveFormatOptions } from "../../core/config/resolve-options";
-import type { SourceMap } from "../../core/source/source-map";
+import {
+    canonicalSourceMapSnapshot,
+    type SourceMap,
+} from "../../core/source/source-map";
 import {
     snapshotDataProperties,
     snapshotDenseDataArray,
@@ -372,9 +377,15 @@ function documentSourceMap(
         outputCursor,
         outputCursor + tailLength
     );
-    return Object.freeze({
-        sourceMap: Object.freeze({ entries: Object.freeze(entries) }),
-        outputLength: outputCursor + tailLength,
+    const outputLength = outputCursor + tailLength;
+    const sourceMap = canonicalSourceMapSnapshot(
+        { entries },
+        sourceLength,
+        outputLength
+    );
+    return sourceMap === null ? null : Object.freeze({
+        sourceMap,
+        outputLength,
     });
 }
 
@@ -390,6 +401,7 @@ async function prepareFormatTransactionInternal(
     const selectionsValue = request.selections;
     const optionsValue = optionSnapshot(request.options);
     const requestedNewline = request.newline;
+    const requestedTabSize = request.tabSize;
     const debugEnabledValue = request.debugEnabled;
     const sourceLength =
         typeof sourceValue === "string" ? sourceValue.length : 0;
@@ -399,6 +411,7 @@ async function prepareFormatTransactionInternal(
         documentVersionValue < 0 ||
         !Array.isArray(targetsValue) ||
         (requestedNewline !== undefined && !isRenderNewline(requestedNewline)) ||
+        (requestedTabSize !== undefined && !isRenderTabSize(requestedTabSize)) ||
         (debugEnabledValue !== undefined && typeof debugEnabledValue !== "boolean")
     ) {
         return rejected(
@@ -415,6 +428,7 @@ async function prepareFormatTransactionInternal(
         );
     }
     const newline = requestedNewline ?? inferRenderNewline(sourceValue);
+    const tabSize = requestedTabSize ?? DEFAULT_RENDER_TAB_SIZE;
     if (isCancelledNow()) {
         return cancelled(documentVersionValue);
     }
@@ -466,6 +480,7 @@ async function prepareFormatTransactionInternal(
             targets,
             documentVersion: documentVersionValue,
             newline,
+            tabSize,
             ...(optionsValue === undefined ? {} : { options: optionsValue }),
             ...(cancellationValue === undefined
                 ? {}
@@ -601,6 +616,7 @@ async function prepareFormatTransactionInternal(
                     documentVersion: documentVersionValue,
                     targetId: target.id,
                     newline,
+                    tabSize,
                     ...(optionsValue === undefined
                         ? {}
                         : { options: optionsValue }),
@@ -676,14 +692,31 @@ async function prepareFormatTransactionInternal(
                 ),
             ], debugEvents);
         }
+        const sourceMap =
+            snapshot.status === "formatted" || snapshot.status === "unchanged"
+                ? canonicalSourceMapSnapshot(
+                      snapshot.sourceMap,
+                      targetSource.length,
+                      snapshot.text.length
+                  )
+                : null;
+        if (
+            (snapshot.status === "formatted" || snapshot.status === "unchanged") &&
+            sourceMap === null
+        ) {
+            return rejected(documentVersionValue, [
+                targetDiagnostic(
+                    target,
+                    "ADAPTER_RESULT_CONTRACT",
+                    "Formatter source map could not establish a canonical proof"
+                ),
+            ], debugEvents);
+        }
         computed.push(
             Object.freeze({
                 target,
                 result: snapshot,
-                sourceMap:
-                    snapshot.status === "formatted" || snapshot.status === "unchanged"
-                        ? snapshot.sourceMap
-                        : null,
+                sourceMap,
             })
         );
     }

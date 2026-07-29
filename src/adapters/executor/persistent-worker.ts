@@ -541,6 +541,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
                 options: request.options,
                 targets: request.targets,
                 newline: request.newline,
+                tabSize: request.tabSize,
                 debugEnabled: request.debugEnabled,
             });
             return message;
@@ -557,6 +558,7 @@ export class PersistentWorkerExecutor implements FormatterExecutor {
             options: request.options,
             mode: request.mode,
             newline: request.newline,
+            tabSize: request.tabSize,
             debugEnabled: request.debugEnabled,
         });
         return message;

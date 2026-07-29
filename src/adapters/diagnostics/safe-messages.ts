@@ -83,6 +83,8 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     FMT_UNSUPPORTED_BAIL_OUT: "Formatting stopped at an unsupported SQL construct",
     FMT_TOKEN_EQUIVALENCE: "Formatted SQL did not pass token-equivalence validation",
     FMT_INTERNAL: "Formatter failed safely during internal processing",
+    LAYOUT_COMMA_FALLBACK:
+        "Trailing comma could not be applied without moving a line comment",
 
     ...entries([
         "LAYOUT_ARTIFACT_ANALYSIS",

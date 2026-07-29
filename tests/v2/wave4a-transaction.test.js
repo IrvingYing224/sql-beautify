@@ -109,10 +109,12 @@ async function run() {
         source: 'select a',
         documentVersion: 9,
         newline: '\r\n',
+        tabSize: 8,
         targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
     }, fallbackExecutor);
     assert.strictEqual(fallbackResult.status, 'unchanged');
     assert.strictEqual(fallbackExecutor.calls[0].newline, '\r\n');
+    assert.strictEqual(fallbackExecutor.calls[0].tabSize, 8);
 
     var invalidNewlineExecutor = createExecutor(function() {
         throw new Error('invalid newline must not reach executor');
@@ -125,6 +127,18 @@ async function run() {
     }, invalidNewlineExecutor);
     assert.strictEqual(invalidNewline.status, 'rejected');
     assert.strictEqual(invalidNewlineExecutor.calls.length, 0);
+
+    var invalidTabSizeExecutor = createExecutor(function() {
+        throw new Error('invalid tab size must not reach executor');
+    });
+    var invalidTabSize = await transaction.prepareFormatTransaction({
+        source: 'select a',
+        documentVersion: 10,
+        tabSize: 0,
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
+    }, invalidTabSizeExecutor);
+    assert.strictEqual(invalidTabSize.status, 'rejected');
+    assert.strictEqual(invalidTabSizeExecutor.calls.length, 0);
 
     var overlapExecutor = createExecutor(function() {
         throw new Error('must not run');

@@ -1,6 +1,9 @@
 import type { FormatResult } from "../../core/api/format-result";
 import type { FormatOptions } from "../../core/config/options";
-import type { RenderNewline } from "../../core/renderer/environment";
+import {
+    renderEnvironmentForNewline,
+    type RenderEnvironment,
+} from "../../core/renderer/environment";
 import { createDebugEvent } from "../../core/diagnostics/debug-event";
 import {
     failedFormatResult,
@@ -30,7 +33,7 @@ export type TargetFormatter = (
     source: string,
     options: FormatOptions,
     mode: "document" | "fragment",
-    newline: RenderNewline,
+    environment: RenderEnvironment,
     debugEnabled?: boolean
 ) => unknown;
 
@@ -78,7 +81,10 @@ export class DirectFormatterExecutor implements FormatterExecutor {
                 snapshot.source,
                 snapshot.options,
                 snapshot.mode,
-                snapshot.newline,
+                renderEnvironmentForNewline(
+                    snapshot.newline,
+                    snapshot.tabSize
+                ),
                 snapshot.debugEnabled
             );
             if (cancellation.isCancelled()) {

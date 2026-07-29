@@ -1,9 +1,12 @@
 import type { CanonicalFormatOptions } from "../../core/config/options";
 import { resolveFormatOptions } from "../../core/config/resolve-options";
 import {
+    DEFAULT_RENDER_TAB_SIZE,
     inferRenderNewline,
     isRenderNewline,
+    isRenderTabSize,
     type RenderNewline,
+    type RenderTabSize,
 } from "../../core/renderer/environment";
 import {
     snapshotDataProperties,
@@ -22,6 +25,7 @@ const REQUEST_KEYS: ReadonlySet<string> = new Set([
     "documentVersion",
     "targetId",
     "newline",
+    "tabSize",
     "cancellation",
     "debugEnabled",
 ]);
@@ -31,6 +35,7 @@ const BATCH_REQUEST_KEYS: ReadonlySet<string> = new Set([
     "targets",
     "documentVersion",
     "newline",
+    "tabSize",
     "cancellation",
     "debugEnabled",
 ]);
@@ -48,6 +53,7 @@ export interface StableFormatExecutionRequest {
     readonly documentVersion: number;
     readonly targetId: string;
     readonly newline: RenderNewline;
+    readonly tabSize: RenderTabSize;
     readonly cancellation?: CancellationToken;
     readonly debugEnabled: boolean;
 }
@@ -58,6 +64,7 @@ export interface StableValidateAndFormatExecutionRequest {
     readonly targets: readonly FormatTarget[];
     readonly documentVersion: number;
     readonly newline: RenderNewline;
+    readonly tabSize: RenderTabSize;
     readonly cancellation?: CancellationToken;
     readonly debugEnabled: boolean;
 }
@@ -92,7 +99,14 @@ export function snapshotFormatExecutionRequest(
     const newline = raw.newline === undefined
         ? inferRenderNewline(raw.source)
         : raw.newline;
-    if (!options.ok || !isRenderNewline(newline)) {
+    const tabSize = raw.tabSize === undefined
+        ? DEFAULT_RENDER_TAB_SIZE
+        : raw.tabSize;
+    if (
+        !options.ok ||
+        !isRenderNewline(newline) ||
+        !isRenderTabSize(tabSize)
+    ) {
         return null;
     }
     const cancellation = raw.cancellation as CancellationToken | undefined;
@@ -103,6 +117,7 @@ export function snapshotFormatExecutionRequest(
         documentVersion: raw.documentVersion as number,
         targetId: raw.targetId,
         newline,
+        tabSize,
         debugEnabled: raw.debugEnabled === true,
         ...(cancellation === undefined ? {} : { cancellation }),
     });
@@ -188,7 +203,14 @@ export function snapshotValidateAndFormatExecutionRequest(
     const newline = raw.newline === undefined
         ? inferRenderNewline(raw.source)
         : raw.newline;
-    if (!options.ok || !isRenderNewline(newline)) {
+    const tabSize = raw.tabSize === undefined
+        ? DEFAULT_RENDER_TAB_SIZE
+        : raw.tabSize;
+    if (
+        !options.ok ||
+        !isRenderNewline(newline) ||
+        !isRenderTabSize(tabSize)
+    ) {
         return null;
     }
     const cancellation = raw.cancellation as CancellationToken | undefined;
@@ -198,6 +220,7 @@ export function snapshotValidateAndFormatExecutionRequest(
         targets: Object.freeze(targets),
         documentVersion: raw.documentVersion as number,
         newline,
+        tabSize,
         debugEnabled: raw.debugEnabled === true,
         ...(cancellation === undefined ? {} : { cancellation }),
     });
@@ -213,6 +236,7 @@ export function executionRequestForCore(
         documentVersion: request.documentVersion,
         targetId: request.targetId,
         newline: request.newline,
+        tabSize: request.tabSize,
         debugEnabled: request.debugEnabled,
         ...(request.cancellation === undefined
             ? {}

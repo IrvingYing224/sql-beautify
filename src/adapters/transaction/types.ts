@@ -3,7 +3,10 @@ import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import type { DebugEvent } from "../../core/diagnostics/debug-event";
 import type { FormatResult } from "../../core/api/format-result";
 import type { SourceMap } from "../../core/source/source-map";
-import type { RenderNewline } from "../../core/renderer/environment";
+import type {
+    RenderNewline,
+    RenderTabSize,
+} from "../../core/renderer/environment";
 import type { ParseMode } from "../../core/syntax/parser-backend";
 
 export interface CancellationToken {
@@ -32,6 +35,7 @@ export interface FormatExecutionRequest {
     readonly documentVersion: number;
     readonly targetId: string;
     readonly newline?: RenderNewline;
+    readonly tabSize?: RenderTabSize;
     readonly cancellation?: CancellationToken;
     readonly debugEnabled?: boolean;
 }
@@ -47,6 +51,7 @@ export interface ValidateAndFormatExecutionRequest {
     readonly targets: readonly FormatTarget[];
     readonly documentVersion: number;
     readonly newline?: RenderNewline;
+    readonly tabSize?: RenderTabSize;
     readonly cancellation?: CancellationToken;
     readonly debugEnabled?: boolean;
 }
@@ -96,6 +101,7 @@ export interface FormatTransactionRequest {
     readonly selections?: readonly FormatSelection[];
     readonly options?: FormatOptions;
     readonly newline?: RenderNewline;
+    readonly tabSize?: RenderTabSize;
     readonly cancellation?: CancellationToken;
     readonly debugEnabled?: boolean;
 }

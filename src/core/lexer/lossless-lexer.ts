@@ -729,13 +729,29 @@ function scanIdentifierOrKeyword(state: ScannerState): boolean {
         end += codePointWidth(nextCodePoint);
     }
     const raw = state.source.slice(start, end);
-    const kind = state.profile.keywords.has(raw.toUpperCase()) ? "keyword" : "identifier";
+    let keywordCandidate = raw;
+    let hasAsciiLowercase = false;
+    for (let index = 0; index < raw.length; index++) {
+        const code = raw.charCodeAt(index);
+        if (code > 0x7F) {
+            keywordCandidate = "";
+            break;
+        }
+        hasAsciiLowercase = hasAsciiLowercase || (code >= 0x61 && code <= 0x7A);
+    }
+    if (keywordCandidate.length > 0 && hasAsciiLowercase) {
+        keywordCandidate = raw.toUpperCase();
+    }
+    const kind = keywordCandidate.length > 0 &&
+        state.profile.keywords.has(keywordCandidate)
+        ? "keyword"
+        : "identifier";
     emitLeaf(state, kind, start, end);
     return true;
 }
 
 function scanOperator(state: ScannerState): boolean {
-    for (const op of state.profile.operators) {
+    for (const op of state.profile.operatorsFor(charAt(state, state.cursor))) {
         if (startsWith(state, op)) {
             emitLeaf(state, "operator", state.cursor, state.cursor + op.length);
             return true;
@@ -848,7 +864,7 @@ function knownLeafStartsAfterUnknown(
     ) {
         return true;
     }
-    for (const operator of state.profile.operators) {
+    for (const operator of state.profile.operatorsFor(ch)) {
         if (state.source.startsWith(operator, index)) {
             return true;
         }

@@ -1,32 +1,43 @@
 export type RenderNewline = "\n" | "\r\n" | "\r";
+export type RenderTabSize = number;
+
+export const DEFAULT_RENDER_TAB_SIZE: RenderTabSize = 4;
+export const MAX_RENDER_TAB_SIZE: RenderTabSize = 256;
 
 export interface RenderEnvironment {
     readonly newline: RenderNewline;
+    readonly tabSize: RenderTabSize;
 }
 
-const LF_ENVIRONMENT: RenderEnvironment = Object.freeze({ newline: "\n" });
-const CRLF_ENVIRONMENT: RenderEnvironment = Object.freeze({ newline: "\r\n" });
-const CR_ENVIRONMENT: RenderEnvironment = Object.freeze({ newline: "\r" });
-const CANONICAL_ENVIRONMENTS = new WeakSet<object>([
-    LF_ENVIRONMENT,
-    CRLF_ENVIRONMENT,
-    CR_ENVIRONMENT,
-]);
+const CANONICAL_ENVIRONMENTS = new WeakSet<object>();
+const ENVIRONMENTS = new Map<string, RenderEnvironment>();
 
 export function isRenderNewline(value: unknown): value is RenderNewline {
     return value === "\n" || value === "\r\n" || value === "\r";
 }
 
+export function isRenderTabSize(value: unknown): value is RenderTabSize {
+    return Number.isSafeInteger(value) &&
+        (value as number) >= 1 &&
+        (value as number) <= MAX_RENDER_TAB_SIZE;
+}
+
 export function renderEnvironmentForNewline(
-    newline: RenderNewline
+    newline: RenderNewline,
+    tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE
 ): RenderEnvironment {
-    if (newline === "\r\n") {
-        return CRLF_ENVIRONMENT;
+    if (!isRenderNewline(newline) || !isRenderTabSize(tabSize)) {
+        throw new TypeError("Render environment values are invalid");
     }
-    if (newline === "\r") {
-        return CR_ENVIRONMENT;
+    const key = `${newline}\0${tabSize}`;
+    const existing = ENVIRONMENTS.get(key);
+    if (existing !== undefined) {
+        return existing;
     }
-    return LF_ENVIRONMENT;
+    const environment = Object.freeze({ newline, tabSize });
+    ENVIRONMENTS.set(key, environment);
+    CANONICAL_ENVIRONMENTS.add(environment);
+    return environment;
 }
 
 export function isCanonicalRenderEnvironment(
@@ -55,7 +66,11 @@ export function inferRenderNewline(
 
 export function inferRenderEnvironment(
     source: string,
-    fallback: RenderNewline = "\n"
+    fallback: RenderNewline = "\n",
+    tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE
 ): RenderEnvironment {
-    return renderEnvironmentForNewline(inferRenderNewline(source, fallback));
+    return renderEnvironmentForNewline(
+        inferRenderNewline(source, fallback),
+        tabSize
+    );
 }

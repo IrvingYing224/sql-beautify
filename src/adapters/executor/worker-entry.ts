@@ -6,7 +6,10 @@ import { parentPort, workerData } from "node:worker_threads";
 import type { FormatSqlExecution } from "../../core/api/format";
 import type { CanonicalFormatOptions, FormatOptions } from "../../core/config/options";
 import { createDebugEvent } from "../../core/diagnostics/debug-event";
-import type { RenderNewline } from "../../core/renderer/environment";
+import {
+    type RenderNewline,
+    type RenderTabSize,
+} from "../../core/renderer/environment";
 import { failedFormatResult } from "../boundary/format-result-snapshot";
 import type {
     FormatBatchExecutionResult,
@@ -24,7 +27,8 @@ interface FormatterRuntime {
         options: FormatOptions,
         mode: "document" | "fragment",
         newline: RenderNewline,
-        debugEnabled: boolean
+        debugEnabled: boolean,
+        tabSize: RenderTabSize
     ): FormatSqlExecution;
     validateAndFormatTargets(
         source: string,
@@ -32,6 +36,7 @@ interface FormatterRuntime {
         targets: readonly FormatTarget[],
         documentVersion: number,
         newline: RenderNewline,
+        tabSize: RenderTabSize,
         debugEnabled: boolean
     ): FormatBatchExecutionResult;
 }
@@ -74,6 +79,7 @@ port.on("message", (value: unknown) => {
                 request.targets,
                 request.documentVersion,
                 request.newline,
+                request.tabSize,
                 request.debugEnabled
             );
         } catch (error) {
@@ -113,7 +119,8 @@ port.on("message", (value: unknown) => {
             request.options,
             request.mode,
             request.newline,
-            request.debugEnabled
+            request.debugEnabled,
+            request.tabSize
         );
     } catch (error) {
         result = Object.freeze({

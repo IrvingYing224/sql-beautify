@@ -13,6 +13,7 @@ var optionsApi = require('../../.tmp/v2-core/core/config/resolve-options.js');
 var planApi = require('../../.tmp/v2-core/core/layout/plan.js');
 var policyApi = require('../../.tmp/v2-core/core/layout/policy.js');
 var renderApi = require('../../.tmp/v2-core/core/renderer/render.js');
+var environmentApi = require('../../.tmp/v2-core/core/renderer/environment.js');
 
 var root = path.join(__dirname, '..', '..');
 
@@ -425,6 +426,33 @@ function assertOnlyEol(text, newline) {
     );
     assert.strictEqual(explicitFragment.status, 'formatted');
     assertOnlyEol(explicitFragment.text, '\r\n');
+})();
+
+(function testRequestTabSizeAndPublicDefault() {
+    var source = 'select `a\tb` as x,\n       `abcdef` as y\nfrom t';
+    function withTabSize(tabSize) {
+        return formatApi.formatSql(
+            source,
+            { dialect: 'hive' },
+            'document',
+            environmentApi.renderEnvironmentForNewline('\n', tabSize)
+        );
+    }
+    var tab2 = withTabSize(2);
+    var tab4 = withTabSize(4);
+    var tab8 = withTabSize(8);
+    assert.strictEqual(tab2.status, 'formatted');
+    assert.strictEqual(tab4.status, 'formatted');
+    assert.strictEqual(tab8.status, 'formatted');
+    assert.notStrictEqual(tab2.text, tab4.text,
+        'tabSize=2 must affect protected-source alignment columns');
+    assert.notStrictEqual(tab8.text, tab4.text,
+        'tabSize=8 must affect protected-source alignment columns');
+    assert.strictEqual(
+        publicFormatApi.formatSql(source, { dialect: 'hive' }).text,
+        tab4.text,
+        'public value API must use the documented tabSize=4 default'
+    );
 })();
 
 (function testSharedDialectsUseProvenLayoutAndHiveQueriesUseWave3C() {

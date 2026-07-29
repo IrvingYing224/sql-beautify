@@ -7,8 +7,11 @@ import type {
 } from "../../core/config/options";
 import type { ResolveFormatOptionsResult } from "../../core/config/resolve-options";
 import {
+    DEFAULT_RENDER_TAB_SIZE,
     inferRenderNewline,
+    isRenderTabSize,
     type RenderNewline,
+    type RenderTabSize,
 } from "../../core/renderer/environment";
 import { diagnosticsForEditor } from "../diagnostics/presentation";
 import {
@@ -101,6 +104,20 @@ function documentRenderNewline(
         fallback = "\n";
     }
     return inferRenderNewline(source, fallback);
+}
+
+function editorRenderTabSize(
+    editor: Vscode.TextEditor | undefined,
+    formattingOptions?: Vscode.FormattingOptions
+): RenderTabSize {
+    try {
+        const candidate = formattingOptions?.tabSize ?? editor?.options.tabSize;
+        return isRenderTabSize(candidate)
+            ? candidate
+            : DEFAULT_RENDER_TAB_SIZE;
+    } catch {
+        return DEFAULT_RENDER_TAB_SIZE;
+    }
 }
 
 function snapshotDocument(document: Vscode.TextDocument): DocumentSnapshot | null {
@@ -601,7 +618,8 @@ export function createVscodeExtension(
         document: Vscode.TextDocument,
         requestedTarget: FormatTarget | null,
         token: Vscode.CancellationToken,
-        phase: string
+        phase: string,
+        formattingOptions: Vscode.FormattingOptions
     ): Promise<Vscode.TextEdit[]> {
         const current = configuration(document);
         if (current === null || supportedLanguage(document.languageId) === null) {
@@ -620,6 +638,10 @@ export function createVscodeExtension(
                 targets: Object.freeze([target]),
                 options: current.options,
                 newline: documentRenderNewline(vscode, document, capturedSource),
+                tabSize: editorRenderTabSize(
+                    undefined,
+                    formattingOptions
+                ),
                 debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor);
@@ -762,6 +784,7 @@ export function createVscodeExtension(
                     editor.document,
                     expected.source
                 ),
+                tabSize: editorRenderTabSize(editor),
                 debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor, queryCommit(editor, editor.document));
@@ -881,6 +904,7 @@ export function createVscodeExtension(
                 selections: selectionSet.selections,
                 options: current.options,
                 newline: documentRenderNewline(vscode, document, expected.source),
+                tabSize: editorRenderTabSize(editor),
                 debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor);
@@ -946,12 +970,13 @@ export function createVscodeExtension(
                 registrations.push(vscode.languages.registerDocumentFormattingEditProvider(
                     FORMATTER_SELECTOR,
                     {
-                        provideDocumentFormattingEdits: async (document, _formattingOptions, token) => {
+                        provideDocumentFormattingEdits: async (document, formattingOptions, token) => {
                             return await prepareProvider(
                                 document,
                                 null,
                                 token,
-                                "document-format"
+                                "document-format",
+                                formattingOptions
                             );
                         },
                     }
@@ -962,14 +987,14 @@ export function createVscodeExtension(
                         provideDocumentRangeFormattingEdits: async (
                             document,
                             range,
-                            _formattingOptions,
+                            formattingOptions,
                             token
                         ) => await prepareProvider(document, Object.freeze({
                             id: "range",
                             start: document.offsetAt(range.start),
                             end: document.offsetAt(range.end),
                             mode: "fragment" as const,
-                        }), token, "range-format"),
+                        }), token, "range-format", formattingOptions),
                     }
                 ));
                 registrations.push(vscode.commands.registerCommand(

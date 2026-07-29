@@ -8,7 +8,11 @@ import type {
     LineSuffixSpacing,
 } from "../layout/doc";
 import type { SourceSpan } from "../source/source-span";
-import type { SourceMap, SourceMapEntry } from "../source/source-map";
+import {
+    canonicalSourceMapSnapshot,
+    type SourceMap,
+    type SourceMapEntry,
+} from "../source/source-map";
 import { measureDisplayText } from "./display-width";
 import {
     inferRenderEnvironment,
@@ -142,7 +146,9 @@ function frozenSpan(start: number, end: number): SourceSpan {
 }
 
 function freezeSourceMap(
-    values: readonly MutableSourceMapEntry[]
+    values: readonly MutableSourceMapEntry[],
+    sourceLength: number,
+    outputLength: number
 ): SourceMap {
     const entries: SourceMapEntry[] = values.map((value) =>
         Object.freeze({
@@ -150,7 +156,18 @@ function freezeSourceMap(
             output: frozenSpan(value.outputStart, value.outputEnd),
         })
     );
-    return Object.freeze({ entries: Object.freeze(entries) });
+    const sourceMap = canonicalSourceMapSnapshot(
+        { entries },
+        sourceLength,
+        outputLength
+    );
+    if (sourceMap === null) {
+        throw new RenderAbort(
+            "RENDER_ARTIFACT_PROVENANCE",
+            "Rendered source map failed its canonical proof"
+        );
+    }
+    return sourceMap;
 }
 
 function renderCanonical(
@@ -303,7 +320,11 @@ function renderCanonical(
         if (needsLinePrefix && !startsWithLineBreak(raw)) {
             emitLinePrefix(frame);
         }
-        const measured = measureDisplayText(raw, displayColumn);
+        const measured = measureDisplayText(
+            raw,
+            displayColumn,
+            environment.tabSize
+        );
         if (measured === null) {
             throw new RenderAbort(
                 "RENDER_RESOURCE_BUDGET",
@@ -602,7 +623,11 @@ function renderCanonical(
                 "Rendered text changed the target newline boundary contract"
             );
         }
-        const sourceMap = freezeSourceMap(mapEntries);
+        const sourceMap = freezeSourceMap(
+            mapEntries,
+            artifact.analysis.source.length,
+            outputCodeUnits
+        );
         const statistics = Object.freeze({
             docVisitCount,
             metricsDocVisitCount: metrics.statistics.docVisitCount,

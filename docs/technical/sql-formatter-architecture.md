@@ -58,6 +58,14 @@ The public package exports are intentionally narrow:
 
 The package root and internal runtime paths are not public exports.
 
+The production formatter is a Node.js runtime contract, including when reached
+through the public formatter facade. Defensive object boundaries use
+`node:util/types.isProxy` to reject even transparent Proxy objects; ECMAScript
+has no equivalent Proxy-detection primitive, so replacing this check with
+property inspection would weaken the fail-closed contract. This dependency does
+not add a public export or a second runtime path. Release gates must load the
+public facades on every supported Node runtime before release.
+
 ## Adapter and transaction contract
 
 Document, range, and multi-selection formatting share one transaction sequence:

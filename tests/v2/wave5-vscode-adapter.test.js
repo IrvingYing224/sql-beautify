@@ -83,6 +83,7 @@ function Editor(document, selections) {
     this.selections = selections;
     this.editCalls = 0;
     this.onChange = null;
+    this.options = { tabSize: 2, insertSpaces: true };
 }
 
 Editor.prototype.edit = function(callback) {
@@ -251,13 +252,15 @@ async function main() {
     ]);
     var host = createVscode(document, editor);
     var calls = { prepare: 0, host: 0, ddl: 0, prepareNewlines: [],
-        prepareDialects: [], hostNewlines: [], ddlCommitMode: false,
+        prepareTabSizes: [], prepareDialects: [], hostNewlines: [], hostTabSizes: [],
+        ddlCommitMode: false,
         ddlRejectMode: false };
     var runtime = {
         resolveFormatOptions: function(input) { return { ok: true, options: input }; },
         prepareFormatTransaction: async function(request) {
             calls.prepare += 1;
             calls.prepareNewlines.push(request.newline);
+            calls.prepareTabSizes.push(request.tabSize);
             calls.prepareDialects.push(request.options.dialect);
             return {
                 status: 'ready', documentVersion: request.documentVersion,
@@ -272,6 +275,7 @@ async function main() {
         runHostTransaction: async function(request, executor, commit) {
             calls.host += 1;
             calls.hostNewlines.push(request.newline);
+            calls.hostTabSizes.push(request.tabSize);
             assert.strictEqual(request.options.keywordCase, 'lower',
                 'explicit command options must override scoped settings');
             assert.ok(request.cancellation,
@@ -343,7 +347,7 @@ async function main() {
     ]);
 
     var providerEdits = await host.providers[0].provider.provideDocumentFormattingEdits(
-        document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
+        document, { tabSize: 8, insertSpaces: true }, { isCancellationRequested: false, onCancellationRequested: function() {
             return { dispose: function() {} };
         } }
     );
@@ -352,6 +356,8 @@ async function main() {
     assert.strictEqual(providerEdits.length, 1);
     assert.strictEqual(calls.prepareNewlines[0], '\n',
         'physical LF must determine the provider render environment');
+    assert.strictEqual(calls.prepareTabSizes[0], 8,
+        'provider formattingOptions.tabSize must determine the render environment');
 
     host.setConfiguration('dialect', 'mysql');
     await host.providers[0].provider.provideDocumentFormattingEdits(
@@ -589,6 +595,8 @@ async function main() {
     assert.strictEqual(calls.host, 1);
     assert.strictEqual(calls.hostNewlines[0], '\n',
         'query command must pass the document render environment');
+    assert.strictEqual(calls.hostTabSizes[0], 2,
+        'query command must use the active editor tabSize');
     assert.strictEqual(editor.editCalls, 1, 'command must apply all edits in one editor.edit call');
     assert.strictEqual(document.offsetAt(editor.selections[0].anchor), 18,
         'command must preserve backward selection anchor');

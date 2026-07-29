@@ -130,6 +130,35 @@ function measureUnknownScale(patternCount, repeatsPerSample) {
     };
 }
 
+function measurePostgresHotScale(termCount, repeatsPerSample) {
+    var terms = [];
+    for (var term = 0; term < termCount; term++) {
+        terms.push("ascii_identifier_" + term + "->>'field'");
+    }
+    var source = 'select ' + terms.join(',');
+    var samples = [];
+    var output;
+    for (var warmup = 0; warmup < 2; warmup++) {
+        output = lexSql(source, { dialect: 'postgresql' });
+        assert.strictEqual(reconstruct(output), source);
+    }
+    for (var sample = 0; sample < 7; sample++) {
+        var start = process.hrtime.bigint();
+        for (var repeat = 0; repeat < repeatsPerSample; repeat++) {
+            output = lexSql(source, { dialect: 'postgresql' });
+        }
+        samples.push(Number(process.hrtime.bigint() - start) / 1e6 / repeatsPerSample);
+    }
+    assert.strictEqual(reconstruct(output), source);
+    return {
+        terms: termCount,
+        codeUnits: source.length,
+        leaves: output.leaves.length,
+        medianMs: median(samples),
+        samples: samples
+    };
+}
+
 // Keep 100-case samples out of sub-millisecond noise by repeating inside the sample.
 var result100 = measureScale(100, 30);
 var result800 = measureScale(800, 4);
@@ -144,6 +173,11 @@ var unknown800 = measureUnknownScale(80000, 4);
 var unknown1200 = measureUnknownScale(120000, 3);
 var unknownRatio800 = unknown800.medianMs / unknown100.medianMs;
 var unknownRatio1200 = unknown1200.medianMs / unknown100.medianMs;
+var postgres100 = measurePostgresHotScale(1000, 20);
+var postgres800 = measurePostgresHotScale(8000, 3);
+var postgres1200 = measurePostgresHotScale(12000, 2);
+var postgresRatio800 = postgres800.medianMs / postgres100.medianMs;
+var postgresRatio1200 = postgres1200.medianMs / postgres100.medianMs;
 
 var report = {
     result100: {
@@ -176,6 +210,13 @@ var report = {
         ratio800: unknownRatio800,
         ratio1200: unknownRatio1200
     },
+    postgresAsciiKeywordOperatorRuns: {
+        result100: postgres100,
+        result800: postgres800,
+        result1200: postgres1200,
+        ratio800: postgresRatio800,
+        ratio1200: postgresRatio1200
+    },
     processPeakRssNote: 'processPeakRssKb is process.resourceUsage().maxRSS for the whole test process; cumulative, not independent per scale'
 };
 
@@ -198,6 +239,16 @@ assert.ok(
     unknownRatio1200 <= 18,
     'merged unknown 1200/100 scale ratio must be <= 18, got ' +
         unknownRatio1200
+);
+assert.ok(
+    postgresRatio800 <= 12,
+    'PostgreSQL ASCII identifier/operator 800/100 ratio must be <= 12, got ' +
+        postgresRatio800
+);
+assert.ok(
+    postgresRatio1200 <= 18,
+    'PostgreSQL ASCII identifier/operator 1200/100 ratio must be <= 18, got ' +
+        postgresRatio1200
 );
 
 console.log('v2 lossless lexer performance tests passed');

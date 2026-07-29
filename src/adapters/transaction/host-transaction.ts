@@ -1,5 +1,8 @@
 import type { FormatOptions } from "../../core/config/options";
-import type { RenderNewline } from "../../core/renderer/environment";
+import type {
+    RenderNewline,
+    RenderTabSize,
+} from "../../core/renderer/environment";
 import type {
     CancellationToken,
     FormatSelection,
@@ -23,6 +26,7 @@ export interface HostTransactionRequest {
     readonly selections?: readonly FormatSelection[];
     readonly options?: FormatOptions;
     readonly newline?: RenderNewline;
+    readonly tabSize?: RenderTabSize;
     readonly cancellation?: CancellationToken;
     readonly debugEnabled?: boolean;
 }
@@ -81,6 +85,7 @@ async function runHostTransactionInternal(
                 : { selections: request.selections }),
             ...(request.options === undefined ? {} : { options: request.options }),
             ...(request.newline === undefined ? {} : { newline: request.newline }),
+            ...(request.tabSize === undefined ? {} : { tabSize: request.tabSize }),
             ...(request.debugEnabled === undefined
                 ? {}
                 : { debugEnabled: request.debugEnabled }),

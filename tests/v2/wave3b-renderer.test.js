@@ -72,8 +72,8 @@ function assertFrozenSourceMap(sourceMap) {
     });
 }
 
-(function testPinnedUnicode151DisplayWidth() {
-    assert.strictEqual(displayApi.UNICODE_VERSION, '15.1.0');
+(function testPinnedUnicode17DisplayWidth() {
+    assert.strictEqual(displayApi.UNICODE_VERSION, '17.0.0');
     [
         ['ASCII', 5],
         ['界', 2],
@@ -100,6 +100,18 @@ function assertFrozenSourceMap(sourceMap) {
             'tab stop must depend on the real starting column');
         assert.strictEqual(measured.containsTab, true);
     });
+    assert.strictEqual(
+        displayApi.measureDisplayText('\tX', 0, 2).endColumn,
+        3,
+        'request tabSize=2 must control tab advance'
+    );
+    assert.strictEqual(
+        displayApi.measureDisplayText('\tX', 0, 8).endColumn,
+        9,
+        'request tabSize=8 must control tab advance'
+    );
+    assert.strictEqual(displayApi.measureDisplayText('\t', 0, 0), null);
+    assert.strictEqual(displayApi.measureDisplayText('\t', 0, 257), null);
 
     var crlf = displayApi.measureDisplayText('a\r\n界', 0);
     assert.ok(crlf);
@@ -127,6 +139,22 @@ function assertFrozenSourceMap(sourceMap) {
         'text-default emoji without VS16 remains width one');
     assert.strictEqual(displayApi.displayWidth('❤︎'), 1,
         'text variation selector must not force emoji width');
+    [
+        '\u00AD',
+        '\u200B',
+        '\u200D',
+        '\u2060',
+        '\uFE0F'
+    ].forEach(function(value) {
+        assert.strictEqual(displayApi.displayWidth(value), 0,
+            JSON.stringify(value) + ' standalone default-ignorable width');
+    });
+    assert.strictEqual(displayApi.displayWidth('A\u200D'), 1,
+        'default-ignorable code points do not erase a visible cluster base');
+    assert.strictEqual(displayApi.displayWidth('ASCII only 123'), 14,
+        'ASCII fast path must preserve exact width');
+    assert.strictEqual(displayApi.displayWidth('ASCIIe\u0301'), 6,
+        'ASCII fast path must leave the final base attached to a combining mark');
 
     [
         ['GB3 CR x LF', '\r\n', 1],

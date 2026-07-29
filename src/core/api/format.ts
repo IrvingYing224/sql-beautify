@@ -21,12 +21,14 @@ import type { LayoutPlan } from "../layout/plan";
 import { buildLayoutPlan } from "../layout/policy";
 import { applyKeywordCase } from "../renderer/keyword-case";
 import {
+    DEFAULT_RENDER_TAB_SIZE,
     inferRenderEnvironment,
     isCanonicalRenderEnvironment,
     isRenderNewline,
     renderEnvironmentForNewline,
     type RenderEnvironment,
     type RenderNewline,
+    type RenderTabSize,
 } from "../renderer/environment";
 import { renderLayoutArtifact } from "../renderer/render";
 import type { RenderStatistics } from "../renderer/types";
@@ -569,7 +571,8 @@ export function formatSqlWithStatistics(
             const alignmentPlan = deriveLayoutAlignmentPlan(
                 analysis,
                 options,
-                rendered
+                rendered,
+                environment.tabSize
             );
             if (alignmentPlan === null) {
                 const value = diagnostic(
@@ -752,14 +755,17 @@ export function executeFormatSql(
     options: FormatOptions | unknown = undefined,
     mode: ParseMode | unknown = "document",
     environment: RenderEnvironment | RenderNewline | unknown = undefined,
-    debugEnabled = false
+    debugEnabled = false,
+    tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE
 ): FormatSqlExecution {
     const debugEvents: DebugEvent[] = [];
     const result = formatSqlWithStatistics(
         source,
         options,
         mode,
-        environment,
+        isRenderNewline(environment)
+            ? renderEnvironmentForNewline(environment, tabSize)
+            : environment,
         debugEnabled ? debugEvents : undefined
     ).result;
     return Object.freeze({

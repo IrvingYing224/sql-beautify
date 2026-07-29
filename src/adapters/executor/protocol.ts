@@ -4,7 +4,9 @@ import type { CanonicalFormatOptions } from "../../core/config/options";
 import { resolveFormatOptions } from "../../core/config/resolve-options";
 import {
     isRenderNewline,
+    isRenderTabSize,
     type RenderNewline,
+    type RenderTabSize,
 } from "../../core/renderer/environment";
 import { snapshotDataProperties } from "../boundary/data-snapshot";
 import type { FormatTarget } from "../transaction/types";
@@ -21,6 +23,7 @@ const FORMAT_REQUEST_KEYS: ReadonlySet<string> = new Set([
     "options",
     "mode",
     "newline",
+    "tabSize",
     "debugEnabled",
 ]);
 const BATCH_REQUEST_KEYS: ReadonlySet<string> = new Set([
@@ -33,6 +36,7 @@ const BATCH_REQUEST_KEYS: ReadonlySet<string> = new Set([
     "options",
     "targets",
     "newline",
+    "tabSize",
     "debugEnabled",
 ]);
 const FORMAT_RESPONSE_KEYS: ReadonlySet<string> = new Set([
@@ -68,6 +72,7 @@ export interface WorkerFormatRequestMessage {
     readonly options: CanonicalFormatOptions;
     readonly mode: "document" | "fragment";
     readonly newline: RenderNewline;
+    readonly tabSize: RenderTabSize;
     readonly debugEnabled: boolean;
 }
 
@@ -93,6 +98,7 @@ export interface WorkerBatchRequestMessage {
     readonly options: CanonicalFormatOptions;
     readonly targets: readonly FormatTarget[];
     readonly newline: RenderNewline;
+    readonly tabSize: RenderTabSize;
     readonly debugEnabled: boolean;
 }
 
@@ -133,6 +139,7 @@ export function snapshotWorkerRequestMessage(
         "options",
         "mode",
         "newline",
+        "tabSize",
         "debugEnabled",
     ]);
     if (
@@ -151,6 +158,7 @@ export function snapshotWorkerRequestMessage(
         typeof raw.source !== "string" ||
         (raw.mode !== "document" && raw.mode !== "fragment") ||
         !isRenderNewline(raw.newline) ||
+        !isRenderTabSize(raw.tabSize) ||
         typeof raw.debugEnabled !== "boolean"
     ) {
         const batchRaw = snapshotDataProperties(value, BATCH_REQUEST_KEYS, [
@@ -163,6 +171,7 @@ export function snapshotWorkerRequestMessage(
             "options",
             "targets",
             "newline",
+            "tabSize",
             "debugEnabled",
         ]);
         if (
@@ -178,6 +187,7 @@ export function snapshotWorkerRequestMessage(
             !/^[a-f0-9]{64}$/.test(batchRaw.sourceDigest) ||
             typeof batchRaw.source !== "string" ||
             !isRenderNewline(batchRaw.newline) ||
+            !isRenderTabSize(batchRaw.tabSize) ||
             typeof batchRaw.debugEnabled !== "boolean" ||
             sourceDigest(batchRaw.source) !== batchRaw.sourceDigest
         ) {
@@ -189,6 +199,7 @@ export function snapshotWorkerRequestMessage(
             targets: batchRaw.targets,
             documentVersion: batchRaw.documentVersion,
             newline: batchRaw.newline,
+            tabSize: batchRaw.tabSize,
             debugEnabled: batchRaw.debugEnabled,
         });
         if (batch === null) {
@@ -204,6 +215,7 @@ export function snapshotWorkerRequestMessage(
             options: batch.options,
             targets: batch.targets,
             newline: batch.newline,
+            tabSize: batch.tabSize,
             debugEnabled: batch.debugEnabled,
         });
     }
@@ -222,6 +234,7 @@ export function snapshotWorkerRequestMessage(
         options: options.options,
         mode: raw.mode,
         newline: raw.newline,
+        tabSize: raw.tabSize,
         debugEnabled: raw.debugEnabled,
     });
 }

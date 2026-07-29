@@ -28,7 +28,10 @@ import { formatSql } from "../core/api/public-format";
 import { resolveFormatOptions } from "../core/config/resolve-options";
 import type { CanonicalFormatOptions } from "../core/config/options";
 import { lexSql } from "../core/lexer/lossless-lexer";
-import type { RenderNewline } from "../core/renderer/environment";
+import type {
+    RenderNewline,
+    RenderTabSize,
+} from "../core/renderer/environment";
 import { extractDdl, formatHiveDdl } from "../experimental/ddl";
 
 declare const __filename: string;
@@ -53,6 +56,7 @@ export function validateAndFormatTargets(
     targets: readonly FormatTarget[],
     documentVersion: number,
     newline: RenderNewline,
+    tabSize: RenderTabSize,
     debugEnabled = false
 ): FormatBatchExecutionResult {
     return executeFormatBatch(
@@ -62,6 +66,7 @@ export function validateAndFormatTargets(
             targets,
             documentVersion,
             newline,
+            tabSize,
             debugEnabled,
         }),
         executeFormatSql

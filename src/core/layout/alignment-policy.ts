@@ -8,6 +8,11 @@ import type {
 } from "../syntax/node";
 import type { LeafRange } from "../syntax/leaf-range";
 import { measureDisplayText } from "../renderer/display-width";
+import {
+    DEFAULT_RENDER_TAB_SIZE,
+    isRenderTabSize,
+    type RenderTabSize,
+} from "../renderer/environment";
 import { canonicalLayoutArtifactForRenderSuccess } from "../renderer/render";
 import type { RenderSuccess } from "../renderer/types";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
@@ -171,7 +176,8 @@ function outputLineStarts(text: string): readonly number[] {
 function outputPositions(
     text: string,
     lineStarts: readonly number[],
-    outputStarts: ReadonlyMap<number, number>
+    outputStarts: ReadonlyMap<number, number>,
+    tabSize: RenderTabSize
 ): ReadonlyMap<number, OutputPosition> | null {
     const positions = new Map<number, OutputPosition>();
     const offsets = Array.from(new Set(outputStarts.values()))
@@ -196,7 +202,8 @@ function outputPositions(
         }
         const measured = measureDisplayText(
             text.slice(cursor, offset),
-            column
+            column,
+            tabSize
         );
         if (measured === null || measured.containsLineBreak) {
             return null;
@@ -479,12 +486,14 @@ function trailingCommentCandidate(
 export function deriveLayoutAlignmentPlan(
     analysis: AnalyzedArtifact,
     options: CanonicalFormatOptions,
-    rendered: RenderSuccess
+    rendered: RenderSuccess,
+    tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE
 ): LayoutAlignmentPlan | null {
     try {
         if (
             !isCanonicalAnalyzedArtifact(analysis) ||
-            !isCanonicalFormatOptions(options)
+            !isCanonicalFormatOptions(options) ||
+            !isRenderTabSize(tabSize)
         ) {
             return null;
         }
@@ -533,7 +542,8 @@ export function deriveLayoutAlignmentPlan(
         const positions = outputPositions(
             rendered.text,
             lineStarts,
-            outputStarts
+            outputStarts,
+            tabSize
         );
         if (positions === null) {
             return null;

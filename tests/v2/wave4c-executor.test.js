@@ -14,7 +14,7 @@ function digest(file) {
     return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
-function request(source, newline) {
+function request(source, newline, tabSize) {
     var value = {
         source: source,
         options: { dialect: 'hive', unsupportedSyntaxPolicy: 'preserve' },
@@ -24,6 +24,9 @@ function request(source, newline) {
     };
     if (newline !== undefined) {
         value.newline = newline;
+    }
+    if (tabSize !== undefined) {
+        value.tabSize = tabSize;
     }
     return value;
 }
@@ -71,6 +74,14 @@ async function run() {
         assert.deepStrictEqual(workerResult, directResult,
             'direct and worker must use the same formatter artifact: case ' + index);
     }
+    var tabSource = 'select `a\tb` as x,\n       `abcdef` as y\nfrom t';
+    var directTab4 = await direct.format(request(tabSource, '\n', 4));
+    var directTab8 = await direct.format(request(tabSource, '\n', 8));
+    var workerTab8 = await persistent.format(request(tabSource, '\n', 8));
+    assert.notStrictEqual(directTab4.text, directTab8.text,
+        'request tabSize must reach the direct renderer');
+    assert.deepStrictEqual(workerTab8, directTab8,
+        'request tabSize must preserve direct/worker parity');
     var batchSource = 'select a,b\nfrom t\n';
     var batchRequest = {
         source: batchSource,
@@ -104,7 +115,7 @@ async function run() {
     assert.strictEqual(overLimitBatch.status, 'failed');
     assert.strictEqual(overLimitBatch.code, 'ADAPTER_INPUT_LIMIT');
     var stats = persistent.statistics();
-    assert.strictEqual(stats.requests, cases.length + 1);
+    assert.strictEqual(stats.requests, cases.length + 2);
     assert.ok(stats.lastFormattingMs >= 0);
     assert.ok(stats.lastRoundTripMs >= stats.lastFormattingMs);
     assert.ok(stats.lastTransferMs >= 0);
@@ -116,6 +127,7 @@ async function run() {
     );
     var directRequest = request('select 1');
     directRequest.newline = '\r\n';
+    directRequest.tabSize = 8;
     await routed.format(directRequest);
     assert.strictEqual(routed.lastRoute(), 'direct');
     assert.notStrictEqual(directCounter.requests[0], directRequest,
@@ -125,6 +137,8 @@ async function run() {
         'router snapshot must not observe later request mutation');
     assert.strictEqual(directCounter.requests[0].newline, '\r\n',
         'router snapshot must preserve the canonical EOL environment');
+    assert.strictEqual(directCounter.requests[0].tabSize, 8,
+        'router snapshot must preserve the canonical tab size');
 
     var fragmentRequest = request('select a,b from t', '\r\n');
     fragmentRequest.mode = 'fragment';

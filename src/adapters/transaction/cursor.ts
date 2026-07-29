@@ -1,5 +1,5 @@
 import {
-    mapSourceOffset,
+    createSourceOffsetMapper,
     type SourceMapAffinity,
 } from "../../core/source/source-map";
 import type { SourceMap } from "../../core/source/source-map";
@@ -27,9 +27,17 @@ export function mapSelectionThroughSourceMap(
     ) {
         return null;
     }
+    const mapper = createSourceOffsetMapper(
+        sourceMap,
+        sourceLength,
+        outputLength
+    );
+    if (mapper === null) {
+        return null;
+    }
     if (selection.anchor === selection.active) {
-        const exact = mapSourceOffset(sourceMap, selection.anchor, sourceLength, outputLength, "exact");
-        const mapped = exact ?? mapSourceOffset(sourceMap, selection.anchor, sourceLength, outputLength, "left");
+        const exact = mapper.map(selection.anchor, "exact");
+        const mapped = exact ?? mapper.map(selection.anchor, "left");
         if (mapped === null) {
             return null;
         }
@@ -38,18 +46,12 @@ export function mapSelectionThroughSourceMap(
     const forward = selection.anchor < selection.active;
     const sourceStart = Math.min(selection.anchor, selection.active);
     const sourceEnd = Math.max(selection.anchor, selection.active);
-    const mappedStart = mapSourceOffset(
-        sourceMap,
+    const mappedStart = mapper.map(
         sourceStart,
-        sourceLength,
-        outputLength,
         "left" satisfies SourceMapAffinity
     );
-    const mappedEnd = mapSourceOffset(
-        sourceMap,
+    const mappedEnd = mapper.map(
         sourceEnd,
-        sourceLength,
-        outputLength,
         "right" satisfies SourceMapAffinity
     );
     if (mappedStart === null || mappedEnd === null || mappedEnd < mappedStart) {

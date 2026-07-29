@@ -5,27 +5,27 @@ var fs = require('fs');
 var path = require('path');
 var crypto = require('crypto');
 
-var UNICODE_VERSION = '15.1.0';
+var UNICODE_VERSION = '17.0.0';
 var SOURCE_MANIFEST = Object.freeze([
     Object.freeze({
         label: 'GraphemeBreakProperty.txt',
-        sha256: 'a7e52eee647e52dc210b8719b4d7037276f4b353810293d69377fc46374cec3f',
-        versionPattern: /^# GraphemeBreakProperty-15\.1\.0\.txt$/m
+        sha256: 'd6b51d1d2ae5c33b451b7ed994b48f1f4dc62b2272a5831e7fd418514a6bae89',
+        versionPattern: /^# GraphemeBreakProperty-17\.0\.0\.txt$/m
     }),
     Object.freeze({
         label: 'DerivedCoreProperties.txt',
-        sha256: 'f55d0db69123431a7317868725b1fcbf1eab6b265d756d1bd7f0f6d9f9ee108b',
-        versionPattern: /^# DerivedCoreProperties-15\.1\.0\.txt$/m
+        sha256: '24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08',
+        versionPattern: /^# DerivedCoreProperties-17\.0\.0\.txt$/m
     }),
     Object.freeze({
         label: 'emoji-data.txt',
-        sha256: 'd7aef489c8fe4c14f09ea5695200277c6b93ac82ac60845cdd2161b0d6835cc1',
-        versionPattern: /^# Used with Emoji Version 15\.1 and subsequent minor revisions \(if any\)$/m
+        sha256: '2cb2bb9455cda83e8481541ecf5b6dfda66a3bb89efa3fa7c5297eccf607b72b',
+        versionPattern: /^# Version: 17\.0$/m
     }),
     Object.freeze({
         label: 'EastAsianWidth.txt',
-        sha256: 'b08191401dc125f4e84ef262a95754faae6b737c79538e17ea9664a63434e94e',
-        versionPattern: /^# EastAsianWidth-15\.1\.0\.txt$/m
+        sha256: 'ea7ce50f3444a050333448dffef1cadd9325af55cbb764b4a2280faf52170a33',
+        versionPattern: /^# EastAsianWidth-17\.0\.0\.txt$/m
     })
 ]);
 
@@ -41,6 +41,7 @@ var PROPERTY_ORDER = Object.freeze([
     'GCB_T',
     'GCB_LV',
     'GCB_LVT',
+    'DEFAULT_IGNORABLE_CODE_POINT',
     'INCB_CONSONANT',
     'INCB_EXTEND',
     'INCB_LINKER',
@@ -134,11 +135,12 @@ function renderArray(name, ranges) {
 
 function main(args) {
     var check = args[0] === '--check';
-    var values = check ? args.slice(1) : args;
+    var write = args[0] === '--write';
+    var values = check || write ? args.slice(1) : args;
     if (values.length !== 5) {
         throw new Error(
             'Usage: generate-v2-unicode-width-data.js ' +
-            '[--check] ' +
+            '[--write|--check] ' +
             '<GraphemeBreakProperty> <DerivedCoreProperties> ' +
             '<emoji-data> <EastAsianWidth> <output>'
         );
@@ -170,6 +172,9 @@ function main(args) {
     }, properties);
 
     collect(sources[1], function(fields) {
+        if (fields[1] === 'Default_Ignorable_Code_Point') {
+            return 'DEFAULT_IGNORABLE_CODE_POINT';
+        }
         if (fields[1] !== 'InCB') {
             return null;
         }
@@ -200,7 +205,7 @@ function main(args) {
 
     var output = [
         '/*',
-        ' * Generated from Unicode 15.1.0 data files:',
+        ' * Generated from Unicode ' + UNICODE_VERSION + ' data files:',
         ' * GraphemeBreakProperty.txt, DerivedCoreProperties.txt,',
         ' * emoji-data.txt and EastAsianWidth.txt.',
         ' * Inputs are pinned by SHA-256 in the generator.',

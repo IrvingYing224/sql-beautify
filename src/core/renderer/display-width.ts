@@ -1,4 +1,5 @@
 import {
+    DEFAULT_IGNORABLE_CODE_POINT,
     EAST_ASIAN_WIDE_OR_FULLWIDTH,
     EMOJI,
     EMOJI_MODIFIER,
@@ -22,10 +23,14 @@ import {
     UNICODE_VERSION,
     codePointInRanges,
 } from "./unicode-width-data";
+import {
+    DEFAULT_RENDER_TAB_SIZE,
+    isRenderTabSize,
+    type RenderTabSize,
+} from "./environment";
 
 export { UNICODE_VERSION };
 
-const TAB_STOP = 4;
 const CR = 0x0D;
 const LF = 0x0A;
 const VARIATION_SELECTOR_16 = 0xFE0F;
@@ -63,6 +68,7 @@ interface ClusterState {
 }
 
 interface ClusterWidthState {
+    hasNonDefaultIgnorable: boolean;
     hasWide: boolean;
     hasEmoji: boolean;
     hasEmojiPresentation: boolean;
@@ -292,6 +298,9 @@ function updateWidthState(
     previousZwjFollowsExtendedPictographic: boolean
 ): void {
     const extendedPictographic = isExtendedPictographic(codePoint);
+    state.hasNonDefaultIgnorable =
+        state.hasNonDefaultIgnorable ||
+        !codePointInRanges(codePoint, DEFAULT_IGNORABLE_CODE_POINT);
     state.hasWide =
         state.hasWide ||
         codePointInRanges(codePoint, EAST_ASIAN_WIDE_OR_FULLWIDTH);
@@ -321,6 +330,9 @@ function updateWidthState(
 }
 
 function clusterWidth(state: ClusterWidthState): number {
+    if (!state.hasNonDefaultIgnorable) {
+        return 0;
+    }
     return (
         state.hasWide ||
         state.hasEmojiPresentation ||
@@ -349,6 +361,7 @@ function measureCluster(text: string, start: number): ClusterMeasurement {
         indicLinkerSeen: false,
     };
     const widthState: ClusterWidthState = {
+        hasNonDefaultIgnorable: false,
         hasWide: false,
         hasEmoji: false,
         hasEmojiPresentation: false,
@@ -391,17 +404,19 @@ function measureCluster(text: string, start: number): ClusterMeasurement {
 }
 
 /**
- * Deterministic Unicode 15.1 text advance. It does not call host ICU,
+ * Deterministic pinned-Unicode text advance. It does not call host ICU,
  * normalize source text or allocate grapheme substrings.
  */
 export function measureDisplayText(
     text: string,
-    startColumn = 0
+    startColumn = 0,
+    tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE
 ): DisplayTextMeasurement | null {
     if (
         typeof text !== "string" ||
         !Number.isSafeInteger(startColumn) ||
-        startColumn < 0
+        startColumn < 0 ||
+        !isRenderTabSize(tabSize)
     ) {
         return null;
     }
@@ -412,6 +427,27 @@ export function measureDisplayText(
     let cursor = 0;
     while (cursor < text.length) {
         const codeUnit = text.charCodeAt(cursor);
+        if (codeUnit >= 0x20 && codeUnit <= 0x7E) {
+            let end = cursor + 1;
+            while (end < text.length) {
+                const next = text.charCodeAt(end);
+                if (next < 0x20 || next > 0x7E) {
+                    break;
+                }
+                end += 1;
+            }
+            const fastEnd = end === text.length ? end : Math.max(cursor, end - 1);
+            const advance = fastEnd - cursor;
+            if (advance > 0) {
+                if (column > Number.MAX_SAFE_INTEGER - advance) {
+                    return null;
+                }
+                column += advance;
+                maxColumn = Math.max(maxColumn, column);
+                cursor = fastEnd;
+                continue;
+            }
+        }
         if (codeUnit === CR || codeUnit === LF) {
             if (codeUnit === CR && text.charCodeAt(cursor + 1) === LF) {
                 cursor += 2;
@@ -425,7 +461,7 @@ export function measureDisplayText(
         }
         if (codeUnit === 0x09) {
             containsTab = true;
-            const advance = TAB_STOP - (column % TAB_STOP);
+            const advance = tabSize - (column % tabSize);
             if (column > Number.MAX_SAFE_INTEGER - advance) {
                 return null;
             }
@@ -459,8 +495,12 @@ export function measureDisplayText(
 }
 
 /** Returns relative single-line width, or null when the text contains a line break. */
-export function displayWidth(text: string, startColumn = 0): number | null {
-    const measured = measureDisplayText(text, startColumn);
+export function displayWidth(
+    text: string,
+    startColumn = 0,
+    tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE
+): number | null {
+    const measured = measureDisplayText(text, startColumn, tabSize);
     if (measured === null || measured.containsLineBreak) {
         return null;
     }

@@ -47,6 +47,8 @@ export interface LexicalProfile {
     readonly syntaxOperatorWords: ReadonlyLookup<string>;
     /** Multi-character operators sorted longest-first for maximal-munch. */
     readonly operators: readonly string[];
+    /** Longest-first operators whose first UTF-16 code unit matches `value`. */
+    readonly operatorsFor: (value: string) => readonly string[];
 }
 
 const COMMON_KEYWORDS = [
@@ -304,6 +306,9 @@ function isAsciiDigitCodePoint(codePoint: number): boolean {
 const POSTGRES_UNICODE_LETTER = /^\p{Letter}$/u;
 
 function isPostgresIdentifierLetter(codePoint: number): boolean {
+    if (isAsciiLetterCodePoint(codePoint)) {
+        return true;
+    }
     return Number.isInteger(codePoint) &&
         codePoint >= 0 &&
         codePoint <= 0x10ffff &&
@@ -382,8 +387,15 @@ const MYSQL_IDENTIFIER_CHARACTERS = identifierCharacters(
         isMysqlExtendedIdentifierCodePoint(codePoint)
 );
 
-function sortOperatorsLongestFirst(operators: readonly string[]): readonly string[] {
-    return Object.freeze(
+interface FrozenOperatorProfile {
+    readonly operators: readonly string[];
+    readonly operatorsFor: (value: string) => readonly string[];
+}
+
+const EMPTY_OPERATOR_BUCKET: readonly string[] = Object.freeze([]);
+
+function freezeOperators(operators: readonly string[]): FrozenOperatorProfile {
+    const sorted = Object.freeze(
         [...operators].sort((left, right) => {
             if (right.length !== left.length) {
                 return right.length - left.length;
@@ -391,7 +403,34 @@ function sortOperatorsLongestFirst(operators: readonly string[]): readonly strin
             return left < right ? -1 : left > right ? 1 : 0;
         })
     );
+    const mutableBuckets = new Map<string, string[]>();
+    for (const operator of sorted) {
+        const first = operator.charAt(0);
+        const bucket = mutableBuckets.get(first);
+        if (bucket === undefined) {
+            mutableBuckets.set(first, [operator]);
+        } else {
+            bucket.push(operator);
+        }
+    }
+    const buckets = new Map<string, readonly string[]>();
+    for (const [first, bucket] of mutableBuckets) {
+        buckets.set(first, Object.freeze(bucket));
+    }
+    return Object.freeze({
+        operators: sorted,
+        operatorsFor(value: string): readonly string[] {
+            return value.length === 1
+                ? buckets.get(value) ?? EMPTY_OPERATOR_BUCKET
+                : EMPTY_OPERATOR_BUCKET;
+        },
+    });
 }
+
+const HIVE_OPERATOR_PROFILE = freezeOperators(HIVE_OPERATORS);
+const COMMON_OPERATOR_PROFILE = freezeOperators(COMMON_OPERATORS);
+const POSTGRES_OPERATOR_PROFILE = freezeOperators(POSTGRES_OPERATORS);
+const MYSQL_OPERATOR_PROFILE = freezeOperators(MYSQL_OPERATORS);
 
 /**
  * Build a private Set and expose only `has`. Callers cannot add/delete/clear.
@@ -480,7 +519,7 @@ const HIVE_PROFILE: LexicalProfile = Object.freeze({
         "JSONFILE",
     ]),
     syntaxOperatorWords: freezeSyntaxOperatorWords(["rlike", "regexp"]),
-    operators: sortOperatorsLongestFirst(HIVE_OPERATORS),
+    ...HIVE_OPERATOR_PROFILE,
 });
 
 const GENERIC_PROFILE: LexicalProfile = Object.freeze({
@@ -498,7 +537,7 @@ const GENERIC_PROFILE: LexicalProfile = Object.freeze({
     prefixedLiterals: freezePrefixed(["N", "X", "B"]),
     keywords: freezeKeywords(),
     syntaxOperatorWords: freezeSyntaxOperatorWords(),
-    operators: sortOperatorsLongestFirst(COMMON_OPERATORS),
+    ...COMMON_OPERATOR_PROFILE,
 });
 
 const POSTGRES_PROFILE: LexicalProfile = Object.freeze({
@@ -528,7 +567,7 @@ const POSTGRES_PROFILE: LexicalProfile = Object.freeze({
         "ARRAY",
     ]),
     syntaxOperatorWords: freezeSyntaxOperatorWords(),
-    operators: sortOperatorsLongestFirst(POSTGRES_OPERATORS),
+    ...POSTGRES_OPERATOR_PROFILE,
 });
 
 const MYSQL_PROFILE: LexicalProfile = Object.freeze({
@@ -559,7 +598,7 @@ const MYSQL_PROFILE: LexicalProfile = Object.freeze({
         "QUICK",
     ]),
     syntaxOperatorWords: freezeSyntaxOperatorWords(["regexp"]),
-    operators: sortOperatorsLongestFirst(MYSQL_OPERATORS),
+    ...MYSQL_OPERATOR_PROFILE,
 });
 
 const PROFILES: Readonly<Record<Dialect, LexicalProfile>> = Object.freeze({
