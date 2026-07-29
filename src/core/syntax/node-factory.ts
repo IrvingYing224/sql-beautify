@@ -207,6 +207,37 @@ export function canonicalProgramValidationProofForLeaves(
         : null;
 }
 
+/**
+ * O(1) canonical root-coverage proof used before a parser artifact gains
+ * provenance. Deeper topology and semantic facts are validated once while the
+ * structural index is built.
+ */
+export function canonicalProgramCoversSource(
+    value: unknown,
+    leaves: readonly SourceLeaf[],
+    dialect: Dialect,
+    sourceLength: number
+): value is ProgramNode {
+    const proof = canonicalProgramValidationProofForLeaves(
+        value,
+        leaves,
+        dialect
+    );
+    if (proof === null || !proof.ownsNode(value)) {
+        return false;
+    }
+    const root = value as ProgramNode;
+    return (
+        proof.nodeCount >= 1 &&
+        root.kind === "program" &&
+        root.id === 0 &&
+        root.leafRange.start === 0 &&
+        root.leafRange.end === leaves.length &&
+        root.span.start === 0 &&
+        root.span.end === sourceLength
+    );
+}
+
 function freezeRange(range: LeafRange, leafCount: number, allowEmpty: boolean): LeafRange {
     if (
         !Number.isInteger(range.start) ||

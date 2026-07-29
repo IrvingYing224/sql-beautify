@@ -1,5 +1,6 @@
 import type { SourceLeaf } from "../lexer/token";
 import type { LeafRange } from "./leaf-range";
+import { sourceSpanForLeafRange } from "./leaf-range";
 import type {
     InvariantFailure,
     InvariantFailureCode,
@@ -62,10 +63,11 @@ type TokenValidationContext = {
 };
 
 /**
- * Production token-table invariant: valid-domain O(n) facts + fixed O(1)
+ * Explicit token-table validator: valid-domain O(n) facts + fixed O(1)
  * representative illegal-input probes. Exhaustive misuse matrix lives in tests.
  *
- * Broken methods use one circuit per API. The first valid-domain throw, invalid
+ * Canonical parsing never invokes this validator. Broken methods use one
+ * circuit per API. The first valid-domain throw, invalid
  * return type, or canonical mismatch records one primary failure and stops that
  * method without suppressing independent API checks.
  */
@@ -454,27 +456,17 @@ function validateTokenTableInvariantsInternal(
                 const validateRange = (start: number, end: number): boolean => {
                     rangeStart = start;
                     rangeEnd = end;
-                    let expectedStart: number;
-                    let expectedEnd: number;
-                    if (start === end) {
-                        if (n === 0 || start === 0) {
-                            expectedStart = 0;
-                        } else if (start === n) {
-                            expectedStart = sourceLength;
-                        } else {
-                            expectedStart = leaves[start]!.span.start;
-                        }
-                        expectedEnd = expectedStart;
-                    } else {
-                        expectedStart = leaves[start]!.span.start;
-                        expectedEnd = leaves[end - 1]!.span.end;
-                    }
+                    const expected = sourceSpanForLeafRange(
+                        leaves,
+                        sourceLength!,
+                        { start, end }
+                    )!;
                     const got = t.rangeToSpan({ start, end });
                     return validateExpectedSpan(
                         context,
                         got,
-                        expectedStart,
-                        expectedEnd,
+                        expected.start,
+                        expected.end,
                         start,
                         end
                     );

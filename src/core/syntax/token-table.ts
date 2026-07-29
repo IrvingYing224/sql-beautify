@@ -2,7 +2,10 @@ import { isImmutableSourceLeafPartitionForSource } from "../lexer/lossless-lexer
 import type { SourceLeaf } from "../lexer/token";
 import type { SourceSpan } from "../source/source-span";
 import { freezeImmutableArray } from "../util/immutable-array";
-import type { LeafRange } from "./leaf-range";
+import {
+    sourceSpanForLeafRange,
+    type LeafRange,
+} from "./leaf-range";
 
 export type StructuralIssueCode =
     | "STRUCT_UNMATCHED_OPENER"
@@ -332,23 +335,8 @@ export function buildStructuralTokenTable(
     }
 
     const rangeToSpanUnchecked = (range: LeafRange): SourceSpan => {
-        if (range.start === range.end) {
-            if (n === 0 || range.start === 0) {
-                return Object.freeze({ start: 0, end: 0 });
-            }
-            if (range.start === n) {
-                return Object.freeze({ start: source.length, end: source.length });
-            }
-            const leaf = leaves[range.start];
-            const offset = leaf?.span.start ?? source.length;
-            return Object.freeze({ start: offset, end: offset });
-        }
-        const first = leaves[range.start]!;
-        const last = leaves[range.end - 1]!;
-        if (range.end === range.start + 1 && Object.isFrozen(first.span)) {
-            return first.span;
-        }
-        return Object.freeze({ start: first.span.start, end: last.span.end });
+        const span = sourceSpanForLeafRange(leaves, source.length, range)!;
+        return Object.isFrozen(span) ? span : Object.freeze(span);
     };
 
     const table: StructuralTokenTable = Object.freeze({

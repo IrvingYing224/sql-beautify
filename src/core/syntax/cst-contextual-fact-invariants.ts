@@ -9,6 +9,7 @@ import type {
 import {
     isOperatorFixity,
     isOperatorFormatClass,
+    operatorSemanticsMatchLeaves,
 } from "./contextual-fact-contract";
 import {
     MISSING_DATA_FIELD,
@@ -639,29 +640,11 @@ function validateCanonicalOperatorOccurrences(
         }
 
         const canonicalSemantics = semantics as unknown as OperatorSemantics;
-        if (canonicalSemantics.form === "symbol") {
-            if (
-                wordLeaves.length !== 1 ||
-                wordLeaves[0]!.kind !== "operator" ||
-                wordLeaves[0]!.raw !== canonicalSemantics.key
-            ) {
-                fail(
-                    failures,
-                    "INV_RELATIONSHIP",
-                    `symbol operator occurrence ${occurrenceIndex} does not match ${canonicalSemantics.id} on expression ${nodeId}`,
-                    nodeId
-                );
-            }
-        } else if (
-            wordLeaves.length !== canonicalSemantics.words.length ||
-            wordLeaves.some(
-                (leaf, index) => leaf.raw.toLowerCase() !== canonicalSemantics.words[index]
-            )
-        ) {
+        if (!operatorSemanticsMatchLeaves(canonicalSemantics, wordLeaves)) {
             fail(
                 failures,
                 "INV_RELATIONSHIP",
-                `word operator occurrence ${occurrenceIndex} does not match ${canonicalSemantics.id} on expression ${nodeId}`,
+                `${canonicalSemantics.form === "symbol" ? "symbol" : "word"} operator occurrence ${occurrenceIndex} does not match ${canonicalSemantics.id} on expression ${nodeId}`,
                 nodeId
             );
         }

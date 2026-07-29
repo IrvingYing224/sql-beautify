@@ -6,7 +6,10 @@ import {
 } from "../lexer/lossless-lexer";
 import type { SourceLeaf } from "../lexer/token";
 import type { SourceSpan } from "../source/source-span";
-import type { LeafRange } from "../syntax/leaf-range";
+import {
+    sourceSpanForLeafRange,
+    type LeafRange,
+} from "../syntax/leaf-range";
 import {
     canonicalProgramNodeCount,
     canonicalProgramNodeCountForLeaves,
@@ -23,7 +26,12 @@ import type {
     StatementNode,
     SyntaxNode,
 } from "../syntax/node";
+import {
+    aliasKeywordLeafFailure,
+    operatorSemanticsMatchLeaves,
+} from "../syntax/contextual-fact-contract";
 import { EMPTY_FROZEN_ARRAY } from "../util/immutable-array";
+import { isStableFrozenDataArray } from "../util/stable-data";
 import {
     TRIVIA_LEADING_PRIORITY,
     TRIVIA_TRAILING_PRIORITY,
@@ -87,19 +95,6 @@ function isSyntax(leaf: SourceLeaf): boolean {
 
 function nodeChildren(node: SyntaxNode): readonly SyntaxNode[] {
     return "children" in node ? node.children : EMPTY_NODES;
-}
-
-function isStableFrozenDataArray(value: unknown): value is readonly unknown[] {
-    if (!Array.isArray(value) || !Object.isFrozen(value)) {
-        return false;
-    }
-    for (let index = 0; index < value.length; index++) {
-        const descriptor = Object.getOwnPropertyDescriptor(value, index);
-        if (descriptor === undefined || !("value" in descriptor)) {
-            return false;
-        }
-    }
-    return true;
 }
 
 function validateRange(
@@ -475,21 +470,14 @@ export function buildStructuralIndex(
                 invariantFailure(`node ${node.id} has invalid source span`);
             }
 
-            const expectedSpanStart =
-                node.leafRange.start === node.leafRange.end
-                    ? node.leafRange.start === 0
-                        ? 0
-                        : node.leafRange.start === leafCount
-                          ? canonicalSourceLength
-                          : leaves[node.leafRange.start]!.span.start
-                    : leaves[node.leafRange.start]!.span.start;
-            const expectedSpanEnd =
-                node.leafRange.start === node.leafRange.end
-                    ? expectedSpanStart
-                    : leaves[node.leafRange.end - 1]!.span.end;
+            const expectedSpan = sourceSpanForLeafRange(
+                leaves,
+                canonicalSourceLength,
+                node.leafRange
+            )!;
             if (
-                node.span.start !== expectedSpanStart ||
-                node.span.end !== expectedSpanEnd
+                node.span.start !== expectedSpan.start ||
+                node.span.end !== expectedSpan.end
             ) {
                 invariantFailure(`node ${node.id} span does not match its leaf range`);
             }
@@ -552,7 +540,7 @@ export function buildStructuralIndex(
             })];
         }
 
-        if (!isStableFrozenDataArray(node.syntaxMarkers)) {
+        if (!trustedParserArtifact && !isStableFrozenDataArray(node.syntaxMarkers)) {
             invariantFailure(`node ${node.id} syntaxMarkers must be a stable frozen data array`);
         }
         let previousMarkerLeafId = -1;
@@ -628,6 +616,16 @@ export function buildStructuralIndex(
             if (node.alias !== null) {
                 registerNameRange(node.alias.nameLeafRange, node.id, "alias-name");
                 if (node.alias.keywordLeafId !== null) {
+                    if (
+                        aliasKeywordLeafFailure(
+                            leaves,
+                            node.alias.keywordLeafId
+                        ) !== null
+                    ) {
+                        invariantFailure(
+                            `alias AS leaf ${node.alias.keywordLeafId} is not a code AS keyword`
+                        );
+                    }
                     const existing = explicitSyntaxByLeaf[node.alias.keywordLeafId];
                     if (
                         existing === undefined ||
@@ -645,12 +643,18 @@ export function buildStructuralIndex(
         }
 
         if (node.kind === "expression") {
-            if (!isStableFrozenDataArray(node.operatorLeafIds)) {
+            if (
+                !trustedParserArtifact &&
+                !isStableFrozenDataArray(node.operatorLeafIds)
+            ) {
                 invariantFailure(
                     `expression ${node.id} operatorLeafIds must be a stable frozen data array`
                 );
             }
-            if (!isStableFrozenDataArray(node.operatorOccurrences)) {
+            if (
+                !trustedParserArtifact &&
+                !isStableFrozenDataArray(node.operatorOccurrences)
+            ) {
                 invariantFailure(
                     `expression ${node.id} operatorOccurrences must be a stable frozen data array`
                 );
@@ -686,7 +690,8 @@ export function buildStructuralIndex(
                     occurrence.capabilityId !== canonicalSemantics.capabilityId ||
                     occurrence.fixity !== canonicalSemantics.fixity ||
                     occurrence.formatClass !== canonicalSemantics.formatClass ||
-                    !isStableFrozenDataArray(occurrence.leafIds) ||
+                    (!trustedParserArtifact &&
+                        !isStableFrozenDataArray(occurrence.leafIds)) ||
                     occurrence.leafIds.length === 0
                 ) {
                     invariantFailure(`expression ${node.id} has an invalid operator occurrence`);
@@ -717,25 +722,9 @@ export function buildStructuralIndex(
                     );
                 }
                 previousOccurrenceFirstLeafId = firstLeafId;
-                if (canonicalSemantics.form === "symbol") {
-                    if (
-                        occurrenceLeaves.length !== 1 ||
-                        occurrenceLeaves[0]!.kind !== "operator" ||
-                        occurrenceLeaves[0]!.raw !== canonicalSemantics.key
-                    ) {
-                        invariantFailure(
-                            `symbol operator occurrence does not match ${canonicalSemantics.id} on expression ${node.id}`
-                        );
-                    }
-                } else if (
-                    occurrenceLeaves.length !== canonicalSemantics.words.length ||
-                    occurrenceLeaves.some(
-                        (leaf, index) =>
-                            leaf.raw.toLowerCase() !== canonicalSemantics.words[index]
-                    )
-                ) {
+                if (!operatorSemanticsMatchLeaves(canonicalSemantics, occurrenceLeaves)) {
                     invariantFailure(
-                        `word operator occurrence does not match ${canonicalSemantics.id} on expression ${node.id}`
+                        `${canonicalSemantics.form === "symbol" ? "symbol" : "word"} operator occurrence does not match ${canonicalSemantics.id} on expression ${node.id}`
                     );
                 }
                 for (const leafId of occurrence.leafIds) {

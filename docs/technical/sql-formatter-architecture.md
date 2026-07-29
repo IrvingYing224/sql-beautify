@@ -5,8 +5,8 @@ This document defines the maintained SQL Beautify 2.x architecture. User-facing 
 ## Source and dependency boundaries
 
 - `src/core/lexer/` is the lossless lexer. It owns UTF-16 source spans, maximal-munch dialect lexemes, and exact comment/string/identifier bytes.
-- `src/core/syntax/` builds the formatter-oriented lossless CST, applies bounded recovery, recognizes unsupported constructs, and validates tree/token-table invariants.
-- `src/core/analysis/` builds immutable structural indexes and trivia ownership once per request.
+- `src/core/syntax/` builds the formatter-oriented lossless CST, applies bounded recovery, recognizes unsupported constructs, and grants private construction/root-coverage provenance. Its full hostile-object invariant facade is an explicit debug/test boundary, not a per-parse pass.
+- `src/core/analysis/` performs the single production CST traversal while building immutable structural indexes and trivia ownership once per request.
 - `src/core/layout/` is the only formatting-policy layer. It emits bounded Layout IR and explicit verbatim claims; it does not edit final strings.
 - `src/core/renderer/` is the only formatted-whitespace authority. It renders Layout IR, applies approved keyword case, and produces source-map facts.
 - `src/core/api/` and `src/core/config/` own the public result and canonical options contracts.

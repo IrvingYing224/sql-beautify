@@ -6,7 +6,10 @@ import {
     isImmutableSourceLeafPartitionForSource,
 } from "../lexer/lossless-lexer";
 import type { SourceLeaf, TokenKind } from "../lexer/token";
-import type { LeafRange } from "./leaf-range";
+import {
+    sourceSpanForLeafRange,
+    type LeafRange,
+} from "./leaf-range";
 import type { OpaqueBoundary, StatementKind } from "./node";
 import {
     canonicalProgramNodeCount,
@@ -18,6 +21,8 @@ import {
     type ContextualInvariantScratch,
 } from "./cst-contextual-invariant-context";
 import { validateContextualNodeFacts } from "./cst-contextual-invariants";
+import { validateSubRange } from "./cst-contextual-invariant-support";
+import { aliasKeywordLeafFailure } from "./contextual-fact-contract";
 import {
     getCstDialectInvariantContext,
     type CstDialectInvariantContext,
@@ -287,36 +292,6 @@ function validateOperatorLeafIds(
     }
 }
 
-function validateSubRange(
-    value: unknown,
-    field: string,
-    nodeId: number,
-    owner: LeafRange | null,
-    leavesLen: number,
-    failures: InvariantFailure[]
-): void {
-    if (!isLeafRange(value)) {
-        fail(failures, "INV_SHAPE", `${field} invalid on node ${nodeId}`, nodeId);
-        return;
-    }
-    if (value.end > leavesLen) {
-        fail(
-            failures,
-            "INV_OWNER_REFERENCE",
-            `${field} out of global leaves on node ${nodeId}`,
-            nodeId
-        );
-    }
-    if (owner && (value.start < owner.start || value.end > owner.end)) {
-        fail(
-            failures,
-            "INV_OWNER_REFERENCE",
-            `${field} outside owner leafRange on node ${nodeId}`,
-            nodeId
-        );
-    }
-}
-
 function validateAtomicNameRange(
     value: unknown,
     field: string,
@@ -430,8 +405,8 @@ function validateAlias(
         );
         return;
     }
-    const leaf = leaves[kid];
-    if (!leaf) {
+    const aliasLeafFailure = aliasKeywordLeafFailure(leaves, kid);
+    if (aliasLeafFailure === "missing") {
         fail(
             failures,
             "INV_OWNER_REFERENCE",
@@ -440,7 +415,8 @@ function validateAlias(
         );
         return;
     }
-    if (leaf.channel !== "code" || leaf.kind !== "keyword") {
+    const leaf = leaves[kid]!;
+    if (aliasLeafFailure === "not-keyword") {
         fail(
             failures,
             "INV_RELATIONSHIP",
@@ -449,7 +425,7 @@ function validateAlias(
         );
         return;
     }
-    if (leaf.raw.toLowerCase() !== "as") {
+    if (aliasLeafFailure === "not-as") {
         fail(
             failures,
             "INV_RELATIONSHIP",
@@ -1559,26 +1535,14 @@ export function validateSyntaxInvariants(input: SyntaxInvariantInput): Invariant
                         isFiniteNonNegInt(raw.id) ? raw.id : undefined
                     );
                 } else {
-                    const rangeStart = raw.leafRange.start;
-                    const rangeEnd = raw.leafRange.end;
-                    let expectedStart: number;
-                    let expectedEnd: number;
-                    if (rangeStart === rangeEnd) {
-                        if (leaves.length === 0 || rangeStart === 0) {
-                            expectedStart = 0;
-                        } else if (rangeStart === leaves.length) {
-                            expectedStart = source.length;
-                        } else {
-                            expectedStart = leaves[rangeStart]!.span.start;
-                        }
-                        expectedEnd = expectedStart;
-                    } else {
-                        expectedStart = leaves[rangeStart]!.span.start;
-                        expectedEnd = leaves[rangeEnd - 1]!.span.end;
-                    }
+                    const expectedSpan = sourceSpanForLeafRange(
+                        leaves,
+                        source.length,
+                        raw.leafRange
+                    )!;
                     if (
-                        raw.span.start !== expectedStart ||
-                        raw.span.end !== expectedEnd
+                        raw.span.start !== expectedSpan.start ||
+                        raw.span.end !== expectedSpan.end
                     ) {
                         fail(
                             failures,

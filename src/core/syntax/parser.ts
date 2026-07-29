@@ -4,7 +4,10 @@ import { lexSql } from "../lexer/lossless-lexer";
 import type { LexOutput } from "../lexer/lossless-lexer";
 import { getDialect } from "../dialects/registry";
 import { freezeImmutableArray } from "../util/immutable-array";
-import { createParserNodeFactory } from "./node-factory";
+import {
+    canonicalProgramCoversSource,
+    createParserNodeFactory,
+} from "./node-factory";
 import type { ProgramNode, StatementNode, SyntaxNode } from "./node";
 import type { LeafRange } from "./leaf-range";
 import { createOpaqueWithDiagnostic } from "./recovery";
@@ -28,7 +31,6 @@ import type {
 import { parseStatementRange } from "./statement-parser";
 import { buildStructuralTokenTable } from "./token-table";
 import type { StructuralTokenTable } from "./token-table";
-import { validateSyntaxInvariants } from "./invariants";
 import {
     parseTypeExpressionPrefix,
     type ParsedTypePrefix,
@@ -200,6 +202,18 @@ function artifactOf(
         hasCommentTrivia,
     });
     if (canonical) {
+        if (
+            !canonicalProgramCoversSource(
+                output.root,
+                output.leaves,
+                dialect,
+                source.length
+            )
+        ) {
+            throw new Error(
+                "Canonical parse artifact root does not cover its exact source partition"
+            );
+        }
         CANONICAL_PARSE_ARTIFACTS.add(artifact);
         CANONICAL_PARSE_MODE_BY_ROOT.set(output.root, mode);
     }
@@ -296,34 +310,6 @@ export function parseSqlArtifact(
                     table,
                     "SYN_UNMODELED_CONSTRUCT",
                     "Fragment target could not be fully structured"
-                ),
-                table,
-                hasCommentTrivia,
-                true
-            );
-        }
-        const invariant = validateSyntaxInvariants({
-            root,
-            leaves: lexed.leaves,
-            source,
-            dialect,
-            tokenTable: table,
-        });
-        if (!invariant.ok) {
-            const codes = Array.from(new Set(invariant.failures.map((failure) => failure.code)))
-                .slice(0, 8)
-                .join(", ");
-            return artifactOf(
-                source,
-                dialect,
-                mode,
-                targetFallbackOutput(
-                    dialect,
-                    mode,
-                    lexed,
-                    table,
-                    "SYN_INTERNAL_INVARIANT",
-                    `CST invariant validation failed: ${codes}`
                 ),
                 table,
                 hasCommentTrivia,

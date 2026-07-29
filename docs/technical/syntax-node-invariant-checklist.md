@@ -12,22 +12,28 @@ the check script derives the declared kinds from `node.ts` and rejects registry 
 
 ## Root constraint
 
-Every parsed tree is proved in full on every parse. A new node therefore participates
-in six independent families: shape, relationship, container, contextual facts,
-capability allowlist, and exact marker closure. Omitting any family can turn malformed
-or unowned syntax into an apparently canonical artifact.
+Canonical CST values are not accepted from callers. The parser factory proves local
+shape/range facts while constructing frozen nodes, the parser grants an artifact only
+after an O(1) exact provenance/root-coverage check, and structural-index construction
+performs the single production full-tree traversal. The explicit hostile-object
+validator remains an independent debug/test oracle with six families: shape,
+relationship, container, contextual facts, capability allowlist, and exact marker
+closure. A new node must enroll in both the canonical construction/index path and all
+applicable hostile-object families.
 
 ## Correct approach
 
 1. Add the node type and factory construction with frozen exact data fields.
 2. Add or update its `NODE_CONTRACTS` child/reference relationship authority.
 3. Add its exhaustive `NODE_KIND_REGISTRY` entry, including subtype field/domain.
-4. Implement shape and subtype checks in `cst-invariants.ts`.
-5. Extend container, contextual fact, capability, and marker-closure validators where
+4. Implement construction-time shape/range checks and the corresponding single-pass
+   structural-index ownership/semantic checks.
+5. Implement independent hostile shape and subtype checks in `cst-invariants.ts`.
+6. Extend container, contextual fact, capability, and marker-closure validators where
    the node has a new semantic rule; an intentional no-op still remains registered.
-6. Update analysis ownership/index consumers and layout policy only after the CST proof
+7. Update analysis query consumers and layout policy only after the CST proof
    is complete.
-7. Add canonical, hostile-clone, missing-field, extra-field, wrong-owner, wrong-marker,
+8. Add canonical, hostile-clone, missing-field, extra-field, wrong-owner, wrong-marker,
    wrong-capability, malformed, and recovery tests.
 
 ## Validation method
@@ -41,8 +47,9 @@ node tests/v2/recovery-fuzz.test.js
 node tests/v2/syntax-invariants-performance.test.js
 ```
 
-The registry check proves exhaustive enrollment; the hostile and performance suites
-prove that enrollment still fails closed without weakening the linear full-tree pass.
+The registry check proves exhaustive enrollment; the hostile suite proves fail-closed
+behavior; the operation-count gate proves canonical parsing does not enter the debug
+oracle/exception probes and formatting performs exactly one structural-index traversal.
 
 ## Scope
 

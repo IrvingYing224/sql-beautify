@@ -26,6 +26,32 @@ var core = require(corePath);
 var tokenTableMod = require(tokenTablePath);
 var invariants = require(invariantsPath);
 var expectedTableMod = require(expectedTablePath);
+var cstInvariantMod = require(path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'syntax',
+    'cst-invariants.js'
+));
+var parserMod = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js'));
+var markerClosureMod = require(path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'syntax',
+    'cst-marker-closure-invariants.js'
+));
+var structuralIndexMod = require(path.join(
+    root,
+    '.tmp',
+    'v2-core',
+    'core',
+    'analysis',
+    'structural-index.js'
+));
+var formatApi = require(path.join(root, '.tmp', 'v2-core', 'core', 'api', 'format.js'));
 var MAX_BROKEN_TABLE_FAILURES = 32;
 var EMPTY_FACTS = Object.freeze([]);
 
@@ -223,5 +249,90 @@ assert.ok(
     'incomplete-table median ' + incompleteTableMed.toFixed(1) + 'ms exceeds fail-fast gate ' +
         incompleteTableGate.toFixed(1) + 'ms'
 );
+
+// Canonical production operation-count gate. Parser construction must not
+// enter the explicit hostile-object validator, its independent token oracle,
+// marker-closure scan, or fixed misuse exception probes. Formatting owns one
+// structural-index traversal; an explicit validator call below proves the
+// monkey-patched counters are live and that the debug validator remains usable.
+var productionCounts = {
+    fullInvariant: 0,
+    expectedOracle: 0,
+    markerClosure: 0,
+    structuralIndex: 0
+};
+var originalFullInvariant = cstInvariantMod.validateSyntaxInvariants;
+var originalProductionOracle = expectedTableMod.deriveExpectedTable;
+var originalMarkerClosure = markerClosureMod.validateExactMarkerClosure;
+var originalBuildStructuralIndex = structuralIndexMod.buildStructuralIndex;
+cstInvariantMod.validateSyntaxInvariants = function() {
+    productionCounts.fullInvariant += 1;
+    return originalFullInvariant.apply(this, arguments);
+};
+expectedTableMod.deriveExpectedTable = function() {
+    productionCounts.expectedOracle += 1;
+    return originalProductionOracle.apply(this, arguments);
+};
+markerClosureMod.validateExactMarkerClosure = function() {
+    productionCounts.markerClosure += 1;
+    return originalMarkerClosure.apply(this, arguments);
+};
+structuralIndexMod.buildStructuralIndex = function() {
+    productionCounts.structuralIndex += 1;
+    return originalBuildStructuralIndex.apply(this, arguments);
+};
+
+var operationSource = 'SELECT ' + new Array(49).join('(') + 'a' +
+    new Array(49).join(')') + ' FROM t WHERE x = 1';
+var operationArtifact;
+try {
+    operationArtifact = parserMod.parseSqlArtifact(operationSource, {
+        dialect: 'hive',
+        mode: 'document'
+    });
+    assert.deepStrictEqual(productionCounts, {
+        fullInvariant: 0,
+        expectedOracle: 0,
+        markerClosure: 0,
+        structuralIndex: 0
+    }, 'canonical parse must use construction/root provenance only');
+
+    var formatted = formatApi.formatSqlWithStatistics(operationSource, {
+        dialect: 'hive'
+    });
+    assert.ok(formatted && formatted.result, 'canonical format must return a result');
+    assert.deepStrictEqual(productionCounts, {
+        fullInvariant: 0,
+        expectedOracle: 0,
+        markerClosure: 0,
+        structuralIndex: 1
+    }, 'canonical format must add exactly one structural-index traversal');
+
+    var explicitValidation = invariants.validateSyntaxInvariants({
+        root: operationArtifact.output.root,
+        leaves: operationArtifact.output.leaves,
+        source: operationArtifact.source,
+        dialect: operationArtifact.dialect,
+        tokenTable: operationArtifact.tokenTable
+    });
+    assert.strictEqual(
+        explicitValidation.ok,
+        true,
+        'explicit hostile-object validation must remain available: ' +
+            JSON.stringify(explicitValidation.failures.slice(0, 3))
+    );
+    assert.strictEqual(productionCounts.fullInvariant, 1);
+    assert.strictEqual(productionCounts.expectedOracle, 1);
+    assert.ok(
+        productionCounts.markerClosure > 0,
+        'explicit validator must still execute marker-closure checks'
+    );
+    assert.strictEqual(productionCounts.structuralIndex, 1);
+} finally {
+    cstInvariantMod.validateSyntaxInvariants = originalFullInvariant;
+    expectedTableMod.deriveExpectedTable = originalProductionOracle;
+    markerClosureMod.validateExactMarkerClosure = originalMarkerClosure;
+    structuralIndexMod.buildStructuralIndex = originalBuildStructuralIndex;
+}
 
 console.log('v2 syntax invariants performance tests passed');

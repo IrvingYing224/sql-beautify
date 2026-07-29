@@ -1,11 +1,13 @@
-import { isProxy } from "node:util/types";
 import type { InvariantFailure } from "./invariant-types";
 import type { LeafRange } from "./leaf-range";
+import {
+    hasExactFrozenDataShape,
+    isStableFrozenDataArray,
+} from "../util/stable-data";
 import {
     fail,
     isFiniteNonNegInt,
     isLeafRange,
-    isObject,
 } from "./invariant-shared";
 
 function validateSubRange(
@@ -38,85 +40,7 @@ function validateSubRange(
     }
 }
 
-const STABLE_FROZEN_ARRAY_CACHE = new WeakSet<object>();
 const MISSING_DATA_FIELD = Symbol("missing-data-field");
-
-function hasExactFrozenDataShape(
-    value: unknown,
-    expectedKeys: readonly string[]
-): value is Record<string, unknown> {
-    if (
-        !isObject(value) ||
-        isProxy(value) ||
-        Object.getPrototypeOf(value) !== Object.prototype ||
-        !Object.isFrozen(value)
-    ) {
-        return false;
-    }
-    const keys = Reflect.ownKeys(value);
-    if (
-        keys.length !== expectedKeys.length ||
-        keys.some((key) => typeof key !== "string" || !expectedKeys.includes(key))
-    ) {
-        return false;
-    }
-    for (const key of expectedKeys) {
-        const descriptor = Object.getOwnPropertyDescriptor(value, key);
-        if (
-            descriptor === undefined ||
-            !("value" in descriptor) ||
-            descriptor.enumerable !== true ||
-            descriptor.writable !== false ||
-            descriptor.configurable !== false
-        ) {
-            return false;
-        }
-    }
-    return true;
-}
-
-function isStableFrozenDataArray(value: unknown): value is readonly unknown[] {
-    if (typeof value !== "object" || value === null || isProxy(value)) {
-        return false;
-    }
-    if (STABLE_FROZEN_ARRAY_CACHE.has(value)) {
-        return true;
-    }
-    if (!Array.isArray(value) || !Object.isFrozen(value)) {
-        return false;
-    }
-    const keys = Reflect.ownKeys(value);
-    if (keys.length !== value.length + 1 || keys[keys.length - 1] !== "length") {
-        return false;
-    }
-    for (let index = 0; index < value.length; index++) {
-        if (keys[index] !== String(index)) {
-            return false;
-        }
-        const descriptor = Object.getOwnPropertyDescriptor(value, index);
-        if (
-            descriptor === undefined ||
-            !("value" in descriptor) ||
-            descriptor.enumerable !== true ||
-            descriptor.writable !== false ||
-            descriptor.configurable !== false
-        ) {
-            return false;
-        }
-    }
-    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
-    const stable =
-        lengthDescriptor !== undefined &&
-        "value" in lengthDescriptor &&
-        lengthDescriptor.value === value.length &&
-        lengthDescriptor.enumerable === false &&
-        lengthDescriptor.writable === false &&
-        lengthDescriptor.configurable === false;
-    if (stable) {
-        STABLE_FROZEN_ARRAY_CACHE.add(value);
-    }
-    return stable;
-}
 
 function readRequiredDataField(
     raw: Record<string, unknown>,

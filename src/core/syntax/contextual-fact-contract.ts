@@ -1,31 +1,16 @@
-import type { OperatorFixity, OperatorFormatClass } from "../dialects/types";
+import type {
+    OperatorFixity,
+    OperatorFormatClass,
+    OperatorSemantics,
+} from "../dialects/types";
+import type { SourceLeaf } from "../lexer/token";
 import type {
     ClauseKind,
     FormatRole,
     SyntaxLeafRole,
     SyntaxMarkerId,
 } from "./node";
-
-const CLAUSE_KINDS: ReadonlySet<string> = new Set<ClauseKind>([
-    "with",
-    "select",
-    "from",
-    "where",
-    "group-by",
-    "having",
-    "window",
-    "order-by",
-    "cluster-by",
-    "distribute-by",
-    "sort-by",
-    "limit",
-    "join-on",
-    "join-using",
-    "lateral-view",
-    "insert",
-    "partition",
-    "set-operation",
-]);
+import { CLAUSE_KINDS } from "./syntax-contract-values";
 
 type NonClauseSyntaxMarkerId = Exclude<SyntaxMarkerId, `clause:${ClauseKind}`>;
 
@@ -200,4 +185,41 @@ export function hasAsciiKeywordCaseShape(value: unknown): value is string {
         typeof value === "string" &&
         /^[A-Za-z]+(?:_[A-Za-z]+)*$/.test(value)
     );
+}
+
+/** Shared exact leaf projection for a registry-owned operator occurrence. */
+export function operatorSemanticsMatchLeaves(
+    semantics: OperatorSemantics,
+    leaves: readonly SourceLeaf[]
+): boolean {
+    if (semantics.form === "symbol") {
+        return (
+            leaves.length === 1 &&
+            leaves[0]!.kind === "operator" &&
+            leaves[0]!.raw === semantics.key
+        );
+    }
+    return (
+        leaves.length === semantics.words.length &&
+        leaves.every(
+            (leaf, index) => leaf.raw.toLowerCase() === semantics.words[index]
+        )
+    );
+}
+
+export type AliasKeywordLeafFailure = "missing" | "not-keyword" | "not-as";
+
+/** Shared lexical contract for the optional explicit AS owned by an alias. */
+export function aliasKeywordLeafFailure(
+    leaves: readonly SourceLeaf[],
+    leafId: number
+): AliasKeywordLeafFailure | null {
+    const leaf = leaves[leafId];
+    if (leaf === undefined) {
+        return "missing";
+    }
+    if (leaf.channel !== "code" || leaf.kind !== "keyword") {
+        return "not-keyword";
+    }
+    return leaf.raw.toLowerCase() === "as" ? null : "not-as";
 }

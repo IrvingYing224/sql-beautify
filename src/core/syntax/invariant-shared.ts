@@ -3,6 +3,8 @@ import type { SourceSpan } from "../source/source-span";
 import { freezeImmutableArray } from "../util/immutable-array";
 import type { LeafRange } from "./leaf-range";
 import type { OpaqueBoundary, StatementKind, SyntaxNode } from "./node";
+import { CLAUSE_KINDS } from "./syntax-contract-values";
+export { CLAUSE_KINDS } from "./syntax-contract-values";
 import type {
     InvariantFailure,
     InvariantFailureCode,
@@ -40,26 +42,6 @@ export const STATEMENT_KINDS = new Set<StatementKind>([
     "opaque",
 ]);
 export const QUERY_KINDS = new Set(["select", "set", "parenthesized"]);
-export const CLAUSE_KINDS = new Set([
-    "with",
-    "select",
-    "from",
-    "where",
-    "group-by",
-    "having",
-    "window",
-    "order-by",
-    "cluster-by",
-    "distribute-by",
-    "sort-by",
-    "limit",
-    "join-on",
-    "join-using",
-    "lateral-view",
-    "insert",
-    "partition",
-    "set-operation",
-]);
 export const RELATION_KINDS = new Set([
     "table",
     "subquery",
@@ -637,38 +619,6 @@ export function isSourceSpan(value: unknown): value is SourceSpan {
         isFiniteNonNegInt(value.end) &&
         value.end >= value.start
     );
-}
-
-export function rangeToSpan(
-    leaves: readonly SourceLeaf[],
-    source: string,
-    range: LeafRange
-): SourceSpan | null {
-    if (range.start < 0 || range.end < range.start || range.end > leaves.length) {
-        return null;
-    }
-    if (range.start === range.end) {
-        if (leaves.length === 0) {
-            return { start: 0, end: 0 };
-        }
-        if (range.start === 0) {
-            return { start: 0, end: 0 };
-        }
-        if (range.start === leaves.length) {
-            return { start: source.length, end: source.length };
-        }
-        const leaf = leaves[range.start];
-        if (!leaf) {
-            return null;
-        }
-        return { start: leaf.span.start, end: leaf.span.start };
-    }
-    const first = leaves[range.start];
-    const last = leaves[range.end - 1];
-    if (!first || !last) {
-        return null;
-    }
-    return { start: first.span.start, end: last.span.end };
 }
 
 export function rangesOverlap(a: LeafRange, b: LeafRange): boolean {
