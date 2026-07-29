@@ -31,7 +31,8 @@ assert.deepStrictEqual(Object.keys(ddl).sort(), ['extractDdl', 'formatHiveDdl'],
     'public DDL facade must expose only approved values');
 [
     'formatSql', 'formatSqlTarget', 'executeFormatSql',
-    'validateAndFormatTargets', 'lexSql', 'formatHiveDdl', 'extractDdl',
+    'validateAndFormatTargets', 'lexSql', 'executeExtractDdl', 'executeFormatHiveDdl',
+    'formatHiveDdl', 'extractDdl',
     'prepareFormatTransaction', 'resolveFormatOptions', 'runHostTransaction',
     'runExperimentalDdlTransaction', 'createProductionFormatterExecutor'
 ].forEach(function(name) {

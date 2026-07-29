@@ -1,4 +1,5 @@
 import type { SourceLeaf } from "../../core/lexer/token";
+import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import type { SourceSpan } from "../../core/source/source-span";
 import type { LeafRange } from "../../core/syntax/leaf-range";
 import type {
@@ -14,7 +15,15 @@ import {
 } from "../../core/syntax/parser";
 import { splitTopLevelTypeItems } from "../../core/syntax/type-cursor";
 import { ddlDiagnostic, hiveDdlResult } from "./result";
-import type { HiveDdlResult } from "./types";
+import {
+    resolveHiveDdlFormatOptions,
+    type ResolvedHiveDdlFormatOptions,
+} from "./options";
+import type {
+    HiveDdlExecutionResult,
+    HiveDdlFormatOptions,
+    HiveDdlResult,
+} from "./types";
 
 const RESERVED_COLUMN_STARTS = new Set([
     "clustered",
@@ -29,16 +38,31 @@ const RESERVED_COLUMN_STARTS = new Set([
     "tblproperties",
     "unique",
 ]);
+const STORAGE_FORMATS: ReadonlySet<string> = new Set([
+    "avro",
+    "orc",
+    "parquet",
+    "rcfile",
+    "sequencefile",
+    "textfile",
+]);
 
 class HiveDdlParseError extends Error {
     readonly code: string;
     readonly span: SourceSpan;
+    readonly debugCause: unknown | null;
 
-    constructor(code: string, message: string, span: SourceSpan) {
+    constructor(
+        code: string,
+        message: string,
+        span: SourceSpan,
+        debugCause: unknown | null = null
+    ) {
         super(message);
         this.name = "HiveDdlParseError";
         this.code = code;
         this.span = span;
+        this.debugCause = debugCause;
     }
 }
 
@@ -55,6 +79,8 @@ interface HiveCreateTableCst {
     readonly terminator: string;
     readonly tableNameRange: LeafRange;
     readonly columns: readonly HiveDdlColumn[];
+    readonly partitionColumns: readonly HiveDdlColumn[] | null;
+    readonly storageFormat: string | null;
 }
 
 function isSyntaxLeaf(leaf: SourceLeaf): boolean {
@@ -225,12 +251,14 @@ function parseColumns(
                 Object.freeze({ start: typeStart, end: itemRange.end })
             );
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            failAt(
-                artifact,
+            const leaf = artifact.output.leaves[typeStart];
+            throw new HiveDdlParseError(
                 "DDL_COLUMN_TYPE",
-                `Hive column type is not fully modeled: ${message}`,
-                typeStart
+                "Hive column type is not fully modeled",
+                leaf === undefined
+                    ? Object.freeze({ start: 0, end: artifact.source.length })
+                    : leafSpan(leaf),
+                error
             );
         }
         let afterType = nextSyntax(leaves, parsedType.endLeafIndex, itemRange.end);
@@ -265,6 +293,85 @@ function parseColumns(
         }
     }
     return Object.freeze(columns);
+}
+
+interface HiveTableSuffixes {
+    readonly partitionColumns: readonly HiveDdlColumn[] | null;
+    readonly storageFormat: string | null;
+}
+
+function parseTableSuffixes(
+    artifact: ParseArtifact,
+    start: number | null,
+    end: number
+): HiveTableSuffixes {
+    const leaves = artifact.output.leaves;
+    let cursor = start;
+    let partitionColumns: readonly HiveDdlColumn[] | null = null;
+    let storageFormat: string | null = null;
+    if (cursor !== null && wordAt(artifact, cursor) === "partitioned") {
+        const byLeafId = nextSyntax(leaves, cursor + 1, end);
+        if (byLeafId === null || wordAt(artifact, byLeafId) !== "by") {
+            failAt(
+                artifact,
+                "DDL_PARTITION_LIST",
+                "Hive PARTITIONED BY requires a column list",
+                cursor
+            );
+        }
+        const openLeafId = nextSyntax(leaves, byLeafId + 1, end);
+        if (openLeafId === null || leaves[openLeafId]!.raw !== "(") {
+            failAt(
+                artifact,
+                "DDL_PARTITION_LIST",
+                "Hive PARTITIONED BY requires a column list",
+                byLeafId
+            );
+        }
+        const closeLeafId = artifact.tokenTable.matchingDelimiterIndex(openLeafId);
+        if (closeLeafId === null || closeLeafId >= end) {
+            failAt(
+                artifact,
+                "DDL_PARTITION_LIST",
+                "Hive PARTITIONED BY column list is unbalanced",
+                openLeafId
+            );
+        }
+        partitionColumns = parseColumns(artifact, openLeafId, closeLeafId);
+        cursor = nextSyntax(leaves, closeLeafId + 1, end);
+    }
+    if (cursor !== null && wordAt(artifact, cursor) === "stored") {
+        const asLeafId = nextSyntax(leaves, cursor + 1, end);
+        if (asLeafId === null || wordAt(artifact, asLeafId) !== "as") {
+            failAt(
+                artifact,
+                "DDL_STORAGE_FORMAT",
+                "Hive STORED AS requires a supported storage format",
+                cursor
+            );
+        }
+        const formatLeafId = nextSyntax(leaves, asLeafId + 1, end);
+        const format = formatLeafId === null ? "" : wordAt(artifact, formatLeafId);
+        if (!STORAGE_FORMATS.has(format)) {
+            failAt(
+                artifact,
+                "DDL_STORAGE_FORMAT",
+                "Hive storage format is not supported",
+                formatLeafId ?? asLeafId
+            );
+        }
+        storageFormat = format;
+        cursor = nextSyntax(leaves, formatLeafId! + 1, end);
+    }
+    if (cursor !== null) {
+        failAt(
+            artifact,
+            "DDL_UNMODELED_SUFFIX",
+            "Hive table suffix is not fully modeled and was preserved",
+            cursor
+        );
+    }
+    return Object.freeze({ partitionColumns, storageFormat });
 }
 
 function parseHiveCreateTable(source: string): HiveCreateTableCst {
@@ -355,15 +462,11 @@ function parseHiveCreateTable(source: string): HiveCreateTableCst {
             table.openLeafId
         );
     }
-    const trailing = nextSyntax(leaves, closeLeafId + 1, statement.end);
-    if (trailing !== null) {
-        failAt(
-            artifact,
-            "DDL_UNMODELED_SUFFIX",
-            "Hive table suffix is not fully modeled and was preserved",
-            trailing
-        );
-    }
+    const suffixes = parseTableSuffixes(
+        artifact,
+        nextSyntax(leaves, closeLeafId + 1, statement.end),
+        statement.end
+    );
     return Object.freeze({
         artifact,
         external,
@@ -371,6 +474,8 @@ function parseHiveCreateTable(source: string): HiveCreateTableCst {
         terminator,
         tableNameRange: table.range,
         columns: parseColumns(artifact, table.openLeafId, closeLeafId),
+        partitionColumns: suffixes.partitionColumns,
+        storageFormat: suffixes.storageFormat,
     });
 }
 
@@ -397,14 +502,30 @@ function childById(node: { readonly children: readonly SyntaxNode[] }, id: numbe
     return child;
 }
 
-function renderTypeList(artifact: ParseArtifact, list: ListNode): string {
-    return list.children.map((item) => renderTypeItem(artifact, item)).join(",");
+function keyword(value: string, options: ResolvedHiveDdlFormatOptions): string {
+    return options.keywordCase === "upper"
+        ? value.toUpperCase()
+        : value.toLowerCase();
 }
 
-function renderTypeItem(artifact: ParseArtifact, item: ListItemNode): string {
+function renderTypeList(
+    artifact: ParseArtifact,
+    list: ListNode,
+    options: ResolvedHiveDdlFormatOptions
+): string {
+    return list.children.map((item) =>
+        renderTypeItem(artifact, item, options)
+    ).join(",");
+}
+
+function renderTypeItem(
+    artifact: ParseArtifact,
+    item: ListItemNode,
+    options: ResolvedHiveDdlFormatOptions
+): string {
     const value = childById(item, item.valueChildId);
     const renderedValue = value.kind === "type-expression"
-        ? renderType(artifact, value)
+        ? renderType(artifact, value, options)
         : renderPrimitiveTypeArgument(artifact, value);
     if (item.alias === null) {
         return renderedValue;
@@ -419,12 +540,16 @@ function renderPrimitiveTypeArgument(artifact: ParseArtifact, node: SyntaxNode):
     return syntaxRaw(artifact, node.leafRange).join("");
 }
 
-function renderType(artifact: ParseArtifact, node: TypeExpressionNode): string {
+function renderType(
+    artifact: ParseArtifact,
+    node: TypeExpressionNode,
+    options: ResolvedHiveDdlFormatOptions
+): string {
     const nameLeaf = artifact.output.leaves[node.typeNameLeafRange.start]!;
     const keywordEligible = node.syntaxMarkers.some(
         (marker) => marker.syntaxId === "type:name" && marker.keywordCaseEligible
     );
-    const name = keywordEligible ? nameLeaf.raw.toUpperCase() : nameLeaf.raw;
+    const name = keywordEligible ? keyword(nameLeaf.raw, options) : nameLeaf.raw;
     if (node.argumentListChildId !== null) {
         const list = childById(node, node.argumentListChildId);
         if (list.kind !== "list") {
@@ -435,72 +560,161 @@ function renderType(artifact: ParseArtifact, node: TypeExpressionNode): string {
             Object.freeze({ start: node.typeNameLeafRange.end, end: node.leafRange.end })
         ).find((raw) => raw === "(" || raw === "<");
         if (delimiter === "<") {
-            return `${name}<${renderTypeList(artifact, list)}>`;
+            return `${name}<${renderTypeList(artifact, list, options)}>`;
         }
-        return `${name}(${renderTypeList(artifact, list)})`;
+        return `${name}(${renderTypeList(artifact, list, options)})`;
     }
     if (node.memberListChildId !== null) {
         const list = childById(node, node.memberListChildId);
         if (list.kind !== "list") {
             throw new Error("DDL type member list is invalid");
         }
-        return `${name}<${renderTypeList(artifact, list)}>`;
+        return `${name}<${renderTypeList(artifact, list, options)}>`;
     }
     const nestedList = node.children.find((child): child is ListNode => child.kind === "list");
-    return nestedList === undefined ? name : `${name}<${renderTypeList(artifact, nestedList)}>`;
+    return nestedList === undefined
+        ? name
+        : `${name}<${renderTypeList(artifact, nestedList, options)}>`;
 }
 
-function renderHiveCreateTable(cst: HiveCreateTableCst): string {
-    const header = [
-        "CREATE",
-        ...(cst.external ? ["EXTERNAL"] : []),
-        "TABLE",
-        ...(cst.ifNotExists ? ["IF", "NOT", "EXISTS"] : []),
-        renderQualifiedName(cst.artifact, cst.tableNameRange),
-    ].join(" ");
-    const rows = cst.columns.map((column) => {
+function renderColumns(
+    cst: HiveCreateTableCst,
+    columns: readonly HiveDdlColumn[],
+    options: ResolvedHiveDdlFormatOptions
+): readonly string[] {
+    const indent = options.indentStyle === "tab" ? "\t" : "    ";
+    const rows = columns.map((column) => {
         const name = cst.artifact.output.leaves[column.nameLeafId]!.raw;
-        const type = renderType(cst.artifact, column.type);
+        const type = renderType(cst.artifact, column.type, options);
         const comment = column.commentLiteralLeafId === null
             ? ""
-            : ` COMMENT ${cst.artifact.output.leaves[column.commentLiteralLeafId]!.raw}`;
+            : ` ${keyword("comment", options)} ${
+                  cst.artifact.output.leaves[column.commentLiteralLeafId]!.raw
+              }`;
         return Object.freeze({ name, type, comment });
     });
     const maxName = rows.reduce((value, row) => Math.max(value, row.name.length), 0);
-    const lines = rows.map((row, index) => {
-        const prefix = index === 0 ? "     " : "    ,";
-        return `${prefix}${row.name}${" ".repeat(maxName - row.name.length + 1)}${row.type}${row.comment}`;
-    });
-    return `${header}\n(\n${lines.join("\n")}\n)${cst.terminator}\n`;
+    return Object.freeze(rows.map((row, index) => {
+        const padding = " ".repeat(maxName - row.name.length + 1);
+        if (options.commaStyle === "leading") {
+            const prefix = index === 0 ? `${indent} ` : `${indent},`;
+            return `${prefix}${row.name}${padding}${row.type}${row.comment}`;
+        }
+        const comma = index + 1 < rows.length ? "," : "";
+        return `${indent}${row.name}${padding}${row.type}${row.comment}${comma}`;
+    }));
 }
 
-export function formatHiveDdl(source: string): HiveDdlResult {
+function renderHiveCreateTable(
+    cst: HiveCreateTableCst,
+    options: ResolvedHiveDdlFormatOptions
+): string {
+    const header = [
+        keyword("create", options),
+        ...(cst.external ? [keyword("external", options)] : []),
+        keyword("table", options),
+        ...(cst.ifNotExists
+            ? ["if", "not", "exists"].map((value) => keyword(value, options))
+            : []),
+        renderQualifiedName(cst.artifact, cst.tableNameRange),
+    ].join(" ");
+    const lines = [header, "(", ...renderColumns(cst, cst.columns, options), ")"];
+    if (cst.partitionColumns !== null) {
+        lines.push(
+            `${keyword("partitioned", options)} ${keyword("by", options)}`,
+            "(",
+            ...renderColumns(cst, cst.partitionColumns, options),
+            ")"
+        );
+    }
+    if (cst.storageFormat !== null) {
+        lines.push(
+            `${keyword("stored", options)} ${keyword("as", options)} ${
+                keyword(cst.storageFormat, options)
+            }`
+        );
+    }
+    lines[lines.length - 1] = `${lines[lines.length - 1]!}${cst.terminator}`;
+    return `${lines.join("\n")}\n`;
+}
+
+function executionResult(
+    result: HiveDdlResult,
+    debugEvents: readonly DebugEvent[]
+): HiveDdlExecutionResult {
+    return Object.freeze({
+        ...result,
+        ...(debugEvents.length === 0
+            ? {}
+            : { debugEvents: Object.freeze(Array.from(debugEvents)) }),
+    });
+}
+
+export function executeFormatHiveDdl(
+    source: string,
+    options: HiveDdlFormatOptions | unknown = undefined,
+    debugEnabled = false
+): HiveDdlExecutionResult {
     if (typeof source !== "string") {
-        return hiveDdlResult(
+        return executionResult(hiveDdlResult(
             "failed",
             "",
             "",
             ddlDiagnostic("DDL_INPUT", "Hive DDL source must be a string", "")
-        );
+        ), Object.freeze([]));
+    }
+    const resolved = resolveHiveDdlFormatOptions(options);
+    if (resolved === null) {
+        return executionResult(hiveDdlResult(
+            "failed",
+            source,
+            source,
+            ddlDiagnostic(
+                "DDL_OPTIONS",
+                "Hive DDL format options are invalid",
+                source
+            )
+        ), Object.freeze([]));
     }
     try {
-        const rendered = renderHiveCreateTable(parseHiveCreateTable(source));
-        return hiveDdlResult(rendered === source ? "unchanged" : "formatted", source, rendered);
+        const rendered = renderHiveCreateTable(parseHiveCreateTable(source), resolved);
+        return executionResult(hiveDdlResult(
+            rendered === source ? "unchanged" : "formatted",
+            source,
+            rendered
+        ), Object.freeze([]));
     } catch (error) {
         if (error instanceof HiveDdlParseError) {
-            return hiveDdlResult(
+            const debugEvents = debugEnabled && error.debugCause !== null
+                ? Object.freeze([
+                      createDebugEvent("analysis", error.code, error.debugCause),
+                  ])
+                : Object.freeze([]);
+            return executionResult(hiveDdlResult(
                 "preserved",
                 source,
                 source,
                 ddlDiagnostic(error.code, error.message, source, "warning", "preserve-target", error.span)
-            );
+            ), debugEvents);
         }
-        const message = error instanceof Error ? error.message : String(error);
-        return hiveDdlResult(
+        return executionResult(hiveDdlResult(
             "failed",
             source,
             source,
-            ddlDiagnostic("DDL_INTERNAL", `Hive DDL formatter failed: ${message}`, source)
-        );
+            ddlDiagnostic("DDL_INTERNAL", "Hive DDL formatting failed safely", source)
+        ), debugEnabled
+            ? Object.freeze([createDebugEvent("format", "DDL_INTERNAL", error)])
+            : Object.freeze([]));
     }
+}
+
+export function formatHiveDdl(
+    source: string,
+    options?: HiveDdlFormatOptions
+): HiveDdlResult;
+export function formatHiveDdl(
+    source: string,
+    options: unknown = undefined
+): HiveDdlResult {
+    return executeFormatHiveDdl(source, options, false);
 }

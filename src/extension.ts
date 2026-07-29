@@ -28,6 +28,8 @@ function loadRuntime(runtimePath: string): ProductionRuntime {
         "resolveFormatOptions",
         "runHostTransaction",
         "runExperimentalDdlTransaction",
+        "executeExtractDdl",
+        "executeFormatHiveDdl",
         "formatHiveDdl",
         "extractDdl",
         "createProductionFormatterExecutor",

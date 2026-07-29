@@ -46,8 +46,51 @@ module.exports = Object.freeze({
             ].join('\n')
         }),
         Object.freeze({
-            id: 'unknown-suffix-preserved',
-            source: 'CREATE TABLE t (a STRING) STORED AS ORC',
+            id: 'partition-and-storage-suffix',
+            source: 'create table t (a string) partitioned by (ds string,region string) stored as orc;',
+            status: 'formatted',
+            text: [
+                'CREATE TABLE t',
+                '(',
+                '     a STRING',
+                ')',
+                'PARTITIONED BY',
+                '(',
+                '     ds     STRING',
+                '    ,region STRING',
+                ')',
+                'STORED AS ORC;',
+                ''
+            ].join('\n')
+        }),
+        Object.freeze({
+            id: 'stored-as-suffix',
+            source: 'CREATE TABLE t (a STRING) STORED AS PARQUET',
+            status: 'formatted',
+            text: [
+                'CREATE TABLE t',
+                '(',
+                '     a STRING',
+                ')',
+                'STORED AS PARQUET',
+                ''
+            ].join('\n')
+        }),
+        Object.freeze({
+            id: 'unknown-storage-preserved',
+            source: 'CREATE TABLE t (a STRING) STORED AS JSONFILE',
+            status: 'preserved',
+            code: 'DDL_STORAGE_FORMAT'
+        }),
+        Object.freeze({
+            id: 'suffix-order-preserved',
+            source: 'CREATE TABLE t (a STRING) STORED AS ORC PARTITIONED BY (ds STRING)',
+            status: 'preserved',
+            code: 'DDL_UNMODELED_SUFFIX'
+        }),
+        Object.freeze({
+            id: 'unmodeled-suffix-after-storage-preserved',
+            source: "CREATE TABLE t (a STRING) STORED AS ORC LOCATION '/tmp/t'",
             status: 'preserved',
             code: 'DDL_UNMODELED_SUFFIX'
         }),

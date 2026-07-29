@@ -2,7 +2,14 @@
 
 var assert = require('assert');
 var ddl = require('../../.tmp/v2-core/experimental/ddl');
+var lexer = require('../../.tmp/v2-core/core/lexer/lossless-lexer');
 var fixtures = require('../fixtures/v2-wave4-ddl');
+
+assert.strictEqual(
+    lexer.lexSql('PARTITIONED BY', { dialect: 'hive' }).leaves[0].kind,
+    'keyword',
+    'modeled Hive DDL suffix words must participate in keyword-case equivalence'
+);
 
 fixtures.ddl.forEach(function(fixture) {
     var result = ddl.formatHiveDdl(fixture.source);
@@ -30,5 +37,87 @@ var nonString = ddl.formatHiveDdl(null);
 assert.strictEqual(nonString.status, 'failed');
 assert.strictEqual(nonString.text, '');
 assert.strictEqual(nonString.diagnostics[0].code, 'DDL_INPUT');
+
+assert.strictEqual(ddl.formatHiveDdl.length, 1,
+    'optional DDL options must preserve one-argument runtime compatibility');
+var optionSource = 'create table t (a int,b string) ' +
+    'partitioned by (ds string,rn int) stored as orc;';
+var optionResult = ddl.formatHiveDdl(optionSource, {
+    keywordCase: 'lower',
+    commaStyle: 'trailing',
+    indentStyle: 'tab'
+});
+assert.strictEqual(optionResult.status, 'formatted');
+assert.strictEqual(optionResult.text, [
+    'create table t',
+    '(',
+    '\ta int,',
+    '\tb string',
+    ')',
+    'partitioned by',
+    '(',
+    '\tds string,',
+    '\trn int',
+    ')',
+    'stored as orc;',
+    ''
+].join('\n'));
+assert.strictEqual(ddl.formatHiveDdl(optionResult.text, {
+    keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab'
+}).status, 'unchanged', 'DDL option output must be idempotent');
+
+[
+    { keywordCase: 'title' },
+    { commaStyle: 'middle' },
+    { indentStyle: 'mixed' },
+    { dialect: 'hive' },
+    null
+].forEach(function(options) {
+    var invalid = ddl.formatHiveDdl('CREATE TABLE t (a INT)', options);
+    assert.strictEqual(invalid.status, 'failed');
+    assert.strictEqual(invalid.text, 'CREATE TABLE t (a INT)');
+    assert.strictEqual(invalid.diagnostics[0].code, 'DDL_OPTIONS');
+});
+var accessorOptions = {};
+Object.defineProperty(accessorOptions, 'keywordCase', {
+    enumerable: true,
+    get: function() { throw new Error('must not read DDL option accessors'); }
+});
+assert.strictEqual(
+    ddl.formatHiveDdl('CREATE TABLE t (a INT)', accessorOptions).diagnostics[0].code,
+    'DDL_OPTIONS'
+);
+assert.strictEqual(
+    ddl.formatHiveDdl('CREATE TABLE t (a INT)', new Proxy({}, {})).diagnostics[0].code,
+    'DDL_OPTIONS'
+);
+
+var parserPath = require.resolve('../../.tmp/v2-core/core/syntax/parser');
+var hiveFormatterPath = require.resolve('../../.tmp/v2-core/experimental/ddl/hive-ddl');
+var parser = require(parserPath);
+var stableParseSqlArtifact = parser.parseSqlArtifact;
+parser.parseSqlArtifact = function() {
+    throw new Error('private CREATE TABLE payload from parser');
+};
+delete require.cache[hiveFormatterPath];
+var hostileFormatter = require(hiveFormatterPath);
+var safeFailure = hostileFormatter.formatHiveDdl('CREATE TABLE secret (a INT)');
+assert.strictEqual(safeFailure.status, 'failed');
+assert.strictEqual(safeFailure.diagnostics[0].code, 'DDL_INTERNAL');
+assert.strictEqual(safeFailure.diagnostics[0].message,
+    'Hive DDL formatting failed safely');
+assert.strictEqual(safeFailure.diagnostics[0].message.indexOf('secret'), -1,
+    'public DDL diagnostics must not contain internal exception text or SQL');
+assert.strictEqual(Object.prototype.hasOwnProperty.call(safeFailure, 'debugEvents'), false,
+    'public DDL facade must not expose debug detail without opt-in execution');
+var debugFailure = hostileFormatter.executeFormatHiveDdl(
+    'CREATE TABLE secret (a INT)', undefined, true
+);
+assert.strictEqual(debugFailure.debugEvents.length, 1);
+assert.strictEqual(debugFailure.debugEvents[0].code, 'DDL_INTERNAL');
+assert.ok(debugFailure.debugEvents[0].message.indexOf('private CREATE TABLE') >= 0,
+    'internal opt-in execution must retain bounded debug evidence');
+parser.parseSqlArtifact = stableParseSqlArtifact;
+delete require.cache[hiveFormatterPath];
 
 console.log('v2 Wave 4D Hive DDL tests passed');

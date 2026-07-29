@@ -195,6 +195,7 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     ADAPTER_DDL_TRANSACTION: "The experimental DDL transaction failed safely",
 
     DDL_INPUT: "Hive DDL input is invalid",
+    DDL_OPTIONS: "Hive DDL format options are invalid",
     DDL_EMPTY: "Hive DDL input is empty",
     DDL_MULTI_STATEMENT: "Only one complete Hive DDL statement is supported",
     DDL_UNSUPPORTED_STATEMENT: "This Hive DDL statement is not supported",
@@ -206,6 +207,8 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     DDL_COLUMN_NAME: "A Hive DDL column name could not be modeled safely",
     DDL_COLUMN_TYPE: "A Hive DDL column type could not be modeled safely",
     DDL_COLUMN_COMMENT: "A Hive DDL column comment could not be modeled safely",
+    DDL_PARTITION_LIST: "The Hive partition column list could not be modeled safely",
+    DDL_STORAGE_FORMAT: "The Hive storage format is not supported",
     DDL_COMMENT_TRIVIA: "Hive DDL comments cross an unsafe boundary",
     DDL_UNMODELED_COLUMN: "A Hive DDL column definition is not modeled",
     DDL_UNMODELED_SUFFIX: "The Hive DDL suffix is not modeled",

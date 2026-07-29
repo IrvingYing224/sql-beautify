@@ -45,6 +45,39 @@ assert.strictEqual(nonString.status, 'failed');
 assert.strictEqual(nonString.text, '');
 assert.strictEqual(nonString.diagnostics[0].code, 'EXTRACT_INPUT');
 
+var hostileOptions = ddl.extractDdl('SELECT a FROM t', null);
+assert.strictEqual(hostileOptions.status, 'failed');
+assert.strictEqual(hostileOptions.diagnostics[0].code, 'EXTRACT_INTERNAL');
+assert.strictEqual(hostileOptions.diagnostics[0].message,
+    'DDL extraction failed safely');
+
+var analyzePath = require.resolve('../../.tmp/v2-core/core/analysis/analyze');
+var extractPath = require.resolve('../../.tmp/v2-core/experimental/ddl/extract');
+var analyze = require(analyzePath);
+var stableAnalyzeSql = analyze.analyzeSql;
+analyze.analyzeSql = function() {
+    throw new Error('private SELECT payload from analyzer');
+};
+delete require.cache[extractPath];
+var hostileExtract = require(extractPath);
+var safeAnalysisFailure = hostileExtract.extractDdl('SELECT secret FROM t');
+assert.strictEqual(safeAnalysisFailure.status, 'failed');
+assert.strictEqual(safeAnalysisFailure.diagnostics[0].code, 'EXTRACT_ANALYSIS_FAILED');
+assert.strictEqual(safeAnalysisFailure.diagnostics[0].message,
+    'DDL extraction analysis failed safely');
+assert.strictEqual(safeAnalysisFailure.diagnostics[0].message.indexOf('secret'), -1);
+assert.strictEqual(
+    Object.prototype.hasOwnProperty.call(safeAnalysisFailure, 'debugEvents'),
+    false
+);
+var debugAnalysisFailure = hostileExtract.executeExtractDdl(
+    'SELECT secret FROM t', undefined, true
+);
+assert.strictEqual(debugAnalysisFailure.debugEvents.length, 1);
+assert.ok(debugAnalysisFailure.debugEvents[0].message.indexOf('private SELECT') >= 0);
+analyze.analyzeSql = stableAnalyzeSql;
+delete require.cache[extractPath];
+
 assert.throws(function() {
     resultFactory.extractDdlResult('extracted', 'SELECT a', '', null);
 }, /must not be empty/, 'result boundary must reject empty extracted text');

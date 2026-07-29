@@ -5,6 +5,13 @@ import type {
     FormatOptions,
     UnsupportedSyntaxPolicy,
 } from "../../core/config/options";
+import type {
+    ExtractDdlExecutionResult,
+    ExtractDdlOptions,
+    HiveDdlExecutionResult,
+    HiveDdlFormatOptions,
+    HiveDdlResult,
+} from "../../experimental/ddl/types";
 import type { ResolveFormatOptionsResult } from "../../core/config/resolve-options";
 import type {
     FormatConfigFailureCode,
@@ -81,7 +88,20 @@ export interface V2ExtensionRuntime {
             ) => Promise<boolean>;
         }
     ) => Promise<ExperimentalDdlTransactionResult>;
-    readonly formatHiveDdl: ExperimentalDdlOperation;
+    readonly executeFormatHiveDdl: (
+        source: string,
+        options?: HiveDdlFormatOptions,
+        debugEnabled?: boolean
+    ) => HiveDdlExecutionResult;
+    readonly executeExtractDdl: (
+        source: string,
+        options?: ExtractDdlOptions,
+        debugEnabled?: boolean
+    ) => ExtractDdlExecutionResult;
+    readonly formatHiveDdl: (
+        source: string,
+        options?: HiveDdlFormatOptions
+    ) => HiveDdlResult;
     readonly extractDdl: ExperimentalDdlOperation;
 }
 
@@ -966,9 +986,9 @@ export function createVscodeExtension(
     }
 
     async function runDdlCommand(
-        operation: ExperimentalDdlOperation,
         phase: string,
-        token: Vscode.CancellationToken
+        token: Vscode.CancellationToken,
+        useFormatOptions: boolean
     ): Promise<ExperimentalDdlTransactionResult | null> {
         const editor = vscode.window.activeTextEditor;
         const language = editor === undefined
@@ -1000,13 +1020,35 @@ export function createVscodeExtension(
         }
         const generation = beginDiagnosticRequest(editor.document);
         const cancellation = wrapVscodeCancellationToken(token);
+        const ddlOptions: HiveDdlFormatOptions = Object.freeze({
+            keywordCase: current.options.keywordCase,
+            commaStyle: current.options.commaStyle,
+            indentStyle: current.options.indentStyle,
+        });
+        const selectedOperation: ExperimentalDdlOperation = useFormatOptions
+            ? (source) => runtime.executeFormatHiveDdl(
+                  source,
+                  ddlOptions,
+                  current.debugDiagnostics
+              )
+            : (source) => runtime.executeExtractDdl(
+                  source,
+                  undefined,
+                  current.debugDiagnostics
+              );
         let result: ExperimentalDdlTransactionResult;
         try {
             result = await runtime.runExperimentalDdlTransaction({
                 document: expected,
                 targets: ddlTargets(selectionSet.targets),
+                newline: documentRenderNewline(
+                    vscode,
+                    editor.document,
+                    expected.source
+                ),
+                debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
-            }, operation, ddlCommit(
+            }, selectedOperation, ddlCommit(
                 editor,
                 editor.document,
                 selectionSet.selections
@@ -1186,9 +1228,9 @@ export function createVscodeExtension(
                     async () => await withCommandCancellation(
                         messages.text("formattingHiveDdl"),
                         async (token) => await runDdlCommand(
-                            runtime.formatHiveDdl,
                             "hive-ddl",
-                            token
+                            token,
+                            true
                         )
                     )
                 ));
@@ -1197,9 +1239,9 @@ export function createVscodeExtension(
                     async () => await withCommandCancellation(
                         messages.text("extractingHiveDdl"),
                         async (token) => await runDdlCommand(
-                            runtime.extractDdl,
                             "extract-hive-ddl",
-                            token
+                            token,
+                            false
                         )
                     )
                 ));

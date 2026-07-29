@@ -39,6 +39,8 @@ async function runOperation(source, operation, overrides, targets) {
     var result = await transaction.runExperimentalDdlTransaction({
         document: document,
         targets: targets || [target(source)],
+        newline: options.newline,
+        debugEnabled: options.debugEnabled,
         cancellation: options.cancellation
     }, operation, commit);
     return { result: result, applied: applied, document: document, identity: identity };
@@ -68,7 +70,7 @@ async function main() {
 
     var blocked = [
         {
-            source: 'CREATE TABLE t (a STRING) STORED AS ORC',
+            source: 'CREATE TABLE t (a STRING) STORED AS JSONFILE',
             operation: ddl.formatHiveDdl,
             status: 'preserved'
         },
@@ -135,6 +137,17 @@ async function main() {
         'The experimental DDL operation failed safely',
         'hostile operation text must not escape through the public DDL transaction diagnostic');
     assert.strictEqual(thrown.applied.length, 0);
+
+    var thrownDebug = await runOperation(formattedSource, function() {
+        throw new Error('private DDL operation payload');
+    }, { debugEnabled: true });
+    assert.strictEqual(thrownDebug.result.status, 'rejected');
+    assert.strictEqual(thrownDebug.result.diagnostics[0].message,
+        'The experimental DDL operation failed safely');
+    assert.strictEqual(thrownDebug.result.diagnostics[0].message.indexOf('private'), -1);
+    assert.strictEqual(thrownDebug.result.debugEvents.length, 1);
+    assert.strictEqual(thrownDebug.result.debugEvents[0].message,
+        'private DDL operation payload');
 
     var emptyEditable = await runOperation(extractedSource, function(source) {
         return Object.freeze({
@@ -258,6 +271,37 @@ async function main() {
     assert.strictEqual(allUnchanged.applied.length, 0,
         'all unchanged targets must not invoke host commit');
 
+    var debugDdlLines = [];
+    var debugDdlTargets = [];
+    var debugDdlOffset = 0;
+    for (var debugDdlIndex = 0; debugDdlIndex < 65; debugDdlIndex++) {
+        var debugDdlLine = 'CREATE TABLE d' + debugDdlIndex + ' (a INT);';
+        debugDdlLines.push(debugDdlLine);
+        debugDdlTargets.push(target(
+            '',
+            'debug-ddl-' + debugDdlIndex,
+            debugDdlOffset,
+            debugDdlOffset + debugDdlLine.length
+        ));
+        debugDdlOffset += debugDdlLine.length + 1;
+    }
+    var debugDdlSource = debugDdlLines.join('\n');
+    var debugDdlBatch = await runOperation(debugDdlSource, function(source) {
+        return Object.freeze({
+            status: 'unchanged', source: source, text: source,
+            diagnostics: Object.freeze([]),
+            debugEvents: Object.freeze([Object.freeze({
+                phase: 'analysis', code: 'DDL_INTERNAL', errorName: 'Error',
+                message: 'bounded DDL debug event', frames: Object.freeze([])
+            })])
+        });
+    }, undefined, debugDdlTargets);
+    assert.strictEqual(debugDdlBatch.result.status, 'unchanged');
+    assert.strictEqual(debugDdlBatch.result.debugEvents.length, 64);
+    assert.strictEqual(debugDdlBatch.result.debugEvents[63].code,
+        'ADAPTER_DEBUG_EVENTS_TRUNCATED',
+        'multi-target DDL debug evidence must truncate at the shared cap');
+
     var overlapping = await runOperation(batchSource, function(source) {
         return Object.freeze({
             status: 'formatted',
@@ -340,6 +384,63 @@ async function main() {
         'DDL target must not start between CR and LF code units');
     assert.strictEqual(crlfCalls, 0,
         'CRLF midpoint targets must fail before the DDL operation runs');
+
+    function applyPrepared(source, result) {
+        return result.edits.slice().sort(function(left, right) {
+            return right.start - left.start;
+        }).reduce(function(value, edit) {
+            return value.slice(0, edit.start) + edit.text + value.slice(edit.end);
+        }, source);
+    }
+
+    var indentedLfSource = 'SELECT 1;\n    create table t (a int);   \nSELECT 2;';
+    var indentedLfStart = indentedLfSource.indexOf('create table');
+    var indentedLfEnd = indentedLfSource.indexOf(';', indentedLfStart) + 1;
+    var indentedLf = await runOperation(
+        indentedLfSource,
+        ddl.formatHiveDdl,
+        { newline: '\n' },
+        [target(indentedLfSource, 'indented-lf', indentedLfStart, indentedLfEnd)]
+    );
+    assert.strictEqual(indentedLf.result.status, 'ready');
+    assert.strictEqual(applyPrepared(indentedLfSource, indentedLf.result), [
+        'SELECT 1;',
+        '    CREATE TABLE t',
+        '    (',
+        '         a INT',
+        '    );',
+        'SELECT 2;'
+    ].join('\n'), 'LF DDL replacement must inherit indentation and consume trailing whitespace');
+    assert.strictEqual(indentedLf.result.edits[0].end,
+        indentedLfSource.indexOf('SELECT 2;'),
+        'LF replacement must consume exactly the validated trailing line boundary');
+
+    var indentedCrlfSource = 'SELECT 1;\r\n\tcreate table t (a int);\t \r\nSELECT 2;';
+    var indentedCrlfStart = indentedCrlfSource.indexOf('create table');
+    var indentedCrlfEnd = indentedCrlfSource.indexOf(';', indentedCrlfStart) + 1;
+    var indentedCrlf = await runOperation(
+        indentedCrlfSource,
+        ddl.formatHiveDdl,
+        { newline: '\r\n' },
+        [target(
+            indentedCrlfSource,
+            'indented-crlf',
+            indentedCrlfStart,
+            indentedCrlfEnd
+        )]
+    );
+    assert.strictEqual(indentedCrlf.result.status, 'ready');
+    assert.strictEqual(applyPrepared(indentedCrlfSource, indentedCrlf.result), [
+        'SELECT 1;',
+        '\tCREATE TABLE t',
+        '\t(',
+        '\t     a INT',
+        '\t);',
+        'SELECT 2;'
+    ].join('\r\n'), 'CRLF DDL replacement must retain CRLF and tab indentation');
+    assert.strictEqual(indentedCrlf.result.edits[0].text.indexOf('\n') >= 0, true);
+    assert.strictEqual(/(^|[^\r])\n/.test(indentedCrlf.result.edits[0].text), false,
+        'CRLF replacement must not contain lone LF');
 
     var largeValues = [];
     var largeTargets = [];

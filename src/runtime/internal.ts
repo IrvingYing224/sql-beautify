@@ -32,12 +32,21 @@ import type {
     RenderNewline,
     RenderTabSize,
 } from "../core/renderer/environment";
-import { extractDdl, formatHiveDdl } from "../experimental/ddl";
+import {
+    executeExtractDdl,
+    extractDdl,
+} from "../experimental/ddl/extract";
+import {
+    executeFormatHiveDdl,
+    formatHiveDdl,
+} from "../experimental/ddl/hive-ddl";
 
 declare const __filename: string;
 
 export {
     extractDdl,
+    executeExtractDdl,
+    executeFormatHiveDdl,
     executeFormatSql,
     formatHiveDdl,
     formatSql,

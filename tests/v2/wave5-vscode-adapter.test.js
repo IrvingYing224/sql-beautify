@@ -259,6 +259,7 @@ async function main() {
     var host = createVscode(document, editor);
     var calls = { prepare: 0, host: 0, ddl: 0, prepareNewlines: [],
         prepareTabSizes: [], prepareDialects: [], hostNewlines: [], hostTabSizes: [],
+        ddlNewlines: [], ddlDebugFlags: [], ddlOptions: [],
         ddlCommitMode: false,
         ddlRejectMode: false };
     var runtime = {
@@ -309,9 +310,16 @@ async function main() {
         },
         runExperimentalDdlTransaction: async function(request, operation, commit) {
             calls.ddl += 1;
+            calls.ddlNewlines.push(request.newline);
+            calls.ddlDebugFlags.push(request.debugEnabled);
             assert.strictEqual(request.targets.length, 1);
             assert.ok(request.cancellation,
                 'DDL progress cancellation must reach DDL transaction');
+            var operationTarget = request.targets[0];
+            await operation(request.document.source.slice(
+                operationTarget.start,
+                operationTarget.end
+            ));
             if (calls.ddlRejectMode) {
                 return { status: 'rejected', documentVersion: request.document.version,
                     diagnostics: [{ code: 'DDL_UNSUPPORTED_STATEMENT', severity: 'warning',
@@ -333,6 +341,20 @@ async function main() {
                 status: 'unchanged', documentVersion: request.document.version,
                 edits: [], diagnostics: []
             };
+        },
+        executeFormatHiveDdl: function(value, options, debugEnabled) {
+            calls.ddlOptions.push(options);
+            assert.strictEqual(debugEnabled, false);
+            return { status: 'unchanged', source: value, text: value, diagnostics: [] };
+        },
+        executeExtractDdl: function(value, options, debugEnabled) {
+            assert.strictEqual(options, undefined);
+            assert.strictEqual(debugEnabled, false);
+            return { status: 'empty', source: value, text: value, diagnostics: [{
+                code: 'EXTRACT_EMPTY', severity: 'warning', message: 'safe',
+                capabilityId: null, span: { start: 0, end: value.length },
+                recovery: 'preserve-target'
+            }] };
         },
         formatHiveDdl: function(value) { return { status: 'unchanged', source: value, text: value, diagnostics: [] }; },
         extractDdl: function(value) { return { status: 'empty', source: value, text: value, diagnostics: [{
@@ -722,8 +744,18 @@ async function main() {
     document.version += 1;
     editor.selections = [new Selection(document.positionAt(18), document.positionAt(10))];
 
+    host.setConfiguration('keywordCase', 'lower');
+    host.setConfiguration('commaStyle', 'trailing');
+    host.setConfiguration('indentStyle', 'tab');
     await host.commands['sqlBeautify.formatHiveDdl']();
     assert.strictEqual(calls.ddl, 1);
+    assert.deepStrictEqual(calls.ddlOptions[0], {
+        keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab'
+    }, 'DDL format command must bridge the canonical scoped layout options');
+    assert.strictEqual(calls.ddlNewlines[0], '\n',
+        'DDL command must pass the document render newline');
+    assert.strictEqual(calls.ddlDebugFlags[0], false,
+        'DDL transaction debug channel must remain opt-in');
     calls.ddlRejectMode = true;
     await host.commands['sqlBeautify.formatHiveDdl']();
     calls.ddlRejectMode = false;

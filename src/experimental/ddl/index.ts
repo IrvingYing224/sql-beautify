@@ -6,6 +6,7 @@ export type {
     ExtractDdlStatus,
     ExtractedDdlResult,
     FailedExtractDdlResult,
+    HiveDdlFormatOptions,
     HiveDdlResult,
     HiveDdlStatus,
     NonExtractedDdlResult,

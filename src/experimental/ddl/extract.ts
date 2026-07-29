@@ -7,6 +7,7 @@ import type {
     SyntaxNode,
 } from "../../core/syntax/node";
 import { analyzeSql } from "../../core/analysis/analyze";
+import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import type {
     AnalysisArtifact,
     AnalyzedArtifact,
@@ -15,6 +16,7 @@ import type {
 import type { SourceLeaf } from "../../core/lexer/token";
 import { ddlDiagnostic, extractDdlResult } from "./result";
 import type {
+    ExtractDdlExecutionResult,
     ExtractDdlOptions,
     ExtractDdlResult,
 } from "./types";
@@ -427,47 +429,70 @@ function renderExtract(
     return `${lines.join("\n")}\n`;
 }
 
-export function extractDdl(
+function extractExecutionResult(
+    result: ExtractDdlResult,
+    debugEvents: readonly DebugEvent[]
+): ExtractDdlExecutionResult {
+    return Object.freeze({
+        ...result,
+        ...(debugEvents.length === 0
+            ? {}
+            : { debugEvents: Object.freeze(Array.from(debugEvents)) }),
+    }) as ExtractDdlExecutionResult;
+}
+
+export function executeExtractDdl(
     source: string,
-    options: ExtractDdlOptions = {}
-): ExtractDdlResult {
+    options: ExtractDdlOptions | unknown = {},
+    debugEnabled = false
+): ExtractDdlExecutionResult {
     if (typeof source !== "string") {
-        return extractDdlResult(
+        return extractExecutionResult(extractDdlResult(
             "failed",
             "",
             "",
             ddlDiagnostic("EXTRACT_INPUT", "Extract DDL source must be a string", "")
-        );
+        ), Object.freeze([]));
     }
     let artifact: AnalysisArtifact;
     try {
         artifact = analyzeSql(source, { dialect: "hive", mode: "document" });
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return extractDdlResult(
+        return extractExecutionResult(extractDdlResult(
             "failed",
             source,
             source,
-            ddlDiagnostic("EXTRACT_ANALYSIS_FAILED", `Extract DDL analysis failed: ${message}`, source)
-        );
+            ddlDiagnostic(
+                "EXTRACT_ANALYSIS_FAILED",
+                "DDL extraction analysis failed safely",
+                source
+            )
+        ), debugEnabled
+            ? Object.freeze([
+                  createDebugEvent("analysis", "EXTRACT_ANALYSIS_FAILED", error),
+              ])
+            : Object.freeze([]));
     }
     try {
         const analyzed = asAnalyzed(artifact);
         const branches = projectQuery(analyzed);
-        const type = extractType(options);
+        const type = extractType(options as ExtractDdlOptions);
         const rendered = renderExtract(analyzed, branches[0]!, type);
         if (rendered.length === 0) {
             throw new ProjectionError("EXTRACT_EMPTY", "Extract DDL result is empty");
         }
-        return extractDdlResult(
+        return extractExecutionResult(extractDdlResult(
             "extracted",
             source,
             rendered,
             null
-        );
+        ), Object.freeze([]));
     } catch (error) {
-        const code = error instanceof ProjectionError ? error.code : "EXTRACT_INTERNAL";
-        const message = error instanceof Error ? error.message : String(error);
+        const projectionError = error instanceof ProjectionError;
+        const code = projectionError ? error.code : "EXTRACT_INTERNAL";
+        const message = projectionError
+            ? error.message
+            : "DDL extraction failed safely";
         const status = code === "EXTRACT_EMPTY"
             ? "empty"
             : code === "EXTRACT_UNSUPPORTED" || code === "EXTRACT_UNSUPPORTED_STATEMENT"
@@ -477,11 +502,24 @@ export function extractDdl(
                   code === "EXTRACT_DEFAULT_TYPE"
                 ? "failed"
                 : "ambiguous";
-        return extractDdlResult(
+        return extractExecutionResult(extractDdlResult(
             status,
             source,
             source,
             ddlDiagnostic(code, message, source, status === "failed" ? "error" : "warning")
-        );
+        ), !projectionError && debugEnabled
+            ? Object.freeze([createDebugEvent("analysis", code, error)])
+            : Object.freeze([]));
     }
+}
+
+export function extractDdl(
+    source: string,
+    options?: ExtractDdlOptions
+): ExtractDdlResult;
+export function extractDdl(
+    source: string,
+    options: unknown = {}
+): ExtractDdlResult {
+    return executeExtractDdl(source, options, false);
 }

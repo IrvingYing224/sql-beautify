@@ -495,6 +495,7 @@ const HIVE_PROFILE: LexicalProfile = Object.freeze({
         "MSCK",
         "REPAIR",
         "EXTERNAL",
+        "PARTITIONED",
         "STORED",
         "LOCATION",
         "TBLPROPERTIES",

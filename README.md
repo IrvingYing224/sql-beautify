@@ -67,7 +67,9 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 ### Hive DDL formatting
 
-`Format Hive DDL (Experimental)` 只接受完整消费的、已建模的 Hive `CREATE TABLE` 子集。它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、未建模后缀、约束、默认值或结构不完整的输入会保留原文，不会被猜测性改写。
+`Format Hive DDL (Experimental)` 只接受完整消费的、已建模的 Hive `CREATE TABLE` 子集。除列定义和列 `COMMENT` 外，当前还支持按顺序出现的可选 `PARTITIONED BY (...)` 与 `STORED AS <format>`；`format` 仅限 `AVRO`、`ORC`、`PARQUET`、`RCFILE`、`SEQUENCEFILE` 和 `TEXTFILE`。DDL 输出沿用 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle` 与 `sqlBeautify.indentStyle`。
+
+它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、`LOCATION`、`TBLPROPERTIES`、CTAS、重复或乱序后缀、未知 storage format、约束、默认值或结构不完整的输入都会保留完整原文，不会被猜测性改写。选区命令会继承首行缩进与文档 LF/CRLF，并以整批原子方式提交；任一目标不受支持时不会提交部分编辑。
 
 主 `Format SQL` 命令会保留 Hive DDL；需要格式化 `CREATE TABLE` 时，应使用专用的 `Format Hive DDL (Experimental)` 命令。
 

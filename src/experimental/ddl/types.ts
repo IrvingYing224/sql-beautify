@@ -1,4 +1,10 @@
+import type {
+    CommaStyle,
+    IndentStyle,
+    KeywordCase,
+} from "../../core/config/options";
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
+import type { DebugEvent } from "../../core/diagnostics/debug-event";
 
 export type HiveDdlStatus = "formatted" | "unchanged" | "preserved" | "failed";
 
@@ -7,6 +13,17 @@ export interface HiveDdlResult {
     readonly source: string;
     readonly text: string;
     readonly diagnostics: readonly Diagnostic[];
+}
+
+export interface HiveDdlFormatOptions {
+    readonly keywordCase?: KeywordCase;
+    readonly commaStyle?: CommaStyle;
+    readonly indentStyle?: IndentStyle;
+}
+
+/** Internal execution envelope; it is not re-exported by the public DDL facade. */
+export interface HiveDdlExecutionResult extends HiveDdlResult {
+    readonly debugEvents?: readonly DebugEvent[];
 }
 
 export type ExtractDdlStatus =
@@ -55,3 +72,8 @@ export type NonExtractedDdlResult =
     | FailedExtractDdlResult;
 
 export type ExtractDdlResult = ExtractedDdlResult | NonExtractedDdlResult;
+
+/** Internal execution envelope; it is not re-exported by the public DDL facade. */
+export type ExtractDdlExecutionResult = ExtractDdlResult & Readonly<{
+    readonly debugEvents?: readonly DebugEvent[];
+}>;
