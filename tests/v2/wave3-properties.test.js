@@ -20,6 +20,18 @@ var parserCases = require('../fixtures/v2-sql-corpus-cases');
 var closureCases = require('../fixtures/v2-wave3-corpus-cases');
 var productionCorpus = require('./helpers/production-corpus');
 
+var publicSqlCases = productionCorpus.load_public_cases().filter(function(testCase) {
+    return testCase.operation === 'formatSql';
+});
+var expectedCorpusSize = [
+    layoutCases,
+    queryCases,
+    expressionCases,
+    parserCases,
+    closureCases,
+    publicSqlCases
+].reduce(function(total, values) { return total + values.length; }, 0);
+
 function normalizedOptions(value) {
 	return Object.assign({}, value || {});
 }
@@ -295,7 +307,7 @@ function corpusCases() {
         };
     });
 
-    productionCorpus.load_public_cases().forEach(function(testCase) {
+    publicSqlCases.forEach(function(testCase) {
         cases.push({
             id: 'production/' + testCase.name,
             source: testCase.sql,
@@ -389,7 +401,8 @@ function deterministicMalformedCases(count) {
 
 (function testCompleteCorpusAndDeterministicFuzzProperties() {
     var corpus = corpusCases();
-    assert.strictEqual(corpus.length, 85, 'Wave 3 complete corpus size');
+    assert.strictEqual(corpus.length, expectedCorpusSize,
+        'Wave 3 complete formatSql corpus size');
     var corpusIds = new Set();
     corpus.forEach(function(testCase) {
         assert.strictEqual(corpusIds.has(testCase.id), false,
@@ -566,4 +579,5 @@ function deterministicMalformedCases(count) {
     });
 })();
 
-console.log('v2 Wave 3 properties passed (85 corpus + 128 deterministic fuzz + 48 malformed cases)');
+console.log('v2 Wave 3 properties passed (' + expectedCorpusSize +
+    ' formatSql corpus + 128 deterministic fuzz + 48 malformed cases)');
