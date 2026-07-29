@@ -9,13 +9,15 @@ function resolve(value) {
         : resolver.resolveFormatOptions(value);
 }
 
-function assertFailure(value, code, label) {
+function assertFailure(value, code, label, optionKey) {
     var result;
     assert.doesNotThrow(function() {
         result = resolve(value);
     }, label + ' must not throw');
     assert.strictEqual(result.ok, false, label + ' must fail');
     assert.strictEqual(result.code, code, label + ' failure code');
+    assert.strictEqual(result.optionKey, optionKey === undefined ? null : optionKey,
+        label + ' safe option key');
     assert.strictEqual(Object.isFrozen(result), true, label + ' failure must be frozen');
 }
 
@@ -69,14 +71,16 @@ function assertFailure(value, code, label) {
         assertFailure(
             { maxAlignWidth: value },
             'CFG_OPTION_VALUE',
-            'invalid maxAlignWidth ' + String(value)
+            'invalid maxAlignWidth ' + String(value),
+            'maxAlignWidth'
         );
     });
     [0, 301, 1.5, NaN, Infinity].forEach(function(value) {
         assertFailure(
             { caseWhenThenWrapLength: value },
             'CFG_OPTION_VALUE',
-            'invalid caseWhenThenWrapLength ' + String(value)
+            'invalid caseWhenThenWrapLength ' + String(value),
+            'caseWhenThenWrapLength'
         );
     });
 })();
@@ -94,7 +98,7 @@ function assertFailure(value, code, label) {
     ].forEach(function(entry) {
         var input = {};
         input[entry[0]] = entry[1];
-        assertFailure(input, 'CFG_OPTION_VALUE', 'invalid ' + entry[0]);
+        assertFailure(input, 'CFG_OPTION_VALUE', 'invalid ' + entry[0], entry[0]);
     });
 })();
 
@@ -110,7 +114,7 @@ function assertFailure(value, code, label) {
         value: 'hive',
         enumerable: false
     });
-    assertFailure(hiddenInput, 'CFG_UNKNOWN_OPTION', 'non-enumerable key');
+    assertFailure(hiddenInput, 'CFG_UNKNOWN_OPTION', 'non-enumerable key', 'dialect');
 })();
 
 (function testAccessorsAreRejectedWithoutReading() {
@@ -123,7 +127,7 @@ function assertFailure(value, code, label) {
             throw new Error('must not run');
         }
     });
-    assertFailure(input, 'CFG_OPTION_ACCESSOR', 'accessor option');
+    assertFailure(input, 'CFG_OPTION_ACCESSOR', 'accessor option', 'dialect');
     assert.strictEqual(reads, 0, 'resolver must inspect descriptor without invoking getter');
 })();
 

@@ -37,6 +37,16 @@ function cleanLine(value: string, limit: number): string {
     return value.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, limit);
 }
 
+function normalizeFramePath(value: string): string {
+    if (value.includes("node:internal/")) {
+        return value;
+    }
+    return value.replace(
+        /(?:file:\/\/\/|[A-Za-z]:[\\/]|\/)(?:[^()\r\n]*[\\/])?([^\\/():]+)(:\d+:\d+)(?=\)?$)/,
+        "<path>/$1$2"
+    );
+}
+
 export function createDebugEvent(
     phase: DebugPhase,
     code: string,
@@ -50,7 +60,7 @@ export function createDebugEvent(
     let totalLength = 0;
     const stack = safeProperty(error, "stack");
     for (const line of stack.split(/\r\n|\r|\n/).slice(1)) {
-        const frame = cleanLine(line, MAX_FRAME_LENGTH);
+        const frame = normalizeFramePath(cleanLine(line, MAX_FRAME_LENGTH));
         if (!/^at\s/.test(frame) || frame.length === 0) {
             continue;
         }

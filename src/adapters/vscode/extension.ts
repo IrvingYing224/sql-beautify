@@ -6,6 +6,10 @@ import type {
     UnsupportedSyntaxPolicy,
 } from "../../core/config/options";
 import type { ResolveFormatOptionsResult } from "../../core/config/resolve-options";
+import type {
+    FormatConfigFailureCode,
+    FormatOptionKey,
+} from "../../core/config/resolve-options";
 import {
     DEFAULT_RENDER_TAB_SIZE,
     inferRenderNewline,
@@ -14,6 +18,7 @@ import {
     type RenderTabSize,
 } from "../../core/renderer/environment";
 import { diagnosticsForEditor } from "../diagnostics/presentation";
+import { safeDiagnosticMessage } from "../diagnostics/safe-messages";
 import {
     buildTextLineIndex,
     positionAtOffset,
@@ -42,6 +47,8 @@ import type {
     FormatterExecutor,
     TransactionDiagnostic,
 } from "../transaction/types";
+import { createRejectedTransaction } from "../transaction/rejected";
+import { isRangeValidationCode } from "../transaction/range";
 import { wrapVscodeCancellationToken } from "./cancellation";
 import {
     mergeExplicitFormatOptions,
@@ -49,6 +56,7 @@ import {
 } from "./config";
 import { renderSafeDiagnosticReport } from "./safe-report";
 import { formatterSelector, supportedLanguage } from "./supported-languages";
+import { createVscodeMessages } from "./messages";
 
 export interface V2ExtensionRuntime {
     readonly resolveFormatOptions: (
@@ -89,6 +97,38 @@ export interface VscodeExtensionOptions {
 
 type AnyTransactionResult = FormatTransactionResult | ExperimentalDdlTransactionResult;
 const FORMATTER_SELECTOR = formatterSelector();
+const WORKER_REJECTION_CODES: ReadonlySet<string> = new Set([
+    "ADAPTER_WORKER_BACKPRESSURE",
+    "ADAPTER_WORKER_CRASH",
+    "ADAPTER_WORKER_FORMAT_FAILED",
+    "ADAPTER_WORKER_RESULT_CONTRACT",
+    "ADAPTER_WORKER_STALE_RESPONSE",
+    "ADAPTER_WORKER_TIMEOUT",
+    "ADAPTER_WORKER_UNAVAILABLE",
+]);
+
+interface ExtensionConfigurationSuccess {
+    readonly ok: true;
+    readonly options: CanonicalFormatOptions;
+    readonly debugDiagnostics: boolean;
+}
+
+interface ExtensionConfigurationFailure {
+    readonly ok: false;
+    readonly code: FormatConfigFailureCode;
+    readonly optionKey: FormatOptionKey | null;
+}
+
+type ExtensionConfiguration =
+    | ExtensionConfigurationSuccess
+    | ExtensionConfigurationFailure;
+
+function configurationFailure(
+    code: FormatConfigFailureCode,
+    optionKey: FormatOptionKey | null = null
+): ExtensionConfigurationFailure {
+    return Object.freeze({ ok: false, code, optionKey });
+}
 
 function documentRenderNewline(
     vscode: typeof Vscode,
@@ -241,45 +281,38 @@ function sourceCodeUnits(targets: readonly FormatTarget[]): number {
 function rejectedFormatTransaction(
     documentVersion: number,
     code: string,
-    message: string
+    _message: string,
+    optionKey?: FormatOptionKey | null
 ): Extract<FormatTransactionResult, { readonly status: "rejected" }> {
-    return Object.freeze({
-        status: "rejected" as const,
-        documentVersion,
-        diagnostics: Object.freeze([
+    return createRejectedTransaction(documentVersion, [
             Object.freeze({
                 code,
                 severity: "error" as const,
-                message,
+                message: safeDiagnosticMessage(code, null, optionKey),
                 capabilityId: null,
                 span: Object.freeze({ start: 0, end: 0 }),
                 recovery: "preserve-target" as const,
                 targetId: null,
             }),
-        ]),
-    });
+        ]);
 }
 
 function rejectedDdlTransaction(
     documentVersion: number,
     code: string,
-    message: string
+    _message: string
 ): Extract<ExperimentalDdlTransactionResult, { readonly status: "rejected" }> {
-    return Object.freeze({
-        status: "rejected" as const,
-        documentVersion,
-        diagnostics: Object.freeze([
+    return createRejectedTransaction(documentVersion, [
             Object.freeze({
                 code,
                 severity: "error" as const,
-                message,
+                message: safeDiagnosticMessage(code, null),
                 capabilityId: null,
                 span: Object.freeze({ start: 0, end: 0 }),
                 recovery: "preserve-target" as const,
                 targetId: null,
             }),
-        ]),
-    });
+        ]);
 }
 
 export function createVscodeExtension(
@@ -289,6 +322,7 @@ export function createVscodeExtension(
     options: VscodeExtensionOptions
 ): VscodeExtensionSession {
     const diagnostics = vscode.languages.createDiagnosticCollection("sqlBeautify");
+    const messages = createVscodeMessages(vscode.env.language);
     let activated = false;
     let disposed = false;
     let diagnosticGeneration = 0;
@@ -351,40 +385,49 @@ export function createVscodeExtension(
         return key !== null && latestDiagnosticGeneration.get(key) === generation;
     }
 
-    function configuration(document: Vscode.TextDocument): Readonly<{
-        options: CanonicalFormatOptions;
-        debugDiagnostics: boolean;
-    }> | null {
+    function configuration(
+        document: Vscode.TextDocument
+    ): ExtensionConfiguration {
         const configured = readVscodeFormatConfiguration(vscode, document);
         if (configured === null) {
-            return null;
+            return configurationFailure("CFG_OPTIONS_READ");
         }
         try {
             const resolved = runtime.resolveFormatOptions(configured.options);
             return resolved.ok
                 ? Object.freeze({
+                    ok: true as const,
                     options: resolved.options,
                     debugDiagnostics: configured.debugDiagnostics,
                 })
-                : null;
+                : configurationFailure(resolved.code, resolved.optionKey);
         } catch {
-            return null;
+            return configurationFailure("CFG_OPTIONS_READ");
         }
     }
 
     function commandOptions(
         configured: FormatOptions,
         explicit: unknown
-    ): CanonicalFormatOptions | null {
+    ): ResolveFormatOptionsResult {
         const merged = mergeExplicitFormatOptions(configured, explicit);
         if (merged === null) {
-            return null;
+            return Object.freeze({
+                ok: false as const,
+                code: "CFG_OPTIONS_SHAPE" as const,
+                message: "Command options must be a plain data object",
+                optionKey: null,
+            });
         }
         try {
-            const resolved = runtime.resolveFormatOptions(merged);
-            return resolved.ok ? resolved.options : null;
+            return runtime.resolveFormatOptions(merged);
         } catch {
-            return null;
+            return Object.freeze({
+                ok: false as const,
+                code: "CFG_OPTIONS_READ" as const,
+                message: "Command options could not be inspected",
+                optionKey: null,
+            });
         }
     }
 
@@ -497,23 +540,87 @@ export function createVscodeExtension(
                 );
                 void vscode.window.showInformationMessage(
                     containsHiveDdl
-                        ? "SQL Beautify preserved Hive DDL. Use the dedicated Format Hive DDL command for the supported experimental subset."
-                        : `SQL Beautify made no changes because ${String(capabilities.length)} SQL region(s) are not modeled.`
+                        ? messages.text("preservedHiveDdl")
+                        : messages.text("unmodeledRegions", {
+                              count: capabilities.length,
+                          })
                 );
                 return;
             }
         }
+        if (result.status === "cancelled") {
+            void vscode.window.showInformationMessage(
+                messages.text("formatCancelled")
+            );
+            return;
+        }
         if (result.status === "rejected") {
+            const codes = new Set(result.diagnostics.map((item) => item.code));
+            if (codes.has("ADAPTER_STALE_DOCUMENT")) {
+                void vscode.window.showInformationMessage(
+                    messages.text("documentChanged")
+                );
+                return;
+            }
+            if (Array.from(codes).some(isRangeValidationCode)) {
+                void vscode.window.showWarningMessage(
+                    messages.text("rangeRejected")
+                );
+                return;
+            }
+            if (codes.has("ADAPTER_SELECTION_MAP")) {
+                void vscode.window.showWarningMessage(
+                    messages.text("selectionMapRejected")
+                );
+                return;
+            }
+            if (codes.has("ADAPTER_INPUT_LIMIT")) {
+                void vscode.window.showWarningMessage(
+                    messages.text("inputLimitRejected")
+                );
+                return;
+            }
+            if (Array.from(codes).some((code) => WORKER_REJECTION_CODES.has(code))) {
+                void vscode.window.showWarningMessage(
+                    messages.text("workerRejected")
+                );
+                return;
+            }
+            if (codes.has("ADAPTER_EDIT_REJECTED")) {
+                void vscode.window.showWarningMessage(
+                    messages.text("editRejected")
+                );
+                return;
+            }
             void vscode.window.showWarningMessage(
-                "SQL Beautify did not modify the document because formatting was not safe."
+                messages.text("formatRejected")
             );
         }
     }
 
     function reportDdlCommandResult(result: ExperimentalDdlTransactionResult): void {
+        if (result.status === "cancelled") {
+            void vscode.window.showInformationMessage(
+                messages.text("formatCancelled")
+            );
+            return;
+        }
         if (result.status === "rejected") {
+            const codes = new Set(result.diagnostics.map((item) => item.code));
+            if (codes.has("ADAPTER_STALE_DOCUMENT")) {
+                void vscode.window.showInformationMessage(
+                    messages.text("documentChanged")
+                );
+                return;
+            }
+            if (codes.has("ADAPTER_EDIT_REJECTED")) {
+                void vscode.window.showWarningMessage(
+                    messages.text("editRejected")
+                );
+                return;
+            }
             void vscode.window.showWarningMessage(
-                "SQL Beautify did not modify the document because the selected DDL is outside the supported experimental subset."
+                messages.text("ddlRejected")
             );
         }
     }
@@ -607,7 +714,7 @@ export function createVscodeExtension(
                 editor.selections = mappedSelections;
             } catch {
                 void vscode.window.showWarningMessage(
-                    "SQL Beautify formatted the document but could not restore the selection."
+                    messages.text("selectionRestoreFailed")
                 );
             }
         }
@@ -621,13 +728,35 @@ export function createVscodeExtension(
         phase: string,
         formattingOptions: Vscode.FormattingOptions
     ): Promise<Vscode.TextEdit[]> {
-        const current = configuration(document);
-        if (current === null || supportedLanguage(document.languageId) === null) {
+        if (supportedLanguage(document.languageId) === null) {
             return [];
         }
         const generation = beginDiagnosticRequest(document);
         const capturedSource = document.getText();
         const capturedVersion = document.version;
+        const current = configuration(document);
+        if (!current.ok) {
+            const failure = rejectedFormatTransaction(
+                capturedVersion,
+                current.code,
+                safeDiagnosticMessage(
+                    current.code,
+                    null,
+                    current.optionKey
+                ),
+                current.optionKey
+            );
+            publishDiagnostics(
+                document,
+                failure,
+                "warn",
+                false,
+                phase,
+                generation,
+                true
+            );
+            return [];
+        }
         const target = requestedTarget ?? documentTarget(capturedSource.length);
         const cancellation = wrapVscodeCancellationToken(token);
         let result: FormatTransactionResult;
@@ -753,7 +882,7 @@ export function createVscodeExtension(
     ): Promise<FormatTransactionResult | null> {
         const editor = vscode.window.activeTextEditor;
         if (editor === undefined || supportedLanguage(editor.document.languageId) === null) {
-            void vscode.window.showWarningMessage("SQL Beautify requires an active SQL editor.");
+            void vscode.window.showWarningMessage(messages.text("activeSqlEditor"));
             return null;
         }
         const expected = snapshotDocument(editor.document);
@@ -761,15 +890,26 @@ export function createVscodeExtension(
             ? null
             : selectionTargets(editor, expected.source.length);
         const current = configuration(editor.document);
-        if (expected === null || selectionSet === null || current === null) {
-            void vscode.window.showErrorMessage("SQL Beautify could not read the editor state safely.");
+        if (expected === null || selectionSet === null) {
+            void vscode.window.showErrorMessage(messages.text("editorState"));
             return null;
         }
-        const commandOptionsValue = commandOptions(current.options, explicitOptions);
-        if (commandOptionsValue === null) {
-            void vscode.window.showErrorMessage("SQL Beautify command options are invalid.");
+        if (!current.ok) {
+            void vscode.window.showErrorMessage(messages.text(
+                "configurationInvalid",
+                { optionKey: current.optionKey }
+            ));
             return null;
         }
+        const commandOptionsResult = commandOptions(current.options, explicitOptions);
+        if (!commandOptionsResult.ok) {
+            void vscode.window.showErrorMessage(messages.text(
+                "commandOptionsInvalid",
+                { optionKey: commandOptionsResult.optionKey }
+            ));
+            return null;
+        }
+        const commandOptionsValue = commandOptionsResult.options;
         const generation = beginDiagnosticRequest(editor.document);
         const cancellation = wrapVscodeCancellationToken(token);
         let result: FormatTransactionResult;
@@ -805,7 +945,7 @@ export function createVscodeExtension(
             current.debugDiagnostics,
             "command-format",
             publishedGeneration,
-            !(result.status === "ready" && result.edits.length > 0)
+            true
         );
         reportQueryCommandResult(
             result,
@@ -828,7 +968,7 @@ export function createVscodeExtension(
             language === null ||
             !language.supportsExperimentalDdl
         ) {
-            void vscode.window.showWarningMessage("SQL Beautify requires an active SQL editor.");
+            void vscode.window.showWarningMessage(messages.text("activeSqlEditor"));
             return null;
         }
         const expected = snapshotDocument(editor.document);
@@ -836,8 +976,15 @@ export function createVscodeExtension(
             ? null
             : selectionTargets(editor, expected.source.length);
         const current = configuration(editor.document);
-        if (expected === null || selectionSet === null || current === null) {
-            void vscode.window.showErrorMessage("SQL Beautify could not read the editor state safely.");
+        if (expected === null || selectionSet === null) {
+            void vscode.window.showErrorMessage(messages.text("editorState"));
+            return null;
+        }
+        if (!current.ok) {
+            void vscode.window.showErrorMessage(messages.text(
+                "configurationInvalid",
+                { optionKey: current.optionKey }
+            ));
             return null;
         }
         const generation = beginDiagnosticRequest(editor.document);
@@ -870,7 +1017,7 @@ export function createVscodeExtension(
             current.debugDiagnostics,
             phase,
             publishedGeneration,
-            !(result.status === "ready" && result.edits.length > 0)
+            true
         );
         reportDdlCommandResult(result);
         return result;
@@ -881,7 +1028,7 @@ export function createVscodeExtension(
     ): Promise<boolean> {
         const editor = vscode.window.activeTextEditor;
         if (editor === undefined || supportedLanguage(editor.document.languageId) === null) {
-            void vscode.window.showErrorMessage("SQL Beautify requires an active SQL editor.");
+            void vscode.window.showErrorMessage(messages.text("activeSqlEditor"));
             return false;
         }
         const document = editor.document;
@@ -890,8 +1037,15 @@ export function createVscodeExtension(
             ? null
             : selectionTargets(editor, expected.source.length);
         const current = configuration(document);
-        if (expected === null || selectionSet === null || current === null) {
-            void vscode.window.showErrorMessage("SQL Beautify could not read the editor state safely.");
+        if (expected === null || selectionSet === null) {
+            void vscode.window.showErrorMessage(messages.text("editorState"));
+            return false;
+        }
+        if (!current.ok) {
+            void vscode.window.showErrorMessage(messages.text(
+                "configurationInvalid",
+                { optionKey: current.optionKey }
+            ));
             return false;
         }
         let result: FormatTransactionResult;
@@ -922,14 +1076,22 @@ export function createVscodeExtension(
             cancelled = true;
         }
         const after = currentDocument(editor, document);
+        if (cancelled) {
+            void vscode.window.showInformationMessage(
+                messages.text("safeReportCancelled")
+            );
+            return false;
+        }
         if (
-            cancelled ||
             vscode.window.activeTextEditor !== editor ||
             after === null ||
             after.identity !== expected.identity ||
             after.version !== expected.version ||
             after.source !== expected.source
         ) {
+            void vscode.window.showInformationMessage(
+                messages.text("safeReportStale")
+            );
             return false;
         }
         const dialect = (current.options as { readonly dialect?: unknown }).dialect ?? "hive";
@@ -943,12 +1105,12 @@ export function createVscodeExtension(
         try {
             await vscode.env.clipboard.writeText(report);
             void vscode.window.showInformationMessage(
-                "SQL Beautify safe diagnostic report copied."
+                messages.text("safeReportCopied")
             );
             return true;
         } catch {
             void vscode.window.showErrorMessage(
-                "SQL Beautify could not copy the safe diagnostic report."
+                messages.text("safeReportCopyFailed")
             );
             return false;
         }
@@ -962,10 +1124,14 @@ export function createVscodeExtension(
             const registrations: Vscode.Disposable[] = [];
             try {
                 registrations.push(vscode.workspace.onDidChangeTextDocument((event) => {
-                    invalidateDiagnostics(event.document);
+                    if (supportedLanguage(event.document.languageId) !== null) {
+                        invalidateDiagnostics(event.document);
+                    }
                 }));
                 registrations.push(vscode.workspace.onDidCloseTextDocument((document) => {
-                    closeDiagnostics(document);
+                    if (supportedLanguage(document.languageId) !== null) {
+                        closeDiagnostics(document);
+                    }
                 }));
                 registrations.push(vscode.languages.registerDocumentFormattingEditProvider(
                     FORMATTER_SELECTOR,
@@ -1000,14 +1166,14 @@ export function createVscodeExtension(
                 registrations.push(vscode.commands.registerCommand(
                     "sqlBeautify.formatSql",
                     async (explicitOptions?: unknown) => await withCommandCancellation(
-                        "Formatting SQL",
+                        messages.text("formattingSql"),
                         async (token) => await runQueryCommand(explicitOptions, token)
                     )
                 ));
                 registrations.push(vscode.commands.registerCommand(
                     "sqlBeautify.formatHiveDdl",
                     async () => await withCommandCancellation(
-                        "Formatting Hive DDL",
+                        messages.text("formattingHiveDdl"),
                         async (token) => await runDdlCommand(
                             runtime.formatHiveDdl,
                             "hive-ddl",
@@ -1018,7 +1184,7 @@ export function createVscodeExtension(
                 registrations.push(vscode.commands.registerCommand(
                     "sqlBeautify.extractHiveDdl",
                     async () => await withCommandCancellation(
-                        "Extracting Hive DDL",
+                        messages.text("extractingHiveDdl"),
                         async (token) => await runDdlCommand(
                             runtime.extractDdl,
                             "extract-hive-ddl",
@@ -1029,7 +1195,7 @@ export function createVscodeExtension(
                 registrations.push(vscode.commands.registerCommand(
                     "sqlBeautify.copySafeDiagnosticReport",
                     async () => await withCommandCancellation(
-                        "Preparing safe diagnostic report",
+                        messages.text("preparingSafeReport"),
                         copySafeDiagnosticReport
                     )
                 ));

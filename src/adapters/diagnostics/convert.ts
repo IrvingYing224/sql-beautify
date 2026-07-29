@@ -1,5 +1,6 @@
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import type { TransactionDiagnostic } from "../transaction/types";
+import { compareString } from "../boundary/order";
 import { snapshotDiagnostic } from "../boundary/format-result-snapshot";
 import { safeDiagnosticMessage } from "./safe-messages";
 
@@ -9,10 +10,6 @@ const RECOVERIES: ReadonlySet<string> = new Set([
     "preserve-statement",
     "preserve-target",
 ]);
-
-function compareString(left: string, right: string): number {
-    return left < right ? -1 : left > right ? 1 : 0;
-}
 
 export function convertDiagnostic(
     value: Diagnostic,

@@ -93,6 +93,9 @@ export function executeFormatBatch(
                 targetId: validation.targetId,
             });
         }
+        const formatModeByTargetId = new Map(
+            validation.targetModes.map((value) => [value.targetId, value.mode])
+        );
         const results: FormatBatchTargetResult[] = [];
         for (const target of request.targets) {
             const source = request.source.slice(target.start, target.end);
@@ -101,7 +104,7 @@ export function executeFormatBatch(
                 : formatTarget(
                       source,
                       request.options,
-                      target.mode,
+                      formatModeByTargetId.get(target.id)!,
                       renderEnvironmentForNewline(
                           request.newline,
                           request.tabSize

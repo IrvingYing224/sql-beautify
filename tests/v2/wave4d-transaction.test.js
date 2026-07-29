@@ -131,6 +131,9 @@ async function main() {
     });
     assert.strictEqual(thrown.result.status, 'rejected');
     assert.strictEqual(thrown.result.diagnostics[0].code, 'ADAPTER_DDL_OPERATION');
+    assert.strictEqual(thrown.result.diagnostics[0].message,
+        'The experimental DDL operation failed safely',
+        'hostile operation text must not escape through the public DDL transaction diagnostic');
     assert.strictEqual(thrown.applied.length, 0);
 
     var emptyEditable = await runOperation(extractedSource, function(source) {

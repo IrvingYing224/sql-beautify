@@ -102,6 +102,12 @@ var empty = valid(source, [target('empty', 3, 3)]);
 assert.strictEqual(empty.status, 'valid', 'empty fragments are valid at arbitrary offsets');
 var documentTarget = valid(source, [target('document', 0, source.length, 'document')]);
 assert.strictEqual(documentTarget.status, 'valid', 'document target only requires full range');
+var fullDocumentSelection = valid(source, [target('full-selection', 0, source.length)]);
+assert.strictEqual(fullDocumentSelection.status, 'valid',
+    'a full-document selection must use document semantics');
+assert.deepStrictEqual(fullDocumentSelection.targetModes, [
+    { targetId: 'full-selection', mode: 'document' }
+]);
 assert.strictEqual(
     valid('select (\n', [target('malformed-document', 0, 9, 'document')]).status,
     'valid',
@@ -114,10 +120,23 @@ assertInvalid(
 );
 
 var malformed = 'select (\n';
+assert.strictEqual(
+    valid(malformed, [target('malformed', 0, malformed.length)]).status,
+    'valid',
+    'a full-document selection must preserve document semantics even when malformed'
+);
+var sequenceSource = 'select a;\nselect b;\nselect c;\n';
+var sequenceEnd = sequenceSource.indexOf('\nselect c');
+var sequence = valid(sequenceSource, [target('statement-sequence', 0, sequenceEnd)]);
+assert.strictEqual(sequence.status, 'valid',
+    'a complete contiguous statement sequence must be accepted');
+assert.deepStrictEqual(sequence.targetModes, [
+    { targetId: 'statement-sequence', mode: 'document' }
+]);
 assertInvalid(
-    valid(malformed, [target('malformed', 0, malformed.length)]),
-    'ADAPTER_RANGE_ANALYSIS',
-    'malformed'
+    valid(sequenceSource, [target('partial-sequence', 0, sequenceEnd - 2)]),
+    'ADAPTER_RANGE_LINE',
+    'partial-sequence'
 );
 var opaque = 'select a\nqualify row_number() over (order by a)=1\n';
 assertInvalid(

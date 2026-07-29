@@ -1,4 +1,5 @@
 import type { FormatResult } from "../../core/api/format-result";
+import { safeDiagnosticMessage } from "../diagnostics/safe-messages";
 import type { Diagnostic, DiagnosticSeverity } from "../../core/diagnostics/diagnostic";
 import {
     isValidSourceMap,
@@ -190,7 +191,7 @@ export function isFormatResultSafeForSource(
 export function failedFormatResult(
     source: string,
     code: string,
-    message: string,
+    _message: string,
     severity: DiagnosticSeverity = "error"
 ): FormatResult {
     return brandFormatResult(Object.freeze({
@@ -200,7 +201,7 @@ export function failedFormatResult(
             Object.freeze({
                 code,
                 severity,
-                message,
+                message: safeDiagnosticMessage(code, null),
                 capabilityId: null,
                 span: Object.freeze({ start: 0, end: source.length }),
                 recovery: "preserve-target" as const,

@@ -23,12 +23,13 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 
 ## 怎么用
 
-将文件语言模式设为 `SQL` 或 `hive-sql` 后，可以用下面几种方式：
+将文件语言模式设为 `SQL` 或 `hive-sql` 后，可以用下面几种方式。`hive-sql` language id 由第三方 Hive 语言扩展提供，SQL Beautify 本身不注册语言：
 
 - 执行 `Format Document` 或 `Format Selection`
 - 执行命令 `SQL Beautify: Format SQL`
 - 执行命令 `SQL Beautify: Copy Safe Diagnostic Report`：复制一份不包含 SQL 内容的诊断报告，用于在不能外发真实 SQL 的环境里反馈 warning、error 或慢格式化问题
-- 使用快捷键 `Alt+Shift+F`
+
+SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入口。若安装了多个 formatter，请把 `editor.defaultFormatter` 设为 `clarkyu.vscode-sql-beautify`；需要专用快捷键时可在 Keyboard Shortcuts 中为 `sqlBeautify.formatSql` 自行绑定。
 
 实验性命令：
 

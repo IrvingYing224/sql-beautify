@@ -1,9 +1,6 @@
 import type { TransactionDiagnostic } from "../transaction/types";
+import { compareString } from "../boundary/order";
 import { sortDiagnostics } from "./convert";
-
-function compareString(left: string, right: string): number {
-    return left < right ? -1 : left > right ? 1 : 0;
-}
 
 function presentationKey(value: TransactionDiagnostic): string {
     return [
@@ -14,21 +11,23 @@ function presentationKey(value: TransactionDiagnostic): string {
     ].join("\u0000");
 }
 
-function spanContains(
-    outer: TransactionDiagnostic,
-    inner: TransactionDiagnostic
-): boolean {
-    return outer.span.start <= inner.span.start &&
-        inner.span.end <= outer.span.end;
+export interface DiagnosticPresentationStatistics {
+    readonly candidateCount: number;
+    readonly containmentChecks: number;
+}
+
+export interface DiagnosticPresentationResult {
+    readonly diagnostics: readonly TransactionDiagnostic[];
+    readonly statistics: DiagnosticPresentationStatistics;
 }
 
 /**
  * Removes redundant containing spans only for editor presentation. Transaction
  * results and safe diagnostic reports continue to retain the complete evidence.
  */
-export function diagnosticsForEditor(
+export function diagnosticsForEditorWithStatistics(
     values: readonly TransactionDiagnostic[]
-): readonly TransactionDiagnostic[] {
+): DiagnosticPresentationResult {
     const groups = new Map<string, TransactionDiagnostic[]>();
     for (const value of values) {
         const key = presentationKey(value);
@@ -40,22 +39,36 @@ export function diagnosticsForEditor(
         }
     }
     const retained: TransactionDiagnostic[] = [];
+    let containmentChecks = 0;
     const keys = Array.from(groups.keys()).sort(compareString);
     for (const key of keys) {
         const candidates = groups.get(key)!.slice().sort((left, right) =>
-            (left.span.end - left.span.start) -
-                (right.span.end - right.span.start) ||
-            left.span.start - right.span.start ||
+            right.span.start - left.span.start ||
             left.span.end - right.span.end
         );
-        const narrow: TransactionDiagnostic[] = [];
+        let minimumEnd = Number.POSITIVE_INFINITY;
         for (const candidate of candidates) {
-            if (narrow.some((value) => spanContains(candidate, value))) {
+            if (minimumEnd !== Number.POSITIVE_INFINITY) {
+                containmentChecks += 1;
+            }
+            if (minimumEnd <= candidate.span.end) {
                 continue;
             }
-            narrow.push(candidate);
+            retained.push(candidate);
+            minimumEnd = candidate.span.end;
         }
-        retained.push(...narrow);
     }
-    return sortDiagnostics(retained);
+    return Object.freeze({
+        diagnostics: sortDiagnostics(retained),
+        statistics: Object.freeze({
+            candidateCount: values.length,
+            containmentChecks,
+        }),
+    });
+}
+
+export function diagnosticsForEditor(
+    values: readonly TransactionDiagnostic[]
+): readonly TransactionDiagnostic[] {
+    return diagnosticsForEditorWithStatistics(values).diagnostics;
 }

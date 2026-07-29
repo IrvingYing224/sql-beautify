@@ -9,6 +9,7 @@ var targetCore = require('../../.tmp/v2-core/core/api/format');
 var persistentModule = require('../../.tmp/v2-core/adapters/executor/persistent-worker');
 var connectionModule = require('../../.tmp/v2-core/adapters/executor/worker-connection');
 var routedModule = require('../../.tmp/v2-core/adapters/executor/routed');
+var debugEventModule = require('../../.tmp/v2-core/core/diagnostics/debug-event');
 
 function digest(file) {
     return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -254,6 +255,24 @@ async function run() {
     assert.ok(debugFailure.debugEvents[0].frames.every(function(frame) {
         return /^at\s/.test(frame) && frame.length <= 512;
     }), 'debug stacks must contain only bounded call frames without the Error header');
+    var pathError = new Error('private path test');
+    pathError.stack = [
+        'Error: private path test',
+        '    at local (/Users/private/workspace/src/formatter.ts:12:34)',
+        '    at fileUrl (file:///Users/private/workspace/src/worker.js:5:6)',
+        '    at windows (C:\\Users\\private\\workspace\\entry.cjs:7:8)',
+        '    at node:internal/process/task_queues:105:5'
+    ].join('\n');
+    assert.deepStrictEqual(
+        debugEventModule.createDebugEvent('executor', 'ADAPTER_TEST', pathError).frames,
+        [
+            'at local (<path>/formatter.ts:12:34)',
+            'at fileUrl (<path>/worker.js:5:6)',
+            'at windows (<path>/entry.cjs:7:8)',
+            'at node:internal/process/task_queues:105:5'
+        ],
+        'debug frames must redact absolute POSIX, file URL, and Windows paths'
+    );
     await throwingDirect.dispose();
 
     await routed.dispose();

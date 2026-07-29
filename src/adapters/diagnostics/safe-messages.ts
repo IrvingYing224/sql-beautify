@@ -1,5 +1,15 @@
 const CODE_PATTERN = /^[A-Z][A-Z0-9_]{1,119}$/;
 const CAPABILITY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const FORMAT_OPTION_KEYS: ReadonlySet<string> = new Set([
+    "dialect",
+    "keywordCase",
+    "commaStyle",
+    "indentStyle",
+    "maxAlignWidth",
+    "caseWhenThenWrapLength",
+    "caseLayout",
+    "unsupportedSyntaxPolicy",
+]);
 
 function entries(
     codes: readonly string[],
@@ -232,7 +242,8 @@ export function knownSafeDiagnosticCodes(): readonly string[] {
 
 export function safeDiagnosticMessage(
     code: string,
-    capabilityId: string | null
+    capabilityId: string | null,
+    optionKey?: unknown
 ): string {
     const configured = SAFE_MESSAGE_BY_CODE[code];
     const base = configured !== undefined
@@ -240,7 +251,10 @@ export function safeDiagnosticMessage(
         : CODE_PATTERN.test(code)
             ? "Formatter reported a recoverable diagnostic"
             : "Formatter diagnostic is unavailable";
-    return capabilityId !== null && CAPABILITY_PATTERN.test(capabilityId)
+    const capabilityMessage = capabilityId !== null && CAPABILITY_PATTERN.test(capabilityId)
         ? `${base} (capability: ${capabilityId})`
         : base;
+    return typeof optionKey === "string" && FORMAT_OPTION_KEYS.has(optionKey)
+        ? `${capabilityMessage} (option: ${optionKey})`
+        : capabilityMessage;
 }

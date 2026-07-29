@@ -113,6 +113,20 @@ assert.deepStrictEqual(nested.map(function(item) {
     ['hive-clause', 30, 35]
 ], 'editor presentation must retain the narrowest nested span per diagnostic identity');
 
+var nestedCount = 2000;
+var nestedCandidates = Array.from({ length: nestedCount }, function(_, index) {
+    return Object.freeze(Object.assign({}, converted, {
+        span: { start: index, end: nestedCount * 2 - index }
+    }));
+});
+var nestedStatistics = presentation.diagnosticsForEditorWithStatistics(nestedCandidates);
+assert.strictEqual(nestedStatistics.diagnostics.length, 1,
+    'a deeply nested diagnostic group must retain only its narrowest span');
+assert.deepStrictEqual(nestedStatistics.statistics, {
+    candidateCount: nestedCount,
+    containmentChecks: nestedCount - 1
+}, 'diagnostic containment work must remain one check per sorted candidate');
+
 var sourceRoot = path.resolve(__dirname, '../../src');
 var diagnosticPrefixes = /^(?:ADAPTER|CFG|DDL|EXTRACT|FMT|INV|LAYOUT|LEX|METRICS|RENDER|STRUCT|SYN)_/;
 var discovered = new Set();

@@ -31,7 +31,18 @@ if (resolved.ok) {
     void dialect;
 } else {
     const code: string = resolved.code;
+    const optionKey:
+        | "dialect"
+        | "keywordCase"
+        | "commaStyle"
+        | "indentStyle"
+        | "maxAlignWidth"
+        | "caseWhenThenWrapLength"
+        | "caseLayout"
+        | "unsupportedSyntaxPolicy"
+        | null = resolved.optionKey;
     void code;
+    void optionKey;
 }
 
 const unknownIdentity: unknown = valid;

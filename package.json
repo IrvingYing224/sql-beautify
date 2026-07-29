@@ -23,11 +23,7 @@
 	],
 	"activationEvents": [
 		"onLanguage:sql",
-		"onLanguage:hive-sql",
-		"onCommand:sqlBeautify.formatSql",
-		"onCommand:sqlBeautify.formatHiveDdl",
-		"onCommand:sqlBeautify.extractHiveDdl",
-		"onCommand:sqlBeautify.copySafeDiagnosticReport"
+		"onLanguage:hive-sql"
 	],
 	"repository": {
 		"type": "git",
@@ -54,27 +50,26 @@
 		"commands": [
 			{
 				"command": "sqlBeautify.formatSql",
-				"title": "SQL Beautify: Format SQL"
+				"title": "SQL Beautify: Format SQL",
+				"enablement": "editorLangId == sql || editorLangId == hive-sql"
 			},
 			{
 				"command": "sqlBeautify.formatHiveDdl",
-				"title": "SQL Beautify: Format Hive DDL (Experimental)"
+				"title": "SQL Beautify: Format Hive DDL (Experimental)",
+				"enablement": "editorLangId == sql || editorLangId == hive-sql"
 			},
 			{
 				"command": "sqlBeautify.extractHiveDdl",
-				"title": "SQL Beautify: Extract Hive DDL (Experimental)"
+				"title": "SQL Beautify: Extract Hive DDL (Experimental)",
+				"enablement": "editorLangId == sql || editorLangId == hive-sql"
 			},
 			{
 				"command": "sqlBeautify.copySafeDiagnosticReport",
-				"title": "SQL Beautify: Copy Safe Diagnostic Report"
+				"title": "SQL Beautify: Copy Safe Diagnostic Report",
+				"enablement": "editorLangId == sql || editorLangId == hive-sql"
 			}
 		],
 		"keybindings": [
-			{
-				"command": "sqlBeautify.formatSql",
-				"key": "alt+shift+f",
-				"when": "editorTextFocus && !editorReadonly && (editorLangId == sql || editorLangId == hive-sql)"
-			},
 			{
 				"command": "sqlBeautify.formatHiveDdl",
 				"key": "alt+shift+l",
@@ -88,7 +83,7 @@
 		],
 		"configuration": {
 			"type": "object",
-			"title": "Beautify SQL",
+			"title": "SQL Beautify",
 			"properties": {
 				"sqlBeautify.keywordCase": {
 					"scope": "resource",

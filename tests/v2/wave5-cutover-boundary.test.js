@@ -59,10 +59,6 @@ assert.deepStrictEqual(packageJson.files, expectedFiles,
 assert.deepStrictEqual(fs.readdirSync(path.join(root, 'images')).sort(), ['icon.png'],
     'only the extension icon may remain in the production image directory');
 assert.deepStrictEqual(packageJson.activationEvents.slice().sort(), [
-    'onCommand:sqlBeautify.copySafeDiagnosticReport',
-    'onCommand:sqlBeautify.extractHiveDdl',
-    'onCommand:sqlBeautify.formatHiveDdl',
-    'onCommand:sqlBeautify.formatSql',
     'onLanguage:hive-sql',
     'onLanguage:sql'
 ]);
@@ -74,8 +70,13 @@ assert.deepStrictEqual(contributedCommands, expectedCommands,
 assert.deepStrictEqual(packageJson.contributes.keybindings.map(function(value) {
     return value.command;
 }).sort(), expectedCommands.filter(function(value) {
-    return value !== 'sqlBeautify.copySafeDiagnosticReport';
+    return value == 'sqlBeautify.formatHiveDdl' || value == 'sqlBeautify.extractHiveDdl';
 }).sort(), 'keybindings must target only canonical editing commands');
+packageJson.contributes.commands.forEach(function(value) {
+    assert.strictEqual(value.enablement,
+        'editorLangId == sql || editorLangId == hive-sql',
+        'commands must be enabled only for exact supported language ids');
+});
 packageJson.contributes.keybindings.forEach(function(value) {
     assert.strictEqual(value.when,
         'editorTextFocus && !editorReadonly && (editorLangId == sql || editorLangId == hive-sql)',
@@ -83,6 +84,7 @@ packageJson.contributes.keybindings.forEach(function(value) {
 });
 
 var configuration = packageJson.contributes.configuration.properties;
+assert.strictEqual(packageJson.contributes.configuration.title, 'SQL Beautify');
 assert.deepStrictEqual(Object.keys(configuration).sort(), expectedConfigurationKeys,
     'only canonical sqlBeautify.* configuration may be exposed');
 assert.deepStrictEqual(configuration['sqlBeautify.dialect'].enum,

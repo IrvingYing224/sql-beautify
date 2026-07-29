@@ -75,6 +75,29 @@ async function run() {
     assert.deepStrictEqual(executor.calls.map(function(call) { return call.newline; }),
         ['\n', '\n'], 'all fragments must inherit the complete document EOL');
 
+    var documentModeExecutor = createExecutor(function(request) {
+        return {
+            status: 'unchanged', text: request.source, diagnostics: [],
+            sourceMap: sourceMap(request.source.length, request.source.length)
+        };
+    });
+    var sequenceSource = 'select a;\nselect b;\nselect c;\n';
+    var sequenceEnd = sequenceSource.indexOf('\nselect c');
+    assert.strictEqual((await transaction.prepareFormatTransaction({
+        source: sequenceSource,
+        documentVersion: 70,
+        targets: [{ id: 'sequence', start: 0, end: sequenceEnd, mode: 'fragment' }]
+    }, documentModeExecutor)).status, 'unchanged');
+    assert.strictEqual(documentModeExecutor.calls[0].mode, 'document',
+        'a complete statement sequence must reach the formatter in document mode');
+    assert.strictEqual((await transaction.prepareFormatTransaction({
+        source: 'select (\n',
+        documentVersion: 71,
+        targets: [{ id: 'full-selection', start: 0, end: 9, mode: 'fragment' }]
+    }, documentModeExecutor)).status, 'unchanged');
+    assert.strictEqual(documentModeExecutor.calls[1].mode, 'document',
+        'a full-document selection must retain document mode even when malformed');
+
     var crlfExecutor = createExecutor(function(request) {
         return {
             status: 'unchanged',
@@ -298,6 +321,47 @@ async function run() {
     }, errorDiagnosticExecutor);
     assert.strictEqual(errorDiagnostic.status, 'rejected',
         'error diagnostics must reject a transaction even when text is formatted');
+
+    var mappedDiagnostic = await transaction.prepareFormatTransaction({
+        source: 'select x',
+        documentVersion: 61,
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }]
+    }, createExecutor(function() {
+        return {
+            status: 'formatted',
+            text: 'SELECT   x',
+            diagnostics: [{
+                code: 'SYN_TEST', severity: 'warning', message: 'mapped',
+                capabilityId: null, span: { start: 7, end: 8 },
+                recovery: 'preserve-target'
+            }],
+            sourceMap: {
+                entries: [
+                    { source: { start: 0, end: 6 }, output: { start: 0, end: 6 } },
+                    { source: { start: 7, end: 8 }, output: { start: 9, end: 10 } }
+                ]
+            }
+        };
+    }));
+    assert.strictEqual(mappedDiagnostic.status, 'ready');
+    assert.deepStrictEqual(mappedDiagnostic.diagnostics[0].span, { start: 6, end: 10 },
+        'ready transaction diagnostics must conservatively include generated layout gaps');
+
+    var forgedSelectionMap = await transaction.prepareFormatTransaction({
+        source: 'select 1',
+        documentVersion: 62,
+        targets: [{ id: 'document', start: 0, end: 8, mode: 'document' }],
+        selections: [{ id: 'cursor', targetId: 'document', anchor: 4, active: 4 }]
+    }, createExecutor(function() {
+        return {
+            status: 'formatted', text: 'SELECT 1', diagnostics: [],
+            sourceMap: { entries: [] }
+        };
+    }));
+    assert.strictEqual(forgedSelectionMap.status, 'rejected');
+    assert.strictEqual(forgedSelectionMap.diagnostics[0].code, 'ADAPTER_SELECTION_MAP');
+    assert.strictEqual(forgedSelectionMap.edits, undefined,
+        'a forged selection map must reject the whole transaction without partial edits');
 
     var toctouReads = 0;
     var toctouExecutor = createExecutor(function(request) {

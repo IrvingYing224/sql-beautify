@@ -12,6 +12,8 @@ import type {
 } from "./types";
 import { observeCancellation } from "./cancellation";
 import { prepareFormatTransaction } from "./prepare";
+import { createRejectedTransaction } from "./rejected";
+import { safeDiagnosticMessage } from "../diagnostics/safe-messages";
 import {
     sameDocument,
     snapshotDocument,
@@ -42,26 +44,21 @@ export interface HostCommit {
 function rejected(
     version: number,
     code: string,
-    message: string,
+    _message: string,
     severity: "warning" | "error" = "error",
     debugEvents: FormatTransactionResult["debugEvents"] = undefined
 ): FormatTransactionResult {
-    return Object.freeze({
-        status: "rejected" as const,
-        documentVersion: version,
-        diagnostics: Object.freeze([
+    return createRejectedTransaction(version, [
             Object.freeze({
                 code,
                 severity,
-                message,
+                message: safeDiagnosticMessage(code, null),
                 capabilityId: null,
                 span: Object.freeze({ start: 0, end: 0 }),
                 recovery: "preserve-target" as const,
                 targetId: null,
             }),
-        ]),
-        ...(debugEvents === undefined ? {} : { debugEvents }),
-    });
+        ], debugEvents);
 }
 
 async function runHostTransactionInternal(

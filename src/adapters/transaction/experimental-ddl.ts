@@ -5,7 +5,9 @@ import type {
     HiveDdlResult,
 } from "../../experimental/ddl/types";
 import { snapshotDataProperties, snapshotDenseDataArray } from "../boundary/data-snapshot";
+import { compareString } from "../boundary/order";
 import { convertDiagnostic, sortDiagnostics } from "../diagnostics/convert";
+import { safeDiagnosticMessage } from "../diagnostics/safe-messages";
 import {
     buildTextLineIndex,
     lineBoundsAtOffset,
@@ -21,6 +23,8 @@ import type {
     CancellationToken,
     TransactionDiagnostic,
 } from "./types";
+import { createRejectedTransaction } from "./rejected";
+import { snapshotTargetRange } from "./target-snapshot";
 
 export type ExperimentalDdlResult = HiveDdlResult | ExtractDdlResult;
 
@@ -98,7 +102,6 @@ interface SnapshottedDdlResult {
     };
 }
 
-const TARGET_KEYS: ReadonlySet<string> = new Set(["id", "start", "end"]);
 const RESULT_KEYS: ReadonlySet<string> = new Set([
     "status",
     "source",
@@ -116,20 +119,16 @@ const RESULT_STATUSES: ReadonlySet<string> = new Set([
     "empty",
 ]);
 
-function compareString(left: string, right: string): number {
-    return left < right ? -1 : left > right ? 1 : 0;
-}
-
 function diagnostic(
     target: ExperimentalDdlTarget,
     code: string,
-    message: string,
+    _message: string,
     severity: "warning" | "error" = "error"
 ): TransactionDiagnostic {
     return Object.freeze({
         code,
         severity,
-        message,
+        message: safeDiagnosticMessage(code, null),
         capabilityId: null,
         span: Object.freeze({ start: target.start, end: target.end }),
         recovery: "preserve-target" as const,
@@ -141,11 +140,7 @@ function rejected(
     version: number,
     diagnostics: readonly TransactionDiagnostic[]
 ): RejectedExperimentalDdlTransaction {
-    return Object.freeze({
-        status: "rejected",
-        documentVersion: version,
-        diagnostics: sortDiagnostics(diagnostics),
-    });
+    return createRejectedTransaction(version, diagnostics);
 }
 
 function cancelled(version: number): CancelledExperimentalDdlTransaction {
@@ -153,34 +148,6 @@ function cancelled(version: number): CancelledExperimentalDdlTransaction {
         status: "cancelled",
         documentVersion: version,
         diagnostics: Object.freeze([]) as readonly [],
-    });
-}
-
-function snapshotTarget(
-    value: ExperimentalDdlTarget,
-    sourceLength: number
-): ExperimentalDdlTarget | null {
-    const snapshot = snapshotDataProperties(value, TARGET_KEYS, ["id", "start", "end"]);
-    const start = snapshot?.start;
-    const end = snapshot?.end;
-    if (
-        snapshot === null ||
-        typeof snapshot.id !== "string" ||
-        snapshot.id.length === 0 ||
-        typeof start !== "number" ||
-        typeof end !== "number" ||
-        !Number.isSafeInteger(start) ||
-        !Number.isSafeInteger(end) ||
-        start < 0 ||
-        end < start ||
-        end > sourceLength
-    ) {
-        return null;
-    }
-    return Object.freeze({
-        id: snapshot.id as string,
-        start,
-        end,
     });
 }
 
@@ -195,7 +162,7 @@ function sortedTargets(
     const ids = new Set<string>();
     const targets: ExperimentalDdlTarget[] = [];
     for (const rawTarget of rawTargets) {
-        const target = snapshotTarget(rawTarget as ExperimentalDdlTarget, source.length);
+        const target = snapshotTargetRange(rawTarget, source.length);
         if (target === null || ids.has(target.id)) {
             return null;
         }

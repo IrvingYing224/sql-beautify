@@ -206,6 +206,7 @@ function createVscode(document, editor) {
             }
         },
         env: {
+            language: 'en',
             clipboard: {
                 value: '',
                 writeText: function(value) { this.value = value; return Promise.resolve(); }
@@ -226,6 +227,11 @@ function createVscode(document, editor) {
     };
     return { vscode: vscode, commands: commandHandlers, providers: providers,
         diagnosticValues: diagnosticValues,
+        changeDocument: function(changedDocument) {
+            documentChangeListeners.forEach(function(listener) {
+                listener({ document: changedDocument });
+            });
+        },
         closeDocument: function(closedDocument) {
             documentCloseListeners.forEach(function(listener) { listener(closedDocument); });
         },
@@ -291,7 +297,11 @@ async function main() {
                         selectionAnchor: selection.anchor,
                         selectionActive: selection.active };
                 }),
-                diagnostics: []
+                diagnostics: [{
+                    code: 'STRUCTURAL_WARNING', severity: 'warning', message: 'safe',
+                    capabilityId: null, span: { start: 2, end: 5 },
+                    recovery: 'preserve-target', targetId: target.id
+                }]
             };
             assert.strictEqual(await commit.apply(result, request.document), true,
                 'host command must commit through the captured editor once');
@@ -358,6 +368,38 @@ async function main() {
         'physical LF must determine the provider render environment');
     assert.strictEqual(calls.prepareTabSizes[0], 8,
         'provider formattingOptions.tabSize must determine the render environment');
+
+    var stableResolveOptions = runtime.resolveFormatOptions;
+    runtime.resolveFormatOptions = function(input) {
+        return input.dialect === 'invalid-dialect'
+            ? { ok: false, code: 'CFG_OPTION_VALUE', message: 'private', optionKey: 'dialect' }
+            : stableResolveOptions(input);
+    };
+    host.setConfiguration('dialect', 'invalid-dialect');
+    var prepareBeforeInvalidConfig = calls.prepare;
+    await host.providers[0].provider.provideDocumentFormattingEdits(
+        document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
+            return { dispose: function() {} };
+        } }
+    );
+    assert.strictEqual(calls.prepare, prepareBeforeInvalidConfig,
+        'invalid provider configuration must stop before transaction preparation');
+    assert.strictEqual(
+        host.diagnosticValues[host.diagnosticValues.length - 1].values[0].code,
+        'CFG_OPTION_VALUE',
+        'invalid provider configuration must publish a typed diagnostic'
+    );
+    assert.match(
+        host.diagnosticValues[host.diagnosticValues.length - 1].values[0].message,
+        /\(option: dialect\)$/,
+        'provider configuration diagnostics must retain only a validated option suffix'
+    );
+    await host.commands['sqlBeautify.formatSql']();
+    assert.ok(host.vscode.window.errors.some(function(value) {
+        return value.indexOf('sqlBeautify.dialect') >= 0;
+    }), 'invalid command configuration must identify the validated setting key');
+    host.setConfiguration('dialect', 'hive');
+    runtime.resolveFormatOptions = stableResolveOptions;
 
     host.setConfiguration('dialect', 'mysql');
     await host.providers[0].provider.provideDocumentFormattingEdits(
@@ -548,6 +590,14 @@ async function main() {
         'NEW_RESULT'
     );
 
+    var unsupportedDocument = new Document('plain text');
+    unsupportedDocument.languageId = 'plaintext';
+    var writesBeforeUnsupportedEvents = host.diagnosticValues.length;
+    host.changeDocument(unsupportedDocument);
+    host.closeDocument(unsupportedDocument);
+    assert.strictEqual(host.diagnosticValues.length, writesBeforeUnsupportedEvents,
+        'unsupported document lifecycle events must not touch SQL diagnostics');
+
     var closedProvider = host.providers[0].provider.provideDocumentFormattingEdits(
         document, {}, { isCancellationRequested: false, onCancellationRequested: function() {
             return { dispose: function() {} };
@@ -585,6 +635,34 @@ async function main() {
     }), 'explicit preserve command must report one safe capability summary');
     runtime.runHostTransaction = stableRunHost;
 
+    function rejectedCommandResult(code) {
+        return { status: 'rejected', documentVersion: document.version,
+            diagnostics: [{ code: code, severity: 'error', message: 'safe',
+                capabilityId: null, span: { start: 0, end: 0 },
+                recovery: 'preserve-target', targetId: null }] };
+    }
+    var commandClassificationCases = [
+        ['ADAPTER_STALE_DOCUMENT', 'infos', /document changed/],
+        ['ADAPTER_RANGE_LINE', 'warnings', /complete SQL lines/],
+        ['ADAPTER_SELECTION_MAP', 'warnings', /selections could not be mapped/],
+        ['ADAPTER_INPUT_LIMIT', 'warnings', /512 Ki/],
+        ['ADAPTER_WORKER_TIMEOUT', 'warnings', /in the worker/],
+        ['ADAPTER_EDIT_REJECTED', 'warnings', /could not apply the edits/]
+    ];
+    for (var classificationCase of commandClassificationCases) {
+        runtime.runHostTransaction = async function(_request) {
+            return rejectedCommandResult(classificationCase[0]);
+        };
+        await host.commands['sqlBeautify.formatSql']({ keywordCase: 'lower' });
+        assert.match(
+            host.vscode.window[classificationCase[1]][
+                host.vscode.window[classificationCase[1]].length - 1
+            ],
+            classificationCase[2]
+        );
+    }
+    runtime.runHostTransaction = stableRunHost;
+
     editor.selections = [
         new Selection(document.positionAt(18), document.positionAt(10)),
         new Selection(document.positionAt(3), document.positionAt(3)),
@@ -608,6 +686,9 @@ async function main() {
         'empty cursor order must remain stable');
     assert.strictEqual(document.offsetAt(editor.selections[2].anchor), 0,
         'secondary selection order must remain stable');
+    var readyDiagnostic = host.diagnosticValues[host.diagnosticValues.length - 1].values[0];
+    assert.ok(document.offsetAt(readyDiagnostic.range.start) > 0,
+        'post-edit command diagnostics must retain mapped non-zero spans');
 
     editor.selections = [
         new Selection(document.positionAt(2), document.positionAt(2)),
@@ -649,6 +730,20 @@ async function main() {
     assert.ok(host.vscode.window.warnings.some(function(value) {
         return /supported experimental subset/.test(value);
     }), 'rejected DDL commands must provide a dedicated safe hint');
+    var stableDdlTransaction = runtime.runExperimentalDdlTransaction;
+    runtime.runExperimentalDdlTransaction = async function(request) {
+        return rejectedCommandResult('ADAPTER_STALE_DOCUMENT');
+    };
+    await host.commands['sqlBeautify.formatHiveDdl']();
+    assert.match(host.vscode.window.infos[host.vscode.window.infos.length - 1],
+        /document changed/, 'stale DDL must not be described as unsupported syntax');
+    runtime.runExperimentalDdlTransaction = async function(request) {
+        return rejectedCommandResult('ADAPTER_EDIT_REJECTED');
+    };
+    await host.commands['sqlBeautify.formatHiveDdl']();
+    assert.match(host.vscode.window.warnings[host.vscode.window.warnings.length - 1],
+        /could not apply the edits/, 'DDL edit rejection must provide an actionable editor hint');
+    runtime.runExperimentalDdlTransaction = stableDdlTransaction;
 
     var querySourceBeforeDdlCommit = document.text;
     document.text = 'create table t(a int);';
@@ -689,6 +784,8 @@ async function main() {
     releaseCancelledReport();
     assert.strictEqual(await cancelledReport, false,
         'safe report must fail closed when cancellation arrives during prepare');
+    assert.match(host.vscode.window.infos[host.vscode.window.infos.length - 1], /was cancelled/,
+        'cancelled safe reports must provide information feedback');
     assert.strictEqual(host.vscode.env.clipboard.value, 'clipboard-before-cancellation',
         'cancelled safe report must not overwrite clipboard contents');
 
@@ -708,6 +805,8 @@ async function main() {
     releaseStaleReport();
     assert.strictEqual(await staleReport, false,
         'safe report must fail closed when its document snapshot becomes stale');
+    assert.match(host.vscode.window.infos[host.vscode.window.infos.length - 1], /document changed/,
+        'stale safe reports must provide information feedback');
     assert.strictEqual(host.vscode.env.clipboard.value, 'clipboard-before-stale-report',
         'stale safe report must not overwrite clipboard contents');
     document.text = reportSource;
@@ -770,6 +869,25 @@ async function main() {
         'activation rollback must remove partially registered commands');
     await failingSession.dispose();
     assert.strictEqual(failingExecutorDisposals, 1);
+
+    var zhDocument = new Document('select 1;');
+    var zhEditor = new Editor(zhDocument, []);
+    var zhHost = createVscode(zhDocument, zhEditor);
+    zhHost.vscode.env.language = 'zh-cn';
+    var zhSession = adapter.createVscodeExtension(
+        zhHost.vscode,
+        runtime,
+        { format: async function() {}, dispose: async function() {} },
+        { extensionVersion: '2.0.0' }
+    );
+    zhSession.activate({ subscriptions: [], extension: {
+        packageJSON: { version: '2.0.0' }
+    } });
+    zhHost.vscode.window.activeTextEditor = undefined;
+    await zhHost.commands['sqlBeautify.formatSql']();
+    assert.match(zhHost.vscode.window.warnings[0], /需要一个当前已打开的 SQL 编辑器/,
+        'zh-cn locale must use the Simplified Chinese message catalog');
+    await zhSession.dispose();
 
     await session.dispose();
     console.log('v2 Wave 5 VS Code adapter tests passed');

@@ -135,6 +135,7 @@ export type {
 export type {
     FormatConfigFailure,
     FormatConfigFailureCode,
+    FormatOptionKey,
     ResolveFormatOptionsResult,
     ResolvedFormatOptions,
 } from "./config/resolve-options";

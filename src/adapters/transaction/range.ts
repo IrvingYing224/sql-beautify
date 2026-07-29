@@ -5,9 +5,10 @@ import { resolveFormatOptions } from "../../core/config/resolve-options";
 import type { SourceLeaf } from "../../core/lexer/token";
 import type { FormatTarget } from "./types";
 import {
-    snapshotDataProperties,
     snapshotDenseDataArray,
 } from "../boundary/data-snapshot";
+import { snapshotFormatTarget } from "./target-snapshot";
+import { safeDiagnosticMessage } from "../diagnostics/safe-messages";
 
 export type RangeValidationCode =
     | "ADAPTER_RANGE_TARGET"
@@ -25,6 +26,12 @@ export interface ValidRangeValidation {
     readonly code: null;
     readonly message: null;
     readonly targetId: null;
+    readonly targetModes: readonly ValidatedTargetMode[];
+}
+
+export interface ValidatedTargetMode {
+    readonly targetId: string;
+    readonly mode: "document" | "fragment";
 }
 
 export interface InvalidRangeValidation {
@@ -37,37 +44,29 @@ export interface InvalidRangeValidation {
 
 export type RangeValidation = ValidRangeValidation | InvalidRangeValidation;
 
-const VALID: ValidRangeValidation = Object.freeze({
-    status: "valid",
-    safe: true,
-    code: null,
-    message: null,
-    targetId: null,
-});
+function valid(
+    targetModes: readonly ValidatedTargetMode[]
+): ValidRangeValidation {
+    return Object.freeze({
+        status: "valid" as const,
+        safe: true as const,
+        code: null,
+        message: null,
+        targetId: null,
+        targetModes: Object.freeze(Array.from(targetModes)),
+    });
+}
 
-const TARGET_KEYS: ReadonlySet<string> = new Set([
-    "id",
-    "start",
-    "end",
-    "mode",
-    "selection",
+const RANGE_VALIDATION_CODES: ReadonlySet<string> = new Set([
+    "ADAPTER_RANGE_TARGET",
+    "ADAPTER_RANGE_DOCUMENT",
+    "ADAPTER_RANGE_LINE",
+    "ADAPTER_RANGE_PROTECTED",
+    "ADAPTER_RANGE_EMPTY",
+    "ADAPTER_RANGE_ANALYSIS",
+    "ADAPTER_RANGE_OPAQUE",
+    "ADAPTER_RANGE_OWNERSHIP",
 ]);
-
-const MESSAGES: Readonly<Record<RangeValidationCode, string>> = Object.freeze({
-    ADAPTER_RANGE_TARGET: "Formatter range target is invalid.",
-    ADAPTER_RANGE_DOCUMENT: "Document target must cover the complete source.",
-    ADAPTER_RANGE_LINE: "Formatter fragment must cover complete physical lines.",
-    ADAPTER_RANGE_PROTECTED:
-        "Formatter fragment boundary falls inside protected or comment text.",
-    ADAPTER_RANGE_EMPTY: "Formatter fragment contains no syntax boundary.",
-    ADAPTER_RANGE_ANALYSIS: "Formatter fragment analysis is not safe for editing.",
-    ADAPTER_RANGE_OPAQUE: "Formatter fragment intersects opaque syntax.",
-    ADAPTER_RANGE_OWNERSHIP:
-        "Formatter fragment does not match a complete syntax boundary.",
-});
-const RANGE_VALIDATION_CODES: ReadonlySet<string> = new Set(
-    Object.keys(MESSAGES)
-);
 
 export function isRangeValidationCode(
     value: unknown
@@ -76,7 +75,7 @@ export function isRangeValidationCode(
 }
 
 export function rangeValidationMessage(code: RangeValidationCode): string {
-    return MESSAGES[code];
+    return safeDiagnosticMessage(code, null);
 }
 
 interface ContentBoundary {
@@ -87,6 +86,7 @@ interface ContentBoundary {
 interface RangeEvidence {
     readonly artifact: AnalysisArtifact;
     readonly ownedBoundaries: ReadonlySet<string>;
+    readonly statementBoundaries: readonly ContentBoundary[];
     readonly opaqueSpans: readonly ContentBoundary[];
 }
 
@@ -98,38 +98,9 @@ function fail(
         status: "invalid",
         safe: false,
         code,
-        message: MESSAGES[code],
+        message: safeDiagnosticMessage(code, null),
         targetId,
     });
-}
-
-function snapshotTarget(value: unknown): FormatTarget | null {
-    try {
-        const raw = snapshotDataProperties(
-            value,
-            TARGET_KEYS,
-            ["id", "start", "end", "mode"]
-        );
-        if (raw === null) {
-            return null;
-        }
-        const id = raw.id;
-        const start = raw.start;
-        const end = raw.end;
-        const mode = raw.mode;
-        if (
-            typeof id !== "string" ||
-            id.length === 0 ||
-            !Number.isSafeInteger(start) ||
-            !Number.isSafeInteger(end) ||
-            (mode !== "document" && mode !== "fragment")
-        ) {
-            return null;
-        }
-        return Object.freeze({ id, start, end, mode }) as FormatTarget;
-    } catch {
-        return null;
-    }
 }
 
 function isLineStart(source: string, offset: number): boolean {
@@ -232,6 +203,7 @@ function buildRangeEvidence(artifact: AnalysisArtifact): RangeEvidence | null {
     }
 
     const ownedBoundaries = new Set<string>();
+    const statementBoundaries: ContentBoundary[] = [];
     const opaqueSpans: ContentBoundary[] = [];
     for (const node of artifact.index.nodes()) {
         if (node.kind === "opaque") {
@@ -255,16 +227,21 @@ function buildRangeEvidence(artifact: AnalysisArtifact): RangeEvidence | null {
         ) {
             continue;
         }
-        ownedBoundaries.add(
-            boundaryKey({
-                start: leaves[firstLeafId]!.span.start,
-                end: leaves[lastLeafId]!.span.end,
-            })
-        );
+        const boundary = Object.freeze({
+            start: leaves[firstLeafId]!.span.start,
+            end: leaves[lastLeafId]!.span.end,
+        });
+        ownedBoundaries.add(boundaryKey(boundary));
+        if (node.kind === "statement") {
+            statementBoundaries.push(boundary);
+        }
     }
     return {
         artifact,
         ownedBoundaries,
+        statementBoundaries: Object.freeze(statementBoundaries.sort(
+            (left, right) => left.start - right.start || left.end - right.end
+        )),
         opaqueSpans: Object.freeze(opaqueSpans.slice()),
     };
 }
@@ -279,11 +256,59 @@ function intersectsOpaque(
     );
 }
 
+function isCompleteStatementSequence(
+    boundary: ContentBoundary,
+    evidence: RangeEvidence
+): boolean {
+    const statements = evidence.statementBoundaries;
+    let low = 0;
+    let high = statements.length - 1;
+    let first = -1;
+    while (low <= high) {
+        const middle = low + Math.floor((high - low) / 2);
+        const start = statements[middle]!.start;
+        if (start < boundary.start) {
+            low = middle + 1;
+        } else if (start > boundary.start) {
+            high = middle - 1;
+        } else {
+            first = middle;
+            break;
+        }
+    }
+    if (first < 0) {
+        return false;
+    }
+    for (let index = first; index < statements.length; index++) {
+        const end = statements[index]!.end;
+        if (end === boundary.end) {
+            return index > first;
+        }
+        if (end > boundary.end) {
+            return false;
+        }
+    }
+    return false;
+}
+
+type TargetValidation =
+    | InvalidRangeValidation
+    | Readonly<{ readonly safe: true; readonly mode: "document" | "fragment" }>;
+
+const VALID_DOCUMENT_TARGET: TargetValidation = Object.freeze({
+    safe: true,
+    mode: "document",
+});
+const VALID_FRAGMENT_TARGET: TargetValidation = Object.freeze({
+    safe: true,
+    mode: "fragment",
+});
+
 function validateTarget(
     source: string,
     target: FormatTarget,
     evidence: RangeEvidence | null
-): RangeValidation {
+): TargetValidation {
     if (
         target.start < 0 ||
         target.end < target.start ||
@@ -293,11 +318,14 @@ function validateTarget(
     }
     if (target.mode === "document") {
         return target.start === 0 && target.end === source.length
-            ? VALID
+            ? VALID_DOCUMENT_TARGET
             : fail("ADAPTER_RANGE_DOCUMENT", target.id);
     }
     if (target.start === target.end) {
-        return VALID;
+        return VALID_FRAGMENT_TARGET;
+    }
+    if (target.start === 0 && target.end === source.length) {
+        return VALID_DOCUMENT_TARGET;
     }
     if (
         evidence === null ||
@@ -327,8 +355,11 @@ function validateTarget(
     if (boundary === null) {
         return fail("ADAPTER_RANGE_EMPTY", target.id);
     }
-    return evidence.ownedBoundaries.has(boundaryKey(boundary))
-        ? VALID
+    if (evidence.ownedBoundaries.has(boundaryKey(boundary))) {
+        return VALID_FRAGMENT_TARGET;
+    }
+    return isCompleteStatementSequence(boundary, evidence)
+        ? VALID_DOCUMENT_TARGET
         : fail("ADAPTER_RANGE_OWNERSHIP", target.id);
 }
 
@@ -349,7 +380,7 @@ export function validateFormatTargetRanges(
     const targets: FormatTarget[] = [];
     const ids = new Set<string>();
     for (const value of rawTargets) {
-        const target = snapshotTarget(value);
+        const target = snapshotFormatTarget(value, source.length, true, false);
         if (target === null || ids.has(target.id)) {
             return fail("ADAPTER_RANGE_TARGET", target?.id ?? null);
         }
@@ -361,7 +392,9 @@ export function validateFormatTargetRanges(
     if (
         targets.some(
             (target) =>
-                target.mode === "fragment" && target.start !== target.end
+                target.mode === "fragment" &&
+                target.start !== target.end &&
+                !(target.start === 0 && target.end === source.length)
         )
     ) {
         try {
@@ -377,13 +410,18 @@ export function validateFormatTargetRanges(
         }
     }
 
+    const targetModes: ValidatedTargetMode[] = [];
     for (const target of targets) {
         const result = validateTarget(source, target, evidence);
         if (!result.safe) {
             return result;
         }
+        targetModes.push(Object.freeze({
+            targetId: target.id,
+            mode: result.mode,
+        }));
     }
-    return VALID;
+    return valid(targetModes);
 }
 
 /** Compatibility wrapper for existing single-fragment host adapters. */

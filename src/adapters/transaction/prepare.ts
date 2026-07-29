@@ -11,6 +11,7 @@ import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-
 import { resolveFormatOptions } from "../../core/config/resolve-options";
 import {
     canonicalSourceMapSnapshot,
+    createSourceOffsetMapper,
     type SourceMap,
 } from "../../core/source/source-map";
 import {
@@ -22,6 +23,7 @@ import {
     snapshotFormatResult,
 } from "../boundary/format-result-snapshot";
 import { snapshotFormatExecutionOutcome } from "../boundary/execution-outcome-snapshot";
+import { compareString } from "../boundary/order";
 import { snapshotFormatBatchExecutionResult } from "../executor/batch";
 import { snapshotValidateAndFormatExecutionRequest } from "../executor/request";
 import { mapSelectionThroughSourceMap } from "./cursor";
@@ -29,16 +31,15 @@ import {
     convertDiagnostic,
     sortDiagnostics,
 } from "../diagnostics/convert";
+import { safeDiagnosticMessage } from "../diagnostics/safe-messages";
 import { observeCancellation } from "./cancellation";
 import {
     rangeValidationMessage,
     type RangeValidationCode,
     validateFormatTargetRanges,
 } from "./range";
-
-function compareString(left: string, right: string): number {
-    return left < right ? -1 : left > right ? 1 : 0;
-}
+import { createRejectedTransaction } from "./rejected";
+import { snapshotFormatTarget } from "./target-snapshot";
 import type {
     CancelledFormatTransaction,
     FormatSelection,
@@ -55,13 +56,13 @@ import type {
 function diagnostic(
     sourceLength: number,
     code: string,
-    message: string,
+    _message: string,
     targetId: string | null = null
 ): TransactionDiagnostic {
     return Object.freeze({
         code,
         severity: "error" as const,
-        message,
+        message: safeDiagnosticMessage(code, null),
         capabilityId: null,
         span: Object.freeze({ start: 0, end: sourceLength }),
         recovery: "preserve-target" as const,
@@ -72,12 +73,12 @@ function diagnostic(
 function targetDiagnostic(
     target: FormatTarget,
     code: string,
-    message: string
+    _message: string
 ): TransactionDiagnostic {
     return Object.freeze({
         code,
         severity: "error" as const,
-        message,
+        message: safeDiagnosticMessage(code, null),
         capabilityId: null,
         span: Object.freeze({ start: target.start, end: target.end }),
         recovery: "preserve-target" as const,
@@ -118,62 +119,19 @@ function rejected(
     diagnostics: readonly TransactionDiagnostic[],
     debugEvents: readonly DebugEvent[] = Object.freeze([])
 ): RejectedFormatTransaction {
-    return Object.freeze({
-        status: "rejected",
+    return createRejectedTransaction(
         documentVersion,
-        diagnostics: sortDiagnostics(diagnostics),
-        ...debugProperties(debugEvents),
-    });
+        diagnostics,
+        debugEvents
+    );
 }
 
-const TARGET_KEYS: ReadonlySet<string> = new Set([
-    "id",
-    "start",
-    "end",
-    "mode",
-]);
 const SELECTION_KEYS: ReadonlySet<string> = new Set([
     "id",
     "targetId",
     "anchor",
     "active",
 ]);
-function validTarget(target: FormatTarget, sourceLength: number): boolean {
-    return (
-        typeof target.id === "string" &&
-        target.id.length > 0 &&
-        Number.isSafeInteger(target.start) &&
-        Number.isSafeInteger(target.end) &&
-        target.start >= 0 &&
-        target.end >= target.start &&
-        target.end <= sourceLength &&
-        (target.mode === "document" || target.mode === "fragment") &&
-        (target.mode !== "document" ||
-            (target.start === 0 && target.end === sourceLength))
-    );
-}
-
-function snapshotTarget(
-    value: FormatTarget,
-    sourceLength: number
-): FormatTarget | null {
-    try {
-        const raw = snapshotDataProperties(value, TARGET_KEYS, ["id", "start", "end", "mode"]);
-        if (raw === null) {
-            return null;
-        }
-        const snapshot = Object.freeze({
-            id: raw.id,
-            start: raw.start,
-            end: raw.end,
-            mode: raw.mode,
-        }) as FormatTarget;
-        return validTarget(snapshot, sourceLength) ? snapshot : null;
-    } catch {
-        return null;
-    }
-}
-
 function snapshotSelections(
     values: readonly FormatSelection[] | undefined,
     sourceLength: number,
@@ -243,8 +201,13 @@ function sortedTargets(
         return null;
     }
     for (const rawTarget of rawTargets) {
-        const target = snapshotTarget(rawTarget as FormatTarget, source.length);
-        if (target === null || ids.has(target.id)) {
+        const target = snapshotFormatTarget(rawTarget, source.length);
+        if (
+            target === null ||
+            (target.mode === "document" &&
+                (target.start !== 0 || target.end !== source.length)) ||
+            ids.has(target.id)
+        ) {
             return null;
         }
         ids.add(target.id);
@@ -389,6 +352,41 @@ function documentSourceMap(
     });
 }
 
+function mapDiagnosticsThroughSourceMap(
+    diagnostics: readonly TransactionDiagnostic[],
+    sourceMap: SourceMap,
+    sourceLength: number,
+    outputLength: number
+): readonly TransactionDiagnostic[] | null {
+    const mapper = createSourceOffsetMapper(
+        sourceMap,
+        sourceLength,
+        outputLength
+    );
+    if (mapper === null) {
+        return null;
+    }
+    const mapped: TransactionDiagnostic[] = [];
+    for (const item of diagnostics) {
+        const point = item.span.start === item.span.end;
+        const start = point
+            ? mapper.map(item.span.start, "exact") ??
+                mapper.map(item.span.start, "left")
+            : mapper.map(item.span.start, "left");
+        const end = point
+            ? start
+            : mapper.map(item.span.end, "right");
+        if (start === null || end === null || end < start) {
+            return null;
+        }
+        mapped.push(Object.freeze({
+            ...item,
+            span: Object.freeze({ start, end }),
+        }));
+    }
+    return Object.freeze(mapped);
+}
+
 async function prepareFormatTransactionInternal(
     request: FormatTransactionRequest,
     executor: FormatterExecutor,
@@ -468,6 +466,10 @@ async function prepareFormatTransactionInternal(
     const targetById = new Map(targets.map((target) => [target.id, target]));
     const debugEvents: DebugEvent[] = [];
     let batchResultByTargetId: ReadonlyMap<string, FormatResult> | null = null;
+    let formatModeByTargetId: ReadonlyMap<
+        string,
+        "document" | "fragment"
+    > | null = null;
     const requiresDocumentValidation = targets.some(
         (target) => target.mode === "fragment" && target.start !== target.end
     );
@@ -584,6 +586,12 @@ async function prepareFormatTransactionInternal(
                       ),
             ]);
         }
+        formatModeByTargetId = new Map(
+            rangeValidation.targetModes.map((value) => [
+                value.targetId,
+                value.mode,
+            ])
+        );
     }
 
     const computed: ComputedTarget[] = [];
@@ -612,7 +620,7 @@ async function prepareFormatTransactionInternal(
             try {
                 const executionRequest = {
                     source: targetSource,
-                    mode: target.mode,
+                    mode: formatModeByTargetId?.get(target.id) ?? target.mode,
                     documentVersion: documentVersionValue,
                     targetId: target.id,
                     newline,
@@ -815,7 +823,24 @@ async function prepareFormatTransactionInternal(
         ));
     }
 
-    const frozenDiagnostics = sortDiagnostics(diagnostics);
+    const outputDiagnostics = edits.length === 0
+        ? diagnostics
+        : mapDiagnosticsThroughSourceMap(
+              diagnostics,
+              combinedMap.sourceMap,
+              sourceValue.length,
+              combinedMap.outputLength
+          );
+    if (outputDiagnostics === null) {
+        return rejected(documentVersionValue, [
+            diagnostic(
+                sourceLength,
+                "ADAPTER_DIAGNOSTIC_CONTRACT",
+                "Formatter diagnostics could not be mapped safely"
+            ),
+        ], debugEvents);
+    }
+    const frozenDiagnostics = sortDiagnostics(outputDiagnostics);
     const frozenSelections = Object.freeze(selections);
     if (edits.length === 0) {
         return Object.freeze({

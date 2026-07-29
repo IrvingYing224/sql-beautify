@@ -24,6 +24,7 @@ export interface FormatConfigFailure {
     readonly ok: false;
     readonly code: FormatConfigFailureCode;
     readonly message: string;
+    readonly optionKey: FormatOptionKey | null;
 }
 
 export interface ResolvedFormatOptions {
@@ -44,7 +45,7 @@ const OPTION_KEYS = Object.freeze([
     "unsupportedSyntaxPolicy",
 ] as const);
 
-type OptionKey = (typeof OPTION_KEYS)[number];
+export type FormatOptionKey = (typeof OPTION_KEYS)[number];
 
 const OPTION_KEY_SET: ReadonlySet<string> = new Set(OPTION_KEYS);
 const CANONICAL_OPTIONS = new WeakSet<object>();
@@ -86,9 +87,10 @@ const DEFAULT_OPTIONS = freezeCanonicalOptions({
 
 function failure(
     code: FormatConfigFailureCode,
-    message: string
+    message: string,
+    optionKey: FormatOptionKey | null = null
 ): FormatConfigFailure {
-    return Object.freeze({ ok: false, code, message });
+    return Object.freeze({ ok: false, code, message, optionKey });
 }
 
 function enumValue<T extends string>(
@@ -107,10 +109,11 @@ function integerInRange(value: unknown, minimum: number, maximum: number): value
     );
 }
 
-function invalidValue(key: OptionKey): FormatConfigFailure {
+function invalidValue(key: FormatOptionKey): FormatConfigFailure {
     return failure(
         "CFG_OPTION_VALUE",
-        `Invalid formatter option value for ${key}`
+        `Invalid formatter option value for ${key}`,
+        key
     );
 }
 
@@ -154,8 +157,8 @@ export function resolveFormatOptions(
         return failure("CFG_OPTIONS_SHAPE", "Formatter options must be a plain object");
     }
 
-    const values: Partial<Record<OptionKey, unknown>> = Object.create(null) as Partial<
-        Record<OptionKey, unknown>
+    const values: Partial<Record<FormatOptionKey, unknown>> = Object.create(null) as Partial<
+        Record<FormatOptionKey, unknown>
     >;
     for (const key of ownKeys) {
         if (typeof key !== "string" || !OPTION_KEY_SET.has(key)) {
@@ -175,19 +178,21 @@ export function resolveFormatOptions(
         if (descriptor === undefined || descriptor.enumerable !== true) {
             return failure(
                 "CFG_UNKNOWN_OPTION",
-                `Formatter option ${key} must be an enumerable own property`
+                `Formatter option ${key} must be an enumerable own property`,
+                key as FormatOptionKey
             );
         }
         if (!("value" in descriptor)) {
             return failure(
                 "CFG_OPTION_ACCESSOR",
-                `Formatter option ${key} must be a data property`
+                `Formatter option ${key} must be a data property`,
+                key as FormatOptionKey
             );
         }
-        values[key as OptionKey] = descriptor.value;
+        values[key as FormatOptionKey] = descriptor.value;
     }
 
-    const selected = <K extends OptionKey>(
+    const selected = <K extends FormatOptionKey>(
         key: K,
         fallback: CanonicalFormatOptions[K]
     ): unknown =>
