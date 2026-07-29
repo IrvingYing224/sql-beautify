@@ -252,23 +252,33 @@ function assertStable(id, source, options, expected) {
     assert.strictEqual(pipeline.result.text, alignedRendered.text);
     assert.strictEqual(
         pipeline.statistics.planActionCount,
-        aligned.plan.statistics.actionCount
+        base.plan.statistics.actionCount + aligned.plan.statistics.actionCount
+    );
+    assert.strictEqual(
+        pipeline.statistics.maxPlanActions,
+        base.plan.budget.maxPlanActions + aligned.plan.budget.maxPlanActions
     );
     assert.strictEqual(
         pipeline.statistics.leafEmissionCount,
-        alignedCompiled.statistics.leafEmissionCount
+        compiled.statistics.leafEmissionCount +
+            alignedCompiled.statistics.leafEmissionCount
     );
     assert.strictEqual(
         pipeline.statistics.scopeActionVisitCount,
-        alignedCompiled.statistics.scopeActionVisitCount
+        compiled.statistics.scopeActionVisitCount +
+            alignedCompiled.statistics.scopeActionVisitCount
     );
     assert.strictEqual(
         pipeline.statistics.policyLeafVisitCount,
-        aligned.plan.statistics.policyLeafVisitCount
+        base.plan.statistics.policyLeafVisitCount +
+            aligned.plan.statistics.policyLeafVisitCount
     );
     assert.strictEqual(
         pipeline.statistics.leafVisitCount,
-        aligned.plan.statistics.leafVisitCount +
+        base.plan.statistics.leafVisitCount +
+            base.plan.statistics.policyLeafVisitCount +
+            compiled.statistics.leafVisitCount +
+            aligned.plan.statistics.leafVisitCount +
             aligned.plan.statistics.policyLeafVisitCount +
             alignedCompiled.statistics.leafVisitCount +
             pipeline.statistics.equivalenceSourceLeafVisitCount +
@@ -276,12 +286,26 @@ function assertStable(id, source, options, expected) {
     );
     assert.strictEqual(
         pipeline.statistics.directLookupCount,
-        aligned.plan.statistics.directLookupCount +
+        base.plan.statistics.directLookupCount +
+            base.plan.statistics.policyDirectLookupCount +
+            compiled.statistics.directLookupCount +
+            rendered.statistics.metricsSummaryLookupCount +
+            rendered.statistics.metricsLookupCount +
+            aligned.plan.statistics.directLookupCount +
             aligned.plan.statistics.policyDirectLookupCount +
             alignedCompiled.statistics.directLookupCount +
-            pipeline.statistics.metricsSummaryLookupCount +
-            pipeline.statistics.renderMetricsLookupCount +
+            alignedRendered.statistics.metricsSummaryLookupCount +
+            alignedRendered.statistics.metricsLookupCount +
             pipeline.statistics.equivalenceDirectLookupCount
+    );
+    assert.strictEqual(
+        pipeline.statistics.metricsDocVisitCount,
+        rendered.statistics.metricsDocVisitCount +
+            alignedRendered.statistics.metricsDocVisitCount
+    );
+    assert.strictEqual(
+        pipeline.statistics.renderDocVisitCount,
+        rendered.statistics.docVisitCount + alignedRendered.statistics.docVisitCount
     );
 
     var forged = policyApi.buildLayoutPlan(
@@ -387,6 +411,20 @@ function assertStable(id, source, options, expected) {
     var poisoned = builder.finish();
     assert.strictEqual(poisoned.ok, false);
     assert.strictEqual(poisoned.code, 'LAYOUT_PLAN_GAP');
+})();
+
+(function testAlignmentTargetsRespectRequestResourceBudget() {
+    var source = 'select ' + 'x'.repeat(380) + ' as a, yy as b from t';
+    var result = format(source, { maxAlignWidth: 500 });
+    assert.strictEqual(result.status, 'formatted');
+    assert.strictEqual(result.diagnostics.some(function(value) {
+        return value.code === 'LAYOUT_PLAN_GAP';
+    }), false);
+    assert.ok(result.text.indexOf(' AS a') >= 0,
+        'budget-skipped alignment must retain required alias spacing');
+    var repeated = format(result.text, { maxAlignWidth: 500 });
+    assert.strictEqual(repeated.status, 'unchanged');
+    assert.strictEqual(repeated.text, result.text);
 })();
 
 console.log('v2 Wave 3E alignment and option tests passed');

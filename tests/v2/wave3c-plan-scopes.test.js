@@ -233,39 +233,46 @@ function options() {
     var valid = validBuilder.finish({
         nodeVisitCount: 3,
         leafVisitCount: 4,
-        directLookupCount: 5
+        directLookupCount: 5,
+        commaFallbackCount: 1
     });
     assert.strictEqual(valid.ok, true);
     assert.strictEqual(valid.plan.statistics.policyNodeVisitCount, 3);
     assert.strictEqual(valid.plan.statistics.policyLeafVisitCount, 4);
     assert.strictEqual(valid.plan.statistics.policyDirectLookupCount, 5);
+    assert.strictEqual(valid.plan.statistics.commaFallbackCount, 1);
     assert.strictEqual(Object.isFrozen(valid.plan.statistics), true);
 
     [
         new Proxy({
             nodeVisitCount: 1,
             leafVisitCount: 1,
-            directLookupCount: 1
+            directLookupCount: 1,
+            commaFallbackCount: 0
         }, {}),
         {
             nodeVisitCount: -1,
             leafVisitCount: 0,
-            directLookupCount: 0
+            directLookupCount: 0,
+            commaFallbackCount: 0
         },
         {
             nodeVisitCount: analysis.leaves.length,
             leafVisitCount: analysis.leaves.length,
-            directLookupCount: Number.MAX_SAFE_INTEGER
+            directLookupCount: Number.MAX_SAFE_INTEGER,
+            commaFallbackCount: 0
         },
         {
             nodeVisitCount: 1,
             leafVisitCount: 1,
             directLookupCount: 1,
+            commaFallbackCount: 0,
             hiddenWork: 1
         },
         Object.defineProperty({
             nodeVisitCount: 1,
-            leafVisitCount: 1
+            leafVisitCount: 1,
+            commaFallbackCount: 0
         }, 'directLookupCount', {
             enumerable: true,
             get: function() { return 1; }

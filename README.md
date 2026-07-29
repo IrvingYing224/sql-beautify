@@ -47,7 +47,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 | 配置项 | 可选值 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `sqlBeautify.keywordCase` | `upper` / `lower` | `upper` | SQL 关键词大小写 |
-| `sqlBeautify.commaStyle` | `leading` / `trailing` | `leading` | 逗号位于行首或行尾 |
+| `sqlBeautify.commaStyle` | `leading` / `trailing` | `leading` | 逗号位于行首或行尾；行尾注释阻断 source order 时，`trailing` 会局部回退到行首并报告信息诊断 |
 | `sqlBeautify.indentStyle` | `tab` / `space` | `space` | 缩进风格 |
 | `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
 | `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | `CASE WHEN` 中 `THEN` / `ELSE` 值的换行阈值 |

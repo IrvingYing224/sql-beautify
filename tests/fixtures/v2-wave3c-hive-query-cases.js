@@ -222,8 +222,7 @@ module.exports = Object.freeze([
         expected: [
             'SELECT',
             '      /*+ MAPJOIN(t) */',
-            '      a',
-            '    , -- keep  FROM',
+            '      a, -- keep  FROM',
             "      'x, FROM' AS s",
             'FROM `db . t` t -- tail',
             'WHERE a = 1'

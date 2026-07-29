@@ -343,8 +343,7 @@ function commentEvidenceMatchesCapability(
             options: { dialect: 'hive', commaStyle: 'leading' },
             expected: [
                 'SELECT',
-                '      a',
-                '    , -- tail',
+                '      a, -- tail',
                 '    /* before b */',
                 '    -- line before b',
                 '      b',

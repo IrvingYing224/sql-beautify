@@ -184,8 +184,16 @@ export function bindCommentTriviaFromFacts(
                 facts.separatorTrailingOwnerNodeIdByLeaf[previousIndex],
                 "separator trailing owner"
             );
+            const syntaxBeforeSeparator =
+                facts.previousSyntaxByLeaf[previousIndex] ?? null;
+            const separatorSharesLineWithLeft =
+                previousLeaf.raw !== "," ||
+                (syntaxBeforeSeparator !== null &&
+                    lineFacts.endLineByLeaf[syntaxBeforeSeparator] ===
+                        lineFacts.startLineByLeaf[previousIndex]);
             if (
                 separatorOwner !== null &&
+                separatorSharesLineWithLeft &&
                 lineFacts.endLineByLeaf[previousIndex] ===
                     lineFacts.startLineByLeaf[commentIndex]
             ) {
@@ -199,7 +207,7 @@ export function bindCommentTriviaFromFacts(
                 lineFacts.endLineByLeaf[previousIndex] ===
                     lineFacts.startLineByLeaf[commentIndex]
             ) {
-                const leftSyntaxIndex = facts.previousSyntaxByLeaf[previousIndex] ?? null;
+                const leftSyntaxIndex = syntaxBeforeSeparator;
                 const ownerBeforeComma =
                     leftSyntaxIndex === null
                         ? null
@@ -208,7 +216,12 @@ export function bindCommentTriviaFromFacts(
                               facts.trailingOwnerNodeIdByBoundary[leftSyntaxIndex + 1],
                               "owner before comma"
                           );
-                if (ownerBeforeComma !== null) {
+                if (
+                    ownerBeforeComma !== null &&
+                    leftSyntaxIndex !== null &&
+                    lineFacts.endLineByLeaf[leftSyntaxIndex] ===
+                        lineFacts.startLineByLeaf[previousIndex]
+                ) {
                     bindings.push(
                         createBinding(commentLeaf.id, ownerBeforeComma.id, "trailing")
                     );
@@ -219,8 +232,14 @@ export function bindCommentTriviaFromFacts(
             if (
                 previousLeaf.channel === "code" &&
                 previousLeaf.raw === ";" &&
-                lineFacts.endLineByLeaf[previousIndex] ===
-                    lineFacts.startLineByLeaf[commentIndex]
+                (lineFacts.endLineByLeaf[previousIndex] ===
+                    lineFacts.startLineByLeaf[commentIndex] ||
+                    followingIndex === null ||
+                    hasBlankLineBeforeNextSyntax(
+                        commentIndex,
+                        followingIndex,
+                        lineFacts
+                    ))
             ) {
                 const statement = nodeFromPreparedFacts(
                     facts,
@@ -244,6 +263,29 @@ export function bindCommentTriviaFromFacts(
                 );
                 if (owner !== null) {
                     bindings.push(createBinding(commentLeaf.id, owner.id, "trailing"));
+                    continue;
+                }
+            }
+        }
+
+        if (followingIndex !== null) {
+            const followingLeaf = facts.leaves[followingIndex];
+            if (
+                followingLeaf?.channel === "code" &&
+                followingLeaf.raw === ";" &&
+                (previousIndex === null ||
+                    lineFacts.endLineByLeaf[previousIndex]! <
+                        lineFacts.startLineByLeaf[commentIndex]!)
+            ) {
+                const statement = nodeFromPreparedFacts(
+                    facts,
+                    facts.statementOwnerNodeIdByEnd[followingIndex + 1],
+                    "statement terminator owner"
+                );
+                if (statement !== null) {
+                    bindings.push(
+                        createBinding(commentLeaf.id, statement.id, "dangling")
+                    );
                     continue;
                 }
             }

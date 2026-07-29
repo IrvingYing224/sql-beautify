@@ -152,6 +152,10 @@ var commentTrailing = formatApi.formatSql(COMMENT_SOURCE, {
 });
 assert.strictEqual(commentLeading.status, 'formatted');
 assert.strictEqual(commentTrailing.status, 'formatted');
+assert.deepStrictEqual(commentTrailing.diagnostics.map(function(value) {
+    return [value.code, value.severity, value.recovery];
+}), [['LAYOUT_COMMA_FALLBACK', 'info', 'none']],
+    'local comma fallback must report one safe information diagnostic');
 assert.strictEqual(
     commentTrailing.text,
     [
@@ -171,6 +175,16 @@ assert.strictEqual(
     formatApi.formatSql(commentTrailing.text, {
         dialect: 'hive',
         commaStyle: 'trailing'
+    }).diagnostics.filter(function(value) {
+        return value.code === 'LAYOUT_COMMA_FALLBACK';
+    }).length,
+    1,
+    'local comma fallback diagnostic must remain deduplicated after repeat formatting'
+);
+assert.strictEqual(
+    formatApi.formatSql(commentTrailing.text, {
+        dialect: 'hive',
+        commaStyle: 'trailing'
     }).status,
     'unchanged',
     'local comma fallback must be idempotent'
@@ -184,6 +198,9 @@ assert.ok(
     noCommentTrailing.text.indexOf('AS x,\n') >= 0,
     'trailing style must remain active when no line comment blocks source order'
 );
+assert.strictEqual(noCommentTrailing.diagnostics.some(function(value) {
+    return value.code === 'LAYOUT_COMMA_FALLBACK';
+}), false, 'ordinary trailing commas must not report a fallback');
 
 var blockCommentTrailing = formatApi.formatSql(
     'select aaaaaaaaaa as x /* c1 */, b as y /* c2 */, cc as z from t',
@@ -193,5 +210,8 @@ assert.ok(
     blockCommentTrailing.text.indexOf('/* c1 */,\n') >= 0,
     'block comments must not force the line-comment fallback'
 );
+assert.strictEqual(blockCommentTrailing.diagnostics.some(function(value) {
+    return value.code === 'LAYOUT_COMMA_FALLBACK';
+}), false, 'block comments must not report a line-comment fallback');
 
 console.log('v2 Wave 3E option Cartesian matrix tests passed');

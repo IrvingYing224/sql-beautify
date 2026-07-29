@@ -237,9 +237,9 @@ if (process.argv[2] === '--worker') {
                 report.kind + '/' + report.count + ' must derive alignment targets');
             assert.ok(report.alignmentTargetCount <= report.count * 2,
                 report.kind + '/' + report.count + ' alignment targets must stay linear');
-            assert.ok(report.statistics.leafVisitCount <= inputUnits * 12 + 128);
-            assert.ok(report.statistics.directLookupCount <= inputUnits * 18 + 256);
-            assert.ok(report.statistics.policyLeafVisitCount <= inputUnits * 6 + 128);
+            assert.ok(report.statistics.leafVisitCount <= inputUnits * 14 + 128);
+            assert.ok(report.statistics.directLookupCount <= inputUnits * 20 + 256);
+            assert.ok(report.statistics.policyLeafVisitCount <= inputUnits * 7 + 128);
             assert.ok(report.statistics.policyDirectLookupCount <= inputUnits * 12 + 256);
             assert.ok(report.maxRssKb > 0 && report.maxRssKb < 1024 * 1024,
                 report.kind + '/' + report.count + ' maxRSS gate');

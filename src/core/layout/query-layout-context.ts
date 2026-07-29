@@ -19,6 +19,7 @@ export interface MutableQueryPolicyStatistics {
     leafVisitCount: number;
     directLookupCount: number;
     scopeRangeCount: number;
+    commaFallbackCount: number;
 }
 
 export interface LayoutAnalysisView {
@@ -150,6 +151,7 @@ export function createQueryLayoutContext(
         leafVisitCount: 0,
         directLookupCount: 0,
         scopeRangeCount: 0,
+        commaFallbackCount: 0,
     };
     const authorityByNodeId = buildAuthorityProjection(
         artifact.root,
@@ -189,6 +191,7 @@ export function createQueryLayoutContext(
                 !Number.isSafeInteger(target.targetColumn) ||
                 target.targetColumn <= 0 ||
                 target.targetColumn >= builder.options.maxAlignWidth ||
+                target.targetColumn > builder.budget.maxGeneratedColumnsPerLine ||
                 alignmentTargetByLeaf[target.leafId] !== -1
             ) {
                 return null;
@@ -335,5 +338,6 @@ export function queryPolicyStatistics(
         nodeVisitCount: context.statistics.nodeVisitCount,
         leafVisitCount: context.statistics.leafVisitCount,
         directLookupCount: context.statistics.directLookupCount,
+        commaFallbackCount: context.statistics.commaFallbackCount,
     });
 }

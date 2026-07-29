@@ -200,18 +200,34 @@ function needsLeadingContinuationAlign(member: SyntaxNode): boolean {
     );
 }
 
-function rangeHasLineComment(
+interface RangeCommentFacts {
+    readonly hasLineComment: boolean;
+    readonly hasTrailingComment: boolean;
+}
+
+function rangeCommentFacts(
     context: QueryLayoutContext,
     startLeafId: number,
     endLeafId: number
-): boolean {
+): RangeCommentFacts | null {
+    let hasLineComment = false;
+    let hasTrailingComment = false;
     for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
         context.statistics.leafVisitCount += 1;
-        if (context.analysis.leafKind(leafId) === "line-comment") {
-            return true;
+        const kind = context.analysis.leafKind(leafId);
+        if (kind === "line-comment") {
+            hasLineComment = true;
+        }
+        if (kind === "line-comment" || kind === "block-comment") {
+            const binding = context.analysis.index.commentBinding(leafId);
+            context.statistics.directLookupCount += 1;
+            if (binding === null || binding.commentLeafId !== leafId) {
+                return null;
+            }
+            hasTrailingComment ||= binding.placement === "trailing";
         }
     }
-    return false;
+    return Object.freeze({ hasLineComment, hasTrailingComment });
 }
 
 export function formatMultilineSequence(
@@ -268,13 +284,32 @@ export function formatMultilineSequence(
         const separatorLeafId = separatorLeafIds[index]!;
         const left = members[index]!;
         const right = members[index + 1]!;
+        const commentsBeforeSeparator = rangeCommentFacts(
+            context,
+            left.leafRange.end,
+            separatorLeafId
+        );
+        const commentsAfterSeparator = rangeCommentFacts(
+            context,
+            separatorLeafId + 1,
+            right.leafRange.start
+        );
+        if (
+            commentsBeforeSeparator === null ||
+            commentsAfterSeparator === null
+        ) {
+            return false;
+        }
         const useLeadingSeparator =
-            context.plan.options.commaStyle === "leading" ||
-            rangeHasLineComment(
-                context,
-                left.leafRange.end,
-                separatorLeafId
-            );
+            context.plan.options.commaStyle === "leading"
+                ? !commentsAfterSeparator.hasTrailingComment
+                : commentsBeforeSeparator.hasLineComment;
+        if (
+            useLeadingSeparator &&
+            context.plan.options.commaStyle === "trailing"
+        ) {
+            context.statistics.commaFallbackCount += 1;
+        }
         const beforeSeparator = useLeadingSeparator
             ? HARD_LINE
             : EMPTY;
@@ -296,20 +331,18 @@ export function formatMultilineSequence(
                 right.leafRange.start,
                 afterSeparator
             ) ||
-            (useLeadingSeparator &&
-                (needsLeadingContinuationAlign(right) ||
-                    rangeHasLineComment(
-                        context,
-                        separatorLeafId + 1,
-                        right.leafRange.start
-                    )) &&
+            ((context.plan.options.commaStyle === "leading" &&
+                !useLeadingSeparator) ||
+                (useLeadingSeparator &&
+                    (needsLeadingContinuationAlign(right) ||
+                        commentsAfterSeparator.hasLineComment))) &&
                 !wrapLayoutRange(
                     context,
                     authorityNodeId,
                     right.leafRange.start,
                     right.leafRange.end,
                     CONTENT_ALIGN
-                ))
+                )
         ) {
             return false;
         }

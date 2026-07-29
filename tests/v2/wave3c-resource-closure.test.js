@@ -127,8 +127,8 @@ if (process.argv[2] === '--worker') {
         var inputUnits = Math.max(1,
             report.statistics.leafCount + report.statistics.syntaxNodeCount);
         assert.ok(report.statistics.policyNodeVisitCount <= inputUnits * 4 + 64);
-        assert.ok(report.statistics.policyLeafVisitCount <= inputUnits * 4 + 64);
-        assert.ok(report.statistics.policyDirectLookupCount <= inputUnits * 8 + 128);
+        assert.ok(report.statistics.policyLeafVisitCount <= inputUnits * 7 + 64);
+        assert.ok(report.statistics.policyDirectLookupCount <= inputUnits * 12 + 128);
     });
 
     var deepFormatted = reports[0];

@@ -104,6 +104,25 @@ function protectedRows(source, dialect) {
         source: 'select a,\n\n\n\nb from t',
         options: { commaStyle: 'trailing' },
         expected: 'SELECT\n    a,\n\n    b\nFROM t'
+    },
+    {
+        id: 'comma-first-comment-leads-right-item',
+        source: 'SELECT aaa\n, /* comment */ bbb FROM t',
+        options: {},
+        expected: [
+            'SELECT',
+            '      aaa',
+            '    ,',
+            '    /* comment */',
+            '    bbb',
+            'FROM t'
+        ].join('\n')
+    },
+    {
+        id: 'statement-footer-stays-with-previous-statement',
+        source: 'SELECT 1;\n-- footer\n\nSELECT 2;',
+        options: {},
+        expected: 'SELECT 1; -- footer\n\nSELECT 2;'
     }
 ].forEach(function(testCase) {
     var before = analyze(testCase.source);
@@ -158,6 +177,21 @@ function protectedRows(source, dialect) {
     var second = formatApi.formatSql(first.text, options);
     assert.strictEqual(second.status, 'unchanged');
     assert.strictEqual(second.text, first.text);
+})();
+
+(function testCommentBeforeTerminatorIsNotLeadingTrivia() {
+    var source = 'SELECT 1\n-- before terminator\n;';
+    var before = analyze(source);
+    assert.deepStrictEqual(bindingRows(before), [[
+        'line-comment',
+        '-- before terminator',
+        'dangling',
+        'statement',
+        'query'
+    ]]);
+    var result = formatApi.formatSql(source, { dialect: 'hive' });
+    assert.strictEqual(result.status, 'unchanged');
+    assert.strictEqual(result.text, source);
 })();
 
 console.log('v2 Wave 3E trivia layout tests passed');

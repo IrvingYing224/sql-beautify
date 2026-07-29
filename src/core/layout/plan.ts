@@ -78,12 +78,14 @@ export interface LayoutPlanStatistics {
     readonly policyNodeVisitCount: number;
     readonly policyLeafVisitCount: number;
     readonly policyDirectLookupCount: number;
+    readonly commaFallbackCount: number;
 }
 
 export interface LayoutPolicyStatistics {
     readonly nodeVisitCount: number;
     readonly leafVisitCount: number;
     readonly directLookupCount: number;
+    readonly commaFallbackCount: number;
 }
 
 export interface LayoutPlan {
@@ -155,6 +157,7 @@ const ZERO_POLICY_STATISTICS: LayoutPolicyStatistics = Object.freeze({
     nodeVisitCount: 0,
     leafVisitCount: 0,
     directLookupCount: 0,
+    commaFallbackCount: 0,
 });
 
 function snapshotPolicyStatistics(
@@ -173,6 +176,7 @@ function snapshotPolicyStatistics(
             "nodeVisitCount",
             "leafVisitCount",
             "directLookupCount",
+            "commaFallbackCount",
         ] as const;
         if (
             keys.length !== expected.length ||
@@ -200,6 +204,7 @@ function snapshotPolicyStatistics(
             nodeVisitCount: counts[0] as number,
             leafVisitCount: counts[1] as number,
             directLookupCount: counts[2] as number,
+            commaFallbackCount: counts[3] as number,
         });
     } catch {
         return null;
@@ -1013,6 +1018,7 @@ export function createLayoutPlanBuilder(
                 policyNodeVisitCount: policyStatistics.nodeVisitCount,
                 policyLeafVisitCount: policyStatistics.leafVisitCount,
                 policyDirectLookupCount: policyStatistics.directLookupCount,
+                commaFallbackCount: policyStatistics.commaFallbackCount,
             });
             const plan = Object.freeze({
                 analysis,

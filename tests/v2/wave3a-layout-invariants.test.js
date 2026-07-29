@@ -501,7 +501,7 @@ function fullCanonicalRoot(factory) {
 (function testLeadingAndDanglingCommentsRemainRawSourceLeaves() {
     [
         { source: '-- leading\nSELECT 1', placement: 'leading' },
-        { source: 'SELECT 1;\n-- detached', placement: 'dangling' }
+        { source: 'SELECT 1\n-- detached', placement: 'dangling' }
     ].forEach(function(testCase) {
         var analysis = analyze(testCase.source);
         var factory = factoryApi.createLayoutDocFactory(analysis);

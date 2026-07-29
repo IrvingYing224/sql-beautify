@@ -85,15 +85,6 @@ interface TokenEquivalenceCheck {
     readonly statistics: TokenEquivalenceStatistics;
 }
 
-const ZERO_EQUIVALENCE_STATISTICS: TokenEquivalenceStatistics = Object.freeze({
-    inputCodeUnits: 0,
-    diagnosticVisitCount: 0,
-    sourceLeafVisitCount: 0,
-    outputLeafVisitCount: 0,
-    comparisonCount: 0,
-    directLookupCount: 0,
-});
-
 function spanForSource(source: string) {
     return Object.freeze({ start: 0, end: source.length });
 }
@@ -102,7 +93,8 @@ function diagnostic(
     source: string,
     code: string,
     message: string,
-    severity: Diagnostic["severity"] = "error"
+    severity: Diagnostic["severity"] = "error",
+    recovery: Diagnostic["recovery"] = "preserve-target"
 ): Diagnostic {
     return Object.freeze({
         code,
@@ -110,7 +102,7 @@ function diagnostic(
         message,
         capabilityId: null,
         span: spanForSource(source),
-        recovery: "preserve-target" as const,
+        recovery,
     });
 }
 
@@ -212,30 +204,21 @@ function recordPlanStatistics(
     plan: LayoutPlan
 ): void {
     const planStatistics = plan.statistics;
-    value.planActionCount = planStatistics.actionCount;
-    value.maxPlanActions = plan.budget.maxPlanActions;
-    value.leafVisitCount =
+    value.planActionCount += planStatistics.actionCount;
+    value.maxPlanActions += plan.budget.maxPlanActions;
+    value.leafVisitCount +=
         planStatistics.leafVisitCount + planStatistics.policyLeafVisitCount;
-    value.leafEmissionCount = 0;
-    value.directLookupCount =
+    value.directLookupCount +=
         planStatistics.directLookupCount +
         planStatistics.policyDirectLookupCount;
-    value.docNodeCount = 0;
-    value.scopeActionCount = planStatistics.scopeActionCount;
-    value.scopeActionVisitCount = 0;
-    value.policyNodeVisitCount = planStatistics.policyNodeVisitCount;
-    value.policyLeafVisitCount = planStatistics.policyLeafVisitCount;
-    value.policyDirectLookupCount = planStatistics.policyDirectLookupCount;
-    value.metricsDocVisitCount = 0;
-    value.metricsSummaryLookupCount = 0;
-    value.renderDocVisitCount = 0;
-    value.renderMetricsLookupCount = 0;
-    recordEquivalenceStatistics(value, ZERO_EQUIVALENCE_STATISTICS);
+    value.scopeActionCount += planStatistics.scopeActionCount;
+    value.policyNodeVisitCount += planStatistics.policyNodeVisitCount;
+    value.policyLeafVisitCount += planStatistics.policyLeafVisitCount;
+    value.policyDirectLookupCount += planStatistics.policyDirectLookupCount;
 }
 
 function recordCompiledStatistics(
     value: MutableFormatPipelineStatistics,
-    plan: LayoutPlan,
     compiled: Readonly<{
         leafVisitCount: number;
         leafEmissionCount: number;
@@ -243,30 +226,23 @@ function recordCompiledStatistics(
         scopeActionVisitCount: number;
     }>
 ): void {
-    recordPlanStatistics(value, plan);
     value.leafVisitCount += compiled.leafVisitCount;
-    value.leafEmissionCount = compiled.leafEmissionCount;
+    value.leafEmissionCount += compiled.leafEmissionCount;
     value.directLookupCount += compiled.directLookupCount;
-    value.scopeActionVisitCount = compiled.scopeActionVisitCount;
+    value.scopeActionVisitCount += compiled.scopeActionVisitCount;
 }
 
 function recordRenderedStatistics(
     value: MutableFormatPipelineStatistics,
-    plan: LayoutPlan,
-    compiled: Readonly<{
-        leafVisitCount: number;
-        leafEmissionCount: number;
-        directLookupCount: number;
-        scopeActionVisitCount: number;
-    }>,
     rendered: RenderStatistics
 ): void {
-    recordCompiledStatistics(value, plan, compiled);
-    value.docNodeCount = rendered.docVisitCount;
-    value.metricsDocVisitCount = rendered.metricsDocVisitCount;
-    value.metricsSummaryLookupCount = rendered.metricsSummaryLookupCount;
-    value.renderDocVisitCount = rendered.docVisitCount;
-    value.renderMetricsLookupCount = rendered.metricsLookupCount;
+    value.docNodeCount += rendered.docVisitCount;
+    value.metricsDocVisitCount += rendered.metricsDocVisitCount;
+    value.metricsSummaryLookupCount += rendered.metricsSummaryLookupCount;
+    value.renderDocVisitCount += rendered.docVisitCount;
+    value.renderMetricsLookupCount += rendered.metricsLookupCount;
+    value.directLookupCount +=
+        rendered.metricsSummaryLookupCount + rendered.metricsLookupCount;
 }
 
 function recordEquivalenceStatistics(
@@ -283,16 +259,34 @@ function recordEquivalenceStatistics(
 
 function recordCompletedStatistics(
     value: MutableFormatPipelineStatistics,
-    rendered: RenderStatistics,
     equivalence: TokenEquivalenceStatistics
 ): void {
     value.leafVisitCount +=
         equivalence.sourceLeafVisitCount + equivalence.outputLeafVisitCount;
-    value.directLookupCount +=
-        rendered.metricsSummaryLookupCount +
-        rendered.metricsLookupCount +
-        equivalence.directLookupCount;
+    value.directLookupCount += equivalence.directLookupCount;
     recordEquivalenceStatistics(value, equivalence);
+}
+
+function isLayoutResourceFailure(code: string): boolean {
+    return (
+        code === "LAYOUT_PLAN_RESOURCE" ||
+        code === "LAYOUT_COMPILE_RESOURCE" ||
+        code === "RENDER_RESOURCE_BUDGET"
+    );
+}
+
+function resourcePreservedResult(
+    source: string,
+    diagnostics: readonly Diagnostic[],
+    code: string,
+    message: string
+): OriginalTextFormatResult {
+    const value = diagnostic(source, code, message, "warning");
+    return originalResult(
+        "preserved",
+        source,
+        frozenDiagnostics(diagnostics, value)
+    );
 }
 
 function run(
@@ -498,6 +492,17 @@ export function formatSqlWithStatistics(
 
         let planned = buildLayoutPlan(analysis, options);
         if (!planned.ok) {
+            if (isLayoutResourceFailure(planned.code)) {
+                return run(
+                    resourcePreservedResult(
+                        source,
+                        analysis.diagnostics,
+                        planned.code,
+                        planned.message
+                    ),
+                    statistics
+                );
+            }
             const value = diagnostic(source, planned.code, planned.message);
             return run(
                 originalResult(
@@ -511,6 +516,17 @@ export function formatSqlWithStatistics(
         recordPlanStatistics(statistics, planned.plan);
         let compiled = compileLayoutPlan(planned.plan);
         if (!compiled.ok) {
+            if (isLayoutResourceFailure(compiled.code)) {
+                return run(
+                    resourcePreservedResult(
+                        source,
+                        analysis.diagnostics,
+                        compiled.code,
+                        compiled.message
+                    ),
+                    statistics
+                );
+            }
             const value = diagnostic(source, compiled.code, compiled.message);
             return run(
                 originalResult(
@@ -521,9 +537,20 @@ export function formatSqlWithStatistics(
                 statistics
             );
         }
-        recordCompiledStatistics(statistics, planned.plan, compiled.statistics);
+        recordCompiledStatistics(statistics, compiled.statistics);
         let rendered = renderLayoutArtifact(compiled.artifact, environment);
         if (!rendered.ok) {
+            if (isLayoutResourceFailure(rendered.code)) {
+                return run(
+                    resourcePreservedResult(
+                        source,
+                        analysis.diagnostics,
+                        rendered.code,
+                        rendered.message
+                    ),
+                    statistics
+                );
+            }
             const value = diagnostic(source, rendered.code, rendered.message);
             return run(
                 originalResult(
@@ -536,8 +563,6 @@ export function formatSqlWithStatistics(
         }
         recordRenderedStatistics(
             statistics,
-            planned.plan,
-            compiled.statistics,
             rendered.statistics
         );
         {
@@ -568,6 +593,17 @@ export function formatSqlWithStatistics(
                     alignmentPlan
                 );
                 if (!alignedPlan.ok) {
+                    if (isLayoutResourceFailure(alignedPlan.code)) {
+                        return run(
+                            resourcePreservedResult(
+                                source,
+                                analysis.diagnostics,
+                                alignedPlan.code,
+                                alignedPlan.message
+                            ),
+                            statistics
+                        );
+                    }
                     const value = diagnostic(
                         source,
                         alignedPlan.code,
@@ -582,8 +618,20 @@ export function formatSqlWithStatistics(
                         statistics
                     );
                 }
+                recordPlanStatistics(statistics, alignedPlan.plan);
                 const alignedCompiled = compileLayoutPlan(alignedPlan.plan);
                 if (!alignedCompiled.ok) {
+                    if (isLayoutResourceFailure(alignedCompiled.code)) {
+                        return run(
+                            resourcePreservedResult(
+                                source,
+                                analysis.diagnostics,
+                                alignedCompiled.code,
+                                alignedCompiled.message
+                            ),
+                            statistics
+                        );
+                    }
                     const value = diagnostic(
                         source,
                         alignedCompiled.code,
@@ -598,11 +646,26 @@ export function formatSqlWithStatistics(
                         statistics
                     );
                 }
+                recordCompiledStatistics(
+                    statistics,
+                    alignedCompiled.statistics
+                );
                 const alignedRendered = renderLayoutArtifact(
                     alignedCompiled.artifact,
                     environment
                 );
                 if (!alignedRendered.ok) {
+                    if (isLayoutResourceFailure(alignedRendered.code)) {
+                        return run(
+                            resourcePreservedResult(
+                                source,
+                                analysis.diagnostics,
+                                alignedRendered.code,
+                                alignedRendered.message
+                            ),
+                            statistics
+                        );
+                    }
                     const value = diagnostic(
                         source,
                         alignedRendered.code,
@@ -622,8 +685,6 @@ export function formatSqlWithStatistics(
                 rendered = alignedRendered;
                 recordRenderedStatistics(
                     statistics,
-                    planned.plan,
-                    compiled.statistics,
                     rendered.statistics
                 );
             }
@@ -636,7 +697,6 @@ export function formatSqlWithStatistics(
         );
         recordCompletedStatistics(
             statistics,
-            rendered.statistics,
             equivalence.statistics
         );
         if (!equivalence.equivalent) {
@@ -654,10 +714,23 @@ export function formatSqlWithStatistics(
                 statistics
             );
         }
+        const resultDiagnostics =
+            planned.plan.statistics.commaFallbackCount > 0
+                ? frozenDiagnostics(
+                      analysis.diagnostics,
+                      diagnostic(
+                          source,
+                          "LAYOUT_COMMA_FALLBACK",
+                          "Trailing comma style fell back to a leading comma at one or more line-comment boundaries",
+                          "info",
+                          "none"
+                      )
+                  )
+                : analysis.diagnostics;
         const result = safeResult(
             source,
             rendered.text,
-            analysis.diagnostics,
+            resultDiagnostics,
             rendered.sourceMap
         );
         statistics.outputCodeUnits = rendered.text.length;

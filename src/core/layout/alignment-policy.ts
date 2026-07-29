@@ -12,6 +12,7 @@ import { canonicalLayoutArtifactForRenderSuccess } from "../renderer/render";
 import type { RenderSuccess } from "../renderer/types";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
 import type { DominatingVerbatimClaims } from "./verbatim-claims";
+import { canonicalLayoutResourceBudget } from "./artifact";
 
 export interface LayoutAlignmentTarget {
     readonly leafId: number;
@@ -275,7 +276,7 @@ function rangeHasVerbatimClaim(
 
 function flushCandidateGroup(
     candidates: AlignmentCandidate[],
-    maximumColumn: number,
+    maximumTargetColumn: number,
     targets: Map<number, number>
 ): void {
     if (candidates.length < 2) {
@@ -286,7 +287,7 @@ function flushCandidateGroup(
     for (const candidate of candidates) {
         targetColumn = Math.max(targetColumn, candidate.column);
     }
-    if (targetColumn > 0 && targetColumn < maximumColumn) {
+    if (targetColumn > 0 && targetColumn <= maximumTargetColumn) {
         for (const candidate of candidates) {
             if (candidate.column < targetColumn) {
                 targets.set(candidate.leafId, targetColumn);
@@ -299,16 +300,16 @@ function flushCandidateGroup(
 function appendCandidateGroup(
     candidates: AlignmentCandidate[],
     candidate: AlignmentCandidate | null,
-    maximumColumn: number,
+    maximumTargetColumn: number,
     targets: Map<number, number>
 ): void {
     if (candidate === null) {
-        flushCandidateGroup(candidates, maximumColumn, targets);
+        flushCandidateGroup(candidates, maximumTargetColumn, targets);
         return;
     }
     const previous = candidates[candidates.length - 1];
     if (previous !== undefined && candidate.line !== previous.line + 1) {
-        flushCandidateGroup(candidates, maximumColumn, targets);
+        flushCandidateGroup(candidates, maximumTargetColumn, targets);
     }
     candidates.push(candidate);
 }
@@ -318,7 +319,7 @@ function explicitAliasCandidate(
     outputStarts: ReadonlyMap<number, number>,
     positionOf: (offset: number) => OutputPosition | null,
     item: ListItemNode,
-    maximumColumn: number
+    maximumTargetColumn: number
 ): AlignmentCandidate | null {
     const asLeafId = item.alias?.keywordLeafId ?? null;
     if (asLeafId === null) {
@@ -333,7 +334,7 @@ function explicitAliasCandidate(
         shape.hasVerbatim ||
         shape.firstLine !== shape.lastLine ||
         shape.firstLine !== position.line ||
-        position.column >= maximumColumn
+        position.column > maximumTargetColumn
     ) {
         return null;
     }
@@ -444,7 +445,7 @@ function trailingCommentCandidate(
     outputStarts: ReadonlyMap<number, number>,
     positionOf: (offset: number) => OutputPosition | null,
     bindings: readonly CommentBinding[] | undefined,
-    maximumColumn: number
+    maximumTargetColumn: number
 ): AlignmentCandidate | null {
     if (bindings?.length !== 1) {
         return null;
@@ -463,7 +464,7 @@ function trailingCommentCandidate(
         shape.firstLine !== shape.lastLine ||
         shape.lastLine !== position.line ||
         binding.commentLeafId <= shape.lastSyntaxLeafId ||
-        position.column >= maximumColumn
+        position.column > maximumTargetColumn
     ) {
         return null;
     }
@@ -495,6 +496,17 @@ export function deriveLayoutAlignmentPlan(
             renderedArtifact.options !== options
         ) {
             return null;
+        }
+        const budget = canonicalLayoutResourceBudget(renderedArtifact);
+        if (budget === null) {
+            return null;
+        }
+        const maximumTargetColumn = Math.min(
+            options.maxAlignWidth - 1,
+            budget.maxGeneratedColumnsPerLine
+        );
+        if (maximumTargetColumn <= 0) {
+            return canonicalPlan(analysis, options, []);
         }
         const lists = analysis.index.lists();
         const comments = trailingCommentsByItem(analysis);
@@ -567,38 +579,64 @@ export function deriveLayoutAlignmentPlan(
         const targets = new Map<number, number>();
         for (const list of lists) {
             const aliasGroup: AlignmentCandidate[] = [];
-            const commentGroup: AlignmentCandidate[] = [];
+            const aliasesByItem = new Map<number, AlignmentCandidate>();
             for (const item of list.children) {
                 const alias = explicitAliasCandidate(
                     shapes.get(item.id) ?? null,
                     outputStarts,
                     positionOf,
                     item,
-                    options.maxAlignWidth
+                    maximumTargetColumn
                 );
+                if (alias !== null) {
+                    aliasesByItem.set(item.id, alias);
+                }
                 appendCandidateGroup(
                     aliasGroup,
                     alias,
-                    options.maxAlignWidth,
+                    maximumTargetColumn,
                     targets
                 );
+            }
+            flushCandidateGroup(
+                aliasGroup,
+                maximumTargetColumn,
+                targets
+            );
+
+            const commentGroup: AlignmentCandidate[] = [];
+            for (const item of list.children) {
                 const comment = trailingCommentCandidate(
                     analysis,
                     shapes.get(item.id) ?? null,
                     outputStarts,
                     positionOf,
                     comments.get(item.id),
-                    options.maxAlignWidth
+                    maximumTargetColumn
                 );
+                const alias = aliasesByItem.get(item.id);
+                const aliasTarget =
+                    alias === undefined ? undefined : targets.get(alias.leafId);
+                const adjustedComment =
+                    comment === null || alias === undefined || aliasTarget === undefined
+                        ? comment
+                        : Object.freeze({
+                              ...comment,
+                              column:
+                                  comment.column + aliasTarget - alias.column,
+                          });
                 appendCandidateGroup(
                     commentGroup,
-                    comment,
-                    options.maxAlignWidth,
+                    adjustedComment,
+                    maximumTargetColumn,
                     targets
                 );
             }
-            flushCandidateGroup(aliasGroup, options.maxAlignWidth, targets);
-            flushCandidateGroup(commentGroup, options.maxAlignWidth, targets);
+            flushCandidateGroup(
+                commentGroup,
+                maximumTargetColumn,
+                targets
+            );
         }
         const values: LayoutAlignmentTarget[] = Array.from(targets)
             .sort(([leftLeafId], [rightLeafId]) =>

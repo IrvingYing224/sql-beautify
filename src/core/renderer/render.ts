@@ -393,29 +393,15 @@ function renderCanonical(
         if (needsLinePrefix) {
             emitLinePrefix(frame);
         }
-        if (displayColumn < targetColumn) {
-            emitSpaces(targetColumn - displayColumn, frame);
-        }
-    };
-
-    const suffixHasLineComment = (): boolean => {
-        for (const suffix of suffixes) {
-            if (
-                artifact.analysis.leaves[suffix.commentLeafId]?.kind ===
-                "line-comment"
-            ) {
-                return true;
-            }
-        }
-        return false;
+        emitSpaces(Math.max(1, targetColumn - displayColumn), frame);
     };
 
     const flushSuffixes = (): boolean => {
         if (suffixes.length === 0) {
             return false;
         }
-        const hadLineComment = suffixHasLineComment();
         const pending = suffixes.splice(0, suffixes.length);
+        let unterminatedLineComment = false;
         for (const suffix of pending) {
             const leaf = artifact.analysis.leaves[suffix.commentLeafId];
             if (leaf === undefined) {
@@ -428,14 +414,20 @@ function renderCanonical(
                 indentLevels: suffix.indentLevels,
                 alignColumns: suffix.alignColumns,
             };
+            if (unterminatedLineComment) {
+                appendGeneratedLineBreak();
+            }
             if (suffix.spacing?.kind === "space") {
                 emitSpaces(suffix.spacing.columns, frame);
             } else if (suffix.spacing?.kind === "pad-to-column") {
                 emitPad(suffix.spacing.targetColumn, frame);
             }
             appendSource(leaf.raw, leaf.span, frame);
+            unterminatedLineComment =
+                leaf.kind === "line-comment" &&
+                !endsWithLineBreak(leaf.raw);
         }
-        return hadLineComment;
+        return unterminatedLineComment;
     };
 
     const emitLineBreak = (): void => {

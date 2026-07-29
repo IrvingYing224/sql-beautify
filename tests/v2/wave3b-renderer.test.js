@@ -276,6 +276,19 @@ function assertFrozenSourceMap(sourceMap) {
     var padded = renderApi.renderLayoutArtifact(paddedArtifact);
     assert.strictEqual(padded.ok, true);
     assert.strictEqual(padded.text, 'SELECT  1');
+
+    var minimumPaddedArtifact = artifactFrom('SELECT 1', undefined,
+        function(factory, analysis) {
+            return factory.concat([
+                codeLeaf(factory, analysis, 'SELECT'),
+                factory.padToColumn(6),
+                codeLeaf(factory, analysis, '1')
+            ]);
+        });
+    var minimumPadded = renderApi.renderLayoutArtifact(minimumPaddedArtifact);
+    assert.strictEqual(minimumPadded.ok, true);
+    assert.strictEqual(minimumPadded.text, 'SELECT 1',
+        'pad-to-column replacing a lexical space must emit at least one column');
 })();
 
 (function testSourceMapAndLineSuffixAreBuiltDuringEmission() {
@@ -340,6 +353,31 @@ function assertFrozenSourceMap(sourceMap) {
     assert.strictEqual(rendered.ok, true);
     assert.strictEqual(rendered.text, 'SELECT 1 /*a*/ /*b*/',
         'pending line suffixes must flush FIFO');
+})();
+
+(function testLineCommentSuffixForcesBreakBeforeLaterSuffix() {
+    var artifact = artifactFrom('SELECT 1; --a\n/*b*/', undefined,
+        function(factory, analysis) {
+            var line = analysis.leaves.find(function(leaf) {
+                return leaf.raw === '--a';
+            });
+            var block = analysis.leaves.find(function(leaf) {
+                return leaf.raw === '/*b*/';
+            });
+            assert.ok(line && block);
+            return factory.concat([
+                codeLeaf(factory, analysis, 'SELECT'),
+                factory.space(1),
+                codeLeaf(factory, analysis, '1'),
+                codeLeaf(factory, analysis, ';'),
+                factory.lineSuffix(line.id, { kind: 'space', columns: 1 }),
+                factory.lineSuffix(block.id, { kind: 'space', columns: 1 })
+            ]);
+        });
+    var rendered = renderApi.renderLayoutArtifact(artifact);
+    assert.strictEqual(rendered.ok, true);
+    assert.strictEqual(rendered.text, 'SELECT 1; --a\n /*b*/',
+        'a later suffix must start on a new physical line after a line comment');
 })();
 
 (function testGeneratedHorizontalWhitespaceFlushesPendingSuffixesFirst() {

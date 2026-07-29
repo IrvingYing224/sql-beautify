@@ -182,6 +182,42 @@ assertExpectedBindings(
 );
 
 assertExpectedBindings(
+    'SELECT aaa\n, /* comment */ bbb FROM t',
+    [
+        {
+            raw: '/* comment */',
+            placement: 'leading',
+            owner: 'list-item:select-item',
+            ownerSlice: 'bbb'
+        }
+    ]
+);
+
+assertExpectedBindings(
+    'SELECT 1;\n-- footer\n\nSELECT 2;',
+    [
+        {
+            raw: '-- footer',
+            placement: 'trailing',
+            owner: 'statement:query',
+            ownerSlice: 'SELECT 1;'
+        }
+    ]
+);
+
+assertExpectedBindings(
+    'SELECT 1\n-- before terminator\n;',
+    [
+        {
+            raw: '-- before terminator',
+            placement: 'dangling',
+            owner: 'statement:query',
+            ownerSlice: 'SELECT 1\n-- before terminator\n;'
+        }
+    ]
+);
+
+assertExpectedBindings(
     'SELECT f(a, /* arg comma */ b), ' +
         'sum(x) OVER (ORDER BY c, /* window comma */ d), ' +
         'CAST(x AS DECIMAL(10, /* type comma */ 2));',

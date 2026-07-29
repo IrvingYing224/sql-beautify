@@ -253,9 +253,16 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
             plan.options
         );
         if (!created.ok) {
+            const resourceOnly =
+                created.invariantFailures.length > 0 &&
+                created.invariantFailures.every(
+                    (value) => value.code === "LAYOUT_RESOURCE_BUDGET"
+                );
             const detail = created.invariantFailures[0];
             return failure(
-                "LAYOUT_COMPILE_ARTIFACT",
+                resourceOnly
+                    ? "LAYOUT_COMPILE_RESOURCE"
+                    : "LAYOUT_COMPILE_ARTIFACT",
                 `${created.code}: ${created.message}` +
                     (detail === undefined
                         ? ""

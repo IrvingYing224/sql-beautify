@@ -520,6 +520,32 @@ function assertOnlyEol(text, newline) {
         '524289 UTF-16 code units must preserve the complete original input');
 })();
 
+(function testLegalDeepCaseResourceExhaustionPreservesWholeTarget() {
+    function nestedCase(depth) {
+        var source = 'select ';
+        for (var open = 0; open < depth; open++) {
+            source += 'case when a=1 then ';
+        }
+        source += '0';
+        for (var close = 0; close < depth; close++) {
+            source += ' else 1 end';
+        }
+        return source + ' from t';
+    }
+
+    var withinBudget = formatApi.formatSql(nestedCase(43), { dialect: 'hive' });
+    assert.strictEqual(withinBudget.status, 'formatted');
+    [44, 80].forEach(function(depth) {
+        var source = nestedCase(depth);
+        var result = formatApi.formatSql(source, { dialect: 'hive' });
+        assertSafeOriginal(result, source, 'preserved');
+        assert.deepStrictEqual(result.diagnostics.map(function(value) {
+            return [value.code, value.severity, value.recovery];
+        }), [['LAYOUT_COMPILE_RESOURCE', 'warning', 'preserve-target']],
+            'depth ' + depth + ' must be a typed resource downgrade');
+    });
+})();
+
 (function testCanonicalPlanCannotBeClonedIntoCompiler() {
     var artifact = analyze('SELECT 1', 'hive');
     assert.strictEqual(artifact.status, 'analyzed');
