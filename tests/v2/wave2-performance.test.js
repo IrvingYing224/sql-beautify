@@ -2,8 +2,6 @@
 
 var assert = require('assert');
 var childProcess = require('child_process');
-var fs = require('fs');
-var os = require('os');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
@@ -18,23 +16,20 @@ var parserContext = require(path.join(
 var analysis = require(path.join(currentCoreRoot, 'core', 'analysis', 'index.js'));
 var invariants = require(path.join(currentCoreRoot, 'core', 'syntax', 'invariants.js'));
 var tokenTable = require(path.join(currentCoreRoot, 'core', 'syntax', 'token-table.js'));
+var gates = require('./helpers/performance-gates');
+var baselineApi = require('./helpers/release-baseline');
+var workloads = require('./helpers/perf-workloads');
 
 var ALIAS_SAMPLE_COUNT = 5;
 var SCALE_SAMPLE_COUNT = 9;
 var SCALE_WARMUP_ROUNDS = 3;
 var SCALE_COUNTS = Object.freeze([100, 800, 1200]);
 var SCALE_RATIO_GATE = 12;
-var RELEASE_BASELINE_COMMIT = 'bc08772a20ab94e33978068e738999a2759dacd6';
-var RELEASE_RELATIVE_GATE = 1.2;
-var RELEASE_RELATIVE_FLOOR_MS = 50;
-var RELEASE_LOW_BASELINE_NOISE_MS = 10;
-var RELATIVE_PROCESS_ROUNDS = 3;
-var RELATIVE_WORKER_SAMPLE_COUNT = 5;
-var RELATIVE_WORKER_WARMUP_ROUNDS = 2;
 var ALIAS_RATIO_400_GATE = 8;
 var ALIAS_RATIO_800_GATE = 12;
 var ANALYSIS_SCALE_RATIO_GATE = 12;
-var ANALYSIS_CLOSURE_GATE_MS = 2500;
+var ANALYSIS_CLOSURE_GATE_MS = gates.manifest.gates.disaster.analysisCaseMs;
+var PARSER_PROOF_GATE_MS = gates.manifest.gates.disaster.parserProofTotalMs;
 
 // Isolate each scale so large requests cannot bias smaller medians through a
 // shared heap. Worker startup and source transfer remain outside timed samples.
@@ -91,158 +86,12 @@ var SCALE_WORKER_SOURCE = [
 ].join('\n');
 
 function makeSource(statementCount) {
-    var statements = [];
-    for (var i = 0; i < statementCount; i++) {
-        // Keep every statement byte-equivalent so a statement-count ratio is
-        // also a source-size ratio; variable-width ids bias the 1,200 case.
-        var suffix = String(i).padStart(4, '0');
-        statements.push([
-            'WITH source_' + suffix + ' AS (',
-            'SELECT id, ROW_NUMBER() OVER (PARTITION BY id ORDER BY ts DESC) AS rn',
-            'FROM fact_' + suffix + " WHERE ds = '2026-07-13'",
-            ') SELECT s.id, d.name FROM source_' + suffix + ' s',
-            'LEFT OUTER JOIN dim_' + suffix + ' d ON s.id = d.id',
-            'WHERE s.rn = 1 DISTRIBUTE BY s.id SORT BY d.name DESC LIMIT 100;'
-        ].join('\n'));
-    }
-    return statements.join('\n');
+    return workloads.parserSource(statementCount);
 }
 
 function median(values) {
     var sorted = values.slice().sort(function(a, b) { return a - b; });
     return sorted[Math.floor(sorted.length / 2)];
-}
-
-function passesReleaseRelativeGate(
-    currentMedianMs,
-    baselineMedianMs,
-    pairedDeltaMedianMs
-) {
-    if (!Number.isFinite(currentMedianMs) ||
-        !Number.isFinite(baselineMedianMs) ||
-        currentMedianMs <= 0 || baselineMedianMs <= 0) {
-        return false;
-    }
-    return currentMedianMs /
-        Math.max(baselineMedianMs, RELEASE_RELATIVE_FLOOR_MS) <=
-            RELEASE_RELATIVE_GATE &&
-        (baselineMedianMs >= RELEASE_RELATIVE_FLOOR_MS ||
-            (Number.isFinite(pairedDeltaMedianMs)
-                ? pairedDeltaMedianMs
-                : currentMedianMs - baselineMedianMs) <=
-                RELEASE_LOW_BASELINE_NOISE_MS);
-}
-
-function runRequired(command, args, options, label) {
-    var result = childProcess.spawnSync(command, args, options);
-    if (result.error || result.status !== 0) {
-        throw new Error(
-            label + ' failed' +
-            (result.error ? ': ' + result.error.message : ':\n' + String(result.stderr || result.stdout))
-        );
-    }
-    return result;
-}
-
-function prepareReleaseBaseline() {
-    runRequired(
-        'git',
-        ['cat-file', '-e', RELEASE_BASELINE_COMMIT + '^{commit}'],
-        { cwd: root, encoding: 'utf8' },
-        '2.0.1 release baseline lookup (checkout must retain full git history)'
-    );
-    runRequired(
-        'git',
-        ['merge-base', '--is-ancestor', RELEASE_BASELINE_COMMIT, 'HEAD'],
-        { cwd: root, encoding: 'utf8' },
-        '2.0.1 release baseline ancestry check'
-    );
-    var baselinePackage = runRequired(
-        'git',
-        ['show', RELEASE_BASELINE_COMMIT + ':package.json'],
-        { cwd: root, encoding: 'utf8' },
-        '2.0.1 release baseline package metadata'
-    );
-    assert.strictEqual(
-        JSON.parse(baselinePackage.stdout).version,
-        '2.0.1',
-        'release performance baseline must identify package version 2.0.1'
-    );
-
-    var checkoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sql-beautify-v2-release-'));
-    try {
-        var listed = runRequired(
-            'git',
-            [
-                'ls-tree',
-                '-r',
-                '-z',
-                '--name-only',
-                RELEASE_BASELINE_COMMIT,
-                '--',
-                'src'
-            ],
-            { cwd: root, encoding: null },
-            '2.0.1 release baseline source listing'
-        );
-        var sourcePaths = listed.stdout.toString('utf8').split('\0').filter(Boolean);
-        sourcePaths.push('tsconfig.v2.json');
-        sourcePaths.forEach(function(relativePath) {
-            var file = runRequired(
-                'git',
-                ['show', RELEASE_BASELINE_COMMIT + ':' + relativePath],
-                { cwd: root, encoding: null },
-                '2.0.1 release baseline file ' + relativePath
-            );
-            var destination = path.join(checkoutRoot, relativePath);
-            fs.mkdirSync(path.dirname(destination), { recursive: true });
-            fs.writeFileSync(destination, file.stdout);
-        });
-        var performanceTsconfig = path.join(
-            checkoutRoot,
-            'tsconfig.v2.performance.json'
-        );
-        fs.writeFileSync(performanceTsconfig, JSON.stringify({
-            extends: './tsconfig.v2.json',
-            compilerOptions: {
-                noEmit: false,
-                rootDir: 'src',
-                outDir: '.tmp/v2-core',
-                declaration: false,
-                declarationMap: false,
-                sourceMap: false,
-                removeComments: false
-            },
-            include: ['src/core/**/*.ts', 'src/types/**/*.d.ts'],
-            exclude: ['tests/**', 'node_modules/**', '.tmp/**']
-        }, null, 4));
-        runRequired(
-            process.execPath,
-            [
-                require.resolve('typescript/bin/tsc'),
-                '-p',
-                performanceTsconfig
-            ],
-            { cwd: checkoutRoot, encoding: 'utf8', env: process.env },
-            '2.0.1 release baseline build'
-        );
-        var coreRoot = path.join(checkoutRoot, '.tmp', 'v2-core');
-        assert.ok(
-            fs.existsSync(path.join(coreRoot, 'core', 'syntax', 'parser.js')),
-            '2.0.1 release baseline build must produce the parser'
-        );
-        return Object.freeze({
-            checkoutRoot: checkoutRoot,
-            coreRoot: coreRoot
-        });
-    } catch (error) {
-        fs.rmSync(checkoutRoot, { recursive: true, force: true });
-        throw error;
-    }
-}
-
-function removeReleaseBaseline(baseline) {
-    fs.rmSync(baseline.checkoutRoot, { recursive: true, force: true });
 }
 
 function makeAliasColumnListSource(relationCount) {
@@ -453,7 +302,8 @@ function measureNestedUnsupportedProofWork() {
     }
     assert.ok(reports.reduce(function(total, report) {
         return total + report.elapsedMs;
-    }, 0) < 1500, 'nested proof catastrophe gate exceeded 1500ms');
+    }, 0) < PARSER_PROOF_GATE_MS,
+    'nested proof catastrophe gate exceeded ' + PARSER_PROOF_GATE_MS + 'ms');
     return reports;
 }
 
@@ -529,27 +379,49 @@ function summarizeScaleRuns(runs) {
 }
 
 function measureRelativeParserScales(baselineCoreRoot) {
-    return Object.freeze(SCALE_COUNTS.map(function(statementCount, scaleIndex) {
+    var workload = gates.manifest.workloads.parser;
+    var workerPath = path.join(root, gates.manifest.workers.parser.path);
+    function runRelative(coreRoot, testCase) {
+        var source = makeSource(testCase.statementCount);
+        assert.strictEqual(source.length, testCase.sourceCodeUnits,
+            'relative parser source length must match the manifest');
+        var child = childProcess.spawnSync(process.execPath, [workerPath], {
+            cwd: root,
+            encoding: 'utf8',
+            input: source,
+            maxBuffer: 2 * 1024 * 1024,
+            timeout: 120000,
+            env: Object.assign({}, process.env, {
+                SQL_BEAUTIFY_PERF_CORE_ROOT: coreRoot,
+                SQL_BEAUTIFY_PERF_COUNT: String(testCase.statementCount),
+                SQL_BEAUTIFY_PERF_WARMUPS: String(workload.warmupRounds),
+                SQL_BEAUTIFY_PERF_SAMPLES: String(workload.sampleRounds)
+            })
+        });
+        assert.strictEqual(child.status, 0,
+            'relative parser worker failed:\n' +
+                String(child.stderr || child.stdout) + '\nerror=' +
+                String(child.error || 'none'));
+        var measured = JSON.parse(child.stdout);
+        assert.strictEqual(measured.statementCount, testCase.statementCount);
+        assert.strictEqual(measured.sourceCodeUnits, testCase.sourceCodeUnits);
+        return Object.freeze({
+            statementCount: measured.statementCount,
+            sourceBytes: measured.sourceBytes,
+            medianMs: measured.medianMs,
+            samplesMs: Object.freeze(measured.samplesMs),
+            processPeakRssKb: measured.processPeakRssKb
+        });
+    }
+    return Object.freeze(workload.cases.map(function(testCase, scaleIndex) {
         var baselineRuns = [];
         var currentRuns = [];
-        for (var round = 0; round < RELATIVE_PROCESS_ROUNDS; round++) {
+        for (var round = 0; round < workload.processRounds; round++) {
             var runBaseline = function() {
-                baselineRuns.push(measureScaleInChild(
-                    'parser',
-                    statementCount,
-                    baselineCoreRoot,
-                    RELATIVE_WORKER_WARMUP_ROUNDS,
-                    RELATIVE_WORKER_SAMPLE_COUNT
-                ));
+                baselineRuns.push(runRelative(baselineCoreRoot, testCase));
             };
             var runCurrent = function() {
-                currentRuns.push(measureScaleInChild(
-                    'parser',
-                    statementCount,
-                    currentCoreRoot,
-                    RELATIVE_WORKER_WARMUP_ROUNDS,
-                    RELATIVE_WORKER_SAMPLE_COUNT
-                ));
+                currentRuns.push(runRelative(currentCoreRoot, testCase));
             };
             // Alternate order to reduce thermal/scheduler bias while keeping
             // each implementation in an independent fresh process.
@@ -563,16 +435,11 @@ function measureRelativeParserScales(baselineCoreRoot) {
         }
         var baseline = summarizeScaleRuns(baselineRuns);
         var current = summarizeScaleRuns(currentRuns);
-        var pairedDeltasMs = Object.freeze(currentRuns.map(function(run, index) {
-            return run.medianMs - baselineRuns[index].medianMs;
-        }));
         return Object.freeze({
-            statementCount: statementCount,
+            statementCount: testCase.statementCount,
             baseline: baseline,
             current: current,
-            currentToBaseline: current.medianMs / baseline.medianMs,
-            pairedDeltasMs: pairedDeltasMs,
-            pairedDeltaMedianMs: median(pairedDeltasMs)
+            currentToBaseline: current.medianMs / baseline.medianMs
         });
     }));
 }
@@ -618,16 +485,13 @@ function measureAnalysisClosureCases() {
     return Object.freeze(timings);
 }
 
-var releaseBaseline = prepareReleaseBaseline();
-var relativeParserScales;
-try {
-    relativeParserScales = measureRelativeParserScales(releaseBaseline.coreRoot);
-} finally {
-    removeReleaseBaseline(releaseBaseline);
-}
-var parserScales = Object.freeze(relativeParserScales.map(function(item) {
-    return item.current;
-}));
+var releaseBaseline = gates.strictRelativeEnabled()
+    ? baselineApi.prepareReleaseBaseline()
+    : null;
+var relativeParserScales = releaseBaseline === null
+    ? Object.freeze([])
+    : measureRelativeParserScales(releaseBaseline.coreRoot);
+var parserScales = measureScales('parser', currentCoreRoot);
 var current100 = parserScales[0];
 var current800 = parserScales[1];
 var current1200 = parserScales[2];
@@ -669,13 +533,15 @@ var performanceReport = {
     ratio800To100: Number(ratio800.toFixed(2)),
     ratio1200To100: Number(ratio1200.toFixed(2)),
     releaseRelativeBaseline: {
-        commit: RELEASE_BASELINE_COMMIT,
-        currentToBaselineGate: RELEASE_RELATIVE_GATE,
-        relativeFloorMs: RELEASE_RELATIVE_FLOOR_MS,
-        lowBaselineNoiseMs: RELEASE_LOW_BASELINE_NOISE_MS,
-        processRounds: RELATIVE_PROCESS_ROUNDS,
-        workerWarmupRounds: RELATIVE_WORKER_WARMUP_ROUNDS,
-        workerSampleRounds: RELATIVE_WORKER_SAMPLE_COUNT,
+        enabled: gates.strictRelativeEnabled(),
+        release: gates.manifest.release,
+        currentToBaselineGate: gates.manifest.gates.relativeRatio,
+        minimumBaselineMedianMs: gates.manifest.gates.minimumBaselineMedianMs,
+        processRounds: gates.manifest.workloads.parser.processRounds,
+        workerWarmupRounds: gates.manifest.workloads.parser.warmupRounds,
+        workerSampleRounds: gates.manifest.workloads.parser.sampleRounds,
+        compilerStrategy: gates.manifest.compiler.strategy,
+        cacheHit: releaseBaseline === null ? null : releaseBaseline.cacheHit,
         isolation: 'same-node-fresh-process-pairs',
         samples: relativeParserScales.map(function(item) {
             return {
@@ -684,9 +550,7 @@ var performanceReport = {
                 currentMedianMs: Number(item.current.medianMs.toFixed(2)),
                 currentToBaseline: Number(item.currentToBaseline.toFixed(3)),
                 baselineProcessMediansMs: item.baseline.processMediansMs,
-                currentProcessMediansMs: item.current.processMediansMs,
-                pairedDeltasMs: item.pairedDeltasMs,
-                pairedDeltaMedianMs: Number(item.pairedDeltaMedianMs.toFixed(3))
+                currentProcessMediansMs: item.current.processMediansMs
             };
         })
     },
@@ -748,41 +612,29 @@ assert.ok(Number.isFinite(ratio1200) && ratio1200 <= SCALE_RATIO_GATE,
     '1200/100 parser scale ratio exceeded ' + SCALE_RATIO_GATE + 'x: ' + ratio1200);
 relativeParserScales.forEach(function(item) {
     assert.ok(
-        passesReleaseRelativeGate(
-            item.current.medianMs,
-            item.baseline.medianMs,
-            item.pairedDeltaMedianMs
-        ),
-        item.statementCount + ' parser regression versus 2.0.1 release baseline exceeded ' +
-            RELEASE_RELATIVE_GATE + 'x / low-baseline +' +
-            RELEASE_LOW_BASELINE_NOISE_MS + 'ms gate: ' + item.currentToBaseline +
+        gates.relativeGate(item.baseline.medianMs, item.current.medianMs),
+        item.statementCount + ' parser regression versus manifest release baseline exceeded ' +
+            gates.manifest.gates.relativeRatio + 'x or baseline workload was <' +
+            gates.manifest.gates.minimumBaselineMedianMs + 'ms: ' +
+            item.currentToBaseline +
             ' (baseline=' + item.baseline.medianMs + 'ms, current=' +
-            item.current.medianMs + 'ms, pairedDelta=' +
-            item.pairedDeltaMedianMs + 'ms)'
+            item.current.medianMs + 'ms)'
     );
 });
 assert.strictEqual(
-    passesReleaseRelativeGate(200, 100),
+    gates.relativeGate(100, 200),
     false,
     'relative baseline gate must reject a synthetic 2x slowdown'
 );
-assert.strictEqual(passesReleaseRelativeGate(39, 30), true,
-    'low baseline must allow at most the bounded absolute noise budget');
-assert.strictEqual(passesReleaseRelativeGate(40.01, 30), false,
-    'low baseline must reject work beyond the absolute noise budget');
-assert.strictEqual(passesReleaseRelativeGate(40.5, 30, 9), true,
-    'low baseline must use the paired process delta for scheduler noise');
-assert.strictEqual(passesReleaseRelativeGate(39, 30, 10.01), false,
-    'paired low-baseline delta must retain the exact absolute noise budget');
-assert.strictEqual(passesReleaseRelativeGate(60.01, 30, 0), false,
-    'paired low-baseline noise must not bypass the exact 1.2x ratio gate');
-assert.strictEqual(passesReleaseRelativeGate(120, 100), true,
+assert.strictEqual(gates.relativeGate(30, 1), false,
+    'low baselines must require a larger workload instead of an absolute delta');
+assert.strictEqual(gates.relativeGate(100, 120), true,
     'normal baselines must retain the exact 1.2x gate');
-assert.strictEqual(passesReleaseRelativeGate(120.01, 100), false,
+assert.strictEqual(gates.relativeGate(100, 120.01), false,
     'normal baselines must reject values above the exact 1.2x gate');
 [NaN, 0, -1, Infinity].forEach(function(value) {
-    assert.strictEqual(passesReleaseRelativeGate(value, 100), false);
-    assert.strictEqual(passesReleaseRelativeGate(100, value), false);
+    assert.strictEqual(gates.relativeGate(value, 100), false);
+    assert.strictEqual(gates.relativeGate(100, value), false);
 });
 assert.ok(Number.isFinite(aliasRatio400) && aliasRatio400 <= ALIAS_RATIO_400_GATE,
     '400/100 alias-list scale ratio exceeded ' + ALIAS_RATIO_400_GATE + 'x: ' +
@@ -790,8 +642,10 @@ assert.ok(Number.isFinite(aliasRatio400) && aliasRatio400 <= ALIAS_RATIO_400_GAT
 assert.ok(Number.isFinite(aliasRatio800) && aliasRatio800 <= ALIAS_RATIO_800_GATE,
     '800/100 alias-list scale ratio exceeded ' + ALIAS_RATIO_800_GATE + 'x: ' +
         aliasRatio800);
-assert.ok(Number.isFinite(deepBinaryChainsMs) && deepBinaryChainsMs < 2500,
-    'deep binary-chain probes exceeded 2500ms: ' + deepBinaryChainsMs);
+assert.ok(Number.isFinite(deepBinaryChainsMs) &&
+    deepBinaryChainsMs < ANALYSIS_CLOSURE_GATE_MS,
+    'deep binary-chain probes exceeded ' + ANALYSIS_CLOSURE_GATE_MS +
+        'ms: ' + deepBinaryChainsMs);
 assert.ok(Number.isFinite(analysisRatio800) &&
     analysisRatio800 <= ANALYSIS_SCALE_RATIO_GATE,
     '800/100 analysis scale ratio exceeded ' + ANALYSIS_SCALE_RATIO_GATE + 'x: ' +

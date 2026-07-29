@@ -10,6 +10,8 @@ var root = path.join(__dirname, '..', '..');
 var packageJson = require(path.join(root, 'package.json'));
 var packageLock = require(path.join(root, 'package-lock.json'));
 var workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'build-vsix.yml'), 'utf8');
+var verifyPlan = require(path.join(root, 'scripts', 'v2-suite-manifest.js'))
+    .buildPlan('verify');
 var readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 var changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
 var migrationVersion = packageJson.version.split('.').slice(0, 2).join('.');
@@ -23,10 +25,21 @@ var architecture = fs.readFileSync(
 assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
 assert.strictEqual(packageLock.version, packageJson.version);
 assert.strictEqual(packageLock.packages[''].version, packageJson.version);
-assert.strictEqual(packageJson.scripts.prepack, 'npm run build:v2-runtime');
+assert.strictEqual(packageJson.scripts.prepack, 'node scripts/build-v2-runtime.js');
 assert.match(packageJson.scripts['package:vsix'], /verify-release-artifact\.js/);
 assert.match(packageJson.scripts['package:vsix'], /--compare-build/);
-assert.match(packageJson.scripts['test:verify'], /test:v2:wave5/);
+assert.strictEqual(packageJson.scripts['test:verify'],
+    'node scripts/run-v2-suite.js verify');
+assert.deepStrictEqual(verifyPlan.steps.filter(function(step) {
+    return step.category !== 'test';
+}).map(function(step) { return step.category; }), ['typecheck', 'core', 'runtime'],
+    'verify suite must schedule each canonical prerequisite exactly once');
+assert.ok(verifyPlan.steps.some(function(step) {
+    return step.args.indexOf('tests/v2/wave5-release-boundary.test.js') >= 0;
+}), 'verify suite must retain the release boundary');
+assert.ok(verifyPlan.steps.some(function(step) {
+    return step.args.indexOf('scripts/verify-clean-package.js') >= 0;
+}), 'verify suite must retain one clean-package lifecycle');
 
 assert.match(workflow, /^permissions:\n  contents: read$/m,
     'workflow default token must be read-only');
@@ -38,6 +51,15 @@ assert.match(workflow, /GITHUB_SHA/);
 assert.match(workflow, /refs\/heads\/main/);
 assert.match(workflow, /--target "\$\{GITHUB_SHA\}"/);
 assert.match(workflow, /vscode-sql-beautify-v\$\{VERSION\}\.vsix/);
+assert.match(workflow, /node: \[20, 24\]/,
+    'workflow must smoke the supported Node 20 runtime and Node 24 development lane');
+assert.match(workflow, /npm run test:v2:node-smoke/);
+assert.match(workflow, /npm run test:v2:performance-relative/);
+assert.match(workflow,
+    /github\.event_name == 'workflow_dispatch' \|\| github\.ref == 'refs\/heads\/main'/,
+    'strict relative wall-clock gates must stay off hosted pull requests');
+assert.strictEqual((workflow.match(/npm run verify:clean-package/g) || []).length, 0,
+    'workflow must not duplicate the clean-package step already owned by test:verify');
 
 assert.match(readme, /`postgresql`/);
 assert.doesNotMatch(readme, /`postgres`/);
@@ -142,6 +164,10 @@ try {
         path.join(root, 'scripts', 'verify-release-artifact.js'),
         path.join(cleanRoot, 'scripts', 'verify-release-artifact.js')
     );
+    fs.copyFileSync(
+        path.join(root, 'scripts', 'package-manifest.js'),
+        path.join(cleanRoot, 'scripts', 'package-manifest.js')
+    );
     fs.copyFileSync(artifactPath, path.join(cleanRoot, artifactName));
     assert.strictEqual(fs.existsSync(path.join(cleanRoot, 'dist')), false,
         'release validation fixture must model a fresh checkout without dist');
@@ -158,7 +184,8 @@ try {
     );
     assert.notStrictEqual(orphanImageCheck.status, 0,
         'release verification must reject undeclared repository images');
-    assert.match(orphanImageCheck.stderr, /repository images must contain only explicitly packaged/);
+    assert.match(orphanImageCheck.stderr,
+        /images must contain only shared-manifest production assets/);
 } finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }

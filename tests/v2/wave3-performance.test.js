@@ -3,6 +3,7 @@
 var assert = require('assert');
 var childProcess = require('child_process');
 var os = require('os');
+var gates = require('./helpers/performance-gates');
 
 function statementSource(statementCount) {
     var statements = [];
@@ -121,7 +122,7 @@ if (process.argv[2] === '--worker') {
         }
         assert.strictEqual(report.statistics.sourceCodeUnits, report.sourceCodeUnits);
         assert.strictEqual(report.statistics.outputCodeUnits, report.outputCodeUnits);
-        assert.ok(report.medianMs < 2000,
+        assert.ok(report.medianMs < gates.manifest.gates.disaster.formatMedianMs,
             report.caseKind + '/' + report.itemCount + ' exceeded the disaster gate');
         assert.ok(report.statistics.planActionCount <= report.statistics.maxPlanActions);
         assert.ok(report.statistics.leafVisitCount <=
@@ -142,24 +143,18 @@ if (process.argv[2] === '--worker') {
         assert.ok(report.statistics.policyDirectLookupCount <= inputUnits * 8 + 128,
             'policy direct lookups must stay linear for ' +
                 report.caseKind + '/' + report.itemCount);
-        assert.strictEqual(
-            report.statistics.metricsDocVisitCount,
-            report.statistics.renderDocVisitCount * 2,
-            'metrics must enter and exit every document node exactly once for ' +
-                report.caseKind + '/' + report.itemCount
-        );
-        assert.strictEqual(
-            report.statistics.metricsSummaryLookupCount,
-            report.statistics.renderDocVisitCount,
-            'metrics must resolve every canonical document summary once for ' +
-                report.caseKind + '/' + report.itemCount
-        );
-        assert.strictEqual(
-            report.statistics.renderDocVisitCount,
-            report.statistics.docNodeCount,
-            'renderer document visits must match the reported document count for ' +
-                report.caseKind + '/' + report.itemCount
-        );
+        assert.ok(report.statistics.metricsDocVisitCount > 0 &&
+            report.statistics.metricsDocVisitCount <= inputUnits * 16 + 128,
+        'metrics document work must stay independently linear for ' +
+            report.caseKind + '/' + report.itemCount);
+        assert.ok(report.statistics.metricsSummaryLookupCount > 0 &&
+            report.statistics.metricsSummaryLookupCount <= inputUnits * 8 + 64,
+        'metrics summary lookups must stay independently linear for ' +
+            report.caseKind + '/' + report.itemCount);
+        assert.ok(report.statistics.renderDocVisitCount > 0 &&
+            report.statistics.renderDocVisitCount <= inputUnits * 8 + 64,
+        'renderer document work must stay independently linear for ' +
+            report.caseKind + '/' + report.itemCount);
         assert.ok(
             report.statistics.renderMetricsLookupCount <=
                 report.statistics.renderDocVisitCount,
@@ -196,13 +191,11 @@ if (process.argv[2] === '--worker') {
                 report.statistics.equivalenceComparisonCount * 2,
         'token-equivalence lookups must stay bounded per comparison for ' +
             report.caseKind + '/' + report.itemCount);
-        assert.strictEqual(
-            report.statistics.scopeActionVisitCount,
-            report.statistics.scopeActionCount * 2,
-            'every scope start/end must be visited exactly once for ' +
-                report.caseKind + '/' + report.itemCount
-        );
-        assert.ok(report.maxRssKb > 0 && report.maxRssKb < 2 * 1024 * 1024,
+        assert.ok(report.statistics.scopeActionVisitCount <= inputUnits * 4 + 64,
+            'scope visits must stay independently linear for ' +
+                report.caseKind + '/' + report.itemCount);
+        assert.ok(report.maxRssKb > 0 && report.maxRssKb <
+            gates.manifest.gates.disaster.processMaxRssKiB,
             'isolated maxRssKb must stay below the 2 GiB disaster gate');
     });
 

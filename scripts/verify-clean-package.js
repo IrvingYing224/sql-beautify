@@ -6,10 +6,10 @@ var childProcess = require('child_process');
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
+var manifestApi = require('./package-manifest');
 
 var root = path.join(__dirname, '..');
 var excludedNames = new Set(['.git', '.tmp', 'dist', 'node_modules']);
-var imageFiles = ['images/icon.png'];
 
 function copySource(sourceRoot, targetRoot) {
     fs.cpSync(sourceRoot, targetRoot, {
@@ -40,24 +40,6 @@ function run(command, args, options) {
         }
         throw error;
     }
-}
-
-function expectedPackageFiles(sourceRoot) {
-    assert.deepStrictEqual(
-        fs.readdirSync(path.join(sourceRoot, 'images')).sort(),
-        imageFiles.map(function(fileName) { return path.basename(fileName); }).sort(),
-        'source images must contain only explicitly packaged production assets'
-    );
-    return [
-        'CHANGELOG.md',
-        'LICENSE.txt',
-        'README.md',
-        'dist/extension.cjs',
-        'dist/formatter-worker.cjs',
-        'dist/hive-ddl.cjs',
-        'dist/runtime.cjs',
-        'dist/sql-formatter.cjs'
-    ].concat(imageFiles, ['package.json']).sort();
 }
 
 function verifyInstalledConsumer(consumerRoot) {
@@ -113,7 +95,8 @@ function verifyCleanPackage() {
         assert.ok(jsonStart >= 0, 'npm pack must emit a JSON result array');
         var packResult = JSON.parse(packOutput.slice(jsonStart))[0];
         var packedFiles = packResult.files.map(function(file) { return file.path; }).sort();
-        assert.deepStrictEqual(packedFiles, expectedPackageFiles(sourceRoot),
+        var packageManifest = manifestApi.loadPackageManifest(sourceRoot);
+        assert.deepStrictEqual(packedFiles, packageManifest.npmFiles,
             'npm package must contain the exact production allowlist');
 
         var sourcePackage = require(path.join(sourceRoot, 'package.json'));

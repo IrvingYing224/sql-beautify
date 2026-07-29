@@ -21,13 +21,46 @@ var tokenTable = require(tokenTablePath);
 var analysis = require(analysisPath);
 
 var DIALECTS = Object.freeze(['hive', 'generic', 'postgresql', 'mysql']);
-var FUZZ_SEED = 0x2d202607;
-var GENERATED_CASE_COUNT = 64;
+var DEFAULT_FUZZ_SEED = 0x2d202607;
+var DEFAULT_GENERATED_CASE_COUNT = 64;
+var MAX_GENERATED_CASE_COUNT = 4096;
 var MAX_SOURCE_LENGTH = 4096;
-var MAX_TOTAL_MS = 15000;
+var DEFAULT_MAX_TOTAL_MS = 15000;
 var NODE_FIXED_OVERHEAD = 8;
 var MAX_NODES_PER_SYNTAX_LEAF = 16;
 var SEVERITY_RANK = Object.freeze({ error: 0, warning: 1, info: 2 });
+
+function environmentInteger(name, fallback, minimum, maximum) {
+    var raw = process.env[name];
+    if (raw === undefined || raw === '') {
+        return fallback;
+    }
+    var value = Number(raw);
+    if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+        throw new Error(name + ' must be an integer from ' + minimum +
+            ' through ' + maximum + '; received ' + JSON.stringify(raw));
+    }
+    return value;
+}
+
+var FUZZ_SEED = environmentInteger(
+    'FUZZ_SEED',
+    DEFAULT_FUZZ_SEED,
+    1,
+    0xffffffff
+);
+var GENERATED_CASE_COUNT = environmentInteger(
+    'FUZZ_CASES',
+    DEFAULT_GENERATED_CASE_COUNT,
+    1,
+    MAX_GENERATED_CASE_COUNT
+);
+var MAX_TOTAL_MS = Math.ceil(
+    DEFAULT_MAX_TOTAL_MS * Math.max(
+        1,
+        GENERATED_CASE_COUNT / DEFAULT_GENERATED_CASE_COUNT
+    )
+);
 
 function xorshift32(seed) {
     var state = seed >>> 0;
@@ -353,7 +386,16 @@ var parseCount = 0;
 
 DIALECTS.forEach(function(dialect) {
     corpus.forEach(function(source, index) {
-        verifyCase(source, dialect, index);
+        try {
+            verifyCase(source, dialect, index);
+        } catch (error) {
+            var detail = error && error.stack ? error.stack : String(error);
+            throw new Error(
+                'recovery fuzz failure seed=0x' + FUZZ_SEED.toString(16) +
+                ' FUZZ_CASES=' + GENERATED_CASE_COUNT +
+                ' dialect=' + dialect + ' caseIndex=' + index + ':\n' + detail
+            );
+        }
         parseCount += 4;
     });
 });
@@ -364,6 +406,7 @@ assert.ok(elapsedMs <= MAX_TOTAL_MS,
 
 console.log('v2 Wave 2D deterministic recovery fuzz passed ' + JSON.stringify({
     seed: '0x' + FUZZ_SEED.toString(16),
+    generatedCases: GENERATED_CASE_COUNT,
     dialects: DIALECTS.length,
     casesPerDialect: corpus.length,
     parses: parseCount,

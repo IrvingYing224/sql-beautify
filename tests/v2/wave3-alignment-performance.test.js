@@ -163,10 +163,12 @@ function measureAlignmentStage(source, options) {
             Number(process.hrtime.bigint() - started) / 1e6 / iterations
         );
     }
+    var derived = deriveAlignment(prepared);
     return {
         medianMs: median(samples),
         samplesMs: samples,
-        targetCount: deriveAlignment(prepared).targets.length,
+        targetCount: derived.targets.length,
+        statistics: derived.statistics,
         leafCount: prepared.analysis.leaves.length,
         sourceCodeUnits: prepared.analysis.source.length
     };
@@ -262,16 +264,35 @@ if (process.argv[2] === '--worker') {
         'sparse true-target sample must emit an alignment target');
     assert.ok(stage.denseTrueTarget.targetCount > 0,
         'dense true-target sample must emit alignment targets');
-    assert.ok(
-        stage.sparseFalsePositive.medianMs <
-            stage.denseTrueTarget.medianMs * 0.2,
-        'false-positive alignment work must stay candidate-scoped'
-    );
-    assert.ok(
-        stage.sparseTrueTarget.medianMs <
-            stage.denseTrueTarget.medianMs * 0.2,
-        'true-target alignment work must stay candidate-scoped'
-    );
+    Object.keys(stage).forEach(function(name) {
+        var sample = stage[name];
+        var statistics = sample.statistics;
+        assert.strictEqual(statistics.scopeListItemVisitCount, 1200,
+            name + ' candidate discovery must visit each list item once');
+        assert.ok(statistics.candidateItemCount <= 1200);
+        assert.ok(statistics.scopedLeafVisitCount <= sample.leafCount);
+        assert.ok(statistics.candidateShapeLeafVisitCount <= sample.leafCount);
+        assert.ok(statistics.positionedOffsetVisitCount <=
+            statistics.scopedLeafVisitCount,
+        name + ' positioned offsets must be bounded by scoped leaves');
+    });
+    assert.strictEqual(stage.sparseFalsePositive.statistics.candidateItemCount, 2,
+        'false-positive sample must scope expensive work to two structural candidates');
+    assert.strictEqual(stage.sparseTrueTarget.statistics.candidateItemCount, 2,
+        'sparse true-target sample must scope expensive work to two candidates');
+    assert.strictEqual(stage.denseTrueTarget.statistics.candidateItemCount, 1200,
+        'dense sample must prove that the operation-count oracle distinguishes density');
+    function expensiveWork(sample) {
+        return sample.statistics.scopedLeafVisitCount +
+            sample.statistics.candidateShapeLeafVisitCount +
+            sample.statistics.positionedOffsetVisitCount;
+    }
+    assert.ok(expensiveWork(stage.sparseFalsePositive) * 20 <
+        expensiveWork(stage.denseTrueTarget),
+    'false-positive expensive work must remain deterministically candidate-scoped');
+    assert.ok(expensiveWork(stage.sparseTrueTarget) * 20 <
+        expensiveWork(stage.denseTrueTarget),
+    'sparse true-target expensive work must remain deterministically candidate-scoped');
     console.log('v2 Wave 3 alignment performance ' + JSON.stringify({
         reports: reports,
         candidateScopedStage: stage,

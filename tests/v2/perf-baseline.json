@@ -1,0 +1,69 @@
+{
+    "schemaVersion": 1,
+    "release": {
+        "version": "2.0.1",
+        "commit": "bc08772a20ab94e33978068e738999a2759dacd6"
+    },
+    "compiler": {
+        "strategy": "current-project-local-typescript",
+        "cacheSchemaVersion": 1
+    },
+    "gates": {
+        "minimumBaselineMedianMs": 100,
+        "relativeRatio": 1.2,
+        "rssRatio": 1.5,
+        "disaster": {
+            "formatMedianMs": 2000,
+            "parserProofTotalMs": 1500,
+            "analysisCaseMs": 2500,
+            "processMaxRssKiB": 2097152
+        }
+    },
+    "workers": {
+        "format": {
+            "path": "tests/v2/helpers/format-relative-worker.js",
+            "schema": "format-pipeline-relative-v1",
+            "sha256": "e4a71da070740141311cf9764e3cdbfaf3c869d2baba1210a5b5ab7edd5483b6"
+        },
+        "parser": {
+            "path": "tests/v2/helpers/parser-relative-worker.js",
+            "schema": "parser-relative-v1",
+            "sha256": "b09c39d0289d3b12721e09da974bacece7d21231bb3a0eedfdef1eff8e8a67c5"
+        }
+    },
+    "workloads": {
+        "format": {
+            "schema": "format-source-v2",
+            "warmupRounds": 3,
+            "sampleRounds": 7,
+            "processRounds": 3,
+            "cases": [
+                {
+                    "kind": "statements",
+                    "count": 8000,
+                    "sourceCodeUnits": 102889,
+                    "sourceSha256": "12a733753fc9013a3801678528c8abe4ec44c4dedf9b44f01846783fc20d39f7"
+                },
+                {
+                    "kind": "formatted-list",
+                    "count": 12000,
+                    "sourceCodeUnits": 84895,
+                    "sourceSha256": "21d4525ec98aa9795d288009663963f2db5fb5096f8fdc683afa2f51f94347fd"
+                }
+            ]
+        },
+        "parser": {
+            "schema": "complex-statements-v1",
+            "warmupRounds": 2,
+            "sampleRounds": 5,
+            "processRounds": 3,
+            "cases": [
+                {
+                    "statementCount": 1200,
+                    "sourceCodeUnits": 334799,
+                    "sourceSha256": "494c2437d94268c456e20259b23378106d479078fa5a74e67aefd983bb324720"
+                }
+            ]
+        }
+    }
+}

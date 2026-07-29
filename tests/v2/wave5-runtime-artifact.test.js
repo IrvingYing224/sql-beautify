@@ -1,6 +1,7 @@
 var assert = require('assert');
 var crypto = require('crypto');
 var fs = require('fs');
+var Module = require('module');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
@@ -71,7 +72,140 @@ assert.strictEqual(runtime.runtimeDigest, undefined,
     'runtime implementation must not expose mutable global digest state');
 assert.strictEqual(runtimeDigest.length, 64);
 
+function vscodeActivationStub() {
+    var registrations = [];
+    var disposedDiagnostics = 0;
+    function registration(kind, value) {
+        var disposable = {
+            dispose: function() {
+                disposable.disposed = true;
+            },
+            disposed: false,
+            kind: kind,
+            value: value
+        };
+        registrations.push(disposable);
+        return disposable;
+    }
+    var diagnostics = {
+        clear: function() {},
+        delete: function() {},
+        dispose: function() { disposedDiagnostics += 1; },
+        set: function() {}
+    };
+    return {
+        api: {
+            commands: {
+                registerCommand: function(id, handler) {
+                    return registration('command', { id: id, handler: handler });
+                }
+            },
+            languages: {
+                createDiagnosticCollection: function(name) {
+                    assert.strictEqual(name, 'sqlBeautify');
+                    return diagnostics;
+                },
+                registerDocumentFormattingEditProvider: function(selector, provider) {
+                    return registration('document-provider', { selector: selector, provider: provider });
+                },
+                registerDocumentRangeFormattingEditProvider: function(selector, provider) {
+                    return registration('range-provider', { selector: selector, provider: provider });
+                }
+            },
+            workspace: {
+                getConfiguration: function() {
+                    return { get: function() { return undefined; } };
+                },
+                onDidChangeTextDocument: function(handler) {
+                    return registration('change-listener', handler);
+                },
+                onDidCloseTextDocument: function(handler) {
+                    return registration('close-listener', handler);
+                }
+            },
+            window: {
+                activeTextEditor: null,
+                showErrorMessage: async function() {},
+                showInformationMessage: async function() {},
+                showWarningMessage: async function() {},
+                withProgress: async function(_options, operation) {
+                    return await operation({}, { isCancellationRequested: false });
+                }
+            },
+            env: {
+                language: 'en',
+                clipboard: { writeText: async function() {} }
+            },
+            DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2 },
+            EndOfLine: { LF: 1, CRLF: 2 },
+            ProgressLocation: { Notification: 15 },
+            Position: function Position(line, character) {
+                this.line = line;
+                this.character = character;
+            },
+            Range: function Range(start, end) {
+                this.start = start;
+                this.end = end;
+            },
+            Selection: function Selection(anchor, active) {
+                this.anchor = anchor;
+                this.active = active;
+            },
+            TextEdit: {
+                replace: function(range, text) { return { range: range, newText: text }; }
+            },
+            Diagnostic: function Diagnostic(range, message, severity) {
+                this.range = range;
+                this.message = message;
+                this.severity = severity;
+            }
+        },
+        registrations: registrations,
+        disposedDiagnostics: function() { return disposedDiagnostics; }
+    };
+}
+
+async function smokeExtensionActivation() {
+    var stub = vscodeActivationStub();
+    var originalLoad = Module._load;
+    delete require.cache[extensionPath];
+    Module._load = function(request, parent, isMain) {
+        if (request === 'vscode') {
+            return stub.api;
+        }
+        return originalLoad.call(this, request, parent, isMain);
+    };
+    var extension;
+    try {
+        extension = require(extensionPath);
+    } finally {
+        Module._load = originalLoad;
+    }
+    assert.deepStrictEqual(Object.keys(extension).sort(), ['activate', 'deactivate']);
+    var context = {
+        extension: { packageJSON: { version: require('../../package.json').version } },
+        subscriptions: []
+    };
+    await extension.activate(context);
+    assert.strictEqual(stub.registrations.length, 8,
+        'extension activation must register two listeners, two providers, and four commands');
+    assert.strictEqual(context.subscriptions.length, 9,
+        'extension context must own diagnostics and every registration');
+    await extension.activate(context);
+    assert.strictEqual(stub.registrations.length, 8,
+        'repeated activation must remain idempotent');
+    await extension.deactivate();
+    assert.strictEqual(stub.disposedDiagnostics(), 1,
+        'deactivation must dispose the diagnostic collection');
+    context.subscriptions.forEach(function(disposable) {
+        if (disposable !== undefined && typeof disposable.dispose === 'function') {
+            disposable.dispose();
+        }
+    });
+}
+
 async function main() {
+    await smokeExtensionActivation();
     var calls = 0;
     var injected = new directModule.DirectFormatterExecutor(function(source) {
         calls += 1;

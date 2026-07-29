@@ -1,5 +1,17 @@
 'use strict';
 
+/*
+ * Diagnostic comparison profile for the pre-scope and candidate-scoped
+ * alignment implementations. Example:
+ *
+ *   node scripts/profile-alignment-candidates.js \
+ *     --baseline-root /path/to/baseline/.tmp/v2-core \
+ *     --candidate-root .tmp/v2-core
+ *
+ * The JSON timing report is observational and is not a CI wall-clock gate;
+ * deterministic candidate/leaf operation counts live in the regression tests.
+ */
+
 var assert = require('assert');
 var path = require('path');
 

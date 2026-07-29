@@ -5,15 +5,7 @@ var assert = require('assert');
 var childProcess = require('child_process');
 var fs = require('fs');
 var path = require('path');
-
-var runtimeFiles = [
-    'dist/extension.cjs',
-    'dist/formatter-worker.cjs',
-    'dist/hive-ddl.cjs',
-    'dist/runtime.cjs',
-    'dist/sql-formatter.cjs'
-];
-var imageFiles = ['images/icon.png'];
+var manifestApi = require('./package-manifest');
 
 function argumentValue(args, name) {
     var index = args.indexOf(name);
@@ -52,7 +44,8 @@ function verifyArtifact(artifactPath, options) {
     var settings = options || {};
     var root = settings.root || path.join(__dirname, '..');
     var compareBuild = settings.compareBuild === true;
-    var packageJson = require(path.join(root, 'package.json'));
+    var packageManifest = manifestApi.loadPackageManifest(root);
+    var packageJson = packageManifest.packageJson;
     var packageLock = require(path.join(root, 'package-lock.json'));
     var expectedName = 'vscode-sql-beautify-v' + packageJson.version + '.vsix';
     assert.strictEqual(path.basename(artifactPath), expectedName,
@@ -65,19 +58,7 @@ function verifyArtifact(artifactPath, options) {
 
     var entries = listEntries(artifactPath);
     var entrySet = new Set(entries);
-    var imageEntries = imageFiles.map(function(fileName) {
-        return 'extension/' + fileName;
-    });
-    var expectedEntries = [
-        '[Content_Types].xml',
-        'extension.vsixmanifest',
-        'extension/CHANGELOG.md',
-        'extension/LICENSE.txt',
-        'extension/README.md',
-        'extension/package.json'
-    ].concat(runtimeFiles.map(function(fileName) {
-        return 'extension/' + fileName;
-    }), imageEntries).sort();
+    var expectedEntries = packageManifest.vsixEntries;
     var normalizedEntries = entries.map(function(entry) {
         if (entry === 'extension/changelog.md') {
             return 'extension/CHANGELOG.md';
@@ -89,7 +70,7 @@ function verifyArtifact(artifactPath, options) {
     }).sort();
     assert.deepStrictEqual(normalizedEntries, expectedEntries,
         'VSIX must contain the exact production allowlist');
-    runtimeFiles.forEach(function(fileName) {
+    packageManifest.runtimeFiles.forEach(function(fileName) {
         assert.ok(entrySet.has('extension/' + fileName),
             'VSIX is missing runtime artifact: ' + fileName);
         if (compareBuild) {
@@ -107,12 +88,6 @@ function verifyArtifact(artifactPath, options) {
         assert.notStrictEqual(entry, 'extension/extension.js');
         assert.notStrictEqual(entry, 'extension/vkbeautify.js');
     });
-    assert.deepStrictEqual(
-        fs.readdirSync(path.join(root, 'images')).sort(),
-        imageFiles.map(function(fileName) { return path.basename(fileName); }).sort(),
-        'repository images must contain only explicitly packaged production assets'
-    );
-
     var packedManifest = JSON.parse(unzipText(
         artifactPath,
         'extension/package.json'

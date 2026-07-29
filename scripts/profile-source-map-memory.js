@@ -1,5 +1,13 @@
 'use strict';
 
+/*
+ * Source-map retained-memory and structured-clone diagnostic profile.
+ * Run `npm run test:v2:source-map-memory` for the compact smoke report or
+ * `node scripts/profile-source-map-memory.js --extended` for deeper local
+ * investigation. Absolute timing/allocation values are observational; the
+ * script keeps only broad safety and linear-growth assertions as CI gates.
+ */
+
 var assert = require('assert');
 var childProcess = require('child_process');
 var inspector = require('inspector');

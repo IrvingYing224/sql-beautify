@@ -15,8 +15,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  node-smoke:
+    name: Node ${{ matrix.node }} core/public smoke
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 24]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run core, public facade, and extension activation smoke
+        run: npm run test:v2:node-smoke
+
   build-vsix:
     name: Verify and build VSIX
+    needs: node-smoke
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.package.outputs.version }}
@@ -39,13 +66,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify clean npm package lifecycle
-        run: npm run verify:clean-package
-
-      - name: Run regression tests
+      - name: Run deterministic regression and package lifecycle tests
         env:
           NODE_OPTIONS: --max-old-space-size=4096
         run: npm run test:verify
+
+      - name: Run strict release-relative performance gates
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run test:v2:performance-relative
 
       - name: Read package metadata
         id: package

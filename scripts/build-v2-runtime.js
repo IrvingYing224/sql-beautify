@@ -1,42 +1,88 @@
 #!/usr/bin/env node
 'use strict';
 
+var esbuild = require('esbuild');
 var fs = require('fs');
 var path = require('path');
-var esbuild = require('esbuild');
+var manifestApi = require('./package-manifest');
+var utils = require('./build-v2-utils');
 
 var root = path.join(__dirname, '..');
+var temporaryRoot = path.join(root, '.tmp');
 var outDir = path.join(root, 'dist');
-var artifacts = {
-    runtime: path.join(outDir, 'runtime.cjs'),
-    formatter: path.join(outDir, 'sql-formatter.cjs'),
-    ddl: path.join(outDir, 'hive-ddl.cjs'),
-    worker: path.join(outDir, 'formatter-worker.cjs'),
-    extension: path.join(outDir, 'extension.cjs')
-};
-var obsoleteArtifacts = [
-    'v2-core.cjs',
-    'v2-ddl.cjs',
-    'v2-worker.cjs',
-    'v2-format-bridge.cjs'
-].map(function(fileName) { return path.join(outDir, fileName); });
+var previousDir = path.join(temporaryRoot, 'v2-runtime.previous');
+var lockPath = path.join(temporaryRoot, 'locks', 'build-v2-runtime.lock');
+var stampPath = path.join(temporaryRoot, 'v2-runtime-build-stamp.json');
+var entries = Object.freeze({
+    'runtime.cjs': path.join(root, 'src', 'runtime', 'internal.ts'),
+    'sql-formatter.cjs': path.join(root, 'src', 'runtime', 'index.ts'),
+    'hive-ddl.cjs': path.join(root, 'src', 'runtime', 'experimental-ddl.ts'),
+    'formatter-worker.cjs': path.join(root, 'src', 'adapters', 'executor', 'worker-entry.ts'),
+    'extension.cjs': path.join(root, 'src', 'extension.ts')
+});
 
-function temporary(file) {
-    return file + '.tmp';
+function debugSourceMapsEnabled() {
+    return process.env.SQL_BEAUTIFY_DEBUG_SOURCEMAP === '1';
 }
 
-function removeFiles(files) {
-    var firstError = null;
-    for (var index = 0; index < files.length; index++) {
-        try {
-            fs.rmSync(files[index], { force: true });
-        } catch (error) {
-            firstError = firstError || error;
+function sourceHash(debugSourceMaps) {
+    return utils.contentHash(root, [
+        'src',
+        'scripts/build-v2-runtime.js',
+        'scripts/build-v2-utils.js',
+        'scripts/package-manifest.js',
+        'package.json'
+    ], {
+        schemaVersion: 1,
+        esbuild: require('esbuild/package.json').version,
+        debugSourceMaps: debugSourceMaps
+    });
+}
+
+function expectedNames(debugSourceMaps) {
+    var names = Object.keys(entries);
+    return debugSourceMaps
+        ? names.concat(names.map(function(fileName) { return fileName + '.map'; }))
+        : names;
+}
+
+function validateGeneratedDirectory(directory, debugSourceMaps) {
+    var allowed = new Set(expectedNames(debugSourceMaps));
+    var actual = fs.readdirSync(directory).sort();
+    actual.forEach(function(fileName) {
+        if (!allowed.has(fileName)) {
+            throw new Error('Runtime staging contains an unexpected file: ' + fileName);
         }
+    });
+    Object.keys(entries).forEach(function(fileName) {
+        var artifact = path.join(directory, fileName);
+        if (!fs.existsSync(artifact) || !fs.statSync(artifact).isFile()) {
+            throw new Error('Runtime build did not produce ' + fileName);
+        }
+    });
+}
+
+function validateExistingDist(manifest) {
+    if (!fs.existsSync(outDir)) {
+        return;
     }
-    if (firstError) {
-        throw firstError;
-    }
+    var allowed = new Set(
+        manifest.runtimeFileNames.concat(
+            manifest.runtimeFileNames.map(function(fileName) {
+                return fileName + '.map';
+            }),
+            manifest.obsoleteRuntimeFiles.map(function(fileName) {
+                return path.basename(fileName);
+            })
+        )
+    );
+    fs.readdirSync(outDir).forEach(function(fileName) {
+        if (!allowed.has(fileName)) {
+            throw new Error(
+                'Refusing to replace dist because it contains an unknown file: ' + fileName
+            );
+        }
+    });
 }
 
 function sharedRuntimePlugin() {
@@ -50,61 +96,103 @@ function sharedRuntimePlugin() {
     };
 }
 
-async function build(entryPoint, outfile, extra) {
+async function build(entryPoint, outfile, extra, debugSourceMaps) {
     await esbuild.build(Object.assign({
         entryPoints: [entryPoint],
         bundle: true,
         platform: 'node',
         format: 'cjs',
         target: 'node20',
-        outfile: temporary(outfile),
-        sourcemap: false,
+        outfile: outfile,
+        sourcemap: debugSourceMaps ? 'external' : false,
         minify: false,
         legalComments: 'none',
         logLevel: 'warning'
     }, extra || {}));
 }
 
-var allFiles = Object.keys(artifacts).map(function(key) { return artifacts[key]; });
-var tempFiles = allFiles.map(temporary);
+function isReusable(hash, debugSourceMaps) {
+    var stamp = utils.readJson(stampPath);
+    if (process.env.SQL_BEAUTIFY_BUILD_FORCE === '1' ||
+        stamp === null ||
+        stamp.schemaVersion !== 1 ||
+        stamp.sourceHash !== hash ||
+        stamp.debugSourceMaps !== debugSourceMaps ||
+        !fs.existsSync(outDir)) {
+        return false;
+    }
+    try {
+        validateGeneratedDirectory(outDir, debugSourceMaps);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 async function main() {
+    var manifest = manifestApi.loadPackageManifest(root);
+    var lock = utils.acquireProjectLock(lockPath, 'build:v2-runtime');
+    var stagingRoot = path.join(temporaryRoot, 'v2-runtime.staging-' + utils.token());
+    var stagingDist = path.join(stagingRoot, 'dist');
+    var debugSourceMaps = debugSourceMapsEnabled();
     try {
-        fs.mkdirSync(outDir, { recursive: true });
-        removeFiles(allFiles.concat(tempFiles, obsoleteArtifacts));
-
-        await build(path.join(root, 'src', 'runtime', 'internal.ts'), artifacts.runtime);
-        await build(path.join(root, 'src', 'runtime', 'index.ts'), artifacts.formatter, {
+        utils.recoverDirectorySwap(outDir, previousDir);
+        utils.testHoldMilliseconds('SQL_BEAUTIFY_RUNTIME_BUILD_TEST_HOLD_MS');
+        var hash = sourceHash(debugSourceMaps);
+        if (isReusable(hash, debugSourceMaps)) {
+            console.log('Reused cached v2 runtime build ' + hash.slice(0, 12));
+            return;
+        }
+        validateExistingDist(manifest);
+        fs.mkdirSync(stagingDist, { recursive: true });
+        if (process.env.SQL_BEAUTIFY_BUILD_TEST_FAIL === 'runtime-before-build') {
+            throw new Error('Injected runtime build failure before bundle build');
+        }
+        await build(entries['runtime.cjs'], path.join(stagingDist, 'runtime.cjs'), null,
+            debugSourceMaps);
+        await build(entries['sql-formatter.cjs'], path.join(stagingDist, 'sql-formatter.cjs'), {
             plugins: [sharedRuntimePlugin()]
-        });
-        await build(path.join(root, 'src', 'runtime', 'experimental-ddl.ts'), artifacts.ddl, {
+        }, debugSourceMaps);
+        await build(entries['hive-ddl.cjs'], path.join(stagingDist, 'hive-ddl.cjs'), {
             plugins: [sharedRuntimePlugin()]
-        });
-        await build(path.join(root, 'src', 'adapters', 'executor', 'worker-entry.ts'), artifacts.worker);
-        await build(path.join(root, 'src', 'extension.ts'), artifacts.extension, {
+        }, debugSourceMaps);
+        await build(entries['formatter-worker.cjs'], path.join(stagingDist, 'formatter-worker.cjs'),
+            null, debugSourceMaps);
+        await build(entries['extension.cjs'], path.join(stagingDist, 'extension.cjs'), {
             external: ['vscode']
-        });
-
-        Object.keys(artifacts).forEach(function(key) {
-            fs.renameSync(temporary(artifacts[key]), artifacts[key]);
-        });
+        }, debugSourceMaps);
+        validateGeneratedDirectory(stagingDist, debugSourceMaps);
+        if (process.env.SQL_BEAUTIFY_BUILD_TEST_FAIL === 'runtime-before-publish') {
+            throw new Error('Injected runtime build failure before publish');
+        }
+        utils.publishDirectory(stagingDist, outDir, previousDir);
+        try {
+            utils.writeJsonAtomic(stampPath, {
+                schemaVersion: 1,
+                sourceHash: hash,
+                esbuildVersion: require('esbuild/package.json').version,
+                debugSourceMaps: debugSourceMaps
+            });
+        } catch (error) {
+            console.warn('Runtime artifacts were published completely, but the optional ' +
+                'build cache stamp could not be updated: ' + String(error));
+        }
+        console.log('Built v2 runtime artifacts atomically' +
+            (debugSourceMaps ? ' with external debug source maps' : '') + ': ' +
+            manifest.runtimeFiles.join(', '));
     } catch (error) {
-        removeFiles(allFiles.concat(tempFiles, obsoleteArtifacts));
+        var state = fs.existsSync(outDir)
+            ? 'previous dist was preserved'
+            : 'no previous dist was available';
+        console.error('build:v2-runtime failed; ' + state);
         throw error;
     } finally {
-        removeFiles(tempFiles);
+        fs.rmSync(stagingRoot, { recursive: true, force: true });
+        lock.release();
     }
-
-    console.log('Built Wave 5 runtime artifacts: ' + [
-        path.relative(root, artifacts.runtime),
-        path.relative(root, artifacts.formatter),
-        path.relative(root, artifacts.ddl),
-        path.relative(root, artifacts.worker),
-        path.relative(root, artifacts.extension)
-    ].join(', '));
 }
 
 main().catch(function(error) {
-    console.error(error);
+    console.error(error && error.stack ? error.stack : error);
     process.exitCode = 1;
 });

@@ -7,26 +7,11 @@ var path = require('path');
 var root = path.join(__dirname, '..', '..');
 var packageJson = require(path.join(root, 'package.json'));
 var packageLock = require(path.join(root, 'package-lock.json'));
+var packageManifest = require(path.join(root, 'scripts', 'package-manifest.js'))
+    .loadPackageManifest(root);
 var lockText = fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8');
 
-var expectedArtifacts = [
-    'extension.cjs',
-    'formatter-worker.cjs',
-    'hive-ddl.cjs',
-    'runtime.cjs',
-    'sql-formatter.cjs'
-];
-var expectedFiles = [
-    'dist/extension.cjs',
-    'dist/runtime.cjs',
-    'dist/sql-formatter.cjs',
-    'dist/hive-ddl.cjs',
-    'dist/formatter-worker.cjs',
-    'images/icon.png',
-    'README.md',
-    'CHANGELOG.md',
-    'LICENSE.txt'
-];
+var expectedArtifacts = packageManifest.runtimeFileNames.slice().sort();
 var expectedCommands = [
     'sqlBeautify.copySafeDiagnosticReport',
     'sqlBeautify.extractHiveDdl',
@@ -54,7 +39,7 @@ assert.deepStrictEqual(packageJson.exports, {
     './experimental/ddl': './dist/hive-ddl.cjs',
     './package.json': './package.json'
 });
-assert.deepStrictEqual(packageJson.files, expectedFiles,
+assert.deepStrictEqual(packageJson.files, packageManifest.packageFiles,
     'package files must be the explicit Wave 5 production allowlist');
 assert.deepStrictEqual(fs.readdirSync(path.join(root, 'images')).sort(), ['icon.png'],
     'only the extension icon may remain in the production image directory');

@@ -26,6 +26,16 @@ export interface LayoutAlignmentTarget {
 
 export interface LayoutAlignmentPlan {
     readonly targets: readonly LayoutAlignmentTarget[];
+    readonly statistics: LayoutAlignmentStatistics;
+}
+
+export interface LayoutAlignmentStatistics {
+    readonly commentBindingVisitCount: number;
+    readonly scopeListItemVisitCount: number;
+    readonly candidateItemCount: number;
+    readonly scopedLeafVisitCount: number;
+    readonly candidateShapeLeafVisitCount: number;
+    readonly positionedOffsetVisitCount: number;
 }
 
 interface OutputPosition {
@@ -50,6 +60,12 @@ interface ItemOutputShape {
 interface AlignmentCandidateScope {
     readonly itemIds: ReadonlySet<number>;
     readonly leafRanges: readonly LeafRange[];
+    readonly listItemVisitCount: number;
+}
+
+interface TrailingComments {
+    readonly byItem: ReadonlyMap<number, readonly CommentBinding[]>;
+    readonly bindingVisitCount: number;
 }
 
 interface CanonicalAlignmentProof {
@@ -63,13 +79,17 @@ const CANONICAL_ALIGNMENT_PLANS =
 function canonicalPlan(
     analysis: AnalyzedArtifact,
     options: CanonicalFormatOptions,
-    values: readonly LayoutAlignmentTarget[]
+    values: readonly LayoutAlignmentTarget[],
+    statistics: LayoutAlignmentStatistics
 ): LayoutAlignmentPlan {
     const targets = Object.freeze(values.map((value) => Object.freeze({
         leafId: value.leafId,
         targetColumn: value.targetColumn,
     })));
-    const plan = Object.freeze({ targets });
+    const plan = Object.freeze({
+        targets,
+        statistics: Object.freeze({ ...statistics }),
+    });
     CANONICAL_ALIGNMENT_PLANS.set(
         plan,
         Object.freeze({ analysis, options })
@@ -354,9 +374,10 @@ function explicitAliasCandidate(
 
 function trailingCommentsByItem(
     analysis: AnalyzedArtifact
-): ReadonlyMap<number, readonly CommentBinding[]> | null {
+): TrailingComments | null {
     const mutable = new Map<number, CommentBinding[]>();
-    for (const binding of analysis.index.commentBindings()) {
+    const bindings = analysis.index.commentBindings();
+    for (const binding of bindings) {
         if (binding.placement !== "trailing") {
             continue;
         }
@@ -375,7 +396,10 @@ function trailingCommentsByItem(
     for (const [itemId, values] of mutable) {
         frozen.set(itemId, Object.freeze(values));
     }
-    return frozen;
+    return Object.freeze({
+        byItem: frozen,
+        bindingVisitCount: bindings.length,
+    });
 }
 
 function mergedLeafRanges(values: readonly LeafRange[]): readonly LeafRange[] {
@@ -403,6 +427,7 @@ function candidateScope(
 ): AlignmentCandidateScope {
     const itemIds = new Set<number>();
     const itemsById = new Map<number, ListItemNode>();
+    let listItemVisitCount = 0;
     const flush = (run: ListItemNode[]): void => {
         if (run.length >= 2) {
             for (const item of run) {
@@ -416,6 +441,7 @@ function candidateScope(
         const aliasRun: ListItemNode[] = [];
         const commentRun: ListItemNode[] = [];
         for (const item of list.children) {
+            listItemVisitCount += 1;
             if (item.alias !== null && item.alias.keywordLeafId !== null) {
                 aliasRun.push(item);
             } else {
@@ -443,6 +469,35 @@ function candidateScope(
     return Object.freeze({
         itemIds,
         leafRanges: mergedLeafRanges(ranges),
+        listItemVisitCount,
+    });
+}
+
+function leafRangeSize(ranges: readonly LeafRange[]): number {
+    let size = 0;
+    for (const range of ranges) {
+        size += range.end - range.start;
+    }
+    return size;
+}
+
+function alignmentStatistics(
+    comments: TrailingComments | null,
+    scope: AlignmentCandidateScope | null,
+    candidateItems: readonly ListItemNode[],
+    positionedOffsetVisitCount: number
+): LayoutAlignmentStatistics {
+    return Object.freeze({
+        commentBindingVisitCount: comments?.bindingVisitCount ?? 0,
+        scopeListItemVisitCount: scope?.listItemVisitCount ?? 0,
+        candidateItemCount: scope?.itemIds.size ?? 0,
+        scopedLeafVisitCount:
+            scope === null ? 0 : leafRangeSize(scope.leafRanges),
+        candidateShapeLeafVisitCount: candidateItems.reduce(
+            (total, item) => total + item.leafRange.end - item.leafRange.start,
+            0
+        ),
+        positionedOffsetVisitCount,
     });
 }
 
@@ -515,16 +570,26 @@ export function deriveLayoutAlignmentPlan(
             budget.maxGeneratedColumnsPerLine
         );
         if (maximumTargetColumn <= 0) {
-            return canonicalPlan(analysis, options, []);
+            return canonicalPlan(
+                analysis,
+                options,
+                [],
+                alignmentStatistics(null, null, [], 0)
+            );
         }
         const lists = analysis.index.lists();
         const comments = trailingCommentsByItem(analysis);
         if (comments === null) {
             return null;
         }
-        const scope = candidateScope(lists, comments);
+        const scope = candidateScope(lists, comments.byItem);
         if (scope.itemIds.size === 0) {
-            return canonicalPlan(analysis, options, []);
+            return canonicalPlan(
+                analysis,
+                options,
+                [],
+                alignmentStatistics(comments, scope, [], 0)
+            );
         }
         const outputStarts = sourceLeafOutputStarts(
             analysis,
@@ -621,7 +686,7 @@ export function deriveLayoutAlignmentPlan(
                     shapes.get(item.id) ?? null,
                     outputStarts,
                     positionOf,
-                    comments.get(item.id),
+                    comments.byItem.get(item.id),
                     maximumTargetColumn
                 );
                 const alias = aliasesByItem.get(item.id);
@@ -653,7 +718,17 @@ export function deriveLayoutAlignmentPlan(
                 leftLeafId - rightLeafId
             )
             .map(([leafId, targetColumn]) => ({ leafId, targetColumn }));
-        return canonicalPlan(analysis, options, values);
+        return canonicalPlan(
+            analysis,
+            options,
+            values,
+            alignmentStatistics(
+                comments,
+                scope,
+                candidateItems,
+                outputStarts.size
+            )
+        );
     } catch {
         return null;
     }
