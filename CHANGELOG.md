@@ -4,6 +4,17 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 2.2.0 (2026/07/29)
+* 为嵌套 `QUALIFY` 证明建立请求内缓存与线性预算，资源耗尽按已证明边界 warning + preserve，不再出现指数级解析或把合法预算耗尽误报为内部 artifact 破坏
+* 修复 AS/尾注释零间距、合法宽字段 poison plan、逗号与注释 ownership、statement footer/terminator trivia 和 trailing comma 静默回退；局部降级现在报告 `LAYOUT_COMMA_FALLBACK`
+* 修复 Unicode keyword fold、PostgreSQL operator 热路径、generic `::`、MySQL `@@var` 与 Hive 嵌套 template 边界；显示宽度升级到 Unicode 17.0.0 并尊重 VS Code `tabSize`
+* 接受完整文档与连续完整 statement 选区，非法配置会指出安全的 `sqlBeautify.*` key；移除 `Alt+Shift+F` 默认绑定并补齐中英文 cancel、stale、range、worker 与 host edit 反馈
+* 让 worker runtime mismatch 和可识别 protocol error 快速失败，统一 debug event 上限与 hostile result snapshot，并使用按输入规模计算的 cancellation drain grace
+* 扩展 Experimental Hive DDL：支持可选 `PARTITIONED BY`、六种 `STORED AS` format、`keywordCase`/`commaStyle`/`indentStyle` options，以及继承缩进和 LF/CRLF 的原子 range edit
+* 收敛生产不变量遍历、source-map 查询、diagnostic 去重和 Unicode 宽度热路径；性能门改用单一基线、确定性操作计数与独立 strict relative gate
+* 将 core/runtime build 改为带锁、缓存、staging 和可恢复发布，统一 npm/VSIX allowlist 与声明式串行测试 runner，并在 Node 20/24 上执行公开 facade 和 extension activation smoke
+* 公开生产 corpus 扩为 25 个 manifest case；完整升级与回退边界见 `docs/migration-to-2.2.md`
+
 ### 2.1.0 (2026/07/26)
 * 为 CRLF、lone CR、BOM 和 trailing comma + 行尾注释建立 lossless、幂等且 source-map 单调的格式化边界
 * 将主 formatter 的单个完整文档或 target 上限固定为 524,288 个 UTF-16 code units，并以源码长度与 leaf 数双阈值路由 direct / persistent worker

@@ -88,6 +88,12 @@ function read_public_manifest() {
 		files[entry.file] = true;
 		assert.ok(entry.options && typeof entry.options === 'object' && !Array.isArray(entry.options),
 			entry.id + ' options');
+		assert.ok(
+			entry.operation === undefined ||
+				entry.operation === 'formatSql' ||
+				entry.operation === 'formatHiveDdl',
+			entry.id + ' public operation'
+		);
 		assert.ok(entry.expected && typeof entry.expected === 'object',
 			entry.id + ' expected contract');
 		assert.ok(['formatted', 'unchanged', 'preserved', 'failed']
@@ -95,6 +101,10 @@ function read_public_manifest() {
 		assert.ok(Array.isArray(entry.expected.codes), entry.id + ' expected codes');
 		assert.ok(Array.isArray(entry.expected.capabilities),
 			entry.id + ' expected capabilities');
+		if (entry.expected.diagnostics !== undefined) {
+			assert.ok(Array.isArray(entry.expected.diagnostics),
+				entry.id + ' expected diagnostic facts');
+		}
 	});
 	var actualFiles = list_sql_files(publicRoot).map(function(sqlPath) {
 		return normalize_slashes(path.relative(publicRoot, sqlPath));
@@ -108,13 +118,17 @@ function read_public_manifest() {
 function load_public_cases() {
 	return read_public_manifest().cases.map(function(entry) {
 		var sqlPath = path.join(publicRoot, entry.file);
+		var operation = entry.operation || 'formatSql';
 		return {
 			name: entry.id,
 			sqlPath: sqlPath,
 			relativePath: entry.file,
 			optionsPath: publicManifestPath,
 			sql: read_text(sqlPath),
-			options: Object.assign({}, DEFAULT_OPTIONS, entry.options),
+			operation: operation,
+			options: operation === 'formatHiveDdl'
+				? Object.assign({}, entry.options)
+				: Object.assign({}, DEFAULT_OPTIONS, entry.options),
 			expected: entry.expected,
 			minimumBytes: entry.minimumBytes || null
 		};
@@ -128,7 +142,10 @@ function load_private_cases(root) {
 }
 
 function format_case(sqlFormatter, testCase) {
-	return sqlFormatter.formatSql(testCase.sql, testCase.options);
+	var operation = testCase.operation || 'formatSql';
+	assert.strictEqual(typeof sqlFormatter[operation], 'function',
+		testCase.name + ' public operation must exist');
+	return sqlFormatter[operation](testCase.sql, testCase.options);
 }
 
 function assert_diagnostics_shape(diagnostics, caseName) {
@@ -193,6 +210,17 @@ function assert_formatted_contract(sqlFormatter, testCase, result) {
 			return item.capabilityId;
 		}).filter(Boolean), testCase.expected.capabilities,
 			testCase.name + ' exact diagnostic capabilities');
+		if (testCase.expected.diagnostics) {
+			assert.strictEqual(result.diagnostics.length,
+				testCase.expected.diagnostics.length,
+				testCase.name + ' exact diagnostic fact count');
+			testCase.expected.diagnostics.forEach(function(expected, index) {
+				Object.keys(expected).forEach(function(key) {
+					assert.deepStrictEqual(result.diagnostics[index][key], expected[key],
+						testCase.name + ' diagnostic ' + index + ' ' + key);
+				});
+			});
+		}
 		if (testCase.expected.exactText) {
 			assert.strictEqual(result.text, testCase.sql,
 				testCase.name + ' must preserve exact source bytes');

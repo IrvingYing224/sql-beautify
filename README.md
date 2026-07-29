@@ -8,7 +8,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 
 最低支持 VS Code `1.90.0`。
 
-从 1.x 或 2.0.x 升级时，请先阅读 [2.1 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.1.0/docs/migration-to-2.1.md)。
+从 1.x、2.0.x 或 2.1.x 升级时，请先阅读 [2.2 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.2.0/docs/migration-to-2.2.md)。
 
 ## 这个扩展做什么
 
@@ -63,6 +63,8 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 已建模区域会应用 `sqlBeautify.keywordCase`；verbatim 区域始终保留原文，因此其中的关键词大小写不会被改写。主 formatter 的单个完整文档或 target 上限为 524,288 个 UTF-16 code units；超限输入会保留完整原文且不提交编辑。
 
+格式化时的 tab stop 来自 VS Code 的 `FormattingOptions.tabSize` 或活动编辑器设置，并同时用于 direct/worker 的显示宽度与对齐计算。公开 Node.js `formatSql()` 使用默认 tab stop 4，`tabSize` 不是它的公开 option。非法 `sqlBeautify.*` 配置会发布安全的 `CFG_*` 诊断；手动命令会在配置 key 可安全识别时指出具体设置，不再静默跳过。
+
 ## Experimental 能力
 
 ### Hive DDL formatting
@@ -87,8 +89,9 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 - `unsupportedSyntaxPolicy=warn` 会继续格式化周边 SQL，并在 VS Code 中给出 warning。
 - `unsupportedSyntaxPolicy=preserve` 使用相同的安全输出，但不在编辑器中显示 capability warning；手动执行 `SQL Beautify: Format SQL` 且因未建模区域没有修改时，会显示一次不含 SQL 内容的汇总提示。format provider 与 format-on-save 不弹出该提示。
 - `unsupportedSyntaxPolicy=bail_out` 会在遇到未建模语法时直接拒绝格式化。
+- parser 或 layout 的有界资源预算耗尽时会保留已证明 target 的完整原文并报告 warning，不会提交部分布局；这与内部不变量破坏的 hard failure 是不同边界。
 - Hive 的 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、主 formatter 中的 DDL、`UPDATE` 和 `DELETE` 目前明确按 verbatim 保留，不宣称已格式化；完整边界以生成的 support matrix 为准。
-- 选区格式化只接受边界完整的整行片段；不安全片段会被拒绝，而不是猜测性改写。
+- 选区格式化接受完整文档、完整单句或两个以上连续完整 statement；半条 statement、跨 protected/opaque 边界或结构不完整的片段会被拒绝，而不是猜测性改写。
 - `sqlBeautify.debugDiagnostics=true` 会在本地扩展宿主控制台输出 opt-in 调试事件，可能包含 SQL 片段、错误栈和本地文件路径；只在可以接受这些信息暴露到控制台时启用。编辑器诊断和 `Copy Safe Diagnostic Report` 不包含这些调试事件。
 
 [Release Notes](https://github.com/IrvingYing224/sql-beautify/blob/main/CHANGELOG.md)

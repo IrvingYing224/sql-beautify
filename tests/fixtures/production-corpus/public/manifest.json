@@ -38,6 +38,28 @@
             "expected": { "status": "formatted", "codes": [], "capabilities": [] }
         },
         {
+            "id": "hive-ddl-modeled-suffix",
+            "file": "hive-ddl-modeled-suffix.sql",
+            "operation": "formatHiveDdl",
+            "options": { "keywordCase": "lower", "commaStyle": "trailing", "indentStyle": "tab" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-ddl-unknown-storage",
+            "file": "hive-ddl-unknown-storage.sql",
+            "operation": "formatHiveDdl",
+            "options": { "keywordCase": "upper", "commaStyle": "leading", "indentStyle": "space" },
+            "expected": {
+                "status": "preserved",
+                "codes": ["DDL_STORAGE_FORMAT"],
+                "capabilities": [],
+                "diagnostics": [
+                    { "code": "DDL_STORAGE_FORMAT", "severity": "warning", "recovery": "preserve-target", "capabilityId": null }
+                ],
+                "exactText": true
+            }
+        },
+        {
             "id": "hive-insert-into",
             "file": "hive-insert-into.sql",
             "options": { "dialect": "hive" },
@@ -49,6 +71,21 @@
             "minimumBytes": 4096,
             "options": { "dialect": "hive", "commaStyle": "leading" },
             "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "hive-nested-qualify-budget",
+            "file": "hive-nested-qualify-budget.sql",
+            "options": { "dialect": "hive", "unsupportedSyntaxPolicy": "warn" },
+            "expected": {
+                "status": "unchanged",
+                "codes": ["SYN_PROOF_BUDGET", "SYN_PROOF_BUDGET"],
+                "capabilities": ["qualify", "qualify"],
+                "diagnostics": [
+                    { "code": "SYN_PROOF_BUDGET", "severity": "warning", "recovery": "preserve-statement", "capabilityId": "qualify" },
+                    { "code": "SYN_PROOF_BUDGET", "severity": "warning", "recovery": "preserve-statement", "capabilityId": "qualify" }
+                ],
+                "exactText": true
+            }
         },
         {
             "id": "hive-preserve-ddl",
@@ -93,6 +130,12 @@
             "expected": { "status": "formatted", "codes": [], "capabilities": [] }
         },
         {
+            "id": "hive-statement-sequence",
+            "file": "hive-statement-sequence.sql",
+            "options": { "dialect": "hive", "keywordCase": "upper", "commaStyle": "leading" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
             "id": "hive-template-variables",
             "file": "hive-template-variables.sql",
             "options": { "dialect": "hive" },
@@ -108,6 +151,12 @@
             "id": "postgres-json-dollar",
             "file": "postgres-json-dollar.sql",
             "options": { "dialect": "postgresql" },
+            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+        },
+        {
+            "id": "postgresql-unicode-width",
+            "file": "postgresql-unicode-width.sql",
+            "options": { "dialect": "postgresql", "keywordCase": "lower", "commaStyle": "leading", "indentStyle": "tab", "maxAlignWidth": 500 },
             "expected": { "status": "formatted", "codes": [], "capabilities": [] }
         },
         {

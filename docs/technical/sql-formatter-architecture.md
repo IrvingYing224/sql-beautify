@@ -1,6 +1,6 @@
 # SQL Formatter Architecture
 
-This document defines the maintained SQL Beautify 2.x architecture. User-facing behavior belongs in `README.md`; upgrade steps belong in `docs/migration-to-2.1.md`.
+This document defines the maintained SQL Beautify 2.x architecture. User-facing behavior belongs in `README.md`; upgrade steps belong in `docs/migration-to-2.2.md`.
 
 ## Source and dependency boundaries
 
@@ -33,9 +33,9 @@ flowchart LR
 
 Leaves partition the original JavaScript string by end-exclusive UTF-16 code-unit offsets. Comments, strings, quoted identifiers, parameters, dialect literals, and opaque/verbatim structures retain their exact source slices. Offset-zero BOM is an immutable trivia leaf. One request-level render environment owns generated LF, CRLF, or lone-CR line breaks; verbatim slices retain their original line endings. No global whitespace or SQL regular-expression pass is allowed after rendering.
 
-Parser recovery is deliberately bounded. When the formatter can prove a construct boundary, it may preserve that range verbatim; when it can only prove a statement or target boundary, it preserves the broader unit. It never guesses through an unbounded malformed structure.
+Parser recovery is deliberately bounded. Unsupported-clause trials use a request-local typed cache and charge range work against a linear budget derived from syntax-leaf count. When the formatter can prove a construct boundary, it may preserve that range verbatim; when it can only prove a statement or target boundary, it preserves the broader unit. Proof-budget exhaustion retains capability identity and never guesses through an unbounded malformed structure.
 
-Analysis constructs parent/ancestor, statement/clause, list/separator, trivia, offset, and dialect capability indexes once. Layout and renderer code query those indexes instead of repeatedly rescanning all leaves or nodes. Resource-budget and performance tests guard against accidental superlinear work.
+Analysis constructs parent/ancestor, statement/clause, list/separator, trivia, offset, and dialect capability indexes once. Layout and renderer code query those indexes instead of repeatedly rescanning all leaves or nodes. Typed layout resource exhaustion is a warning plus exact-target preservation; provenance, illegal source gaps, token-equivalence, and other artifact failures remain hard failures. Resource-budget and performance tests guard against accidental superlinear work.
 
 ## Public result contract
 
@@ -46,7 +46,7 @@ Analysis constructs parent/ancestor, statement/clause, list/separator, trivia, o
 - `preserved`: exact original text and diagnostics, without a source map;
 - `failed`: exact original text and diagnostics, without a source map.
 
-Canonical options are `dialect`, `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `caseLayout`, and `unsupportedSyntaxPolicy`. The default dialect is `hive`; the default unsupported policy is `warn`. Proxies, accessors, exotic option objects, unknown keys, and invalid values fail closed.
+Canonical options are `dialect`, `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `caseLayout`, and `unsupportedSyntaxPolicy`. The default dialect is `hive`; the default unsupported policy is `warn`. Proxies, accessors, exotic option objects, unknown keys, and invalid values fail closed. `tabSize` belongs to the internal render environment rather than the public formatter options; VS Code supplies it from formatting/editor state and the value API defaults it to four.
 
 One complete formatting document or target may contain at most 524,288 JavaScript UTF-16 code units. The public formatter returns `preserved` with exact input and `FMT_INPUT_LIMIT` above that boundary; adapters reject the complete transaction with `ADAPTER_INPUT_LIMIT`. This is not a UTF-8 byte limit. Verbatim ranges are atomic source emissions and never participate in keyword-case rewriting.
 
@@ -78,7 +78,7 @@ Document, range, and multi-selection formatting share one transaction sequence:
 
 Range formatting only accepts complete, structurally safe fragments. Any cancellation, stale state, preservation, failure, malformed executor response, or host rejection returns no partial edits. Selection direction is preserved through the validated source map.
 
-Requests with fewer than 8,192 source code units and fewer than 2,000 leaves may use the direct executor. Other supported requests use one persistent worker. Range validation and target formatting share the same routed executor; a worker validates the complete document before formatting any fragments. Both paths load `dist/runtime.cjs`; requests bind identity, generation, version, target, source digest, and runtime digest. The worker uses an enqueue-based 60-second deadline and a 200 ms active-cancellation drain grace. Timeout, crash, malformed or stale responses, backpressure, cancellation, and disposal fail closed.
+Requests with fewer than 8,192 source code units and fewer than 2,000 leaves may use the direct executor. Other supported requests use one persistent worker. Range validation and target formatting share the same routed executor; a worker validates the complete document before formatting any fragments. Both paths load `dist/runtime.cjs`; requests bind identity, generation, version, target, source digest, and runtime digest. The worker uses an enqueue-based 60-second deadline and a size-aware active-cancellation drain grace of `min(2,000 ms, 200 ms + ceil(sourceCodeUnits / 1,024) × 3 ms)`. Runtime skew and identifiable protocol errors settle immediately; timeout, crash, malformed or stale responses, backpressure, cancellation, and disposal fail closed.
 
 The VS Code adapter only handles the explicit `sql` and `hive-sql` language IDs. It reads `sqlBeautify.*` at the document/language scope, publishes safe diagnostics, and registers only the four `sqlBeautify.*` commands declared in `package.json`. With `unsupportedSyntaxPolicy=preserve`, capability diagnostics remain absent from the editor; only the explicit Format SQL command may show one aggregate information message when no safe edit is available. Providers and format-on-save never show that message.
 
@@ -92,11 +92,11 @@ Hive `EXPLAIN`, `GROUPING SETS`, `TRANSFORM`, DDL, `UPDATE`, and `DELETE` are re
 
 ## Experimental Hive DDL
 
-The DDL formatter accepts only a fully consumed Hive `CREATE TABLE` subset. It preserves complete input for comments, constraints, defaults, unknown suffixes, malformed delimiters, and multiple statements.
+The DDL formatter accepts only a fully consumed Hive `CREATE TABLE` subset. After the column list it accepts optional `PARTITIONED BY (...)` and `STORED AS <format>` in that order; storage is limited to AVRO, ORC, PARQUET, RCFILE, SEQUENCEFILE, and TEXTFILE. Its optional plain-data options are `keywordCase`, `commaStyle`, and `indentStyle`. It preserves complete input for comments, constraints, defaults, unknown or out-of-order suffixes, malformed delimiters, and multiple statements.
 
 Extract DDL consumes query CST ownership and requires one complete, unambiguous projection schema. Wildcards, unresolved expressions without aliases, duplicate Hive output names, malformed aliases, and set-branch schema mismatches reject the entire operation. The only wildcard scalar accepted by projection safety is exact `count(*)`. No type inference is claimed; the default output type is `__TYPE_REQUIRED__`.
 
-DDL command batches use their own all-or-nothing transaction. Only diagnostic-free, non-empty `formatted`/`unchanged` or `extracted` results reach the host commit. DDL has no semantic source map: selection recovery uses an explicit offset/delta/clamp mapping and must not be described as equivalent to query source-map recovery.
+DDL command batches use their own all-or-nothing transaction. Range replacements inherit the first-line base indentation, use the document LF/CRLF environment, and consume bounded trailing horizontal whitespace/EOL without leaving partial edits. Only diagnostic-free, non-empty `formatted`/`unchanged` or `extracted` results reach the host commit. DDL has no semantic source map: selection recovery uses an explicit offset/delta/clamp mapping and must not be described as equivalent to query source-map recovery.
 
 ## Production artifacts and packaging
 
@@ -108,15 +108,20 @@ DDL command batches use their own all-or-nothing transaction. Only diagnostic-fr
 - `dist/formatter-worker.cjs`: persistent worker entry;
 - `dist/extension.cjs`: VS Code host wiring.
 
-`package.json.files` is the package and VSIX allowlist. Only the five runtime artifacts, extension icon, package metadata, README, CHANGELOG, and license may ship. Source, tests, scripts, technical docs, agent files, dependencies, historical plans, and temporary output must not enter the VSIX. `prepack` builds runtime artifacts so a clean checkout cannot produce a package with dangling `main` or `exports`.
+Core and runtime builds use project-local ownership locks, content/toolchain hash stamps, unique staging directories, and recoverable directory swaps. A cache hit skips compilation; a failed build retains the last complete artifact set. `SQL_BEAUTIFY_DEBUG_SOURCEMAP=1` emits external maps for local debugging, while normal builds and the package allowlist exclude them.
+
+`scripts/package-manifest.js` is the shared npm/VSIX/cutover allowlist authority. `package.json.files` allows only the five runtime artifacts, extension icon, package metadata, README, CHANGELOG, and license. Source, tests, scripts, technical docs, agent files, dependencies, historical plans, source maps, and temporary output must not enter the VSIX. `prepack` builds runtime artifacts so a clean checkout cannot produce a package with dangling `main` or `exports`.
 
 PR/push CI runs with `contents: read`. Only the manual `main` release job receives `contents: write`. Release gates require package, lockfile, VSIX manifest, VSIX filename, tag, workflow SHA, `origin/main`, and GitHub Release target to identify the same version and commit.
+
+`scripts/v2-suite-manifest.js` is the declarative test-plan authority and `scripts/run-v2-suite.js` executes its deduplicated steps serially, so canonical typecheck/core/runtime prerequisites run once per aggregate. `tests/v2/perf-baseline.json` is the single strict relative-performance baseline contract; hosted pull requests use deterministic operation/disaster gates, while `main` and manual workflows also run wall-clock relative checks. Node 20 and Node 24 both load the core, public facades, and extension activation bundle before release.
 
 ## Maintained verification gates
 
 - `npm run typecheck:v2`: strict TypeScript contracts;
 - `npm run test:v2:wave1` through `npm run test:v2:wave5`: lexer, CST, analysis, layout, renderer, adapter, DDL, cutover, packaging, property, and performance gates;
 - `npm run test:verify`: the complete maintained regression aggregate;
+- `npm run test:v2:performance-relative`: strict release-relative wall-clock and RSS gates;
 - `npm run verify:clean-package`: isolated clean-source npm package lifecycle and public facade smoke;
 - `npm run package:vsix`: build, package, and inspect the versioned VSIX;
 - `npm exec -- vsce ls --tree --no-dependencies`: human-readable package inventory;

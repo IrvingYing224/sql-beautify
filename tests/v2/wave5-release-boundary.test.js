@@ -23,6 +23,8 @@ var architecture = fs.readFileSync(
 );
 
 assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
+assert.strictEqual(packageJson.version, '2.2.0',
+    'the unified audit remediation candidate must be 2.2.0');
 assert.strictEqual(packageLock.version, packageJson.version);
 assert.strictEqual(packageLock.packages[''].version, packageJson.version);
 assert.strictEqual(packageJson.scripts.prepack, 'node scripts/build-v2-runtime.js');
@@ -79,6 +81,14 @@ assert.match(readme, /debugDiagnostics=true.*SQL 片段.*本地文件路径/,
     'README must disclose opt-in debug console content');
 assert.match(readme, /INSERT INTO.*`SET`|`SET`.*INSERT INTO/,
     'README must describe the new bounded Hive command support');
+assert.match(readme, /标准 `Format Document` \/ `Format Selection`/,
+    'README must use the standard VS Code formatter entry');
+assert.doesNotMatch(readme, /`Alt\+Shift\+F`/,
+    'README must not advertise the removed default formatter keybinding');
+assert.match(readme, /PARTITIONED BY.*STORED AS|STORED AS.*PARTITIONED BY/,
+    'README must disclose the modeled Hive DDL suffixes');
+assert.match(readme, /`hive-sql` language id 由第三方 Hive 语言扩展提供/,
+    'README must disclose the third-party hive-sql language dependency');
 assert.match(packageJson.description, /Hive-first SQL formatter with lossless token handling/,
     'Marketplace description must describe the current formatter');
 assert.match(
@@ -107,7 +117,16 @@ assert.match(readme, /`sqlBeautify\.unsupportedSyntaxPolicy` \| `preserve` \/ `w
     'keywordCase',
     'debugDiagnostics',
     'INSERT INTO',
-    'SET'
+    'SET',
+    'SYN_PROOF_BUDGET',
+    'LAYOUT_COMMA_FALLBACK',
+    'Unicode 17.0.0',
+    'tabSize',
+    'PARTITIONED BY',
+    'STORED AS',
+    'Node 20',
+    'Node 24',
+    '2.1.0'
 ].forEach(function(value) {
     assert.ok(migration.indexOf(value) >= 0, 'migration guide must mention ' + value);
 });
@@ -118,6 +137,11 @@ assert.match(architecture, /fewer than 8,192 source code units and fewer than 2,
 assert.match(architecture, /`debugDiagnostics` is an opt-in internal execution channel/);
 assert.match(architecture, /DDL has no semantic source map/);
 assert.match(architecture, /Hive `EXPLAIN`, `GROUPING SETS`, `TRANSFORM`, DDL, `UPDATE`, and `DELETE`/);
+assert.match(architecture, /size-aware active-cancellation drain grace/);
+assert.match(architecture, /tests\/v2\/perf-baseline\.json/);
+assert.match(architecture, /scripts\/v2-suite-manifest\.js/);
+assert.match(architecture, /scripts\/package-manifest\.js/);
+assert.match(architecture, /Node 20 and Node 24/);
 assert.doesNotMatch(architecture, /`lib\//);
 assert.doesNotMatch(architecture, /vkbeautify/);
 
