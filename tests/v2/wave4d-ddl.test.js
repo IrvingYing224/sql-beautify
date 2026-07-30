@@ -3,6 +3,7 @@
 var assert = require('assert');
 var ddl = require('../../.tmp/v2-core/experimental/ddl');
 var lexer = require('../../.tmp/v2-core/core/lexer/lossless-lexer');
+var displayWidth = require('../../.tmp/v2-core/core/renderer/display-width');
 var fixtures = require('../fixtures/v2-wave4-ddl');
 
 assert.strictEqual(
@@ -70,6 +71,9 @@ assert.strictEqual(ddl.formatHiveDdl(optionResult.text, {
     { keywordCase: 'title' },
     { commaStyle: 'middle' },
     { indentStyle: 'mixed' },
+    { maxAlignWidth: 0 },
+    { maxAlignWidth: 501 },
+    { maxAlignWidth: 1.5 },
     { dialect: 'hive' },
     null
 ].forEach(function(options) {
@@ -91,6 +95,47 @@ assert.strictEqual(
     ddl.formatHiveDdl('CREATE TABLE t (a INT)', new Proxy({}, {})).diagnostics[0].code,
     'DDL_OPTIONS'
 );
+
+var unicodeAlignment = ddl.formatHiveDdl(
+    'CREATE TABLE t (`中` STRING, ascii STRING)'
+);
+assert.strictEqual(unicodeAlignment.status, 'formatted');
+assert.strictEqual(unicodeAlignment.text, [
+    'CREATE TABLE t',
+    '(',
+    '     `中`  STRING',
+    '    ,ascii STRING',
+    ')',
+    ''
+].join('\n'), 'DDL alignment must use display columns rather than UTF-16 length');
+
+var unicodeWidthMatrix = ddl.formatHiveDdl(
+    'CREATE TABLE t (`🙂` STRING, `e\u0301` STRING, `a\tb` STRING, ascii STRING)'
+);
+assert.strictEqual(unicodeWidthMatrix.status, 'formatted');
+var unicodeTypeColumns = unicodeWidthMatrix.text.split('\n').filter(function(line) {
+    return line.indexOf(' STRING') >= 0;
+}).map(function(line) {
+    var typeOffset = line.lastIndexOf('STRING');
+    return displayWidth.displayWidth(line.slice(0, typeOffset), 0, 4);
+});
+assert.strictEqual(unicodeTypeColumns.length, 4);
+assert.strictEqual(new Set(unicodeTypeColumns).size, 1,
+    'emoji, combining and tab identifiers must align on one display column');
+
+var wideName = new Array(10001).join('x');
+var wideColumns = ['`' + wideName + '` STRING'];
+for (var wideIndex = 0; wideIndex < 1000; wideIndex++) {
+    wideColumns.push('c' + wideIndex + ' STRING');
+}
+var wideSource = 'CREATE TABLE t (' + wideColumns.join(',') + ')';
+var wideResult = ddl.formatHiveDdl(wideSource);
+assert.strictEqual(wideResult.status, 'formatted');
+assert.ok(wideResult.text.length < wideSource.length * 5,
+    'wide DDL alignment output must remain linear, got ' +
+    wideResult.text.length + ' from ' + wideSource.length);
+assert.ok(wideResult.text.indexOf('c0 STRING') >= 0,
+    'over-budget alignment must degrade to one required separator space');
 
 var parserPath = require.resolve('../../.tmp/v2-core/core/syntax/parser');
 var hiveFormatterPath = require.resolve('../../.tmp/v2-core/experimental/ddl/hive-ddl');

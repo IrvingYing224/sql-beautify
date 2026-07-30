@@ -19,6 +19,7 @@ export interface HiveDdlFormatOptions {
     readonly keywordCase?: KeywordCase;
     readonly commaStyle?: CommaStyle;
     readonly indentStyle?: IndentStyle;
+    readonly maxAlignWidth?: number;
 }
 
 /** Internal execution envelope; it is not re-exported by the public DDL facade. */

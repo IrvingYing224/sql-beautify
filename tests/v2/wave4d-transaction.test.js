@@ -442,6 +442,68 @@ async function main() {
     assert.strictEqual(/(^|[^\r])\n/.test(indentedCrlf.result.edits[0].text), false,
         'CRLF replacement must not contain lone LF');
 
+    var literalQuote = String.fromCharCode(39);
+    var literalSpaceSource = 'CREATE TABLE t (a STRING COMMENT ' +
+        literalQuote + 'x  \ny' + literalQuote + ')';
+    var literalSpace = await runOperation(
+        literalSpaceSource,
+        ddl.formatHiveDdl,
+        { newline: '\n' }
+    );
+    assert.strictEqual(literalSpace.result.status, 'ready');
+    assert.ok(literalSpace.result.edits[0].text.indexOf(
+        literalQuote + 'x  \ny' + literalQuote
+    ) >= 0, 'DDL transaction must preserve line-end spaces inside string literals');
+
+    var literalLfSource = 'CREATE TABLE t (a STRING COMMENT ' +
+        literalQuote + 'x\ny' + literalQuote + ')';
+    var literalCrlf = await runOperation(
+        literalLfSource,
+        ddl.formatHiveDdl,
+        { newline: '\r\n' }
+    );
+    assert.strictEqual(literalCrlf.result.status, 'ready');
+    assert.ok(literalCrlf.result.edits[0].text.indexOf(
+        literalQuote + 'x\ny' + literalQuote
+    ) >= 0, 'document CRLF normalization must not rewrite literal LF bytes');
+
+    var indentedLiteralSource = '    ' + literalLfSource;
+    var indentedLiteral = await runOperation(
+        indentedLiteralSource,
+        ddl.formatHiveDdl,
+        { newline: '\n' },
+        [target(
+            indentedLiteralSource,
+            'indented-literal',
+            4,
+            indentedLiteralSource.length
+        )]
+    );
+    assert.strictEqual(indentedLiteral.result.status, 'ready');
+    assert.ok(indentedLiteral.result.edits[0].text.indexOf(
+        literalQuote + 'x\ny' + literalQuote
+    ) >= 0, 'selection indentation must not be injected inside string literals');
+
+    var protectedLeafSource = 'CREATE TABLE t (a INT)';
+    var protectedLeafOutput = 'CREATE TABLE t\n(\n `a\nb` INT /*x  \ny*/\n)\n';
+    var protectedLeafResult = await runOperation(
+        protectedLeafSource,
+        function(source) {
+            return Object.freeze({
+                status: 'formatted',
+                source: source,
+                text: protectedLeafOutput,
+                diagnostics: Object.freeze([])
+            });
+        },
+        { newline: '\r\n' }
+    );
+    assert.strictEqual(protectedLeafResult.result.status, 'ready');
+    assert.ok(protectedLeafResult.result.edits[0].text.indexOf('`a\nb`') >= 0,
+        'quoted identifier EOL must remain protected from document normalization');
+    assert.ok(protectedLeafResult.result.edits[0].text.indexOf('/*x  \ny*/') >= 0,
+        'block comment EOL and trailing spaces must remain protected');
+
     var largeValues = [];
     var largeTargets = [];
     var largeOffset = 0;

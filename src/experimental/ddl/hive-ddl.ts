@@ -15,6 +15,7 @@ import {
 } from "../../core/syntax/parser";
 import { splitTopLevelTypeItems } from "../../core/syntax/type-cursor";
 import { ddlDiagnostic, hiveDdlResult } from "./result";
+import { alignmentPaddings, ddlOutputWithinBudget } from "./alignment";
 import {
     resolveHiveDdlFormatOptions,
     type ResolvedHiveDdlFormatOptions,
@@ -593,15 +594,24 @@ function renderColumns(
               }`;
         return Object.freeze({ name, type, comment });
     });
-    const maxName = rows.reduce((value, row) => Math.max(value, row.name.length), 0);
+    const prefixes = rows.map((_, index) => options.commaStyle === "leading"
+        ? index === 0 ? `${indent} ` : `${indent},`
+        : indent);
+    const paddings = alignmentPaddings(
+        rows.map((row, index) => Object.freeze({
+            prefix: prefixes[index]!,
+            name: row.name,
+        })),
+        cst.artifact.source.length,
+        options.maxAlignWidth
+    );
     return Object.freeze(rows.map((row, index) => {
-        const padding = " ".repeat(maxName - row.name.length + 1);
+        const padding = " ".repeat(paddings[index]!);
         if (options.commaStyle === "leading") {
-            const prefix = index === 0 ? `${indent} ` : `${indent},`;
-            return `${prefix}${row.name}${padding}${row.type}${row.comment}`;
+            return `${prefixes[index]!}${row.name}${padding}${row.type}${row.comment}`;
         }
         const comma = index + 1 < rows.length ? "," : "";
-        return `${indent}${row.name}${padding}${row.type}${row.comment}${comma}`;
+        return `${prefixes[index]!}${row.name}${padding}${row.type}${row.comment}${comma}`;
     }));
 }
 
@@ -677,7 +687,21 @@ export function executeFormatHiveDdl(
         ), Object.freeze([]));
     }
     try {
-        const rendered = renderHiveCreateTable(parseHiveCreateTable(source), resolved);
+        const cst = parseHiveCreateTable(source);
+        const rendered = renderHiveCreateTable(cst, resolved);
+        const rowCount = cst.columns.length + (cst.partitionColumns?.length ?? 0);
+        if (!ddlOutputWithinBudget(source.length, rowCount, rendered.length)) {
+            return executionResult(hiveDdlResult(
+                "failed",
+                source,
+                source,
+                ddlDiagnostic(
+                    "DDL_RESOURCE_LIMIT",
+                    "Hive DDL output exceeded the safe resource budget",
+                    source
+                )
+            ), Object.freeze([]));
+        }
         return executionResult(hiveDdlResult(
             rendered === source ? "unchanged" : "formatted",
             source,

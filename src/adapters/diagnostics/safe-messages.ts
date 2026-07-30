@@ -213,6 +213,7 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     DDL_UNMODELED_COLUMN: "A Hive DDL column definition is not modeled",
     DDL_UNMODELED_SUFFIX: "The Hive DDL suffix is not modeled",
     DDL_LEXICAL_STRUCTURE: "Hive DDL contains unsafe lexical structure",
+    DDL_RESOURCE_LIMIT: "Hive DDL output exceeded the safe resource budget",
     DDL_INTERNAL: "Hive DDL formatting failed safely",
 
     EXTRACT_INPUT: "DDL extraction input is invalid",
@@ -233,6 +234,8 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     EXTRACT_DUPLICATE_NAME: "DDL extraction found duplicate projected names",
     EXTRACT_SCHEMA_MISMATCH: "Set-operation schemas do not match",
     EXTRACT_DEFAULT_TYPE: "A projected type requires explicit confirmation",
+    EXTRACT_OPTIONS: "Extract DDL options are invalid",
+    EXTRACT_RESOURCE_LIMIT: "DDL extraction exceeded the safe resource budget",
     EXTRACT_INTERNAL: "DDL extraction failed safely",
 });
 

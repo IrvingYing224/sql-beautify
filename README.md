@@ -69,9 +69,9 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 ### Hive DDL formatting
 
-`Format Hive DDL (Experimental)` 只接受完整消费的、已建模的 Hive `CREATE TABLE` 子集。除列定义和列 `COMMENT` 外，当前还支持按顺序出现的可选 `PARTITIONED BY (...)` 与 `STORED AS <format>`；`format` 仅限 `AVRO`、`ORC`、`PARQUET`、`RCFILE`、`SEQUENCEFILE` 和 `TEXTFILE`。DDL 输出沿用 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle` 与 `sqlBeautify.indentStyle`。
+`Format Hive DDL (Experimental)` 只接受完整消费的、已建模的 Hive `CREATE TABLE` 子集。除列定义和列 `COMMENT` 外，当前还支持按顺序出现的可选 `PARTITIONED BY (...)` 与 `STORED AS <format>`；`format` 仅限 `AVRO`、`ORC`、`PARQUET`、`RCFILE`、`SEQUENCEFILE` 和 `TEXTFILE`。DDL 输出沿用 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle`、`sqlBeautify.indentStyle` 与 `sqlBeautify.maxAlignWidth`；超宽列名会放弃补齐空格而不是放大输出。
 
-它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、`LOCATION`、`TBLPROPERTIES`、CTAS、重复或乱序后缀、未知 storage format、约束、默认值或结构不完整的输入都会保留完整原文，不会被猜测性改写。选区命令会继承首行缩进与文档 LF/CRLF，并以整批原子方式提交；任一目标不受支持时不会提交部分编辑。
+它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、`LOCATION`、`TBLPROPERTIES`、CTAS、重复或乱序后缀、未知 storage format、约束、默认值或结构不完整的输入都会保留完整原文，不会被猜测性改写。选区命令只对生成空白应用首行缩进与文档 LF/CRLF；多行 string、quoted identifier 和 comment 内部的原始空格与 EOL 保持逐字符不变。所有目标继续以整批原子方式提交，任一目标不受支持或超过资源预算时不会提交部分编辑。
 
 主 `Format SQL` 命令会保留 Hive DDL；需要格式化 `CREATE TABLE` 时，应使用专用的 `Format Hive DDL (Experimental)` 命令。
 
@@ -81,7 +81,7 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 它支持高置信的顶层 `UNION` / `UNION ALL` 分支提取；只有分支字段形状一致时才会生成 DDL，不一致时会跳过，避免输出误导性 schema。生成的字段注释会转义为 Hive 兼容字符串字面量。
 
-它不会推断真实字段类型；复杂表达式、非 Hive 语法、未加别名的表达式或复杂列推断场景，请人工复核输出。
+它不会推断真实字段类型；Node.js API 的可选 `defaultType` 必须来自普通 data property、最长 128 个 UTF-16 code units，Proxy、accessor、未知 key 或异常 prototype 会安全失败。复杂表达式、非 Hive 语法、未加别名的表达式或复杂列推断场景，请人工复核输出。
 
 ## 简洁风险提示
 

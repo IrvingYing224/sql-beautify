@@ -1024,6 +1024,7 @@ export function createVscodeExtension(
             keywordCase: current.options.keywordCase,
             commaStyle: current.options.commaStyle,
             indentStyle: current.options.indentStyle,
+            maxAlignWidth: current.options.maxAlignWidth,
         });
         const selectedOperation: ExperimentalDdlOperation = useFormatOptions
             ? (source) => runtime.executeFormatHiveDdl(

@@ -14,6 +14,16 @@ import type {
     CommentBinding,
 } from "../../core/analysis/types";
 import type { SourceLeaf } from "../../core/lexer/token";
+import {
+    alignmentPaddings,
+    DEFAULT_DDL_MAX_ALIGN_WIDTH,
+    ddlOutputWithinBudget,
+    MAX_EXTRACT_TYPE_CODE_UNITS,
+} from "./alignment";
+import {
+    resolveExtractDdlOptions,
+    type ResolvedExtractDdlOptions,
+} from "./options";
 import { ddlDiagnostic, extractDdlResult } from "./result";
 import type {
     ExtractDdlExecutionResult,
@@ -403,8 +413,14 @@ function commentLiteral(value: string): string {
     return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "''").replace(/\r\n|\r|\n/g, "\\n")}'`;
 }
 
-function extractType(options: ExtractDdlOptions): string {
+function extractType(options: ResolvedExtractDdlOptions): string {
     const value = options.defaultType ?? "__TYPE_REQUIRED__";
+    if (value.length > MAX_EXTRACT_TYPE_CODE_UNITS) {
+        throw new ProjectionError(
+            "EXTRACT_DEFAULT_TYPE",
+            "defaultType must remain within the bounded Hive type length"
+        );
+    }
     const normalized = value.trim();
     if (!/^[A-Za-z_][A-Za-z0-9_]*(?:\(\d+(?:\s*,\s*\d+)?\))?$/.test(normalized)) {
         throw new ProjectionError(
@@ -418,13 +434,22 @@ function extractType(options: ExtractDdlOptions): string {
 function renderExtract(
     artifact: AnalyzedArtifact,
     branch: ProjectionBranch,
-    type: string
+    type: string,
+    maxAlignWidth: number
 ): string {
-    const maxName = branch.columns.reduce((value, column) => Math.max(value, column.name.length), 0);
+    const prefixes = branch.columns.map((_, index) => index === 0 ? "     " : "    ,");
+    const paddings = alignmentPaddings(
+        branch.columns.map((column, index) => Object.freeze({
+            prefix: prefixes[index]!,
+            name: column.name,
+        })),
+        artifact.source.length,
+        maxAlignWidth
+    );
     const lines = branch.columns.map((column, index) => {
         const comment = commentText(artifact, column.commentLeafId);
         const suffix = comment === null ? "" : ` COMMENT ${commentLiteral(comment)}`;
-        return `${index === 0 ? "     " : "    ,"}${column.name}${" ".repeat(maxName - column.name.length + 1)}${type}${suffix}`;
+        return `${prefixes[index]!}${column.name}${" ".repeat(paddings[index]!)}${type}${suffix}`;
     });
     return `${lines.join("\n")}\n`;
 }
@@ -454,6 +479,19 @@ export function executeExtractDdl(
             ddlDiagnostic("EXTRACT_INPUT", "Extract DDL source must be a string", "")
         ), Object.freeze([]));
     }
+    const resolvedOptions = resolveExtractDdlOptions(options);
+    if (resolvedOptions === null) {
+        return extractExecutionResult(extractDdlResult(
+            "failed",
+            source,
+            source,
+            ddlDiagnostic(
+                "EXTRACT_OPTIONS",
+                "Extract DDL options are invalid",
+                source
+            )
+        ), Object.freeze([]));
+    }
     let artifact: AnalysisArtifact;
     try {
         artifact = analyzeSql(source, { dialect: "hive", mode: "document" });
@@ -476,10 +514,22 @@ export function executeExtractDdl(
     try {
         const analyzed = asAnalyzed(artifact);
         const branches = projectQuery(analyzed);
-        const type = extractType(options as ExtractDdlOptions);
-        const rendered = renderExtract(analyzed, branches[0]!, type);
+        const type = extractType(resolvedOptions);
+        const branch = branches[0]!;
+        const rendered = renderExtract(
+            analyzed,
+            branch,
+            type,
+            DEFAULT_DDL_MAX_ALIGN_WIDTH
+        );
         if (rendered.length === 0) {
             throw new ProjectionError("EXTRACT_EMPTY", "Extract DDL result is empty");
+        }
+        if (!ddlOutputWithinBudget(source.length, branch.columns.length, rendered.length)) {
+            throw new ProjectionError(
+                "EXTRACT_RESOURCE_LIMIT",
+                "Extract DDL output exceeded the safe resource budget"
+            );
         }
         return extractExecutionResult(extractDdlResult(
             "extracted",
@@ -499,7 +549,8 @@ export function executeExtractDdl(
               ? "unsupported"
               : code === "EXTRACT_ANALYSIS_FAILED" ||
                   code === "EXTRACT_INTERNAL" ||
-                  code === "EXTRACT_DEFAULT_TYPE"
+                  code === "EXTRACT_DEFAULT_TYPE" ||
+                  code === "EXTRACT_RESOURCE_LIMIT"
                 ? "failed"
                 : "ambiguous";
         return extractExecutionResult(extractDdlResult(

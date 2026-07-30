@@ -3,6 +3,7 @@
 var assert = require('assert');
 var ddl = require('../../.tmp/v2-core/experimental/ddl');
 var resultFactory = require('../../.tmp/v2-core/experimental/ddl/result');
+var displayWidth = require('../../.tmp/v2-core/core/renderer/display-width');
 var fixtures = require('../fixtures/v2-wave4-ddl');
 
 fixtures.extract.forEach(function(fixture) {
@@ -47,9 +48,98 @@ assert.strictEqual(nonString.diagnostics[0].code, 'EXTRACT_INPUT');
 
 var hostileOptions = ddl.extractDdl('SELECT a FROM t', null);
 assert.strictEqual(hostileOptions.status, 'failed');
-assert.strictEqual(hostileOptions.diagnostics[0].code, 'EXTRACT_INTERNAL');
+assert.strictEqual(hostileOptions.diagnostics[0].code, 'EXTRACT_OPTIONS');
 assert.strictEqual(hostileOptions.diagnostics[0].message,
-    'DDL extraction failed safely');
+    'Extract DDL options are invalid');
+
+var getterCalls = 0;
+var accessorExtractOptions = {};
+Object.defineProperty(accessorExtractOptions, 'defaultType', {
+    enumerable: true,
+    get: function() {
+        getterCalls += 1;
+        return 'STRING';
+    }
+});
+var accessorExtract = ddl.extractDdl('SELECT a FROM t', accessorExtractOptions);
+assert.strictEqual(accessorExtract.status, 'failed');
+assert.strictEqual(accessorExtract.diagnostics[0].code, 'EXTRACT_OPTIONS');
+assert.strictEqual(getterCalls, 0, 'Extract DDL must not execute option accessors');
+var proxyGets = 0;
+var proxyOptions = new Proxy({}, {
+    get: function() {
+        proxyGets += 1;
+        return 'STRING';
+    }
+});
+assert.strictEqual(
+    ddl.extractDdl('SELECT a FROM t', proxyOptions).diagnostics[0].code,
+    'EXTRACT_OPTIONS'
+);
+assert.strictEqual(proxyGets, 0, 'Extract DDL must not execute Proxy get traps');
+assert.strictEqual(
+    ddl.extractDdl('SELECT a FROM t', { unexpected: true }).diagnostics[0].code,
+    'EXTRACT_OPTIONS'
+);
+assert.strictEqual(
+    ddl.extractDdl(
+        'SELECT a FROM t',
+        Object.create({ defaultType: 'BIGINT' })
+    ).diagnostics[0].code,
+    'EXTRACT_OPTIONS'
+);
+var nullPrototypeOptions = Object.create(null);
+nullPrototypeOptions.defaultType = 'BIGINT';
+assert.strictEqual(
+    ddl.extractDdl('SELECT a FROM t', nullPrototypeOptions).status,
+    'extracted'
+);
+var symbolOptions = { defaultType: 'STRING' };
+symbolOptions[Symbol('unexpected')] = true;
+assert.strictEqual(
+    ddl.extractDdl('SELECT a FROM t', symbolOptions).diagnostics[0].code,
+    'EXTRACT_OPTIONS'
+);
+assert.strictEqual(
+    ddl.extractDdl('SELECT a FROM t', {
+        defaultType: new Array(130).join('X')
+    }).diagnostics[0].code,
+    'EXTRACT_DEFAULT_TYPE'
+);
+
+var unicodeExtract = ddl.extractDdl('SELECT `中`, ascii FROM t');
+assert.strictEqual(unicodeExtract.status, 'extracted');
+assert.strictEqual(unicodeExtract.text, [
+    '     `中`  __TYPE_REQUIRED__',
+    '    ,ascii __TYPE_REQUIRED__',
+    ''
+].join('\n'), 'Extract DDL alignment must use Unicode display columns');
+
+var unicodeExtractMatrix = ddl.extractDdl(
+    'SELECT `🙂`, `e\u0301`, `a\tb`, ascii FROM t'
+);
+assert.strictEqual(unicodeExtractMatrix.status, 'extracted');
+var extractTypeColumns = unicodeExtractMatrix.text.split('\n').filter(Boolean).map(
+    function(line) {
+        var typeOffset = line.lastIndexOf('__TYPE_REQUIRED__');
+        return displayWidth.displayWidth(line.slice(0, typeOffset), 0, 4);
+    }
+);
+assert.strictEqual(extractTypeColumns.length, 4);
+assert.strictEqual(new Set(extractTypeColumns).size, 1,
+    'Extract emoji, combining and tab identifiers must share one display column');
+
+var wideExtractName = new Array(10001).join('x');
+var wideExtractColumns = ['`' + wideExtractName + '`'];
+for (var wideExtractIndex = 0; wideExtractIndex < 1000; wideExtractIndex++) {
+    wideExtractColumns.push('c' + wideExtractIndex);
+}
+var wideExtractSource = 'SELECT ' + wideExtractColumns.join(',') + ' FROM t';
+var wideExtract = ddl.extractDdl(wideExtractSource);
+assert.strictEqual(wideExtract.status, 'extracted');
+assert.ok(wideExtract.text.length < wideExtractSource.length * 10,
+    'Extract DDL alignment output must remain linear, got ' +
+    wideExtract.text.length + ' from ' + wideExtractSource.length);
 
 var analyzePath = require.resolve('../../.tmp/v2-core/core/analysis/analyze');
 var extractPath = require.resolve('../../.tmp/v2-core/experimental/ddl/extract');

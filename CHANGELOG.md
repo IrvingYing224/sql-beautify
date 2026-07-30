@@ -10,9 +10,9 @@
 * 修复 Unicode keyword fold、PostgreSQL operator 热路径、generic `::`、MySQL `@@var` 与 Hive 嵌套 template 边界；显示宽度升级到 Unicode 17.0.0 并尊重 VS Code `tabSize`
 * 接受完整文档与连续完整 statement 选区，非法配置会指出安全的 `sqlBeautify.*` key；移除 `Alt+Shift+F` 默认绑定并补齐中英文 cancel、stale、range、worker 与 host edit 反馈
 * 让 worker runtime mismatch 和可识别 protocol error 快速失败，统一 debug event 上限与 hostile result snapshot，并使用按输入规模计算的 cancellation drain grace
-* 扩展 Experimental Hive DDL：支持可选 `PARTITIONED BY`、六种 `STORED AS` format、`keywordCase`/`commaStyle`/`indentStyle` options，以及继承缩进和 LF/CRLF 的原子 range edit
+* 扩展 Experimental Hive DDL：支持可选 `PARTITIONED BY`、六种 `STORED AS` format 与 `keywordCase`/`commaStyle`/`indentStyle`/`maxAlignWidth` options；修复 range normalization 改写多行 string、Unicode 列名错列和超宽名称乘法级输出，Extract options 改为严格 plain-data 边界
 * 收敛生产不变量遍历、source-map 查询、diagnostic 去重和 Unicode 宽度热路径；性能门改用单一基线、确定性操作计数与独立 strict relative gate
-* 将 core/runtime build 改为带锁、缓存、staging 和可恢复发布，统一 npm/VSIX allowlist 与声明式串行测试 runner，并在 Node 20/24 上执行公开 facade 和 extension activation smoke
+* 将 core/runtime build 改为带锁、完整产物 SHA-256 缓存、staging 和可恢复发布；VSIX verifier 独立对照可信 build manifest，统一 npm/VSIX allowlist 与声明式串行测试 runner，并在 Node 20/24 上执行公开 facade 和 extension activation smoke
 * 公开生产 corpus 扩为 25 个 manifest case；完整升级与回退边界见 `docs/migration-to-2.2.md`
 
 ### 2.1.0 (2026/07/26)

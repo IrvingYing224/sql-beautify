@@ -465,23 +465,40 @@ function normalizeDdlReplacement(
             preserveTerminalNewline = true;
         }
     }
-    let normalized = rawText
-        .replace(/\r\n|\r|\n/g, newline)
-        .replace(/[ \t]+(?=\r\n|\r|\n|$)/g, "");
-    if (preserveTerminalNewline && !normalized.endsWith(newline)) {
-        normalized += newline;
+    const lexical = lexSql(rawText, { dialect: "hive" });
+    if (lexical.diagnostics.length !== 0) {
+        return null;
     }
-    const lines = normalized.split(newline);
-    const hasTerminalNewline = normalized.endsWith(newline);
-    const rendered = lines.map((line, index) => {
-        if (index === 0) {
-            return `${internalIndent}${line}`;
+    const output: string[] = [];
+    let pendingHorizontalWhitespace = "";
+    let lineIndent = internalIndent;
+    let atGeneratedLineStart = true;
+    for (const leaf of lexical.leaves) {
+        if (leaf.kind === "whitespace") {
+            pendingHorizontalWhitespace += leaf.raw;
+            continue;
         }
-        if (line.length === 0 && index + 1 === lines.length && hasTerminalNewline) {
-            return "";
+        if (leaf.kind === "newline") {
+            pendingHorizontalWhitespace = "";
+            output.push(newline);
+            lineIndent = continuationIndent;
+            atGeneratedLineStart = true;
+            continue;
         }
-        return line.length === 0 ? "" : `${continuationIndent}${line}`;
-    }).join(newline);
+        if (atGeneratedLineStart) {
+            output.push(lineIndent);
+            atGeneratedLineStart = false;
+        }
+        if (pendingHorizontalWhitespace.length > 0) {
+            output.push(pendingHorizontalWhitespace);
+            pendingHorizontalWhitespace = "";
+        }
+        output.push(leaf.raw);
+    }
+    let rendered = output.join("");
+    if (preserveTerminalNewline && !rendered.endsWith(newline)) {
+        rendered += newline;
+    }
     return Object.freeze({ start: target.start, end, text: rendered });
 }
 

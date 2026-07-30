@@ -42,15 +42,21 @@ const { formatHiveDdl } = require('vscode-sql-beautify/experimental/ddl');
 formatHiveDdl(source, {
     keywordCase: 'lower',
     commaStyle: 'trailing',
-    indentStyle: 'tab'
+    indentStyle: 'tab',
+    maxAlignWidth: 150
 });
 ```
 
-未知 key、非法 enum、Proxy、accessor 或 `null` options 返回 `failed`、`DDL_OPTIONS` 和完整原文。VS Code 的 DDL 命令沿用同一次 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle` 与 `sqlBeautify.indentStyle` 配置解析。
+未知 key、非法 enum/范围、Proxy、accessor 或 `null` options 返回 `failed`、`DDL_OPTIONS` 和完整原文。VS Code 的 DDL 命令沿用同一次 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle`、`sqlBeautify.indentStyle` 与 `sqlBeautify.maxAlignWidth` 配置解析。DDL 列名对齐使用 Unicode 17 display width；目标列超过 `maxAlignWidth` 或线性生成空白预算时只保留一个必要分隔空格，不再按最长名称产生乘法级输出。
 
 完整消费的 `CREATE TABLE` 子集新增按固定顺序出现的可选 `PARTITIONED BY (...)` 和 `STORED AS <format>`。storage format 只允许 `AVRO`、`ORC`、`PARQUET`、`RCFILE`、`SEQUENCEFILE`、`TEXTFILE`。重复或乱序 suffix、未知 storage、`LOCATION`、`TBLPROPERTIES`、CTAS、约束、默认值、多 statement 或结构不完整输入继续整条 `preserved`，不会部分改写。
 
-选区 DDL 格式化会继承首行缩进与文档 LF/CRLF，清理 target 尾部水平空白，并继续 all-or-nothing。任一 target 不受支持、失败、取消或过期时整批零提交。
+选区 DDL 格式化会继承首行缩进，只对 formatter 生成的空白应用文档 LF/CRLF 并清理 target 尾部水平空白。string、quoted identifier、parameter 和 comment 内部的 EOL、行尾空格及换行后字符逐 code-unit 保持原样，因此含多行 protected value 的 replacement 可以有意保留其原始 EOL。任一 target 不受支持、超过输出预算、失败、取消或过期时整批零提交。
+
+`extractDdl(source, options?)` 的 options 现在与 formatter 一样要求 plain data：只接受可选 `defaultType`
+data property，Proxy、accessor、symbol/未知 key、继承属性或 exotic prototype 返回 `EXTRACT_OPTIONS`，且不会
+执行 getter/trap。`defaultType` 最长 128 个 UTF-16 code units，超限或 type shape 非法返回
+`EXTRACT_DEFAULT_TYPE` 并保留输入。Extract DDL 同样使用 Unicode display width 与线性输出预算。
 
 ## Node.js consumers
 

@@ -747,10 +747,12 @@ async function main() {
     host.setConfiguration('keywordCase', 'lower');
     host.setConfiguration('commaStyle', 'trailing');
     host.setConfiguration('indentStyle', 'tab');
+    host.setConfiguration('maxAlignWidth', 177);
     await host.commands['sqlBeautify.formatHiveDdl']();
     assert.strictEqual(calls.ddl, 1);
     assert.deepStrictEqual(calls.ddlOptions[0], {
-        keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab'
+        keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab',
+        maxAlignWidth: 177
     }, 'DDL format command must bridge the canonical scoped layout options');
     assert.strictEqual(calls.ddlNewlines[0], '\n',
         'DDL command must pass the document render newline');
