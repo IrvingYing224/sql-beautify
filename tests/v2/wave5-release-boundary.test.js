@@ -43,8 +43,14 @@ function copyReleaseTrustRoot(destination) {
     assert.strictEqual(parsed.name, 'Root');
     assert.strictEqual(parsed.attributes.a, '&AB');
     assert.strictEqual(parsed.attributes.b, 'value');
+    assert.strictEqual(parsed.text, '');
     assert.strictEqual(parsed.children.length, 1);
     assert.strictEqual(parsed.children[0].selfClosing, true);
+    assert.strictEqual(parsed.children[0].text, '');
+    var decodedText = strictXml.parseStrictXml(
+        declaration + '<Root>direct &amp; decoded &#x41;</Root>'
+    );
+    assert.strictEqual(decodedText.text, 'direct & decoded A');
     [
         declaration + '<Root><!-- fake --></Root>',
         declaration + '<Root><![CDATA[fake]]></Root>',
@@ -55,6 +61,9 @@ function copyReleaseTrustRoot(destination) {
         declaration + '<Root a="&unknown;"/>',
         declaration + '<Root>raw & text</Root>',
         declaration + '<Root>bad ]]> text</Root>',
+        declaration + '<Root>mixed<Child/></Root>',
+        declaration + '<Root>\u00a0<Child/></Root>',
+        declaration + '\u00a0<Root/>',
         declaration + '<Root>\u0000</Root>'
     ].forEach(function(source, index) {
         assert.throws(function() {
@@ -297,6 +306,392 @@ try {
             }, label + ' must fail in compareBuild=' + compareBuild);
         });
     }
+
+    function directChild(parent, name) {
+        var matches = parent.children.filter(function(child) {
+            return child.name === name;
+        });
+        assert.strictEqual(matches.length, 1,
+            parent.name + ' fixture must contain exactly one ' + name);
+        return matches[0];
+    }
+
+    function tamperElementAttribute(buffer, elementName, elementIndex,
+        attributeName, replacement) {
+        var value = buffer.toString('utf8');
+        var elementPattern = new RegExp('<' + elementName + '\\b[^>]*>', 'g');
+        var seen = 0;
+        var changed = value.replace(elementPattern, function(element) {
+            if (seen !== elementIndex) {
+                seen += 1;
+                return element;
+            }
+            seen += 1;
+            var attributePattern = new RegExp(
+                '(\\s' + attributeName + '=")[^"]*(")'
+            );
+            var tampered = element.replace(attributePattern,
+                '$1' + replacement + '$2');
+            assert.notStrictEqual(tampered, element,
+                elementName + '[' + elementIndex + '] fixture must contain ' +
+                    attributeName);
+            return tampered;
+        });
+        assert.ok(seen > elementIndex,
+            elementName + '[' + elementIndex + '] fixture must exist');
+        assert.notStrictEqual(changed, value,
+            elementName + '[' + elementIndex + '] fixture must modify the manifest');
+        return Buffer.from(changed, 'utf8');
+    }
+
+    function tamperLeafText(buffer, elementName, replacement) {
+        var value = buffer.toString('utf8');
+        var openingPattern = '(<' + elementName + '\\b[^>]*>)';
+        var elementPattern = new RegExp(
+            openingPattern + '[\\s\\S]*?(</' + elementName + '>)'
+        );
+        var changed = value.replace(elementPattern, '$1' + replacement + '$2');
+        assert.notStrictEqual(changed, value,
+            elementName + ' text fixture must modify the manifest');
+        return Buffer.from(changed, 'utf8');
+    }
+
+    function replaceFixture(buffer, search, replacement, label) {
+        var value = buffer.toString('utf8');
+        var changed = value.replace(search, replacement);
+        assert.notStrictEqual(changed, value,
+            label + ' fixture must modify the artifact entry');
+        return Buffer.from(changed, 'utf8');
+    }
+
+    var generatedManifestXml = childProcess.execFileSync(
+        'unzip', ['-p', artifactPath, 'extension.vsixmanifest'],
+        { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
+    );
+    var generatedManifest = strictXml.parseStrictXml(generatedManifestXml);
+    var generatedMetadata = directChild(generatedManifest, 'Metadata');
+    var generatedProperties = directChild(generatedMetadata, 'Properties').children;
+    var generatedAssets = directChild(generatedManifest, 'Assets').children;
+    assert.deepStrictEqual(generatedProperties.map(function(property) {
+        return property.attributes.Id;
+    }), [
+        'Microsoft.VisualStudio.Code.Engine',
+        'Microsoft.VisualStudio.Code.ExtensionDependencies',
+        'Microsoft.VisualStudio.Code.ExtensionPack',
+        'Microsoft.VisualStudio.Code.ExtensionKind',
+        'Microsoft.VisualStudio.Code.LocalizedLanguages',
+        'Microsoft.VisualStudio.Code.EnabledApiProposals',
+        'Microsoft.VisualStudio.Code.ExecutesCode',
+        'Microsoft.VisualStudio.Services.Links.Source',
+        'Microsoft.VisualStudio.Services.Links.Getstarted',
+        'Microsoft.VisualStudio.Services.Links.GitHub',
+        'Microsoft.VisualStudio.Services.Links.Support',
+        'Microsoft.VisualStudio.Services.Links.Learn',
+        'Microsoft.VisualStudio.Services.GitHubFlavoredMarkdown',
+        'Microsoft.VisualStudio.Services.Content.Pricing'
+    ], 'tamper matrix must cover every generated Property in order');
+    assert.deepStrictEqual(generatedAssets.map(function(asset) {
+        return asset.attributes.Type;
+    }), [
+        'Microsoft.VisualStudio.Code.Manifest',
+        'Microsoft.VisualStudio.Services.Content.Details',
+        'Microsoft.VisualStudio.Services.Content.Changelog',
+        'Microsoft.VisualStudio.Services.Content.License',
+        'Microsoft.VisualStudio.Services.Icons.Default'
+    ], 'tamper matrix must cover the core and every static Asset in order');
+
+    var installationTargetTamper = tamperedArtifact(
+        'manifest-installation-target',
+        'extension.vsixmanifest',
+        function(buffer) {
+            return tamperElementAttribute(
+                buffer,
+                'InstallationTarget',
+                0,
+                'Id',
+                'Untrusted.Installation.Target'
+            );
+        }
+    );
+    assertArtifactRejectedInBothModes(installationTargetTamper,
+        'VSIX InstallationTarget Id tamper');
+
+    generatedAssets.forEach(function(asset, assetIndex) {
+        assert.strictEqual(asset.name, 'Asset',
+            'generated Assets fixture must contain only Asset elements');
+        ['Type', 'Path', 'Addressable'].forEach(function(attributeName) {
+            var assetTamper = tamperedArtifact(
+                'manifest-asset-' + assetIndex + '-' + attributeName.toLowerCase(),
+                'extension.vsixmanifest',
+                function(buffer) {
+                    return tamperElementAttribute(
+                        buffer,
+                        'Asset',
+                        assetIndex,
+                        attributeName,
+                        'TAMPERED_' + assetIndex + '_' + attributeName
+                    );
+                }
+            );
+            assertArtifactRejectedInBothModes(assetTamper,
+                'VSIX Asset[' + assetIndex + '] ' + attributeName + ' tamper');
+        });
+    });
+
+    generatedProperties.forEach(function(property, propertyIndex) {
+        assert.strictEqual(property.name, 'Property',
+            'generated Properties fixture must contain only Property elements');
+        var propertyTamper = tamperedArtifact(
+            'manifest-property-' + propertyIndex,
+            'extension.vsixmanifest',
+            function(buffer) {
+                return tamperElementAttribute(
+                    buffer,
+                    'Property',
+                    propertyIndex,
+                    'Value',
+                    'TAMPERED_PROPERTY_' + propertyIndex
+                );
+            }
+        );
+        assertArtifactRejectedInBothModes(propertyTamper,
+            'VSIX Property ' + property.attributes.Id + ' value tamper');
+    });
+
+    [
+        'DisplayName',
+        'Description',
+        'Tags',
+        'Categories',
+        'GalleryFlags',
+        'License',
+        'Icon'
+    ].forEach(function(elementName, metadataIndex) {
+        var metadataTamper = tamperedArtifact(
+            'manifest-metadata-text-' + metadataIndex,
+            'extension.vsixmanifest',
+            function(buffer) {
+                return tamperLeafText(
+                    buffer,
+                    elementName,
+                    'TAMPERED_METADATA_' + metadataIndex
+                );
+            }
+        );
+        assertArtifactRejectedInBothModes(metadataTamper,
+            'VSIX ' + elementName + ' text tamper');
+    });
+
+    var unknownAttributeTamper = tamperedArtifact(
+        'manifest-unknown-attribute',
+        'extension.vsixmanifest',
+        function(buffer) {
+            var value = buffer.toString('utf8');
+            var changed = value.replace(
+                '<DisplayName>',
+                '<DisplayName Unknown="true">'
+            );
+            assert.notStrictEqual(changed, value,
+                'unknown attribute fixture must modify the manifest');
+            return Buffer.from(changed, 'utf8');
+        }
+    );
+    assertArtifactRejectedInBothModes(unknownAttributeTamper,
+        'VSIX unknown metadata attribute');
+
+    var extraChildTamper = tamperedArtifact(
+        'manifest-extra-child',
+        'extension.vsixmanifest',
+        function(buffer) {
+            var value = buffer.toString('utf8');
+            var changed = value.replace(
+                '</Metadata>',
+                '<UnexpectedMetadata />\n</Metadata>'
+            );
+            assert.notStrictEqual(changed, value,
+                'extra child fixture must modify the manifest');
+            return Buffer.from(changed, 'utf8');
+        }
+    );
+    assertArtifactRejectedInBothModes(extraChildTamper,
+        'VSIX extra Metadata child');
+
+    var duplicatePropertyTamper = tamperedArtifact(
+        'manifest-duplicate-property',
+        'extension.vsixmanifest',
+        function(buffer) {
+            var value = buffer.toString('utf8');
+            var firstProperty = value.match(/<Property\b[^>]*\/>/);
+            assert.ok(firstProperty,
+                'duplicate Property fixture must find a generated Property');
+            return Buffer.from(value.replace(
+                '</Properties>',
+                firstProperty[0] + '\n</Properties>'
+            ), 'utf8');
+        }
+    );
+    assertArtifactRejectedInBothModes(duplicatePropertyTamper,
+        'VSIX duplicate Property');
+
+    var pairedTargetTamper = tamperedArtifact(
+        'manifest-paired-installation-target',
+        'extension.vsixmanifest',
+        function(buffer) {
+            var value = buffer.toString('utf8');
+            var changed = value.replace(
+                /<InstallationTarget\b([^>]*)\/>/,
+                '<InstallationTarget$1></InstallationTarget>'
+            );
+            assert.notStrictEqual(changed, value,
+                'paired InstallationTarget fixture must modify the manifest');
+            return Buffer.from(changed, 'utf8');
+        }
+    );
+    assertArtifactRejectedInBothModes(pairedTargetTamper,
+        'VSIX paired InstallationTarget');
+
+    var contentTypesEntry = '[Content_Types].xml';
+    var contentTypesTamperCases = [
+        {
+            label: 'namespace',
+            transform: function(buffer) {
+                return replaceFixture(
+                    buffer,
+                    'xmlns="http://schemas.openxmlformats.org/package/2006/content-types"',
+                    'xmlns="urn:untrusted-content-types"',
+                    'content-types namespace'
+                );
+            }
+        },
+        {
+            label: 'json-mime',
+            transform: function(buffer) {
+                return replaceFixture(
+                    buffer,
+                    'Extension=".json" ContentType="application/json"',
+                    'Extension=".json" ContentType="text/plain"',
+                    'content-types JSON MIME'
+                );
+            }
+        },
+        {
+            label: 'json-extension',
+            transform: function(buffer) {
+                return replaceFixture(
+                    buffer,
+                    'Extension=".json" ContentType="application/json"',
+                    'Extension=".mjs" ContentType="application/json"',
+                    'content-types JSON extension'
+                );
+            }
+        },
+        {
+            label: 'missing-vsixmanifest',
+            transform: function(buffer) {
+                return replaceFixture(
+                    buffer,
+                    '<Default Extension=".vsixmanifest" ContentType="text/xml"/>',
+                    '',
+                    'content-types missing VSIX manifest mapping'
+                );
+            }
+        },
+        {
+            label: 'duplicate-json',
+            transform: function(buffer) {
+                var entry = '<Default Extension=".json" ' +
+                    'ContentType="application/json"/>';
+                return replaceFixture(
+                    buffer,
+                    '</Types>',
+                    entry + '</Types>',
+                    'content-types duplicate JSON mapping'
+                );
+            }
+        },
+        {
+            label: 'extra-exe',
+            transform: function(buffer) {
+                return replaceFixture(
+                    buffer,
+                    '</Types>',
+                    '<Default Extension=".exe" ' +
+                        'ContentType="application/octet-stream"/></Types>',
+                    'content-types extra executable mapping'
+                );
+            }
+        },
+        {
+            label: 'override-node',
+            transform: function(buffer) {
+                return replaceFixture(
+                    buffer,
+                    '<Default Extension=".json" ContentType="application/json"/>',
+                    '<Override PartName="/extension/package.json" ' +
+                        'ContentType="application/json"/>',
+                    'content-types Override node'
+                );
+            }
+        },
+        {
+            label: 'paired-default',
+            transform: function(buffer) {
+                return replaceFixture(
+                    buffer,
+                    '<Default Extension=".json" ContentType="application/json"/>',
+                    '<Default Extension=".json" ' +
+                        'ContentType="application/json"></Default>',
+                    'content-types paired Default'
+                );
+            }
+        }
+    ];
+    contentTypesTamperCases.forEach(function(testCase) {
+        var contentTypesTamper = tamperedArtifact(
+            'content-types-' + testCase.label,
+            contentTypesEntry,
+            testCase.transform
+        );
+        assertArtifactRejectedInBothModes(contentTypesTamper,
+            'VSIX content types ' + testCase.label + ' tamper');
+    });
+
+    var duplicateMainTamper = tamperedArtifact(
+        'package-duplicate-main',
+        'extension/package.json',
+        function(buffer) {
+            var trustedMain = '\t"main": "./dist/extension.cjs",';
+            return replaceFixture(
+                buffer,
+                trustedMain,
+                '\t"main": "./untrusted-runtime.cjs",\n' + trustedMain,
+                'packed package duplicate main'
+            );
+        }
+    );
+    assertArtifactRejectedInBothModes(duplicateMainTamper,
+        'packed package duplicate main');
+
+    var reorderedPackageTamper = tamperedArtifact(
+        'package-reordered-json',
+        'extension/package.json',
+        function(buffer) {
+            var parsedPackage = JSON.parse(buffer.toString('utf8'));
+            var reorderedPackage = {};
+            Object.keys(parsedPackage).reverse().forEach(function(key) {
+                reorderedPackage[key] = parsedPackage[key];
+            });
+            var changed = Buffer.from(
+                JSON.stringify(reorderedPackage, null, '\t') + '\n',
+                'utf8'
+            );
+            assert.notDeepStrictEqual(changed, buffer,
+                'packed package reordered fixture must change source bytes');
+            return changed;
+        }
+    );
+    assertArtifactRejectedInBothModes(reorderedPackageTamper,
+        'packed package reordered JSON');
 
     var packageTamper = tamperedArtifact(
         'package-extension-pack',

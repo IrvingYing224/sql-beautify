@@ -10,6 +10,15 @@ function isWhitespace(character) {
         character === '\n' || character === '\r';
 }
 
+function isWhitespaceOnly(value) {
+    for (var index = 0; index < value.length; index += 1) {
+        if (!isWhitespace(value[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function isNameStart(character) {
     return character !== undefined && /[A-Za-z_:]/.test(character);
 }
@@ -47,9 +56,9 @@ function decodeEntity(entity) {
     return String.fromCodePoint(codePoint);
 }
 
-function decodeAttribute(raw) {
+function decodeXmlValue(raw, label) {
     assert.strictEqual(raw.indexOf('<'), -1,
-        'XML attribute values must not contain an unescaped <');
+        label + ' must not contain an unescaped <');
     var output = '';
     var cursor = 0;
     while (cursor < raw.length) {
@@ -61,11 +70,19 @@ function decodeAttribute(raw) {
         output += raw.slice(cursor, ampersand);
         var semicolon = raw.indexOf(';', ampersand + 1);
         assert.ok(semicolon > ampersand + 1,
-            'XML attribute contains an unterminated entity');
+            label + ' contains an unterminated entity');
         output += decodeEntity(raw.slice(ampersand + 1, semicolon));
         cursor = semicolon + 1;
     }
     return output;
+}
+
+function decodeAttribute(raw) {
+    return decodeXmlValue(raw, 'XML attribute value');
+}
+
+function decodeText(raw) {
+    return decodeXmlValue(raw, 'XML direct text');
 }
 
 function assertXmlCharacters(value) {
@@ -78,6 +95,8 @@ function assertXmlCharacters(value) {
 }
 
 function freezeNode(node) {
+    assert.ok(node.children.length === 0 || isWhitespaceOnly(node.text),
+        node.name + ' must not contain mixed content or non-whitespace container text');
     node.children.forEach(freezeNode);
     Object.freeze(node.attributes);
     Object.freeze(node.children);
@@ -179,10 +198,12 @@ function parseStrictXml(xml) {
             var text = xml.slice(cursor, textEnd);
             assert.strictEqual(text.indexOf(']]>'), -1,
                 'XML text must not contain the CDATA closing delimiter');
-            decodeAttribute(text);
+            var decodedText = decodeText(text);
             if (stack.length === 0) {
-                assert.strictEqual(text.trim(), '',
+                assert.ok(isWhitespaceOnly(decodedText),
                     'XML must not contain text outside the root');
+            } else {
+                stack[stack.length - 1].text += decodedText;
             }
             cursor = textEnd;
             continue;
@@ -216,6 +237,7 @@ function parseStrictXml(xml) {
             name: elementName,
             attributes: details.attributes,
             children: [],
+            text: '',
             selfClosing: details.selfClosing
         });
     }
