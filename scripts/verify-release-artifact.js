@@ -41,6 +41,136 @@ function listEntries(artifactPath) {
     }).trim().split('\n').filter(Boolean);
 }
 
+function decodeXmlAttribute(value) {
+    var entities = Object.freeze({
+        '&apos;': "'",
+        '&quot;': '"',
+        '&lt;': '<',
+        '&gt;': '>',
+        '&amp;': '&'
+    });
+    assert.doesNotMatch(value, /&(?!apos;|quot;|lt;|gt;|amp;)/,
+        'VSIX manifest contains an unsupported or unescaped XML entity');
+    return value.replace(/&(?:apos|quot|lt|gt|amp);/g, function(entity) {
+        return entities[entity];
+    });
+}
+
+function parseXmlAttributes(raw, label) {
+    var attributes = Object.create(null);
+    var matcher = /([A-Za-z_:][A-Za-z0-9_.:-]*)="([^"]*)"/g;
+    var match;
+    var previousEnd = raw.indexOf(' ');
+    assert.ok(previousEnd >= 0, label + ' must contain attributes');
+    while ((match = matcher.exec(raw)) !== null) {
+        assert.strictEqual(raw.slice(previousEnd, match.index).trim(), '',
+            label + ' contains unrecognized attribute syntax');
+        assert.strictEqual(
+            Object.prototype.hasOwnProperty.call(attributes, match[1]),
+            false,
+            label + ' must not repeat attribute ' + match[1]
+        );
+        attributes[match[1]] = decodeXmlAttribute(match[2]);
+        previousEnd = matcher.lastIndex;
+    }
+    assert.match(raw.slice(previousEnd), /^\s*\/?>$/,
+        label + ' contains trailing unrecognized attribute syntax');
+    return attributes;
+}
+
+function singleXmlTagAttributes(xml, tagName) {
+    var matcher = new RegExp('<' + tagName + '\\b[^>]*>', 'g');
+    var tags = xml.match(matcher) || [];
+    assert.strictEqual(tags.length, 1,
+        'VSIX manifest must contain exactly one ' + tagName + ' tag');
+    return parseXmlAttributes(tags[0], tagName);
+}
+
+function xmlPropertyMap(xml) {
+    var matcher = /<Property\b[^>]*\/>/g;
+    var properties = new Map();
+    var match;
+    while ((match = matcher.exec(xml)) !== null) {
+        var attributes = parseXmlAttributes(match[0], 'Property');
+        assert.deepStrictEqual(Object.keys(attributes).sort(), ['Id', 'Value'],
+            'VSIX Property must contain only Id and Value');
+        assert.strictEqual(properties.has(attributes.Id), false,
+            'VSIX manifest must not repeat Property ' + attributes.Id);
+        properties.set(attributes.Id, attributes.Value);
+    }
+    return properties;
+}
+
+function canonicalExtensionList(value) {
+    return Array.isArray(value) ? Array.from(new Set(value)).join(',') : '';
+}
+
+function verifyGeneratedVsixManifest(xml, packageJson) {
+    assert.ok(Buffer.byteLength(xml, 'utf8') <= 1024 * 1024,
+        'VSIX generated manifest exceeds the verification budget');
+    var identity = singleXmlTagAttributes(xml, 'Identity');
+    assert.deepStrictEqual(Object.keys(identity).sort(), [
+        'Id',
+        'Language',
+        'Publisher',
+        'Version'
+    ], 'VSIX Identity must contain the exact release identity fields');
+    assert.strictEqual(identity.Language, 'en-US',
+        'VSIX manifest language must be en-US');
+    assert.strictEqual(identity.Id, packageJson.name,
+        'VSIX manifest Id must match the source package');
+    assert.strictEqual(identity.Publisher, packageJson.publisher,
+        'VSIX manifest Publisher must match the source package');
+    assert.strictEqual(identity.Version, packageJson.version,
+        'VSIX manifest Version must match the source package');
+
+    var properties = xmlPropertyMap(xml);
+    assert.strictEqual(
+        properties.get('Microsoft.VisualStudio.Code.Engine'),
+        packageJson.engines.vscode,
+        'VSIX engine must match the source package'
+    );
+    assert.strictEqual(
+        properties.get('Microsoft.VisualStudio.Code.ExtensionDependencies'),
+        canonicalExtensionList(packageJson.extensionDependencies),
+        'VSIX extension dependencies must match the source package'
+    );
+    assert.strictEqual(
+        properties.get('Microsoft.VisualStudio.Code.ExtensionPack'),
+        canonicalExtensionList(packageJson.extensionPack),
+        'VSIX extension pack must match the source package'
+    );
+    var dependencyContainers = xml.match(/<Dependencies\b[^>]*>/g) || [];
+    assert.deepStrictEqual(dependencyContainers, ['<Dependencies/>'],
+        'VSIX manifest must contain one empty Dependencies container');
+    assert.doesNotMatch(xml, /<Dependency\b/,
+        'VSIX manifest must not contain generated dependencies');
+}
+
+function verifyPackedSourceFiles(artifactPath, root, packageManifest) {
+    var packageJson = packageManifest.packageJson;
+    var packedManifest = JSON.parse(unzipText(
+        artifactPath,
+        'extension/package.json'
+    ));
+    assert.deepStrictEqual(packedManifest, packageJson,
+        'packed package manifest must match the source package exactly');
+    var staticFiles = new Set(packageManifest.staticFiles);
+    packageManifest.vsixPackageFiles.forEach(function(entry) {
+        if (!staticFiles.has(entry.sourcePath)) {
+            return;
+        }
+        var source = fs.readFileSync(path.join(root, entry.sourcePath));
+        var packed = unzipBuffer(artifactPath, entry.entryPath);
+        assert.deepStrictEqual(packed, source,
+            'packed static file must match source bytes: ' + entry.sourcePath);
+    });
+    verifyGeneratedVsixManifest(
+        unzipText(artifactPath, 'extension.vsixmanifest'),
+        packageJson
+    );
+}
+
 function verifyTrustedBuild(artifactPath, root, packageManifest) {
     var fingerprint = require('./runtime-build-fingerprint');
     var utils = require('./build-v2-utils');
@@ -99,17 +229,9 @@ function verifyArtifact(artifactPath, options) {
     var entries = listEntries(artifactPath);
     var entrySet = new Set(entries);
     var expectedEntries = packageManifest.vsixEntries;
-    var normalizedEntries = entries.map(function(entry) {
-        if (entry === 'extension/changelog.md') {
-            return 'extension/CHANGELOG.md';
-        }
-        if (entry === 'extension/readme.md') {
-            return 'extension/README.md';
-        }
-        return entry;
-    }).sort();
-    assert.deepStrictEqual(normalizedEntries, expectedEntries,
+    assert.deepStrictEqual(entries.slice().sort(), expectedEntries,
         'VSIX must contain the exact production allowlist');
+    verifyPackedSourceFiles(artifactPath, root, packageManifest);
     if (compareBuild) {
         verifyTrustedBuild(artifactPath, root, packageManifest);
     }
@@ -123,16 +245,6 @@ function verifyArtifact(artifactPath, options) {
         assert.notStrictEqual(entry, 'extension/extension.js');
         assert.notStrictEqual(entry, 'extension/vkbeautify.js');
     });
-    var packedManifest = JSON.parse(unzipText(
-        artifactPath,
-        'extension/package.json'
-    ));
-    assert.strictEqual(packedManifest.version, packageJson.version,
-        'packed package version must match source package');
-    assert.strictEqual(packedManifest.main, packageJson.main,
-        'packed extension entry must match source package');
-    assert.deepStrictEqual(packedManifest.exports, packageJson.exports,
-        'packed public exports must match source package');
     var migrationVersion = packageJson.version.split('.').slice(0, 2).join('.');
     assert.match(
         unzipText(artifactPath, 'extension/readme.md'),
@@ -140,12 +252,6 @@ function verifyArtifact(artifactPath, options) {
             '/docs/migration-to-' + migrationVersion.replace(/\./g, '\\.') + '\\.md'),
         'packed README migration link must be pinned to the package version'
     );
-
-    var vsixManifest = unzipText(artifactPath, 'extension.vsixmanifest');
-    var identity = /<Identity\b[^>]*\bVersion="([^"]+)"[^>]*\/>/.exec(vsixManifest);
-    assert.ok(identity, 'VSIX manifest must contain an Identity version');
-    assert.strictEqual(identity[1], packageJson.version,
-        'VSIX manifest version must match package version');
 
     return Object.freeze({
         artifact: path.resolve(artifactPath),

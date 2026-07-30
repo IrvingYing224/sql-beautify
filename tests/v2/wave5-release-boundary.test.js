@@ -7,7 +7,9 @@ var os = require('os');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
-var packageJson = require(path.join(root, 'package.json'));
+var packageManifest = require(path.join(root, 'scripts', 'package-manifest.js'))
+    .loadPackageManifest(root);
+var packageJson = packageManifest.packageJson;
 var packageLock = require(path.join(root, 'package-lock.json'));
 var workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'build-vsix.yml'), 'utf8');
 var verifyPlan = require(path.join(root, 'scripts', 'v2-suite-manifest.js'))
@@ -21,6 +23,16 @@ var architecture = fs.readFileSync(
     path.join(root, 'docs', 'technical', 'sql-formatter-architecture.md'),
     'utf8'
 );
+
+function copyReleaseTrustRoot(destination) {
+    ['package.json', 'package-lock.json'].concat(
+        packageManifest.staticFiles
+    ).forEach(function(fileName) {
+        var destinationPath = path.join(destination, fileName);
+        fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+        fs.copyFileSync(path.join(root, fileName), destinationPath);
+    });
+}
 
 assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
 assert.strictEqual(packageJson.version, '2.2.0',
@@ -146,6 +158,7 @@ assert.match(architecture, /scripts\/package-manifest\.js/);
 assert.match(architecture, /Node 20 and Node 24/);
 assert.match(architecture, /Release comparison recomputes the same runtime source fingerprint/);
 assert.match(architecture, /allowlisted regular files/);
+assert.match(architecture, /packed package manifest and repository-owned static bytes/);
 assert.doesNotMatch(architecture, /`lib\//);
 assert.doesNotMatch(architecture, /vkbeautify/);
 
@@ -192,14 +205,7 @@ try {
     fs.mkdirSync(path.join(staleRoot, 'scripts'), { recursive: true });
     fs.cpSync(path.join(root, 'src'), path.join(staleRoot, 'src'), { recursive: true });
     fs.cpSync(path.join(root, 'dist'), path.join(staleRoot, 'dist'), { recursive: true });
-    fs.cpSync(path.join(root, 'images'), path.join(staleRoot, 'images'), { recursive: true });
-    [
-        'package.json',
-        'package-lock.json',
-        'README.md'
-    ].forEach(function(fileName) {
-        fs.copyFileSync(path.join(root, fileName), path.join(staleRoot, fileName));
-    });
+    copyReleaseTrustRoot(staleRoot);
     [
         'build-v2-runtime.js',
         'build-v2-utils.js',
@@ -234,6 +240,101 @@ try {
         });
     }, /source hash|current source|trusted build/i,
     '--compare-build must reject an old stamp/dist/VSIX after source changes');
+
+    function tamperedArtifact(label, entryPath, transform) {
+        var tamperRoot = path.join(temporaryRoot, 'tamper-' + label);
+        var tamperedPath = path.join(tamperRoot, artifactName);
+        var unpackedPath = path.join(tamperRoot, 'unpacked');
+        fs.mkdirSync(unpackedPath, { recursive: true });
+        fs.copyFileSync(artifactPath, tamperedPath);
+        childProcess.execFileSync('unzip', [
+            '-q', tamperedPath, '-d', unpackedPath
+        ]);
+        var targetPath = path.join(unpackedPath, entryPath);
+        fs.writeFileSync(targetPath, transform(fs.readFileSync(targetPath)));
+        childProcess.execFileSync('zip', [
+            '-q', tamperedPath, entryPath
+        ], { cwd: unpackedPath });
+        return tamperedPath;
+    }
+
+    function assertArtifactRejectedInBothModes(tamperedPath, label) {
+        [false, true].forEach(function(compareBuild) {
+            assert.throws(function() {
+                verifier.verifyArtifact(tamperedPath, {
+                    root: root,
+                    compareBuild: compareBuild
+                });
+            }, label + ' must fail in compareBuild=' + compareBuild);
+        });
+    }
+
+    var packageTamper = tamperedArtifact(
+        'package-extension-pack',
+        'extension/package.json',
+        function(buffer) {
+            var value = JSON.parse(buffer.toString('utf8'));
+            value.extensionPack = ['untrusted.publisher-extension'];
+            return Buffer.from(JSON.stringify(value, null, 2) + '\n', 'utf8');
+        }
+    );
+    assertArtifactRejectedInBothModes(packageTamper,
+        'packed package metadata tamper');
+
+    packageManifest.staticFiles.forEach(function(fileName, index) {
+        var mapping = packageManifest.vsixPackageFiles.find(function(entry) {
+            return entry.sourcePath === fileName;
+        });
+        assert.ok(mapping, 'static file must have a packed-entry mapping: ' + fileName);
+        var staticTamper = tamperedArtifact(
+            'static-' + index,
+            mapping.entryPath,
+            function(buffer) {
+                return Buffer.concat([
+                    buffer,
+                    Buffer.from('\nTAMPERED_STATIC_' + index + '\n', 'utf8')
+                ]);
+            }
+        );
+        assertArtifactRejectedInBothModes(staticTamper,
+            'packed static tamper ' + fileName);
+    });
+
+    var identityTamper = tamperedArtifact(
+        'manifest-identity',
+        'extension.vsixmanifest',
+        function(buffer) {
+            var value = buffer.toString('utf8');
+            var changed = value.replace(
+                'Publisher="' + packageJson.publisher + '"',
+                'Publisher="untrusted-publisher"'
+            );
+            assert.notStrictEqual(changed, value,
+                'identity tamper fixture must modify the manifest');
+            return Buffer.from(changed, 'utf8');
+        }
+    );
+    assertArtifactRejectedInBothModes(identityTamper,
+        'VSIX Identity tamper');
+
+    var dependencyTamper = tamperedArtifact(
+        'manifest-extension-pack',
+        'extension.vsixmanifest',
+        function(buffer) {
+            var value = buffer.toString('utf8');
+            var changed = value.replace(
+                'Id="Microsoft.VisualStudio.Code.ExtensionPack" Value=""',
+                'Id="Microsoft.VisualStudio.Code.ExtensionPack" ' +
+                    'Value="untrusted.publisher-extension"'
+            );
+            assert.notStrictEqual(changed, value,
+                'extension-pack tamper fixture must modify the manifest');
+            return Buffer.from(changed, 'utf8');
+        }
+    );
+    assertArtifactRejectedInBothModes(dependencyTamper,
+        'VSIX ExtensionPack tamper');
+
     var artifactBefore = fs.readFileSync(artifactPath);
     var runtimeArtifact = path.join(root, 'dist', 'runtime.cjs');
     var runtimeArtifactBefore = fs.readFileSync(runtimeArtifact);
@@ -264,10 +365,7 @@ try {
     }
     var cleanRoot = path.join(temporaryRoot, 'clean-checkout');
     fs.mkdirSync(path.join(cleanRoot, 'scripts'), { recursive: true });
-    fs.copyFileSync(path.join(root, 'package.json'), path.join(cleanRoot, 'package.json'));
-    fs.copyFileSync(path.join(root, 'package-lock.json'), path.join(cleanRoot, 'package-lock.json'));
-    fs.copyFileSync(path.join(root, 'README.md'), path.join(cleanRoot, 'README.md'));
-    fs.cpSync(path.join(root, 'images'), path.join(cleanRoot, 'images'), { recursive: true });
+    copyReleaseTrustRoot(cleanRoot);
     fs.copyFileSync(
         path.join(root, 'scripts', 'verify-release-artifact.js'),
         path.join(cleanRoot, 'scripts', 'verify-release-artifact.js')

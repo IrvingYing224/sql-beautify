@@ -30,6 +30,15 @@ function normalized(value) {
     return value.slice().sort();
 }
 
+function packedEntryForPackageFile(fileName) {
+    var entryName = fileName === 'README.md'
+        ? 'readme.md'
+        : fileName === 'CHANGELOG.md'
+            ? 'changelog.md'
+            : fileName;
+    return 'extension/' + entryName;
+}
+
 function loadPackageManifest(root) {
     var packageJson = JSON.parse(fs.readFileSync(
         path.join(root, 'package.json'),
@@ -57,17 +66,18 @@ function loadPackageManifest(root) {
         'images must contain only shared-manifest production assets'
     );
     var npmFiles = normalized(PACKAGE_FILES.concat(['package.json']));
+    var vsixPackageFiles = PACKAGE_FILES.map(function(fileName) {
+        return Object.freeze({
+            sourcePath: fileName,
+            entryPath: packedEntryForPackageFile(fileName)
+        });
+    });
     var vsixEntries = normalized([
         '[Content_Types].xml',
         'extension.vsixmanifest',
         'extension/package.json'
-    ].concat(PACKAGE_FILES.map(function(fileName) {
-        var normalizedName = fileName === 'README.md'
-            ? 'README.md'
-            : fileName === 'CHANGELOG.md'
-                ? 'CHANGELOG.md'
-                : fileName;
-        return 'extension/' + normalizedName;
+    ].concat(vsixPackageFiles.map(function(entry) {
+        return entry.entryPath;
     })));
     return Object.freeze({
         packageJson: packageJson,
@@ -80,6 +90,7 @@ function loadPackageManifest(root) {
         imageFiles: Object.freeze(imageFiles),
         staticFiles: STATIC_FILES,
         obsoleteRuntimeFiles: OBSOLETE_RUNTIME_FILES,
+        vsixPackageFiles: Object.freeze(vsixPackageFiles),
         vsixEntries: Object.freeze(vsixEntries)
     });
 }

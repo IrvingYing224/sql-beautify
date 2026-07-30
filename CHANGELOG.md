@@ -12,7 +12,7 @@
 * 让 worker runtime mismatch 和可识别 protocol error 快速失败，统一 debug event 上限与 hostile result snapshot，并使用按输入规模计算的 cancellation drain grace
 * 扩展 Experimental Hive DDL：支持可选 `PARTITIONED BY`、六种 `STORED AS` format 与 `keywordCase`/`commaStyle`/`indentStyle`/`maxAlignWidth` options；修复 range normalization 改写多行 string、Unicode/tabSize 列名错列、超宽名称乘法级输出和超限输入进入同步分析，Extract options 改为严格 plain-data 边界
 * 收敛生产不变量遍历、source-map 查询、diagnostic 去重和 Unicode 宽度热路径；性能门改用单一基线、确定性操作计数与独立 strict relative gate
-* 将 core/runtime build 改为带锁、完整产物 SHA-256 缓存、staging 和可恢复发布；VSIX verifier 同时锚定当前 source hash 与可信 output manifest，dist ownership 只接管 allowlist regular file；统一 npm/VSIX allowlist 与声明式串行测试 runner，并在 Node 20/24 上执行公开 facade 和 extension activation smoke
+* 将 core/runtime build 改为带锁、完整产物 SHA-256 缓存、staging 和可恢复发布；VSIX verifier 同时锚定当前 source hash、可信 output manifest、完整 package metadata、repository-owned static bytes 与 generated identity/dependency metadata，dist ownership 只接管 allowlist regular file；统一 npm/VSIX allowlist 与声明式串行测试 runner，并在 Node 20/24 上执行公开 facade 和 extension activation smoke
 * 公开生产 corpus 扩为 25 个 manifest case；完整升级与回退边界见 `docs/migration-to-2.2.md`
 
 ### 2.1.0 (2026/07/26)
