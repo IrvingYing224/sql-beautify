@@ -63,7 +63,7 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 已建模区域会应用 `sqlBeautify.keywordCase`；verbatim 区域始终保留原文，因此其中的关键词大小写不会被改写。主 formatter 的单个完整文档或 target 上限为 524,288 个 UTF-16 code units；超限输入会保留完整原文且不提交编辑。
 
-格式化时的 tab stop 来自 VS Code 的 `FormattingOptions.tabSize` 或活动编辑器设置，并同时用于 direct/worker 的显示宽度与对齐计算。公开 Node.js `formatSql()` 使用默认 tab stop 4，`tabSize` 不是它的公开 option。非法 `sqlBeautify.*` 配置会发布安全的 `CFG_*` 诊断；手动命令会在配置 key 可安全识别时指出具体设置，不再静默跳过。
+格式化或提取时的 tab stop 来自 VS Code 的 `FormattingOptions.tabSize` 或活动编辑器设置，并同时用于主 formatter、Experimental DDL 与 Extract DDL 的显示宽度和对齐计算。公开 Node.js `formatSql()`、`formatHiveDdl()` 与 `extractDdl()` 使用默认 tab stop 4，`tabSize` 不是它们的公开 option。非法 `sqlBeautify.*` 配置会发布安全的 `CFG_*` 诊断；手动命令会在配置 key 可安全识别时指出具体设置，不再静默跳过。
 
 ## Experimental 能力
 
@@ -71,7 +71,7 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 `Format Hive DDL (Experimental)` 只接受完整消费的、已建模的 Hive `CREATE TABLE` 子集。除列定义和列 `COMMENT` 外，当前还支持按顺序出现的可选 `PARTITIONED BY (...)` 与 `STORED AS <format>`；`format` 仅限 `AVRO`、`ORC`、`PARQUET`、`RCFILE`、`SEQUENCEFILE` 和 `TEXTFILE`。DDL 输出沿用 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle`、`sqlBeautify.indentStyle` 与 `sqlBeautify.maxAlignWidth`；超宽列名会放弃补齐空格而不是放大输出。
 
-它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、`LOCATION`、`TBLPROPERTIES`、CTAS、重复或乱序后缀、未知 storage format、约束、默认值或结构不完整的输入都会保留完整原文，不会被猜测性改写。选区命令只对生成空白应用首行缩进与文档 LF/CRLF；多行 string、quoted identifier 和 comment 内部的原始空格与 EOL 保持逐字符不变。所有目标继续以整批原子方式提交，任一目标不受支持或超过资源预算时不会提交部分编辑。
+它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、`LOCATION`、`TBLPROPERTIES`、CTAS、重复或乱序后缀、未知 storage format、约束、默认值或结构不完整的输入都会保留完整原文，不会被猜测性改写。选区命令只对生成空白应用首行缩进与文档 LF/CRLF；多行 string、quoted identifier 和 comment 内部的原始空格与 EOL 保持逐字符不变。公开 DDL / Extract DDL API 的单次输入及 VS Code DDL transaction 的完整文档同样以 524,288 个 UTF-16 code units 为上限；所有目标继续以整批原子方式提交，任一目标不受支持或超过输入/输出资源预算时不会提交部分编辑。
 
 主 `Format SQL` 命令会保留 Hive DDL；需要格式化 `CREATE TABLE` 时，应使用专用的 `Format Hive DDL (Experimental)` 命令。
 

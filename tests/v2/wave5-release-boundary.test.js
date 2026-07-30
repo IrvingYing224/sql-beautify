@@ -65,7 +65,7 @@ assert.strictEqual((workflow.match(/npm run verify:clean-package/g) || []).lengt
 
 assert.match(readme, /`postgresql`/);
 assert.doesNotMatch(readme, /`postgres`/);
-assert.doesNotMatch(readme, /extractddl/i,
+assert.doesNotMatch(readme, /\bextractddl\b/,
     'current README must not reuse the removed 1.x API spelling');
 assert.doesNotMatch(readme, /demo\.gif/,
     'current README must not embed the obsolete 1.x demo');
@@ -87,6 +87,8 @@ assert.doesNotMatch(readme, /`Alt\+Shift\+F`/,
     'README must not advertise the removed default formatter keybinding');
 assert.match(readme, /PARTITIONED BY.*STORED AS|STORED AS.*PARTITIONED BY/,
     'README must disclose the modeled Hive DDL suffixes');
+assert.match(readme, /DDL \/ Extract DDL.*524,288 个 UTF-16 code units/,
+    'README must disclose the experimental DDL input limit');
 assert.match(readme, /`hive-sql` language id 由第三方 Hive 语言扩展提供/,
     'README must disclose the third-party hive-sql language dependency');
 assert.match(packageJson.description, /Hive-first SQL formatter with lossless token handling/,
@@ -142,6 +144,8 @@ assert.match(architecture, /tests\/v2\/perf-baseline\.json/);
 assert.match(architecture, /scripts\/v2-suite-manifest\.js/);
 assert.match(architecture, /scripts\/package-manifest\.js/);
 assert.match(architecture, /Node 20 and Node 24/);
+assert.match(architecture, /Release comparison recomputes the same runtime source fingerprint/);
+assert.match(architecture, /allowlisted regular files/);
 assert.doesNotMatch(architecture, /`lib\//);
 assert.doesNotMatch(architecture, /vkbeautify/);
 
@@ -183,6 +187,53 @@ try {
         '--artifact', artifactPath,
         '--compare-build'
     ], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    var staleRoot = path.join(temporaryRoot, 'stale-source-checkout');
+    fs.mkdirSync(path.join(staleRoot, '.tmp'), { recursive: true });
+    fs.mkdirSync(path.join(staleRoot, 'scripts'), { recursive: true });
+    fs.cpSync(path.join(root, 'src'), path.join(staleRoot, 'src'), { recursive: true });
+    fs.cpSync(path.join(root, 'dist'), path.join(staleRoot, 'dist'), { recursive: true });
+    fs.cpSync(path.join(root, 'images'), path.join(staleRoot, 'images'), { recursive: true });
+    [
+        'package.json',
+        'package-lock.json',
+        'README.md'
+    ].forEach(function(fileName) {
+        fs.copyFileSync(path.join(root, fileName), path.join(staleRoot, fileName));
+    });
+    [
+        'build-v2-runtime.js',
+        'build-v2-utils.js',
+        'package-manifest.js',
+        'runtime-build-fingerprint.js'
+    ].forEach(function(fileName) {
+        var sourcePath = path.join(root, 'scripts', fileName);
+        if (fs.existsSync(sourcePath)) {
+            fs.copyFileSync(sourcePath, path.join(staleRoot, 'scripts', fileName));
+        }
+    });
+    fs.copyFileSync(
+        path.join(root, '.tmp', 'v2-runtime-build-stamp.json'),
+        path.join(staleRoot, '.tmp', 'v2-runtime-build-stamp.json')
+    );
+    var verifier = require(path.join(root, 'scripts', 'verify-release-artifact.js'));
+    assert.doesNotThrow(function() {
+        verifier.verifyArtifact(artifactPath, {
+            root: staleRoot,
+            compareBuild: true
+        });
+    }, 'an exact source snapshot must match the trusted runtime stamp');
+    fs.appendFileSync(
+        path.join(staleRoot, 'src', 'runtime', 'index.ts'),
+        '\n// stale source fingerprint probe\n',
+        'utf8'
+    );
+    assert.throws(function() {
+        verifier.verifyArtifact(artifactPath, {
+            root: staleRoot,
+            compareBuild: true
+        });
+    }, /source hash|current source|trusted build/i,
+    '--compare-build must reject an old stamp/dist/VSIX after source changes');
     var artifactBefore = fs.readFileSync(artifactPath);
     var runtimeArtifact = path.join(root, 'dist', 'runtime.cjs');
     var runtimeArtifactBefore = fs.readFileSync(runtimeArtifact);

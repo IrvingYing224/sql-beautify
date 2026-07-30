@@ -1,11 +1,16 @@
+import { MAX_FORMAT_SOURCE_CODE_UNITS } from "../../core/api/limits";
 import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import { lexSql } from "../../core/lexer/lossless-lexer";
 import {
+    DEFAULT_RENDER_TAB_SIZE,
     inferRenderNewline,
     isRenderNewline,
+    isRenderTabSize,
     type RenderNewline,
+    type RenderTabSize,
 } from "../../core/renderer/environment";
+import { displayWidth } from "../../core/renderer/display-width";
 import type {
     ExtractDdlResult,
     HiveDdlResult,
@@ -48,8 +53,14 @@ export interface ExperimentalDdlTransactionRequest {
     readonly document: DocumentSnapshot;
     readonly targets: readonly ExperimentalDdlTarget[];
     readonly newline?: RenderNewline;
+    readonly tabSize?: RenderTabSize;
     readonly cancellation?: CancellationToken;
     readonly debugEnabled?: boolean;
+}
+
+export interface ExperimentalDdlOperationContext {
+    readonly tabSize: RenderTabSize;
+    readonly startColumn: number;
 }
 
 export interface ExperimentalDdlEdit {
@@ -94,7 +105,8 @@ export type ExperimentalDdlTransactionResult =
     | CancelledExperimentalDdlTransaction;
 
 export type ExperimentalDdlOperation = (
-    source: string
+    source: string,
+    context: ExperimentalDdlOperationContext
 ) => ExperimentalDdlResult | Promise<ExperimentalDdlResult>;
 
 export interface ExperimentalDdlCommit {
@@ -107,6 +119,7 @@ export interface ExperimentalDdlCommit {
 
 interface SnapshottedDdlResult {
     readonly target: ExperimentalDdlTarget;
+    readonly indentation: DdlTargetIndentation;
     readonly result: {
         readonly status: string;
         readonly source: string;
@@ -114,6 +127,11 @@ interface SnapshottedDdlResult {
         readonly diagnostics: readonly TransactionDiagnostic[];
         readonly debugEvents: readonly DebugEvent[];
     };
+}
+
+interface DdlTargetIndentation extends ExperimentalDdlOperationContext {
+    readonly internalIndent: string;
+    readonly continuationIndent: string;
 }
 
 const RESULT_KEYS: ReadonlySet<string> = new Set([
@@ -412,16 +430,40 @@ function lineBreakLengthAt(source: string, offset: number): number {
     return code === 0x0A ? 1 : 0;
 }
 
-function leadingHorizontalWhitespace(value: string): string {
-    let end = 0;
-    while (end < value.length) {
-        const code = value.charCodeAt(end);
+function targetIndentation(
+    source: string,
+    target: ExperimentalDdlTarget,
+    lineIndex: TextLineIndex,
+    tabSize: RenderTabSize
+): DdlTargetIndentation | null {
+    const startLine = lineBoundsAtOffset(lineIndex, target.start);
+    if (startLine === null) {
+        return null;
+    }
+    const externalIndent = source.slice(startLine.start, target.start);
+    if (!isHorizontalWhitespaceRange(source, startLine.start, target.start)) {
+        return null;
+    }
+    let internalIndentEnd = target.start;
+    while (internalIndentEnd < target.end) {
+        const code = source.charCodeAt(internalIndentEnd);
         if (code !== 0x20 && code !== 0x09) {
             break;
         }
-        end += 1;
+        internalIndentEnd += 1;
     }
-    return value.slice(0, end);
+    const internalIndent = source.slice(target.start, internalIndentEnd);
+    const continuationIndent = externalIndent + internalIndent;
+    const startColumn = displayWidth(continuationIndent, 0, tabSize);
+    if (startColumn === null) {
+        return null;
+    }
+    return Object.freeze({
+        tabSize,
+        startColumn,
+        internalIndent,
+        continuationIndent,
+    });
 }
 
 interface DdlReplacement {
@@ -435,19 +477,10 @@ function normalizeDdlReplacement(
     target: ExperimentalDdlTarget,
     rawText: string,
     lineIndex: TextLineIndex,
-    newline: RenderNewline
+    newline: RenderNewline,
+    indentation: DdlTargetIndentation
 ): DdlReplacement | null {
-    const startLine = lineBoundsAtOffset(lineIndex, target.start);
-    if (startLine === null) {
-        return null;
-    }
-    const externalIndent = source.slice(startLine.start, target.start);
-    if (!isHorizontalWhitespaceRange(source, startLine.start, target.start)) {
-        return null;
-    }
     const targetSource = source.slice(target.start, target.end);
-    const internalIndent = leadingHorizontalWhitespace(targetSource);
-    const continuationIndent = externalIndent + internalIndent;
     let end = target.end;
     let preserveTerminalNewline = /(?:\r\n|\r|\n)$/.test(targetSource);
     if (!preserveTerminalNewline) {
@@ -471,7 +504,7 @@ function normalizeDdlReplacement(
     }
     const output: string[] = [];
     let pendingHorizontalWhitespace = "";
-    let lineIndent = internalIndent;
+    let lineIndent = indentation.internalIndent;
     let atGeneratedLineStart = true;
     for (const leaf of lexical.leaves) {
         if (leaf.kind === "whitespace") {
@@ -481,7 +514,7 @@ function normalizeDdlReplacement(
         if (leaf.kind === "newline") {
             pendingHorizontalWhitespace = "";
             output.push(newline);
-            lineIndent = continuationIndent;
+            lineIndent = indentation.continuationIndent;
             atGeneratedLineStart = true;
             continue;
         }
@@ -545,7 +578,8 @@ function prepareExperimentalDdlTransactionInternal(
                     target,
                     result.text,
                     lineIndex,
-                    newline
+                    newline,
+                    value.indentation
                 );
                 if (replacement === null) {
                     return rejected(expected.version, [
@@ -626,6 +660,7 @@ async function runExperimentalDdlTransactionInternal(
             return cancelled(expected.version);
         }
         let newline: RenderNewline;
+        let tabSize: RenderTabSize;
         try {
             const requestedNewline = request.newline;
             if (requestedNewline !== undefined && !isRenderNewline(requestedNewline)) {
@@ -638,12 +673,33 @@ async function runExperimentalDdlTransactionInternal(
                 ]);
             }
             newline = requestedNewline ?? inferRenderNewline(expected.source, "\n");
+            const requestedTabSize = request.tabSize;
+            if (requestedTabSize !== undefined && !isRenderTabSize(requestedTabSize)) {
+                return rejected(expected.version, [
+                    diagnostic(
+                        { id: "document", start: 0, end: expected.source.length },
+                        "ADAPTER_DDL_TRANSACTION",
+                        "Experimental DDL tab size is invalid"
+                    ),
+                ]);
+            }
+            tabSize = requestedTabSize ?? DEFAULT_RENDER_TAB_SIZE;
         } catch {
             return rejected(expected.version, [
                 diagnostic(
                     { id: "document", start: 0, end: expected.source.length },
                     "ADAPTER_DDL_TRANSACTION",
                     "Experimental DDL newline could not be inspected"
+                ),
+                ]);
+        }
+        if (expected.source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
+            return rejected(expected.version, [
+                diagnostic(
+                    { id: "document", start: 0, end: expected.source.length },
+                    "ADAPTER_DDL_INPUT_LIMIT",
+                    "Experimental DDL document exceeds the safe input limit",
+                    "warning"
                 ),
             ]);
         }
@@ -681,9 +737,30 @@ async function runExperimentalDdlTransactionInternal(
         const operationResults: SnapshottedDdlResult[] = [];
         const operationDiagnostics: TransactionDiagnostic[] = [];
         for (const target of targets) {
+            const indentation = targetIndentation(
+                expected.source,
+                target,
+                lineIndex,
+                tabSize
+            );
+            if (indentation === null) {
+                operationDiagnostics.push(diagnostic(
+                    target,
+                    "ADAPTER_DDL_RANGE",
+                    "Experimental DDL target indentation is invalid"
+                ));
+                if (cancellation.isCancelled()) {
+                    return cancelled(expected.version, operationDebugEvents);
+                }
+                continue;
+            }
             try {
                 const operationResult = await operation(
-                    expected.source.slice(target.start, target.end)
+                    expected.source.slice(target.start, target.end),
+                    Object.freeze({
+                        tabSize: indentation.tabSize,
+                        startColumn: indentation.startColumn,
+                    })
                 );
                 const result = snapshotResult(operationResult, target);
                 if (
@@ -697,7 +774,11 @@ async function runExperimentalDdlTransactionInternal(
                     ));
                 } else {
                     appendDebugEvents(operationDebugEvents, result.debugEvents);
-                    operationResults.push(Object.freeze({ target, result }));
+                    operationResults.push(Object.freeze({
+                        target,
+                        result,
+                        indentation,
+                    }));
                 }
             } catch (error) {
                 let debugEnabled = false;

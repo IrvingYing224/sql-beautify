@@ -199,6 +199,42 @@ async function main() {
     } finally {
         fs.rmSync(unknownRuntimeArtifact, { force: true });
     }
+    var runtimeEntryBeforeDirectoryProbe = fs.readFileSync(runtimeArtifact);
+    var unownedSentinel = path.join(runtimeArtifact, 'unowned-sentinel.txt');
+    try {
+        fs.rmSync(runtimeArtifact);
+        fs.mkdirSync(runtimeArtifact);
+        fs.writeFileSync(unownedSentinel, 'UNOWNED_NESTED_CONTENT\n', 'utf8');
+        var runtimeDirectoryFailure = runBuild('scripts/build-v2-runtime.js');
+        assert.notStrictEqual(runtimeDirectoryFailure.status, 0,
+            'an allowed runtime basename occupied by a directory must be rejected');
+        assert.match(runtimeDirectoryFailure.stderr, /regular file|unknown file/i);
+        assert.strictEqual(fs.readFileSync(unownedSentinel, 'utf8'),
+            'UNOWNED_NESTED_CONTENT\n',
+            'runtime build must preserve unknown content nested below an allowed basename');
+    } finally {
+        fs.rmSync(runtimeArtifact, { recursive: true, force: true });
+        fs.writeFileSync(runtimeArtifact, runtimeEntryBeforeDirectoryProbe);
+    }
+    var symlinkSentinel = path.join(root, '.tmp', 'runtime-unowned-sentinel.txt');
+    try {
+        fs.writeFileSync(symlinkSentinel, 'UNOWNED_SYMLINK_TARGET\n', 'utf8');
+        fs.rmSync(runtimeArtifact);
+        fs.symlinkSync(symlinkSentinel, runtimeArtifact);
+        var runtimeSymlinkFailure = runBuild('scripts/build-v2-runtime.js');
+        assert.notStrictEqual(runtimeSymlinkFailure.status, 0,
+            'an allowed runtime basename occupied by a symlink must be rejected');
+        assert.match(runtimeSymlinkFailure.stderr, /regular file/i);
+        assert.strictEqual(fs.lstatSync(runtimeArtifact).isSymbolicLink(), true,
+            'runtime build must preserve the unowned symlink');
+        assert.strictEqual(fs.readFileSync(symlinkSentinel, 'utf8'),
+            'UNOWNED_SYMLINK_TARGET\n',
+            'runtime build must preserve the unowned symlink target');
+    } finally {
+        fs.rmSync(runtimeArtifact, { force: true });
+        fs.writeFileSync(runtimeArtifact, runtimeEntryBeforeDirectoryProbe);
+        fs.rmSync(symlinkSentinel, { force: true });
+    }
     var runtimeStampBefore = digest(runtimeStamp);
     var runtimeStampFailure = runBuild('scripts/build-v2-runtime.js', {
         SQL_BEAUTIFY_BUILD_FORCE: '1',

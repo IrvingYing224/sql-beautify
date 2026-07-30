@@ -259,7 +259,9 @@ async function main() {
     var host = createVscode(document, editor);
     var calls = { prepare: 0, host: 0, ddl: 0, prepareNewlines: [],
         prepareTabSizes: [], prepareDialects: [], hostNewlines: [], hostTabSizes: [],
-        ddlNewlines: [], ddlDebugFlags: [], ddlOptions: [],
+        ddlNewlines: [], ddlDebugFlags: [], ddlOptions: [], ddlTabSizes: [],
+        ddlStartColumns: [], extractTabSizes: [], extractStartColumns: [],
+        ddlRequestTabSizes: [],
         ddlCommitMode: false,
         ddlRejectMode: false };
     var runtime = {
@@ -312,14 +314,18 @@ async function main() {
             calls.ddl += 1;
             calls.ddlNewlines.push(request.newline);
             calls.ddlDebugFlags.push(request.debugEnabled);
+            calls.ddlRequestTabSizes.push(request.tabSize);
             assert.strictEqual(request.targets.length, 1);
             assert.ok(request.cancellation,
                 'DDL progress cancellation must reach DDL transaction');
             var operationTarget = request.targets[0];
-            await operation(request.document.source.slice(
-                operationTarget.start,
-                operationTarget.end
-            ));
+            await operation(
+                request.document.source.slice(
+                    operationTarget.start,
+                    operationTarget.end
+                ),
+                Object.freeze({ tabSize: request.tabSize, startColumn: 0 })
+            );
             if (calls.ddlRejectMode) {
                 return { status: 'rejected', documentVersion: request.document.version,
                     diagnostics: [{ code: 'DDL_UNSUPPORTED_STATEMENT', severity: 'warning',
@@ -342,14 +348,22 @@ async function main() {
                 edits: [], diagnostics: []
             };
         },
-        executeFormatHiveDdl: function(value, options, debugEnabled) {
+        executeFormatHiveDdl: function(
+            value, options, debugEnabled, tabSize, startColumn
+        ) {
             calls.ddlOptions.push(options);
+            calls.ddlTabSizes.push(tabSize);
+            calls.ddlStartColumns.push(startColumn);
             assert.strictEqual(debugEnabled, false);
             return { status: 'unchanged', source: value, text: value, diagnostics: [] };
         },
-        executeExtractDdl: function(value, options, debugEnabled) {
+        executeExtractDdl: function(
+            value, options, debugEnabled, tabSize, startColumn
+        ) {
             assert.strictEqual(options, undefined);
             assert.strictEqual(debugEnabled, false);
+            calls.extractTabSizes.push(tabSize);
+            calls.extractStartColumns.push(startColumn);
             return { status: 'empty', source: value, text: value, diagnostics: [{
                 code: 'EXTRACT_EMPTY', severity: 'warning', message: 'safe',
                 capabilityId: null, span: { start: 0, end: value.length },
@@ -758,6 +772,17 @@ async function main() {
         'DDL command must pass the document render newline');
     assert.strictEqual(calls.ddlDebugFlags[0], false,
         'DDL transaction debug channel must remain opt-in');
+    assert.strictEqual(calls.ddlTabSizes[0], 2,
+        'DDL format command must bridge the active editor tabSize');
+    assert.strictEqual(calls.ddlRequestTabSizes[0], 2,
+        'DDL transaction request must receive the active editor tabSize');
+    assert.strictEqual(calls.ddlStartColumns[0], 0,
+        'DDL execution must receive the transaction-derived start column');
+    await host.commands['sqlBeautify.extractHiveDdl']();
+    assert.strictEqual(calls.extractTabSizes[0], 2,
+        'Extract DDL command must bridge the active editor tabSize');
+    assert.strictEqual(calls.extractStartColumns[0], 0,
+        'Extract execution must receive the transaction-derived start column');
     calls.ddlRejectMode = true;
     await host.commands['sqlBeautify.formatHiveDdl']();
     calls.ddlRejectMode = false;

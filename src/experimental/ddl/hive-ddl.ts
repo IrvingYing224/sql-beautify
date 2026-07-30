@@ -1,5 +1,11 @@
 import type { SourceLeaf } from "../../core/lexer/token";
+import { MAX_FORMAT_SOURCE_CODE_UNITS } from "../../core/api/limits";
 import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
+import {
+    DEFAULT_RENDER_TAB_SIZE,
+    isRenderTabSize,
+    type RenderTabSize,
+} from "../../core/renderer/environment";
 import type { SourceSpan } from "../../core/source/source-span";
 import type { LeafRange } from "../../core/syntax/leaf-range";
 import type {
@@ -581,7 +587,9 @@ function renderType(
 function renderColumns(
     cst: HiveCreateTableCst,
     columns: readonly HiveDdlColumn[],
-    options: ResolvedHiveDdlFormatOptions
+    options: ResolvedHiveDdlFormatOptions,
+    tabSize: RenderTabSize,
+    startColumn: number
 ): readonly string[] {
     const indent = options.indentStyle === "tab" ? "\t" : "    ";
     const rows = columns.map((column) => {
@@ -603,7 +611,9 @@ function renderColumns(
             name: row.name,
         })),
         cst.artifact.source.length,
-        options.maxAlignWidth
+        options.maxAlignWidth,
+        tabSize,
+        startColumn
     );
     return Object.freeze(rows.map((row, index) => {
         const padding = " ".repeat(paddings[index]!);
@@ -617,7 +627,9 @@ function renderColumns(
 
 function renderHiveCreateTable(
     cst: HiveCreateTableCst,
-    options: ResolvedHiveDdlFormatOptions
+    options: ResolvedHiveDdlFormatOptions,
+    tabSize: RenderTabSize,
+    startColumn: number
 ): string {
     const header = [
         keyword("create", options),
@@ -628,12 +640,23 @@ function renderHiveCreateTable(
             : []),
         renderQualifiedName(cst.artifact, cst.tableNameRange),
     ].join(" ");
-    const lines = [header, "(", ...renderColumns(cst, cst.columns, options), ")"];
+    const lines = [
+        header,
+        "(",
+        ...renderColumns(cst, cst.columns, options, tabSize, startColumn),
+        ")",
+    ];
     if (cst.partitionColumns !== null) {
         lines.push(
             `${keyword("partitioned", options)} ${keyword("by", options)}`,
             "(",
-            ...renderColumns(cst, cst.partitionColumns, options),
+            ...renderColumns(
+                cst,
+                cst.partitionColumns,
+                options,
+                tabSize,
+                startColumn
+            ),
             ")"
         );
     }
@@ -663,7 +686,9 @@ function executionResult(
 export function executeFormatHiveDdl(
     source: string,
     options: HiveDdlFormatOptions | unknown = undefined,
-    debugEnabled = false
+    debugEnabled = false,
+    tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE,
+    startColumn = 0
 ): HiveDdlExecutionResult {
     if (typeof source !== "string") {
         return executionResult(hiveDdlResult(
@@ -671,6 +696,35 @@ export function executeFormatHiveDdl(
             "",
             "",
             ddlDiagnostic("DDL_INPUT", "Hive DDL source must be a string", "")
+        ), Object.freeze([]));
+    }
+    if (source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
+        return executionResult(hiveDdlResult(
+            "failed",
+            source,
+            source,
+            ddlDiagnostic(
+                "DDL_RESOURCE_LIMIT",
+                "Hive DDL input exceeded the safe resource budget",
+                source
+            )
+        ), Object.freeze([]));
+    }
+    if (
+        !isRenderTabSize(tabSize) ||
+        !Number.isSafeInteger(startColumn) ||
+        startColumn < 0 ||
+        startColumn > MAX_FORMAT_SOURCE_CODE_UNITS
+    ) {
+        return executionResult(hiveDdlResult(
+            "failed",
+            source,
+            source,
+            ddlDiagnostic(
+                "DDL_INTERNAL",
+                "Hive DDL formatting failed safely",
+                source
+            )
         ), Object.freeze([]));
     }
     const resolved = resolveHiveDdlFormatOptions(options);
@@ -688,7 +742,12 @@ export function executeFormatHiveDdl(
     }
     try {
         const cst = parseHiveCreateTable(source);
-        const rendered = renderHiveCreateTable(cst, resolved);
+        const rendered = renderHiveCreateTable(
+            cst,
+            resolved,
+            tabSize,
+            startColumn
+        );
         const rowCount = cst.columns.length + (cst.partitionColumns?.length ?? 0);
         if (!ddlOutputWithinBudget(source.length, rowCount, rendered.length)) {
             return executionResult(hiveDdlResult(

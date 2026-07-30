@@ -1,6 +1,4 @@
-import {
-    DEFAULT_RENDER_TAB_SIZE,
-} from "../../core/renderer/environment";
+import type { RenderTabSize } from "../../core/renderer/environment";
 import { displayWidth } from "../../core/renderer/display-width";
 
 export const DEFAULT_DDL_MAX_ALIGN_WIDTH = 150;
@@ -33,7 +31,9 @@ function paddingBudget(sourceLength: number, rowCount: number): number | null {
 export function alignmentPaddings(
     rows: readonly AlignmentMeasure[],
     sourceLength: number,
-    maxAlignWidth: number
+    maxAlignWidth: number,
+    tabSize: RenderTabSize,
+    startColumn = 0
 ): readonly number[] {
     const fallback = Object.freeze(rows.map(() => 1));
     const widths: number[] = [];
@@ -41,21 +41,21 @@ export function alignmentPaddings(
     for (const row of rows) {
         const width = displayWidth(
             `${row.prefix}${row.name}`,
-            0,
-            DEFAULT_RENDER_TAB_SIZE
+            startColumn,
+            tabSize
         );
         if (width === null) {
             return fallback;
         }
         widths.push(width);
-        targetColumn = Math.max(targetColumn, width + 1);
+        targetColumn = Math.max(targetColumn, startColumn + width + 1);
     }
     if (targetColumn > maxAlignWidth) {
         return fallback;
     }
     let generated = 0;
     const paddings = widths.map((width) => {
-        const padding = Math.max(1, targetColumn - width);
+        const padding = Math.max(1, targetColumn - startColumn - width);
         generated += padding;
         return padding;
     });

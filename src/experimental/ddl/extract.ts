@@ -6,6 +6,7 @@ import type {
     QueryNode,
     SyntaxNode,
 } from "../../core/syntax/node";
+import { MAX_FORMAT_SOURCE_CODE_UNITS } from "../../core/api/limits";
 import { analyzeSql } from "../../core/analysis/analyze";
 import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import type {
@@ -14,6 +15,11 @@ import type {
     CommentBinding,
 } from "../../core/analysis/types";
 import type { SourceLeaf } from "../../core/lexer/token";
+import {
+    DEFAULT_RENDER_TAB_SIZE,
+    isRenderTabSize,
+    type RenderTabSize,
+} from "../../core/renderer/environment";
 import {
     alignmentPaddings,
     DEFAULT_DDL_MAX_ALIGN_WIDTH,
@@ -435,7 +441,9 @@ function renderExtract(
     artifact: AnalyzedArtifact,
     branch: ProjectionBranch,
     type: string,
-    maxAlignWidth: number
+    maxAlignWidth: number,
+    tabSize: RenderTabSize,
+    startColumn: number
 ): string {
     const prefixes = branch.columns.map((_, index) => index === 0 ? "     " : "    ,");
     const paddings = alignmentPaddings(
@@ -444,7 +452,9 @@ function renderExtract(
             name: column.name,
         })),
         artifact.source.length,
-        maxAlignWidth
+        maxAlignWidth,
+        tabSize,
+        startColumn
     );
     const lines = branch.columns.map((column, index) => {
         const comment = commentText(artifact, column.commentLeafId);
@@ -469,7 +479,9 @@ function extractExecutionResult(
 export function executeExtractDdl(
     source: string,
     options: ExtractDdlOptions | unknown = {},
-    debugEnabled = false
+    debugEnabled = false,
+    tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE,
+    startColumn = 0
 ): ExtractDdlExecutionResult {
     if (typeof source !== "string") {
         return extractExecutionResult(extractDdlResult(
@@ -477,6 +489,35 @@ export function executeExtractDdl(
             "",
             "",
             ddlDiagnostic("EXTRACT_INPUT", "Extract DDL source must be a string", "")
+        ), Object.freeze([]));
+    }
+    if (source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
+        return extractExecutionResult(extractDdlResult(
+            "failed",
+            source,
+            source,
+            ddlDiagnostic(
+                "EXTRACT_RESOURCE_LIMIT",
+                "DDL extraction input exceeded the safe resource budget",
+                source
+            )
+        ), Object.freeze([]));
+    }
+    if (
+        !isRenderTabSize(tabSize) ||
+        !Number.isSafeInteger(startColumn) ||
+        startColumn < 0 ||
+        startColumn > MAX_FORMAT_SOURCE_CODE_UNITS
+    ) {
+        return extractExecutionResult(extractDdlResult(
+            "failed",
+            source,
+            source,
+            ddlDiagnostic(
+                "EXTRACT_INTERNAL",
+                "DDL extraction failed safely",
+                source
+            )
         ), Object.freeze([]));
     }
     const resolvedOptions = resolveExtractDdlOptions(options);
@@ -520,7 +561,9 @@ export function executeExtractDdl(
             analyzed,
             branch,
             type,
-            DEFAULT_DDL_MAX_ALIGN_WIDTH
+            DEFAULT_DDL_MAX_ALIGN_WIDTH,
+            tabSize,
+            startColumn
         );
         if (rendered.length === 0) {
             throw new ProjectionError("EXTRACT_EMPTY", "Extract DDL result is empty");

@@ -8,6 +8,7 @@ import type {
 import type {
     ExtractDdlExecutionResult,
     ExtractDdlOptions,
+    ExtractDdlResult,
     HiveDdlExecutionResult,
     HiveDdlFormatOptions,
     HiveDdlResult,
@@ -91,18 +92,25 @@ export interface V2ExtensionRuntime {
     readonly executeFormatHiveDdl: (
         source: string,
         options?: HiveDdlFormatOptions,
-        debugEnabled?: boolean
+        debugEnabled?: boolean,
+        tabSize?: RenderTabSize,
+        startColumn?: number
     ) => HiveDdlExecutionResult;
     readonly executeExtractDdl: (
         source: string,
         options?: ExtractDdlOptions,
-        debugEnabled?: boolean
+        debugEnabled?: boolean,
+        tabSize?: RenderTabSize,
+        startColumn?: number
     ) => ExtractDdlExecutionResult;
     readonly formatHiveDdl: (
         source: string,
         options?: HiveDdlFormatOptions
     ) => HiveDdlResult;
-    readonly extractDdl: ExperimentalDdlOperation;
+    readonly extractDdl: (
+        source: string,
+        options?: ExtractDdlOptions
+    ) => ExtractDdlResult;
 }
 
 export interface VscodeExtensionSession {
@@ -1026,16 +1034,21 @@ export function createVscodeExtension(
             indentStyle: current.options.indentStyle,
             maxAlignWidth: current.options.maxAlignWidth,
         });
+        const tabSize = editorRenderTabSize(editor);
         const selectedOperation: ExperimentalDdlOperation = useFormatOptions
-            ? (source) => runtime.executeFormatHiveDdl(
+            ? (source, context) => runtime.executeFormatHiveDdl(
                   source,
                   ddlOptions,
-                  current.debugDiagnostics
+                  current.debugDiagnostics,
+                  context.tabSize,
+                  context.startColumn
               )
-            : (source) => runtime.executeExtractDdl(
+            : (source, context) => runtime.executeExtractDdl(
                   source,
                   undefined,
-                  current.debugDiagnostics
+                  current.debugDiagnostics,
+                  context.tabSize,
+                  context.startColumn
               );
         let result: ExperimentalDdlTransactionResult;
         try {
@@ -1047,6 +1060,7 @@ export function createVscodeExtension(
                     editor.document,
                     expected.source
                 ),
+                tabSize,
                 debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, selectedOperation, ddlCommit(

@@ -5,6 +5,7 @@ var esbuild = require('esbuild');
 var fs = require('fs');
 var path = require('path');
 var manifestApi = require('./package-manifest');
+var fingerprint = require('./runtime-build-fingerprint');
 var utils = require('./build-v2-utils');
 
 var root = path.join(__dirname, '..');
@@ -23,20 +24,6 @@ var entries = Object.freeze({
 
 function debugSourceMapsEnabled() {
     return process.env.SQL_BEAUTIFY_DEBUG_SOURCEMAP === '1';
-}
-
-function sourceHash(debugSourceMaps) {
-    return utils.contentHash(root, [
-        'src',
-        'scripts/build-v2-runtime.js',
-        'scripts/build-v2-utils.js',
-        'scripts/package-manifest.js',
-        'package.json'
-    ], {
-        schemaVersion: 2,
-        esbuild: require('esbuild/package.json').version,
-        debugSourceMaps: debugSourceMaps
-    });
 }
 
 function expectedNames(debugSourceMaps) {
@@ -76,10 +63,16 @@ function validateExistingDist(manifest) {
             })
         )
     );
-    fs.readdirSync(outDir).forEach(function(fileName) {
-        if (!allowed.has(fileName)) {
+    fs.readdirSync(outDir, { withFileTypes: true }).forEach(function(entry) {
+        if (!allowed.has(entry.name)) {
             throw new Error(
-                'Refusing to replace dist because it contains an unknown file: ' + fileName
+                'Refusing to replace dist because it contains an unknown file: ' + entry.name
+            );
+        }
+        if (!entry.isFile()) {
+            throw new Error(
+                'Refusing to replace dist because an owned output is not a regular file: ' +
+                entry.name
             );
         }
     });
@@ -138,7 +131,7 @@ async function main() {
     try {
         utils.recoverDirectorySwap(outDir, previousDir);
         utils.testHoldMilliseconds('SQL_BEAUTIFY_RUNTIME_BUILD_TEST_HOLD_MS');
-        var hash = sourceHash(debugSourceMaps);
+        var hash = fingerprint.runtimeSourceHash(root, debugSourceMaps);
         if (isReusable(hash, debugSourceMaps)) {
             console.log('Reused cached v2 runtime build ' + hash.slice(0, 12));
             return;
@@ -172,7 +165,7 @@ async function main() {
         utils.writeJsonAtomic(stampPath, {
             schemaVersion: 2,
             sourceHash: hash,
-            esbuildVersion: require('esbuild/package.json').version,
+            esbuildVersion: fingerprint.esbuildVersion(),
             debugSourceMaps: debugSourceMaps,
             outputManifest: outputManifest
         });

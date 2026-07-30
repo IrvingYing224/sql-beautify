@@ -187,6 +187,7 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     ADAPTER_WORKER_UNAVAILABLE: "The formatter worker is unavailable",
 
     ADAPTER_DDL_COMMAND_FAILED: "The experimental DDL command failed safely",
+    ADAPTER_DDL_INPUT_LIMIT: "The experimental DDL document exceeds the safe input limit",
     ADAPTER_DDL_NOT_EDITABLE: "The experimental DDL result cannot be edited safely",
     ADAPTER_DDL_OPERATION: "The experimental DDL operation failed safely",
     ADAPTER_DDL_RANGE: "The DDL selection is not a complete safe source range",

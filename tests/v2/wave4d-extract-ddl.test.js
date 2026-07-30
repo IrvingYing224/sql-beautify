@@ -2,7 +2,9 @@
 
 var assert = require('assert');
 var ddl = require('../../.tmp/v2-core/experimental/ddl');
+var extractExecution = require('../../.tmp/v2-core/experimental/ddl/extract');
 var resultFactory = require('../../.tmp/v2-core/experimental/ddl/result');
+var limits = require('../../.tmp/v2-core/core/api/limits');
 var displayWidth = require('../../.tmp/v2-core/core/renderer/display-width');
 var fixtures = require('../fixtures/v2-wave4-ddl');
 
@@ -82,6 +84,11 @@ assert.strictEqual(
     'EXTRACT_OPTIONS'
 );
 assert.strictEqual(
+    ddl.extractDdl('SELECT a FROM t', { tabSize: 8 }).diagnostics[0].code,
+    'EXTRACT_OPTIONS',
+    'tabSize must not expand the public Extract DDL options'
+);
+assert.strictEqual(
     ddl.extractDdl(
         'SELECT a FROM t',
         Object.create({ defaultType: 'BIGINT' })
@@ -129,6 +136,74 @@ assert.strictEqual(extractTypeColumns.length, 4);
 assert.strictEqual(new Set(extractTypeColumns).size, 1,
     'Extract emoji, combining and tab identifiers must share one display column');
 
+var tabExtractSource = 'SELECT `a\tb`, ascii, `中` FROM t';
+[2, 4, 8].forEach(function(tabSize) {
+    var tabExtract = extractExecution.executeExtractDdl(
+        tabExtractSource,
+        undefined,
+        false,
+        tabSize
+    );
+    assert.strictEqual(tabExtract.status, 'extracted');
+    var alignedColumns = tabExtract.text.split('\n').filter(Boolean).map(
+        function(line) {
+            return displayWidth.displayWidth(
+                line.slice(0, line.lastIndexOf('__TYPE_REQUIRED__')),
+                0,
+                tabSize
+            );
+        }
+    );
+    assert.strictEqual(new Set(alignedColumns).size, 1,
+        'Extract DDL tabSize=' + tabSize + ' must align identifier tabs');
+});
+assert.strictEqual(
+    ddl.extractDdl(tabExtractSource).text,
+    extractExecution.executeExtractDdl(tabExtractSource, undefined, false, 4).text,
+    'public Extract DDL facade must retain the internal tabSize=4 default'
+);
+var shiftedTabExtract = extractExecution.executeExtractDdl(
+    tabExtractSource,
+    undefined,
+    false,
+    8,
+    2
+);
+assert.strictEqual(shiftedTabExtract.status, 'extracted');
+var shiftedExtractColumns = shiftedTabExtract.text.split('\n').filter(Boolean)
+    .map(function(line) {
+        var renderedLine = '  ' + line;
+        return displayWidth.displayWidth(
+            renderedLine.slice(0, renderedLine.lastIndexOf('__TYPE_REQUIRED__')),
+            0,
+            8
+        );
+    });
+assert.strictEqual(new Set(shiftedExtractColumns).size, 1,
+    'Extract alignment must include the transaction start column');
+var invalidExtractTabSize = extractExecution.executeExtractDdl(
+    tabExtractSource,
+    undefined,
+    false,
+    257
+);
+assert.strictEqual(invalidExtractTabSize.status, 'failed');
+assert.strictEqual(invalidExtractTabSize.text, tabExtractSource);
+assert.strictEqual(invalidExtractTabSize.diagnostics[0].code, 'EXTRACT_INTERNAL');
+assert.strictEqual(invalidExtractTabSize.diagnostics[0].message,
+    'DDL extraction failed safely');
+assert.strictEqual(
+    extractExecution.executeExtractDdl(
+        tabExtractSource,
+        undefined,
+        false,
+        8,
+        -1
+    ).diagnostics[0].code,
+    'EXTRACT_INTERNAL',
+    'invalid internal Extract start columns must fail closed'
+);
+
 var wideExtractName = new Array(10001).join('x');
 var wideExtractColumns = ['`' + wideExtractName + '`'];
 for (var wideExtractIndex = 0; wideExtractIndex < 1000; wideExtractIndex++) {
@@ -141,6 +216,24 @@ assert.ok(wideExtract.text.length < wideExtractSource.length * 10,
     'Extract DDL alignment output must remain linear, got ' +
     wideExtract.text.length + ' from ' + wideExtractSource.length);
 
+var exactLimitExtractPrefix = 'SELECT a FROM t';
+var exactLimitExtract = exactLimitExtractPrefix + ' '.repeat(
+    limits.MAX_FORMAT_SOURCE_CODE_UNITS - exactLimitExtractPrefix.length
+);
+var exactLimitExtractResult = ddl.extractDdl(exactLimitExtract);
+assert.strictEqual(exactLimitExtract.length, limits.MAX_FORMAT_SOURCE_CODE_UNITS);
+assert.strictEqual(exactLimitExtractResult.status, 'extracted',
+    'the exact Extract DDL source limit must remain semantically accepted');
+var overLimitExtract = exactLimitExtract + ' ';
+var overLimitExtractResult = ddl.extractDdl(overLimitExtract);
+assert.strictEqual(overLimitExtractResult.status, 'failed');
+assert.strictEqual(overLimitExtractResult.source, overLimitExtract);
+assert.strictEqual(overLimitExtractResult.text, overLimitExtract);
+assert.strictEqual(
+    overLimitExtractResult.diagnostics[0].code,
+    'EXTRACT_RESOURCE_LIMIT'
+);
+
 var analyzePath = require.resolve('../../.tmp/v2-core/core/analysis/analyze');
 var extractPath = require.resolve('../../.tmp/v2-core/experimental/ddl/extract');
 var analyze = require(analyzePath);
@@ -150,6 +243,12 @@ analyze.analyzeSql = function() {
 };
 delete require.cache[extractPath];
 var hostileExtract = require(extractPath);
+var analysisSkippedForOverLimit = hostileExtract.extractDdl(overLimitExtract);
+assert.strictEqual(
+    analysisSkippedForOverLimit.diagnostics[0].code,
+    'EXTRACT_RESOURCE_LIMIT',
+    'over-limit Extract DDL must fail before entering the hostile analyzer'
+);
 var safeAnalysisFailure = hostileExtract.extractDdl('SELECT secret FROM t');
 assert.strictEqual(safeAnalysisFailure.status, 'failed');
 assert.strictEqual(safeAnalysisFailure.diagnostics[0].code, 'EXTRACT_ANALYSIS_FAILED');

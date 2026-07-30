@@ -47,7 +47,7 @@ formatHiveDdl(source, {
 });
 ```
 
-未知 key、非法 enum/范围、Proxy、accessor 或 `null` options 返回 `failed`、`DDL_OPTIONS` 和完整原文。VS Code 的 DDL 命令沿用同一次 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle`、`sqlBeautify.indentStyle` 与 `sqlBeautify.maxAlignWidth` 配置解析。DDL 列名对齐使用 Unicode 17 display width；目标列超过 `maxAlignWidth` 或线性生成空白预算时只保留一个必要分隔空格，不再按最长名称产生乘法级输出。
+未知 key、非法 enum/范围、Proxy、accessor 或 `null` options 返回 `failed`、`DDL_OPTIONS` 和完整原文。VS Code 的 DDL 命令沿用同一次 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle`、`sqlBeautify.indentStyle` 与 `sqlBeautify.maxAlignWidth` 配置解析。DDL 列名对齐使用 Unicode 17 display width、活动编辑器的 `tabSize` 以及每个缩进 target 的实际 base-indent 起始列；目标列超过 `maxAlignWidth` 或线性生成空白预算时只保留一个必要分隔空格，不再按最长名称产生乘法级输出。Extract DDL 命令使用同一 target-specific render context；公开 Node.js `formatHiveDdl()` / `extractDdl()` 默认使用 tab stop 4 和起始列 0，且不把这些 render environment 值加入公开 options。
 
 完整消费的 `CREATE TABLE` 子集新增按固定顺序出现的可选 `PARTITIONED BY (...)` 和 `STORED AS <format>`。storage format 只允许 `AVRO`、`ORC`、`PARQUET`、`RCFILE`、`SEQUENCEFILE`、`TEXTFILE`。重复或乱序 suffix、未知 storage、`LOCATION`、`TBLPROPERTIES`、CTAS、约束、默认值、多 statement 或结构不完整输入继续整条 `preserved`，不会部分改写。
 
@@ -57,6 +57,11 @@ formatHiveDdl(source, {
 data property，Proxy、accessor、symbol/未知 key、继承属性或 exotic prototype 返回 `EXTRACT_OPTIONS`，且不会
 执行 getter/trap。`defaultType` 最长 128 个 UTF-16 code units，超限或 type shape 非法返回
 `EXTRACT_DEFAULT_TYPE` 并保留输入。Extract DDL 同样使用 Unicode display width 与线性输出预算。
+
+`formatHiveDdl()` 与 `extractDdl()` 的单个 source 现在复用主 formatter 的 524,288 个 UTF-16 code units
+上限；VS Code DDL transaction 在任何 target-boundary lexer 前对完整文档应用同一上限。精确边界继续正常
+解析；超限 API 输入分别返回 `DDL_RESOURCE_LIMIT` / `EXTRACT_RESOURCE_LIMIT` 和完整原文，超限 DDL 文档
+返回 `ADAPTER_DDL_INPUT_LIMIT`。VS Code 的多目标 DDL 事务仍保持整批零提交。
 
 ## Node.js consumers
 

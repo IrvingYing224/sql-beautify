@@ -3,8 +3,11 @@
 var assert = require('assert');
 var performance = require('perf_hooks').performance;
 var ddl = require('../../.tmp/v2-core/experimental/ddl');
+var hiveExecution = require('../../.tmp/v2-core/experimental/ddl/hive-ddl');
 var cancellation = require('../../.tmp/v2-core/adapters/transaction/cancellation');
 var transaction = require('../../.tmp/v2-core/adapters/transaction/experimental-ddl');
+var displayWidth = require('../../.tmp/v2-core/core/renderer/display-width');
+var limits = require('../../.tmp/v2-core/core/api/limits');
 
 function snapshot(source, version, identity) {
     return Object.freeze({
@@ -36,13 +39,18 @@ async function runOperation(source, operation, overrides, targets) {
             return options.applyResult === undefined ? true : options.applyResult;
         }
     };
+    var transactionOperation = operation === ddl.formatHiveDdl ||
+        operation === ddl.extractDdl
+        ? function(value) { return operation(value); }
+        : operation;
     var result = await transaction.runExperimentalDdlTransaction({
         document: document,
         targets: targets || [target(source)],
         newline: options.newline,
+        tabSize: options.tabSize,
         debugEnabled: options.debugEnabled,
         cancellation: options.cancellation
-    }, operation, commit);
+    }, transactionOperation, commit);
     return { result: result, applied: applied, document: document, identity: identity };
 }
 
@@ -441,6 +449,107 @@ async function main() {
     assert.strictEqual(indentedCrlf.result.edits[0].text.indexOf('\n') >= 0, true);
     assert.strictEqual(/(^|[^\r])\n/.test(indentedCrlf.result.edits[0].text), false,
         'CRLF replacement must not contain lone LF');
+
+    var displayColumnSource =
+        '  CREATE TABLE t (`a\tb` STRING, ascii STRING, `中` STRING)\n';
+    var displayColumnStart = displayColumnSource.indexOf('CREATE TABLE');
+    var displayColumnEnd = displayColumnSource.indexOf('\n');
+    var displayColumnResult = await runOperation(
+        displayColumnSource,
+        function(source, context) {
+            return hiveExecution.executeFormatHiveDdl(
+                source,
+                { indentStyle: 'space' },
+                false,
+                context.tabSize,
+                context.startColumn
+            );
+        },
+        { newline: '\n', tabSize: 8 },
+        [target(
+            displayColumnSource,
+            'display-column',
+            displayColumnStart,
+            displayColumnEnd
+        )]
+    );
+    assert.strictEqual(displayColumnResult.result.status, 'ready');
+    var renderedTypeColumns = displayColumnResult.result.edits[0].text
+        .split('\n')
+        .filter(function(line) { return line.indexOf(' STRING') >= 0; })
+        .map(function(line) {
+            return displayWidth.displayWidth(
+                line.slice(0, line.lastIndexOf('STRING')),
+                0,
+                8
+            );
+        });
+    assert.strictEqual(new Set(renderedTypeColumns).size, 1,
+        'indented transaction edits must align using the target start column');
+
+    var contextSource = [
+        '  CREATE TABLE a (x INT)',
+        '\tCREATE TABLE b (y INT)'
+    ].join('\n');
+    var contextSecondStart = contextSource.indexOf('CREATE TABLE b');
+    var contexts = [];
+    var contextResult = await runOperation(
+        contextSource,
+        function(source, context) {
+            contexts.push(context);
+            return {
+                status: 'unchanged',
+                source: source,
+                text: source,
+                diagnostics: []
+            };
+        },
+        { tabSize: 8 },
+        [
+            target(contextSource, 'spaces', 2, contextSource.indexOf('\n')),
+            target(contextSource, 'tab', contextSecondStart, contextSource.length)
+        ]
+    );
+    assert.strictEqual(contextResult.result.status, 'unchanged');
+    assert.deepStrictEqual(contexts.map(function(context) {
+        return [context.tabSize, context.startColumn];
+    }), [[8, 2], [8, 8]],
+    'multi-target transactions must derive an independent immutable context');
+    assert.ok(contexts.every(Object.isFrozen),
+        'per-target DDL execution contexts must be immutable');
+    var invalidTabTransaction = await runOperation(
+        'CREATE TABLE t (a INT)',
+        function() {
+            throw new Error('invalid tabSize must reject before DDL execution');
+        },
+        { tabSize: 0 }
+    );
+    assert.strictEqual(invalidTabTransaction.result.status, 'rejected');
+    assert.strictEqual(
+        invalidTabTransaction.result.diagnostics[0].code,
+        'ADAPTER_DDL_TRANSACTION'
+    );
+    assert.strictEqual(invalidTabTransaction.applied.length, 0);
+    var transactionLimitPrefix = 'CREATE TABLE limit_probe (a INT)';
+    var overLimitTransactionSource = transactionLimitPrefix + ' '.repeat(
+        limits.MAX_FORMAT_SOURCE_CODE_UNITS + 1 - transactionLimitPrefix.length
+    );
+    var overLimitOperationCalls = 0;
+    var overLimitTransaction = await runOperation(
+        overLimitTransactionSource,
+        function() {
+            overLimitOperationCalls += 1;
+            throw new Error('over-limit transaction must reject before operation');
+        }
+    );
+    assert.strictEqual(overLimitTransaction.result.status, 'rejected');
+    assert.strictEqual(
+        overLimitTransaction.result.diagnostics[0].code,
+        'ADAPTER_DDL_INPUT_LIMIT'
+    );
+    assert.strictEqual(overLimitOperationCalls, 0);
+    assert.strictEqual(overLimitTransaction.applied.length, 0,
+        'over-limit experimental DDL documents must never reach host commit');
 
     var literalQuote = String.fromCharCode(39);
     var literalSpaceSource = 'CREATE TABLE t (a STRING COMMENT ' +

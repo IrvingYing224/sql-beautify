@@ -42,6 +42,7 @@ function listEntries(artifactPath) {
 }
 
 function verifyTrustedBuild(artifactPath, root, packageManifest) {
+    var fingerprint = require('./runtime-build-fingerprint');
     var utils = require('./build-v2-utils');
     var stampPath = path.join(root, '.tmp', 'v2-runtime-build-stamp.json');
     var stamp = utils.readJson(stampPath);
@@ -49,6 +50,13 @@ function verifyTrustedBuild(artifactPath, root, packageManifest) {
         '--compare-build requires a current trusted build stamp');
     assert.strictEqual(stamp.debugSourceMaps, false,
         'release artifacts must come from a non-debug runtime build');
+    assert.strictEqual(stamp.esbuildVersion, fingerprint.esbuildVersion(),
+        'trusted build stamp must use the current esbuild version');
+    assert.strictEqual(
+        stamp.sourceHash,
+        fingerprint.runtimeSourceHash(root, false),
+        'trusted build stamp source hash must match the current source'
+    );
     assert.ok(utils.validateOutputManifest(
         path.join(root, 'dist'),
         stamp.outputManifest

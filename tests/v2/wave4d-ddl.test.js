@@ -2,7 +2,9 @@
 
 var assert = require('assert');
 var ddl = require('../../.tmp/v2-core/experimental/ddl');
+var hiveExecution = require('../../.tmp/v2-core/experimental/ddl/hive-ddl');
 var lexer = require('../../.tmp/v2-core/core/lexer/lossless-lexer');
+var limits = require('../../.tmp/v2-core/core/api/limits');
 var displayWidth = require('../../.tmp/v2-core/core/renderer/display-width');
 var fixtures = require('../fixtures/v2-wave4-ddl');
 
@@ -74,6 +76,7 @@ assert.strictEqual(ddl.formatHiveDdl(optionResult.text, {
     { maxAlignWidth: 0 },
     { maxAlignWidth: 501 },
     { maxAlignWidth: 1.5 },
+    { tabSize: 8 },
     { dialect: 'hive' },
     null
 ].forEach(function(options) {
@@ -123,6 +126,60 @@ assert.strictEqual(unicodeTypeColumns.length, 4);
 assert.strictEqual(new Set(unicodeTypeColumns).size, 1,
     'emoji, combining and tab identifiers must align on one display column');
 
+var tabAlignmentSource = 'CREATE TABLE t (`a\tb` STRING, ascii STRING, `中` STRING)';
+[2, 4, 8].forEach(function(tabSize) {
+    var tabAlignment = hiveExecution.executeFormatHiveDdl(
+        tabAlignmentSource,
+        { indentStyle: 'tab' },
+        false,
+        tabSize
+    );
+    assert.strictEqual(tabAlignment.status, 'formatted');
+    var alignedColumns = tabAlignment.text.split('\n').filter(function(line) {
+        return line.indexOf(' STRING') >= 0;
+    }).map(function(line) {
+        return displayWidth.displayWidth(
+            line.slice(0, line.lastIndexOf('STRING')),
+            0,
+            tabSize
+        );
+    });
+    assert.strictEqual(new Set(alignedColumns).size, 1,
+        'DDL tabSize=' + tabSize + ' must align prefix and identifier tabs');
+});
+assert.strictEqual(
+    ddl.formatHiveDdl(tabAlignmentSource, { indentStyle: 'tab' }).text,
+    hiveExecution.executeFormatHiveDdl(
+        tabAlignmentSource,
+        { indentStyle: 'tab' },
+        false,
+        4
+    ).text,
+    'public DDL facade must retain the internal tabSize=4 default'
+);
+var invalidTabSizeDdl = hiveExecution.executeFormatHiveDdl(
+    tabAlignmentSource,
+    undefined,
+    false,
+    0
+);
+assert.strictEqual(invalidTabSizeDdl.status, 'failed');
+assert.strictEqual(invalidTabSizeDdl.text, tabAlignmentSource);
+assert.strictEqual(invalidTabSizeDdl.diagnostics[0].code, 'DDL_INTERNAL');
+assert.strictEqual(invalidTabSizeDdl.diagnostics[0].message,
+    'Hive DDL formatting failed safely');
+assert.strictEqual(
+    hiveExecution.executeFormatHiveDdl(
+        tabAlignmentSource,
+        undefined,
+        false,
+        8,
+        -1
+    ).diagnostics[0].code,
+    'DDL_INTERNAL',
+    'invalid internal DDL start columns must fail closed'
+);
+
 var wideName = new Array(10001).join('x');
 var wideColumns = ['`' + wideName + '` STRING'];
 for (var wideIndex = 0; wideIndex < 1000; wideIndex++) {
@@ -137,6 +194,21 @@ assert.ok(wideResult.text.length < wideSource.length * 5,
 assert.ok(wideResult.text.indexOf('c0 STRING') >= 0,
     'over-budget alignment must degrade to one required separator space');
 
+var exactLimitDdlPrefix = 'CREATE TABLE t (a INT)';
+var exactLimitDdl = exactLimitDdlPrefix + ' '.repeat(
+    limits.MAX_FORMAT_SOURCE_CODE_UNITS - exactLimitDdlPrefix.length
+);
+var exactLimitDdlResult = ddl.formatHiveDdl(exactLimitDdl);
+assert.strictEqual(exactLimitDdl.length, limits.MAX_FORMAT_SOURCE_CODE_UNITS);
+assert.strictEqual(exactLimitDdlResult.status, 'formatted',
+    'the exact DDL source limit must remain semantically accepted');
+var overLimitDdl = exactLimitDdl + ' ';
+var overLimitDdlResult = ddl.formatHiveDdl(overLimitDdl);
+assert.strictEqual(overLimitDdlResult.status, 'failed');
+assert.strictEqual(overLimitDdlResult.source, overLimitDdl);
+assert.strictEqual(overLimitDdlResult.text, overLimitDdl);
+assert.strictEqual(overLimitDdlResult.diagnostics[0].code, 'DDL_RESOURCE_LIMIT');
+
 var parserPath = require.resolve('../../.tmp/v2-core/core/syntax/parser');
 var hiveFormatterPath = require.resolve('../../.tmp/v2-core/experimental/ddl/hive-ddl');
 var parser = require(parserPath);
@@ -146,6 +218,9 @@ parser.parseSqlArtifact = function() {
 };
 delete require.cache[hiveFormatterPath];
 var hostileFormatter = require(hiveFormatterPath);
+var parserSkippedForOverLimit = hostileFormatter.formatHiveDdl(overLimitDdl);
+assert.strictEqual(parserSkippedForOverLimit.diagnostics[0].code, 'DDL_RESOURCE_LIMIT',
+    'over-limit DDL must fail before entering the hostile parser');
 var safeFailure = hostileFormatter.formatHiveDdl('CREATE TABLE secret (a INT)');
 assert.strictEqual(safeFailure.status, 'failed');
 assert.strictEqual(safeFailure.diagnostics[0].code, 'DDL_INTERNAL');
