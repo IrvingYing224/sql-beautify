@@ -23,7 +23,7 @@ function sourceHash() {
         'scripts/build-v2-core.js',
         'scripts/build-v2-utils.js'
     ], {
-        schemaVersion: 1,
+        schemaVersion: 2,
         typescript: require('typescript/package.json').version,
         vscodeTypes: require('@types/vscode/package.json').version
     });
@@ -31,11 +31,18 @@ function sourceHash() {
 
 function isReusable(hash) {
     var stamp = utils.readJson(path.join(outDir, stampName));
-    return process.env.SQL_BEAUTIFY_BUILD_FORCE !== '1' &&
-        stamp !== null &&
-        stamp.schemaVersion === 1 &&
-        stamp.sourceHash === hash &&
-        fs.existsSync(path.join(outDir, expectedOutput));
+    if (process.env.SQL_BEAUTIFY_BUILD_FORCE === '1' ||
+        stamp === null ||
+        stamp.schemaVersion !== 2 ||
+        stamp.sourceHash !== hash ||
+        !fs.existsSync(outDir)) {
+        return false;
+    }
+    try {
+        return utils.validateOutputManifest(outDir, stamp.outputManifest, [stampName]);
+    } catch {
+        return false;
+    }
 }
 
 function compile(stagingDir) {
@@ -76,10 +83,12 @@ function main() {
         if (!fs.existsSync(path.join(stagingDir, expectedOutput))) {
             throw new Error('TypeScript build did not produce ' + expectedOutput);
         }
+        var outputManifest = utils.outputManifest(stagingDir);
         utils.writeJsonAtomic(path.join(stagingDir, stampName), {
-            schemaVersion: 1,
+            schemaVersion: 2,
             sourceHash: hash,
-            typescriptVersion: require('typescript/package.json').version
+            typescriptVersion: require('typescript/package.json').version,
+            outputManifest: outputManifest
         });
         if (process.env.SQL_BEAUTIFY_BUILD_TEST_FAIL === 'core-before-publish') {
             throw new Error('Injected core build failure before publish');

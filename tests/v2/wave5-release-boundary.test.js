@@ -178,6 +178,39 @@ try {
         ['package', '--no-dependencies', '--out', artifactPath],
         { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
     );
+    childProcess.execFileSync(process.execPath, [
+        'scripts/verify-release-artifact.js',
+        '--artifact', artifactPath,
+        '--compare-build'
+    ], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    var artifactBefore = fs.readFileSync(artifactPath);
+    var runtimeArtifact = path.join(root, 'dist', 'runtime.cjs');
+    var runtimeArtifactBefore = fs.readFileSync(runtimeArtifact);
+    var unpackedArtifact = path.join(temporaryRoot, 'tampered-artifact');
+    fs.mkdirSync(unpackedArtifact);
+    try {
+        childProcess.execFileSync('unzip', ['-q', artifactPath, '-d', unpackedArtifact]);
+        var corruptedRuntime = Buffer.from('BROKEN_RUNTIME_CACHE\n', 'utf8');
+        fs.writeFileSync(runtimeArtifact, corruptedRuntime);
+        fs.writeFileSync(
+            path.join(unpackedArtifact, 'extension', 'dist', 'runtime.cjs'),
+            corruptedRuntime
+        );
+        childProcess.execFileSync('zip', [
+            '-q', artifactPath, 'extension/dist/runtime.cjs'
+        ], { cwd: unpackedArtifact });
+        var corruptedCompare = childProcess.spawnSync(process.execPath, [
+            'scripts/verify-release-artifact.js',
+            '--artifact', artifactPath,
+            '--compare-build'
+        ], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+        assert.notStrictEqual(corruptedCompare.status, 0,
+            '--compare-build must reject equally corrupted dist and VSIX artifacts');
+        assert.match(corruptedCompare.stderr, /build stamp|digest|SHA-256/i);
+    } finally {
+        fs.writeFileSync(runtimeArtifact, runtimeArtifactBefore);
+        fs.writeFileSync(artifactPath, artifactBefore);
+    }
     var cleanRoot = path.join(temporaryRoot, 'clean-checkout');
     fs.mkdirSync(path.join(cleanRoot, 'scripts'), { recursive: true });
     fs.copyFileSync(path.join(root, 'package.json'), path.join(cleanRoot, 'package.json'));

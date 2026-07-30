@@ -131,6 +131,54 @@ function contentHash(root, inputs, metadata) {
     return hash.digest('hex');
 }
 
+function outputManifest(directory, excludedPaths) {
+    var excluded = new Set(excludedPaths || []);
+    if (!fs.statSync(directory).isDirectory()) {
+        throw new Error('Build output must be a directory: ' + directory);
+    }
+    return walkFiles(directory).map(function(filePath) {
+        var relative = path.relative(directory, filePath).split(path.sep).join('/');
+        return { filePath: filePath, relative: relative };
+    }).filter(function(output) {
+        return !excluded.has(output.relative);
+    }).map(function(output) {
+        var bytes = fs.readFileSync(output.filePath);
+        return Object.freeze({
+            path: output.relative,
+            size: bytes.length,
+            sha256: crypto.createHash('sha256').update(bytes).digest('hex')
+        });
+    });
+}
+
+function validManifestEntry(entry) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry) ||
+        Object.keys(entry).sort().join(',') !== 'path,sha256,size' ||
+        typeof entry.path !== 'string' || entry.path.length === 0 ||
+        entry.path.indexOf('\\') >= 0 || path.posix.isAbsolute(entry.path) ||
+        path.posix.normalize(entry.path) !== entry.path ||
+        entry.path.split('/').some(function(part) { return part === '..' || part === '.'; }) ||
+        !Number.isSafeInteger(entry.size) || entry.size < 0 ||
+        typeof entry.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(entry.sha256)) {
+        return false;
+    }
+    return true;
+}
+
+function validateOutputManifest(directory, manifest, excludedPaths) {
+    if (!Array.isArray(manifest) || manifest.length === 0) {
+        return false;
+    }
+    for (var index = 0; index < manifest.length; index++) {
+        if (!validManifestEntry(manifest[index]) ||
+            (index > 0 && manifest[index - 1].path >= manifest[index].path)) {
+            return false;
+        }
+    }
+    var actual = outputManifest(directory, excludedPaths);
+    return JSON.stringify(actual) === JSON.stringify(manifest);
+}
+
 function writeJsonAtomic(filePath, value) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     var temporary = filePath + '.tmp-' + token();
@@ -197,10 +245,12 @@ function testHoldMilliseconds(environmentKey) {
 module.exports = Object.freeze({
     acquireProjectLock: acquireProjectLock,
     contentHash: contentHash,
+    outputManifest: outputManifest,
     publishDirectory: publishDirectory,
     readJson: readJson,
     recoverDirectorySwap: recoverDirectorySwap,
     testHoldMilliseconds: testHoldMilliseconds,
     token: token,
+    validateOutputManifest: validateOutputManifest,
     writeJsonAtomic: writeJsonAtomic
 });

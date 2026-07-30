@@ -33,7 +33,7 @@ function sourceHash(debugSourceMaps) {
         'scripts/package-manifest.js',
         'package.json'
     ], {
-        schemaVersion: 1,
+        schemaVersion: 2,
         esbuild: require('esbuild/package.json').version,
         debugSourceMaps: debugSourceMaps
     });
@@ -115,7 +115,7 @@ function isReusable(hash, debugSourceMaps) {
     var stamp = utils.readJson(stampPath);
     if (process.env.SQL_BEAUTIFY_BUILD_FORCE === '1' ||
         stamp === null ||
-        stamp.schemaVersion !== 1 ||
+        stamp.schemaVersion !== 2 ||
         stamp.sourceHash !== hash ||
         stamp.debugSourceMaps !== debugSourceMaps ||
         !fs.existsSync(outDir)) {
@@ -123,7 +123,7 @@ function isReusable(hash, debugSourceMaps) {
     }
     try {
         validateGeneratedDirectory(outDir, debugSourceMaps);
-        return true;
+        return utils.validateOutputManifest(outDir, stamp.outputManifest);
     } catch {
         return false;
     }
@@ -162,21 +162,21 @@ async function main() {
             external: ['vscode']
         }, debugSourceMaps);
         validateGeneratedDirectory(stagingDist, debugSourceMaps);
+        var outputManifest = utils.outputManifest(stagingDist);
         if (process.env.SQL_BEAUTIFY_BUILD_TEST_FAIL === 'runtime-before-publish') {
             throw new Error('Injected runtime build failure before publish');
         }
-        utils.publishDirectory(stagingDist, outDir, previousDir);
-        try {
-            utils.writeJsonAtomic(stampPath, {
-                schemaVersion: 1,
-                sourceHash: hash,
-                esbuildVersion: require('esbuild/package.json').version,
-                debugSourceMaps: debugSourceMaps
-            });
-        } catch (error) {
-            console.warn('Runtime artifacts were published completely, but the optional ' +
-                'build cache stamp could not be updated: ' + String(error));
+        if (process.env.SQL_BEAUTIFY_BUILD_TEST_FAIL === 'runtime-before-stamp') {
+            throw new Error('Injected runtime build failure before trusted stamp');
         }
+        utils.writeJsonAtomic(stampPath, {
+            schemaVersion: 2,
+            sourceHash: hash,
+            esbuildVersion: require('esbuild/package.json').version,
+            debugSourceMaps: debugSourceMaps,
+            outputManifest: outputManifest
+        });
+        utils.publishDirectory(stagingDist, outDir, previousDir);
         console.log('Built v2 runtime artifacts atomically' +
             (debugSourceMaps ? ' with external debug source maps' : '') + ': ' +
             manifest.runtimeFiles.join(', '));

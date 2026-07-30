@@ -9,13 +9,33 @@ var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
 var coreArtifact = path.join(root, '.tmp', 'v2-core', 'core', 'api', 'format.js');
+var coreDeepArtifact = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js');
 var coreStamp = path.join(root, '.tmp', 'v2-core', '.build-stamp.json');
 var coreLock = path.join(root, '.tmp', 'locks', 'build-v2-core.lock');
+var runtimeStamp = path.join(root, '.tmp', 'v2-runtime-build-stamp.json');
 var runtimeFiles = require(path.join(root, 'scripts', 'package-manifest.js'))
     .loadPackageManifest(root).runtimeFiles;
 
 function digest(filePath) {
     return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function assertOutputManifest(stampPath, expectedPaths) {
+    var stamp = JSON.parse(fs.readFileSync(stampPath, 'utf8'));
+    assert.strictEqual(stamp.schemaVersion, 2);
+    assert.ok(Array.isArray(stamp.outputManifest) && stamp.outputManifest.length > 0);
+    stamp.outputManifest.forEach(function(output) {
+        assert.deepStrictEqual(Object.keys(output).sort(), ['path', 'sha256', 'size']);
+        assert.strictEqual(typeof output.path, 'string');
+        assert.ok(Number.isSafeInteger(output.size) && output.size >= 0);
+        assert.match(output.sha256, /^[0-9a-f]{64}$/);
+    });
+    if (expectedPaths !== undefined) {
+        assert.deepStrictEqual(
+            stamp.outputManifest.map(function(output) { return output.path; }),
+            expectedPaths.slice().sort()
+        );
+    }
 }
 
 function runBuild(script, environment) {
@@ -81,6 +101,32 @@ async function main() {
     var coreCached = runBuild('scripts/build-v2-core.js');
     assert.strictEqual(coreCached.status, 0, coreCached.stderr);
     assert.match(coreCached.stdout, /Reused cached v2 core build/);
+    assertOutputManifest(coreStamp);
+
+    var coreDeepBefore = fs.readFileSync(coreDeepArtifact);
+    try {
+        fs.rmSync(coreDeepArtifact);
+        var coreMissingRebuild = runBuild('scripts/build-v2-core.js');
+        assert.strictEqual(coreMissingRebuild.status, 0, coreMissingRebuild.stderr);
+        assert.match(coreMissingRebuild.stdout, /Built v2 core atomically/,
+            'a missing deep compiler output must invalidate the core cache');
+        assert.ok(fs.readFileSync(coreDeepArtifact).equals(coreDeepBefore),
+            'the core rebuild must restore the missing deep output exactly');
+
+        fs.writeFileSync(coreDeepArtifact, 'BROKEN_CORE_CACHE\n', 'utf8');
+        var coreCorruptRebuild = runBuild('scripts/build-v2-core.js');
+        assert.strictEqual(coreCorruptRebuild.status, 0, coreCorruptRebuild.stderr);
+        assert.match(coreCorruptRebuild.stdout, /Built v2 core atomically/,
+            'a corrupted deep compiler output must invalidate the core cache');
+        assert.ok(fs.readFileSync(coreDeepArtifact).equals(coreDeepBefore),
+            'the core rebuild must restore the corrupted deep output exactly');
+    } finally {
+        if (!fs.existsSync(coreDeepArtifact) ||
+            !fs.readFileSync(coreDeepArtifact).equals(coreDeepBefore)) {
+            fs.mkdirSync(path.dirname(coreDeepArtifact), { recursive: true });
+            fs.writeFileSync(coreDeepArtifact, coreDeepBefore);
+        }
+    }
 
     var coreFailure = runBuild('scripts/build-v2-core.js', {
         SQL_BEAUTIFY_BUILD_FORCE: '1',
@@ -122,6 +168,50 @@ async function main() {
     var runtimeCached = runBuild('scripts/build-v2-runtime.js');
     assert.strictEqual(runtimeCached.status, 0, runtimeCached.stderr);
     assert.match(runtimeCached.stdout, /Reused cached v2 runtime build/);
+    assertOutputManifest(runtimeStamp, runtimeFiles.map(function(fileName) {
+        return path.basename(fileName);
+    }));
+    var runtimeArtifact = path.join(root, 'dist', 'runtime.cjs');
+    var runtimeArtifactBefore = fs.readFileSync(runtimeArtifact);
+    try {
+        fs.writeFileSync(runtimeArtifact, 'BROKEN_RUNTIME_CACHE\n', 'utf8');
+        var runtimeCorruptRebuild = runBuild('scripts/build-v2-runtime.js');
+        assert.strictEqual(runtimeCorruptRebuild.status, 0, runtimeCorruptRebuild.stderr);
+        assert.match(runtimeCorruptRebuild.stdout, /Built v2 runtime artifacts atomically/,
+            'a corrupted runtime artifact must invalidate the runtime cache');
+        assert.ok(fs.readFileSync(runtimeArtifact).equals(runtimeArtifactBefore),
+            'the runtime rebuild must restore the corrupted artifact exactly');
+    } finally {
+        if (!fs.existsSync(runtimeArtifact) ||
+            !fs.readFileSync(runtimeArtifact).equals(runtimeArtifactBefore)) {
+            fs.writeFileSync(runtimeArtifact, runtimeArtifactBefore);
+        }
+    }
+    var unknownRuntimeArtifact = path.join(root, 'dist', 'audit-extra.cjs');
+    try {
+        fs.writeFileSync(unknownRuntimeArtifact, 'UNOWNED_RUNTIME_FILE\n', 'utf8');
+        var runtimeUnknownFailure = runBuild('scripts/build-v2-runtime.js');
+        assert.notStrictEqual(runtimeUnknownFailure.status, 0,
+            'an unknown dist file must invalidate cache without being deleted');
+        assert.match(runtimeUnknownFailure.stderr, /unknown file/);
+        assert.strictEqual(fs.existsSync(unknownRuntimeArtifact), true,
+            'runtime build must not delete an unknown dist file');
+    } finally {
+        fs.rmSync(unknownRuntimeArtifact, { force: true });
+    }
+    var runtimeStampBefore = digest(runtimeStamp);
+    var runtimeStampFailure = runBuild('scripts/build-v2-runtime.js', {
+        SQL_BEAUTIFY_BUILD_FORCE: '1',
+        SQL_BEAUTIFY_BUILD_TEST_FAIL: 'runtime-before-stamp'
+    });
+    assert.notStrictEqual(runtimeStampFailure.status, 0,
+        'trusted runtime stamp failure must fail closed before publication');
+    assert.match(runtimeStampFailure.stderr, /previous dist was preserved/);
+    runtimeFiles.forEach(function(fileName) {
+        assert.strictEqual(digest(path.join(root, fileName)), runtimeBefore.get(fileName));
+    });
+    assert.strictEqual(digest(runtimeStamp), runtimeStampBefore,
+        'trusted stamp failure must preserve the previous build stamp');
     var runtimeFailure = runBuild('scripts/build-v2-runtime.js', {
         SQL_BEAUTIFY_BUILD_FORCE: '1',
         SQL_BEAUTIFY_BUILD_TEST_FAIL: 'runtime-before-build'

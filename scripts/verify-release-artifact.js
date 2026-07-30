@@ -3,6 +3,7 @@
 
 var assert = require('assert');
 var childProcess = require('child_process');
+var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
 var manifestApi = require('./package-manifest');
@@ -40,6 +41,37 @@ function listEntries(artifactPath) {
     }).trim().split('\n').filter(Boolean);
 }
 
+function verifyTrustedBuild(artifactPath, root, packageManifest) {
+    var utils = require('./build-v2-utils');
+    var stampPath = path.join(root, '.tmp', 'v2-runtime-build-stamp.json');
+    var stamp = utils.readJson(stampPath);
+    assert.ok(stamp !== null && stamp.schemaVersion === 2,
+        '--compare-build requires a current trusted build stamp');
+    assert.strictEqual(stamp.debugSourceMaps, false,
+        'release artifacts must come from a non-debug runtime build');
+    assert.ok(utils.validateOutputManifest(
+        path.join(root, 'dist'),
+        stamp.outputManifest
+    ), 'current dist must match the trusted build stamp exactly');
+    assert.deepStrictEqual(
+        stamp.outputManifest.map(function(output) { return output.path; }),
+        packageManifest.runtimeFileNames.slice().sort(),
+        'trusted build stamp must describe the exact packaged runtime set'
+    );
+    stamp.outputManifest.forEach(function(output) {
+        var packed = unzipBuffer(
+            artifactPath,
+            'extension/dist/' + output.path
+        );
+        var packedSha256 = crypto.createHash('sha256')
+            .update(packed).digest('hex');
+        assert.strictEqual(packed.length, output.size,
+            'VSIX runtime size differs from the trusted build stamp: ' + output.path);
+        assert.strictEqual(packedSha256, output.sha256,
+            'VSIX runtime SHA-256 differs from the trusted build stamp: ' + output.path);
+    });
+}
+
 function verifyArtifact(artifactPath, options) {
     var settings = options || {};
     var root = settings.root || path.join(__dirname, '..');
@@ -70,17 +102,12 @@ function verifyArtifact(artifactPath, options) {
     }).sort();
     assert.deepStrictEqual(normalizedEntries, expectedEntries,
         'VSIX must contain the exact production allowlist');
+    if (compareBuild) {
+        verifyTrustedBuild(artifactPath, root, packageManifest);
+    }
     packageManifest.runtimeFiles.forEach(function(fileName) {
         assert.ok(entrySet.has('extension/' + fileName),
             'VSIX is missing runtime artifact: ' + fileName);
-        if (compareBuild) {
-            assert.ok(
-                unzipBuffer(artifactPath, 'extension/' + fileName).equals(
-                    fs.readFileSync(path.join(root, fileName))
-                ),
-                'VSIX runtime artifact differs from the current build: ' + fileName
-            );
-        }
     });
     entries.forEach(function(entry) {
         assert.ok(!/^extension\/(?:src|tests|scripts|docs|lib|node_modules|\.tmp|\.superpowers)(?:\/|$)/.test(entry),
