@@ -10,6 +10,7 @@ var root = path.join(__dirname, '..', '..');
 var packageManifest = require(path.join(root, 'scripts', 'package-manifest.js'))
     .loadPackageManifest(root);
 var packageJson = packageManifest.packageJson;
+var strictXml = require(path.join(root, 'scripts', 'strict-xml.js'));
 var packageLock = require(path.join(root, 'package-lock.json'));
 var workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'build-vsix.yml'), 'utf8');
 var verifyPlan = require(path.join(root, 'scripts', 'v2-suite-manifest.js'))
@@ -33,6 +34,34 @@ function copyReleaseTrustRoot(destination) {
         fs.copyFileSync(path.join(root, fileName), destinationPath);
     });
 }
+
+(function testBoundedStrictXmlParser() {
+    var declaration = '<?xml version="1.0" encoding="utf-8"?>';
+    var parsed = strictXml.parseStrictXml(
+        declaration + '<Root a="&amp;&#65;&#x42;" b=\'value\'><Child/></Root>'
+    );
+    assert.strictEqual(parsed.name, 'Root');
+    assert.strictEqual(parsed.attributes.a, '&AB');
+    assert.strictEqual(parsed.attributes.b, 'value');
+    assert.strictEqual(parsed.children.length, 1);
+    assert.strictEqual(parsed.children[0].selfClosing, true);
+    [
+        declaration + '<Root><!-- fake --></Root>',
+        declaration + '<Root><![CDATA[fake]]></Root>',
+        declaration + '<!DOCTYPE Root><Root/>',
+        declaration + '<?probe value?><Root/>',
+        declaration + '<Root/><Other/>',
+        declaration + '<Root><Other></Root>',
+        declaration + '<Root a="&unknown;"/>',
+        declaration + '<Root>raw & text</Root>',
+        declaration + '<Root>bad ]]> text</Root>',
+        declaration + '<Root>\u0000</Root>'
+    ].forEach(function(source, index) {
+        assert.throws(function() {
+            strictXml.parseStrictXml(source);
+        }, 'strict XML negative case ' + index);
+    });
+})();
 
 assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
 assert.strictEqual(packageJson.version, '2.2.0',
@@ -335,6 +364,40 @@ try {
     assertArtifactRejectedInBothModes(dependencyTamper,
         'VSIX ExtensionPack tamper');
 
+    var structuralBypassTamper = tamperedArtifact(
+        'manifest-property-structural-bypass',
+        'extension.vsixmanifest',
+        function(buffer) {
+            var value = buffer.toString('utf8');
+            var trustedProperty =
+                '<Property Id="Microsoft.VisualStudio.Code.ExtensionPack" Value="" />';
+            var changed = value.replace(
+                trustedProperty,
+                '<Property Id="Microsoft.VisualStudio.Code.ExtensionPack" ' +
+                    'Value="untrusted.publisher-extension"></Property>\n' +
+                    '<!-- ' + trustedProperty + ' -->'
+            );
+            assert.notStrictEqual(changed, value,
+                'structural XML bypass fixture must modify the manifest');
+            return Buffer.from(changed, 'utf8');
+        }
+    );
+    assertArtifactRejectedInBothModes(structuralBypassTamper,
+        'VSIX paired Property plus comment bypass');
+
+    var trailingRootTamper = tamperedArtifact(
+        'manifest-trailing-root',
+        'extension.vsixmanifest',
+        function(buffer) {
+            return Buffer.concat([
+                buffer,
+                Buffer.from('\n<UnexpectedRoot/>\n', 'utf8')
+            ]);
+        }
+    );
+    assertArtifactRejectedInBothModes(trailingRootTamper,
+        'VSIX trailing XML root tamper');
+
     var artifactBefore = fs.readFileSync(artifactPath);
     var runtimeArtifact = path.join(root, 'dist', 'runtime.cjs');
     var runtimeArtifactBefore = fs.readFileSync(runtimeArtifact);
@@ -373,6 +436,10 @@ try {
     fs.copyFileSync(
         path.join(root, 'scripts', 'package-manifest.js'),
         path.join(cleanRoot, 'scripts', 'package-manifest.js')
+    );
+    fs.copyFileSync(
+        path.join(root, 'scripts', 'strict-xml.js'),
+        path.join(cleanRoot, 'scripts', 'strict-xml.js')
     );
     fs.copyFileSync(artifactPath, path.join(cleanRoot, artifactName));
     assert.strictEqual(fs.existsSync(path.join(cleanRoot, 'dist')), false,

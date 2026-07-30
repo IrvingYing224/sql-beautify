@@ -7,6 +7,7 @@ var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
 var manifestApi = require('./package-manifest');
+var strictXml = require('./strict-xml');
 
 function argumentValue(args, name) {
     var index = args.indexOf(name);
@@ -41,64 +42,91 @@ function listEntries(artifactPath) {
     }).trim().split('\n').filter(Boolean);
 }
 
-function decodeXmlAttribute(value) {
-    var entities = Object.freeze({
-        '&apos;': "'",
-        '&quot;': '"',
-        '&lt;': '<',
-        '&gt;': '>',
-        '&amp;': '&'
-    });
-    assert.doesNotMatch(value, /&(?!apos;|quot;|lt;|gt;|amp;)/,
-        'VSIX manifest contains an unsupported or unescaped XML entity');
-    return value.replace(/&(?:apos|quot|lt|gt|amp);/g, function(entity) {
-        return entities[entity];
-    });
-}
+function parseGeneratedVsixManifest(xml) {
+    var root = strictXml.parseStrictXml(xml);
+    assert.strictEqual(root.name, 'PackageManifest',
+        'VSIX manifest root must be PackageManifest');
+    assert.deepStrictEqual(root.attributes, Object.assign(
+        Object.create(null),
+        {
+            Version: '2.0.0',
+            xmlns: 'http://schemas.microsoft.com/developer/vsx-schema/2011',
+            'xmlns:d': 'http://schemas.microsoft.com/developer/vsx-schema-design/2011'
+        }
+    ), 'VSIX PackageManifest attributes must match the generated schema');
+    assert.deepStrictEqual(
+        root.children.map(function(child) { return child.name; }),
+        ['Metadata', 'Installation', 'Dependencies', 'Assets'],
+        'VSIX PackageManifest must contain the exact generated sections'
+    );
 
-function parseXmlAttributes(raw, label) {
-    var attributes = Object.create(null);
-    var matcher = /([A-Za-z_:][A-Za-z0-9_.:-]*)="([^"]*)"/g;
-    var match;
-    var previousEnd = raw.indexOf(' ');
-    assert.ok(previousEnd >= 0, label + ' must contain attributes');
-    while ((match = matcher.exec(raw)) !== null) {
-        assert.strictEqual(raw.slice(previousEnd, match.index).trim(), '',
-            label + ' contains unrecognized attribute syntax');
-        assert.strictEqual(
-            Object.prototype.hasOwnProperty.call(attributes, match[1]),
-            false,
-            label + ' must not repeat attribute ' + match[1]
-        );
-        attributes[match[1]] = decodeXmlAttribute(match[2]);
-        previousEnd = matcher.lastIndex;
+    function directChild(parent, name) {
+        var matches = parent.children.filter(function(child) {
+            return child.name === name;
+        });
+        assert.strictEqual(matches.length, 1,
+            parent.name + ' must contain exactly one ' + name);
+        return matches[0];
     }
-    assert.match(raw.slice(previousEnd), /^\s*\/?>$/,
-        label + ' contains trailing unrecognized attribute syntax');
-    return attributes;
-}
 
-function singleXmlTagAttributes(xml, tagName) {
-    var matcher = new RegExp('<' + tagName + '\\b[^>]*>', 'g');
-    var tags = xml.match(matcher) || [];
-    assert.strictEqual(tags.length, 1,
-        'VSIX manifest must contain exactly one ' + tagName + ' tag');
-    return parseXmlAttributes(tags[0], tagName);
-}
+    function descendantsNamed(node, name, output) {
+        if (node.name === name) {
+            output.push(node);
+        }
+        node.children.forEach(function(child) {
+            descendantsNamed(child, name, output);
+        });
+    }
 
-function xmlPropertyMap(xml) {
-    var matcher = /<Property\b[^>]*\/>/g;
+    var metadata = directChild(root, 'Metadata');
+    var identity = directChild(metadata, 'Identity');
+    assert.strictEqual(identity.selfClosing, true,
+        'VSIX Identity must be self-closing');
+    assert.deepStrictEqual(identity.children, [],
+        'VSIX Identity must not contain children');
+    var allIdentities = [];
+    descendantsNamed(root, 'Identity', allIdentities);
+    assert.strictEqual(allIdentities.length, 1,
+        'VSIX Identity must only appear in Metadata');
+    var propertiesContainer = directChild(metadata, 'Properties');
     var properties = new Map();
-    var match;
-    while ((match = matcher.exec(xml)) !== null) {
-        var attributes = parseXmlAttributes(match[0], 'Property');
-        assert.deepStrictEqual(Object.keys(attributes).sort(), ['Id', 'Value'],
+    propertiesContainer.children.forEach(function(property) {
+        assert.strictEqual(property.name, 'Property',
+            'VSIX Properties must contain only Property elements');
+        assert.strictEqual(property.selfClosing, true,
+            'VSIX Property must be self-closing');
+        assert.deepStrictEqual(property.children, [],
+            'VSIX Property must not contain children');
+        assert.deepStrictEqual(Object.keys(property.attributes).sort(), ['Id', 'Value'],
             'VSIX Property must contain only Id and Value');
-        assert.strictEqual(properties.has(attributes.Id), false,
-            'VSIX manifest must not repeat Property ' + attributes.Id);
-        properties.set(attributes.Id, attributes.Value);
-    }
-    return properties;
+        assert.strictEqual(properties.has(property.attributes.Id), false,
+            'VSIX manifest must not repeat Property ' + property.attributes.Id);
+        properties.set(property.attributes.Id, property.attributes.Value);
+    });
+    var allProperties = [];
+    descendantsNamed(root, 'Property', allProperties);
+    assert.strictEqual(allProperties.length, propertiesContainer.children.length,
+        'VSIX Property elements must only appear in Metadata/Properties');
+
+    var dependencies = directChild(root, 'Dependencies');
+    assert.strictEqual(dependencies.selfClosing, true,
+        'VSIX Dependencies must be an empty self-closing element');
+    assert.deepStrictEqual(Object.keys(dependencies.attributes), [],
+        'VSIX Dependencies must not have attributes');
+    assert.deepStrictEqual(dependencies.children, [],
+        'VSIX Dependencies must not contain generated dependencies');
+    var dependencyContainers = [];
+    descendantsNamed(root, 'Dependencies', dependencyContainers);
+    assert.strictEqual(dependencyContainers.length, 1,
+        'VSIX Dependencies must only appear at the package root');
+    var dependencyNodes = [];
+    descendantsNamed(root, 'Dependency', dependencyNodes);
+    assert.deepStrictEqual(dependencyNodes, [],
+        'VSIX manifest must not contain Dependency elements');
+    return Object.freeze({
+        identity: identity.attributes,
+        properties: properties
+    });
 }
 
 function canonicalExtensionList(value) {
@@ -108,7 +136,8 @@ function canonicalExtensionList(value) {
 function verifyGeneratedVsixManifest(xml, packageJson) {
     assert.ok(Buffer.byteLength(xml, 'utf8') <= 1024 * 1024,
         'VSIX generated manifest exceeds the verification budget');
-    var identity = singleXmlTagAttributes(xml, 'Identity');
+    var parsed = parseGeneratedVsixManifest(xml);
+    var identity = parsed.identity;
     assert.deepStrictEqual(Object.keys(identity).sort(), [
         'Id',
         'Language',
@@ -124,7 +153,7 @@ function verifyGeneratedVsixManifest(xml, packageJson) {
     assert.strictEqual(identity.Version, packageJson.version,
         'VSIX manifest Version must match the source package');
 
-    var properties = xmlPropertyMap(xml);
+    var properties = parsed.properties;
     assert.strictEqual(
         properties.get('Microsoft.VisualStudio.Code.Engine'),
         packageJson.engines.vscode,
@@ -140,11 +169,6 @@ function verifyGeneratedVsixManifest(xml, packageJson) {
         canonicalExtensionList(packageJson.extensionPack),
         'VSIX extension pack must match the source package'
     );
-    var dependencyContainers = xml.match(/<Dependencies\b[^>]*>/g) || [];
-    assert.deepStrictEqual(dependencyContainers, ['<Dependencies/>'],
-        'VSIX manifest must contain one empty Dependencies container');
-    assert.doesNotMatch(xml, /<Dependency\b/,
-        'VSIX manifest must not contain generated dependencies');
 }
 
 function verifyPackedSourceFiles(artifactPath, root, packageManifest) {
