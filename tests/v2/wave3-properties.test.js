@@ -1,6 +1,7 @@
 'use strict';
 
 var assert = require('assert');
+var crypto = require('crypto');
 
 var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
 var alignmentApi = require('../../.tmp/v2-core/core/layout/alignment-policy.js');
@@ -19,6 +20,7 @@ var expressionCases = require('../fixtures/v2-wave3d-expression-cases');
 var parserCases = require('../fixtures/v2-sql-corpus-cases');
 var closureCases = require('../fixtures/v2-wave3-corpus-cases');
 var productionCorpus = require('./helpers/production-corpus');
+var formatterFuzz = require('./helpers/formatter-fuzz-cases');
 
 var publicSqlCases = productionCorpus.load_public_cases().filter(function(testCase) {
     return testCase.operation === 'formatSql';
@@ -318,48 +320,100 @@ function corpusCases() {
     return cases;
 }
 
-function deterministicFuzzCases(count) {
-    var state = 0x3f202607;
-    function next() {
-        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-        return state;
+function environmentInteger(name, fallback, minimum, maximum) {
+    var raw = process.env[name];
+    if (raw === undefined || raw === '') {
+        return fallback;
     }
-    function pick(values) {
-        return values[next() % values.length];
+    var value = Number(raw);
+    if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+        throw new Error(name + ' must be an integer from ' + minimum +
+            ' through ' + maximum + '; received ' + JSON.stringify(raw));
     }
-    var dialects = ['hive', 'generic', 'postgresql', 'mysql'];
-    var whitespace = [' ', '  ', '\n', '\t'];
-    var values = [];
-    for (var index = 0; index < count; index++) {
-        var dialect = pick(dialects);
-        var quoted = dialect === 'hive' || dialect === 'mysql'
-            ? '`Mixed Name`'
-            : '"Mixed Name"';
-        var keyword = pick(['select', 'SELECT', 'SeLeCt']);
-        var from = pick(['from', 'FROM', 'FrOm']);
-        var source = keyword + pick(whitespace) +
-            pick(['a+1', "'FROM  x'", quoted, 'case when a=1 then 2 else 3 end']) +
-            pick(whitespace) + 'as x,' + pick(whitespace) +
-            '/* fuzz ' + index + ' */' + pick(whitespace) +
-            pick(['b*2', 'coalesce(b,0)', ':value', 'not flag']) +
-            pick(whitespace) + 'as y' + pick(whitespace) +
-            from + pick(whitespace) + 't where a=1 and b>2';
-        values.push({
-            id: 'fuzz/' + index,
-            source: source,
-            options: {
-                dialect: dialect,
-                keywordCase: pick(['upper', 'lower']),
-                commaStyle: pick(['leading', 'trailing']),
-                indentStyle: pick(['space', 'tab']),
-                caseLayout: pick(['expanded', 'compactShort']),
-                caseWhenThenWrapLength: 20 + next() % 80,
-                maxAlignWidth: 40 + next() % 120,
-                unsupportedSyntaxPolicy: pick(['warn', 'preserve', 'bail_out'])
+    return value;
+}
+
+var formatterFuzzSeed = environmentInteger(
+    'FORMATTER_FUZZ_SEED',
+    formatterFuzz.DEFAULT_SEED,
+    1,
+    0xffffffff
+);
+var formatterFuzzCaseCount = environmentInteger(
+    'FORMATTER_FUZZ_CASES',
+    formatterFuzz.DEFAULT_CASE_COUNT,
+    formatterFuzz.MIN_CASE_COUNT,
+    formatterFuzz.MAX_CASE_COUNT
+);
+
+function assertFormatterFuzzCoverage(cases) {
+    var combinations = new Set();
+    var commentKinds = new Set();
+    var protectedKinds = new Set();
+    var parameterDialects = new Set();
+    cases.forEach(function(testCase) {
+        var dimensions = testCase.fuzzDimensions;
+        combinations.add([
+            dimensions.dialect,
+            dimensions.leftFamily,
+            dimensions.rightFamily
+        ].join('/'));
+        commentKinds.add(dimensions.commentKind);
+        lexerApi.lexSql(testCase.source, {
+            dialect: dimensions.dialect
+        }).leaves.forEach(function(leaf) {
+            if (leaf.channel === 'protected' ||
+                leaf.kind === 'line-comment' ||
+                leaf.kind === 'block-comment') {
+                protectedKinds.add(leaf.kind);
+            }
+            if (dimensions.rightFamily === 'parameter' &&
+                leaf.kind === 'parameter' && leaf.channel === 'protected') {
+                parameterDialects.add(dimensions.dialect);
             }
         });
-    }
-    return values;
+    });
+    var expectedCombinations = [];
+    formatterFuzz.DIALECTS.forEach(function(dialect) {
+        formatterFuzz.LEFT_FAMILIES.forEach(function(leftFamily) {
+            formatterFuzz.RIGHT_FAMILIES.forEach(function(rightFamily) {
+                expectedCombinations.push([
+                    dialect,
+                    leftFamily,
+                    rightFamily
+                ].join('/'));
+            });
+        });
+    });
+    assert.deepStrictEqual(
+        Array.from(combinations).sort(),
+        expectedCombinations.sort(),
+        'formatter fuzz must cover the exact 4x4x4 combination matrix'
+    );
+    assert.deepStrictEqual(
+        Array.from(parameterDialects).sort(),
+        Array.from(formatterFuzz.DIALECTS).sort(),
+        'formatter fuzz must lex a native protected parameter in every dialect'
+    );
+    assert.deepStrictEqual(
+        Array.from(commentKinds).sort(),
+        ['block-comment', 'line-comment'],
+        'formatter fuzz must generate both comment families'
+    );
+    [
+        'string',
+        'quoted-identifier',
+        'parameter',
+        'line-comment',
+        'block-comment'
+    ].forEach(function(kind) {
+        assert.strictEqual(protectedKinds.has(kind), true,
+            'formatter fuzz must exercise protected/comment kind ' + kind);
+    });
+    return Object.freeze({
+        combinations: combinations.size,
+        protectedKinds: Object.freeze(Array.from(protectedKinds).sort())
+    });
 }
 
 function deterministicMalformedCases(count) {
@@ -417,15 +471,51 @@ function deterministicMalformedCases(count) {
             'Wave 3 inline recovery behavior must belong to the shared corpus: ' + requiredId);
     });
     var evidence = { safe: 0, original: 0, opaque: 0 };
-    corpus.concat(deterministicFuzzCases(128)).forEach(function(testCase) {
+    corpus.forEach(function(testCase) {
         var result = assertFormatProperties(testCase);
         evidence.safe += result.safe ? 1 : 0;
         evidence.original += result.safe ? 0 : 1;
         evidence.opaque += result.opaqueClaimCount;
     });
+    var fuzzCases = formatterFuzz.buildDeterministicFormatterFuzzCases(
+        formatterFuzzCaseCount,
+        formatterFuzzSeed
+    );
+    var fuzzCoverage = assertFormatterFuzzCoverage(fuzzCases);
+    var fuzzDigest = crypto.createHash('sha256');
+    fuzzCases.forEach(function(testCase, index) {
+        try {
+            var result = assertFormatProperties(testCase);
+            evidence.safe += result.safe ? 1 : 0;
+            evidence.original += result.safe ? 0 : 1;
+            evidence.opaque += result.opaqueClaimCount;
+            fuzzDigest.update(JSON.stringify([
+                testCase.id,
+                testCase.source,
+                testCase.options,
+                result.safe,
+                result.opaqueClaimCount
+            ]));
+            fuzzDigest.update('\n');
+        } catch (error) {
+            var detail = error && error.stack ? error.stack : String(error);
+            throw new Error(
+                'formatter fuzz failure seed=0x' + formatterFuzzSeed.toString(16) +
+                ' FORMATTER_FUZZ_CASES=' + formatterFuzzCaseCount +
+                ' caseIndex=' + index + ':\n' + detail
+            );
+        }
+    });
     assert.ok(evidence.safe > 0, 'properties must exercise safe results');
     assert.ok(evidence.original > 0, 'properties must exercise original-text results');
     assert.ok(evidence.opaque > 0, 'properties must exercise opaque/verbatim claims');
+    console.log('v2 Wave 3 deterministic formatter fuzz passed ' + JSON.stringify({
+        seed: '0x' + formatterFuzzSeed.toString(16),
+        cases: formatterFuzzCaseCount,
+        combinations: fuzzCoverage.combinations,
+        protectedKinds: fuzzCoverage.protectedKinds,
+        digest: fuzzDigest.digest('hex')
+    }));
 })();
 
 (function testFormatterLevelMalformedFuzzIsDeterministicAndBounded() {
@@ -580,4 +670,5 @@ function deterministicMalformedCases(count) {
 })();
 
 console.log('v2 Wave 3 properties passed (' + expectedCorpusSize +
-    ' formatSql corpus + 128 deterministic fuzz + 48 malformed cases)');
+    ' formatSql corpus + ' + formatterFuzzCaseCount +
+    ' deterministic fuzz + 48 malformed cases)');

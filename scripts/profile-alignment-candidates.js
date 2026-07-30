@@ -14,6 +14,7 @@
 
 var assert = require('assert');
 var path = require('path');
+var formatterFuzz = require('../tests/v2/helpers/formatter-fuzz-cases');
 
 function argument(name) {
     var index = process.argv.indexOf(name);
@@ -88,50 +89,12 @@ function appendFixtureCases(output, prefix, fixturePath, optionsOf) {
 }
 
 function appendDeterministicFuzzCases(output, count) {
-    var state = 0x3f202607;
-    function next() {
-        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-        return state;
-    }
-    function pick(values) {
-        return values[next() % values.length];
-    }
-    var dialects = ['hive', 'generic', 'postgresql', 'mysql'];
-    var whitespace = [' ', '  ', '\n', '\t'];
-    for (var index = 0; index < count; index++) {
-        var dialect = pick(dialects);
-        var quoted = dialect === 'hive' || dialect === 'mysql'
-            ? '`Mixed Name`'
-            : '"Mixed Name"';
-        var keyword = pick(['select', 'SELECT', 'SeLeCt']);
-        var from = pick(['from', 'FROM', 'FrOm']);
-        var source = keyword + pick(whitespace) +
-            pick(['a+1', "'FROM  x'", quoted,
-                'case when a=1 then 2 else 3 end']) +
-            pick(whitespace) + 'as x,' + pick(whitespace) +
-            '/* fuzz ' + index + ' */' + pick(whitespace) +
-            pick(['b*2', 'coalesce(b,0)', ':value', 'not flag']) +
-            pick(whitespace) + 'as y' + pick(whitespace) +
-            from + pick(whitespace) + 't where a=1 and b>2';
-        output.push({
-            id: 'fuzz/' + index,
-            source: source,
-            options: {
-                dialect: dialect,
-                keywordCase: pick(['upper', 'lower']),
-                commaStyle: pick(['leading', 'trailing']),
-                indentStyle: pick(['space', 'tab']),
-                caseLayout: pick(['expanded', 'compactShort']),
-                caseWhenThenWrapLength: 20 + next() % 80,
-                maxAlignWidth: 40 + next() % 120,
-                unsupportedSyntaxPolicy: pick([
-                    'warn',
-                    'preserve',
-                    'bail_out'
-                ])
-            }
-        });
-    }
+    formatterFuzz.buildDeterministicFormatterFuzzCases(
+        count,
+        formatterFuzz.DEFAULT_SEED
+    ).forEach(function(testCase) {
+        output.push(testCase);
+    });
 }
 
 function appendDeterministicMalformedCases(output, count) {

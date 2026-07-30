@@ -43,5 +43,12 @@ release baseline；current 直接复用 canonical `.tmp/v2-core`。性能测试�
 FUZZ_SEED=0x12345678 FUZZ_CASES=512 npm run test:v2:recovery
 ```
 
+主 formatter 的 property fuzz 使用独立变量，最少 64 cases 才能完整覆盖四方言、四种左表达式与四种右表达式；
+候选验证固定运行 20,000 cases：
+
+```bash
+FORMATTER_FUZZ_SEED=0x91e10da5 FORMATTER_FUZZ_CASES=20000 node tests/v2/wave3-properties.test.js
+```
+
 `scripts/profile-alignment-candidates.js` 与 `scripts/profile-source-map-memory.js` 用于诊断；
 profile 中的绝对 timing/allocation 仅作观测，不作为严格 hosted wall-clock 判定。
