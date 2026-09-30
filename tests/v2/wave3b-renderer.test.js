@@ -6,6 +6,7 @@ var artifactApi = require('../../.tmp/v2-core/core/layout/artifact.js');
 var displayApi = require('../../.tmp/v2-core/core/renderer/display-width.js');
 var environmentApi = require('../../.tmp/v2-core/core/renderer/environment.js');
 var factoryApi = require('../../.tmp/v2-core/core/layout/doc-factory.js');
+var formatApi = require('../../.tmp/v2-core/core/api/format.js');
 var invariantApi = require('../../.tmp/v2-core/core/layout/invariants.js');
 var metricsApi = require('../../.tmp/v2-core/core/renderer/metrics.js');
 var optionsApi = require('../../.tmp/v2-core/core/config/resolve-options.js');
@@ -597,6 +598,53 @@ function assertFrozenSourceMap(sourceMap) {
         rendered.statistics.metricsLookupCount <=
             rendered.statistics.docVisitCount
     );
+})();
+
+(function testTabIndentationUsesTheActiveDisplayWidthForAlignment() {
+    function markerColumns(text, marker, tabSize) {
+        return text.split('\n').filter(function(line) {
+            return line.indexOf(marker) >= 0;
+        }).map(function(line) {
+            var column = 0;
+            for (var index = 0; index < line.indexOf(marker); index++) {
+                column += line[index] === '\t' ? tabSize - column % tabSize : 1;
+            }
+            return column;
+        });
+    }
+    [
+        ['select a as x, long_name as y from t', 'AS'],
+        ['select a --one\n, long_name --two\nfrom t', '--']
+    ].forEach(function(row) {
+        var spaceOutput;
+        [2, 4, 8].forEach(function(tabSize) {
+            ['tab', 'space'].forEach(function(indentStyle) {
+                var environment = environmentApi.renderEnvironmentForNewline('\n', tabSize);
+                var options = { indentStyle: indentStyle };
+                var result = formatApi.formatSql(row[0], options, 'document', environment);
+                assert.strictEqual(result.status, 'formatted', row[0]);
+                assert.deepStrictEqual(result.diagnostics, [], row[0]);
+                var columns = markerColumns(result.text, row[1], tabSize);
+                assert.deepStrictEqual(columns, [columns[0], columns[0]],
+                    indentStyle + '/' + tabSize + ' must align real display columns');
+                assert.strictEqual(columns[0], (indentStyle === 'tab' ? tabSize : 4) + 12,
+                    'alignment target must include the actual generated indent width');
+                if (indentStyle === 'space') {
+                    assert.ok(result.text.indexOf('\n      a') >= 0,
+                        'space layout keeps four indent columns plus two alignment columns');
+                    if (spaceOutput === undefined) {
+                        spaceOutput = result.text;
+                    } else {
+                        assert.strictEqual(result.text, spaceOutput,
+                            'tabSize does not change generated space indentation');
+                    }
+                }
+                var repeated = formatApi.formatSql(result.text, options, 'document', environment);
+                assert.strictEqual(repeated.status, 'unchanged');
+                assert.strictEqual(repeated.text, result.text);
+            });
+        });
+    });
 })();
 
 (function testTenThousandDeepAdversarialDocIsRejectedIteratively() {

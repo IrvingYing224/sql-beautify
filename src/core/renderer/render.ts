@@ -360,7 +360,8 @@ function renderCanonical(
         if (!needsLinePrefix) {
             return;
         }
-        const indentColumns = frame.indentLevels * 4;
+        const indentColumns = frame.indentLevels *
+            (artifact.options.indentStyle === "tab" ? environment.tabSize : 4);
         const totalColumns = indentColumns + frame.alignColumns;
         if (
             !Number.isSafeInteger(totalColumns) ||
