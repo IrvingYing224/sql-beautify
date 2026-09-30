@@ -213,14 +213,16 @@
 		"test:v2:performance-relative": "node scripts/run-v2-suite.js performance-relative",
 		"test:v2:node-smoke": "node scripts/run-v2-suite.js node-smoke",
 		"test:v2:infrastructure": "node scripts/run-v2-suite.js infrastructure",
-		"test:production-private": "node scripts/run-v2-suite.js production-private"
+		"test:production-private": "node scripts/run-v2-suite.js production-private",
+		"test:vscode-smoke": "npm run build:v2-runtime && node scripts/run-vscode-smoke.js"
 	},
 	"vsce": {
 		"dependencies": false
 	},
 	"icon": "images/icon.png",
 	"devDependencies": {
-		"@types/vscode": "^1.90.0",
+		"@types/vscode": "1.90.0",
+		"@vscode/test-electron": "2.5.2",
 		"@vscode/vsce": "^3.2.2",
 		"esbuild": "0.28.1",
 		"typescript": "6.0.3"

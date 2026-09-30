@@ -41,9 +41,34 @@ jobs:
       - name: Run core, public facade, and extension activation smoke
         run: npm run test:v2:node-smoke
 
+  vscode-smoke:
+    name: VS Code ${{ matrix.vscode }} extension host smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        vscode: ['1.90.0', stable]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run real extension host tests
+        env:
+          SQL_BEAUTIFY_VSCODE_VERSION: ${{ matrix.vscode }}
+        run: xvfb-run -a npm run test:vscode-smoke
+
   build-vsix:
     name: Verify and build VSIX
-    needs: node-smoke
+    needs: [node-smoke, vscode-smoke]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.package.outputs.version }}

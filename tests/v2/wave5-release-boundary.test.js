@@ -119,6 +119,13 @@ assert.match(workflow, /vscode-sql-beautify-v\$\{VERSION\}\.vsix/);
 assert.match(workflow, /node: \[20, 24\]/,
     'workflow must smoke the supported Node 20 runtime and Node 24 development lane');
 assert.match(workflow, /npm run test:v2:node-smoke/);
+assert.match(workflow, /vscode: \['1\.90\.0', stable\]/);
+assert.match(workflow, /SQL_BEAUTIFY_VSCODE_VERSION: \$\{\{ matrix\.vscode \}\}/);
+assert.match(workflow, /xvfb-run -a npm run test:vscode-smoke/);
+assert.match(workflow, /needs: \[node-smoke, vscode-smoke\]/,
+    'packaging and release must depend on both real-host smoke versions');
+assert.strictEqual(packageJson.devDependencies['@types/vscode'], '1.90.0',
+    'compile against the declared minimum API instead of newer caret-resolved types');
 assert.match(workflow, /npm run test:v2:performance-relative/);
 assert.match(workflow,
     /github\.event_name == 'workflow_dispatch' \|\| github\.ref == 'refs\/heads\/main'/,
