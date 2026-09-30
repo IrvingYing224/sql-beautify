@@ -7,6 +7,76 @@ var resultFactory = require('../../.tmp/v2-core/experimental/ddl/result');
 var limits = require('../../.tmp/v2-core/core/api/limits');
 var displayWidth = require('../../.tmp/v2-core/core/renderer/display-width');
 var fixtures = require('../fixtures/v2-wave4-ddl');
+var hiveStringLiteral = require('../../.tmp/v2-core/experimental/ddl/string-literal').hiveStringLiteral;
+
+// Independent decoder for the emitted literal subset, following Hive's
+// enclosure, Unicode, octal-before-short-escape ordering. It deliberately
+// accepts doubled enclosures so a SQL-standard encoder fails the round trip.
+function decodeHiveLiteral(literal) {
+    var enclosure = null;
+    var output = '';
+    var escapes = { '0': '\0', b: '\b', n: '\n', r: '\r', t: '\t', Z: '\u001a' };
+    for (var index = 0; index < literal.length; index++) {
+        var character = literal[index];
+        if (enclosure === null) {
+            if (character === "'" || character === '"') enclosure = character;
+        } else if (character === enclosure) {
+            enclosure = null;
+        } else if (character === '\\') {
+            var remaining = literal.slice(index + 1);
+            if (/^u[0-9a-fA-F]{4}/.test(remaining)) {
+                output += String.fromCharCode(parseInt(remaining.slice(1, 5), 16));
+                index += 5;
+            } else if (/^[01][0-7]{2}/.test(remaining)) {
+                output += String.fromCharCode(parseInt(remaining.slice(0, 3), 8));
+                index += 3;
+            } else {
+                var next = literal[++index];
+                output += Object.prototype.hasOwnProperty.call(escapes, next)
+                    ? escapes[next]
+                    : next;
+            }
+        } else {
+            output += character;
+        }
+    }
+    return output;
+}
+
+// Hive 4.0.1 BaseSemanticAnalyzer.escapeSQLString/unescapeSQLString use
+// backslash quoting. SQL-standard doubled quotes lose the apostrophe there.
+// https://github.com/apache/hive/blob/rel/release-4.0.1/ql/src/java/org/apache/hadoop/hive/ql/parse/BaseSemanticAnalyzer.java
+[
+    ["owner's column", "'owner\\'s column'"],
+    ["a\\'b", "'a\\\\\\'b'"],
+    ['a\\nb', "'a\\\\nb'"],
+    ['a\0b', "'a\\u0000b'"],
+    ['a\x0012b', "'a\\u000012b'"],
+    ['a\x0077b', "'a\\u000077b'"],
+    ["a\0'b", "'a\\u0000\\'b'"],
+    ['a\bb', "'a\\bb'"],
+    ['a\tb', "'a\\tb'"],
+    ['a\nb', "'a\\nb'"],
+    ['a\r\nb', "'a\\r\\nb'"],
+    ['a\u001ab', "'a\\Zb'"],
+    ['a\u0001b', "'a\\u0001b'"],
+    ['中文 "note"', "'中文 \"note\"'"]
+].forEach(function(entry) {
+    assert.strictEqual(hiveStringLiteral(entry[0]), entry[1],
+        'generated Hive literals must preserve the comment value');
+    assert.strictEqual(decodeHiveLiteral(hiveStringLiteral(entry[0])), entry[0],
+        'Hive decoding must recover the original comment including escape combinations');
+    if (!/[\r\n]/.test(entry[0])) {
+        var result = ddl.extractDdl('SELECT a -- ' + entry[0] + '\nFROM t');
+        assert.strictEqual(result.status, 'extracted');
+        assert.strictEqual(result.text,
+            '     a __TYPE_REQUIRED__ COMMENT ' + entry[1] + '\n');
+        var create = ddl.formatHiveDdl('CREATE TABLE t (a STRING COMMENT ' + entry[1] + ')');
+        assert.strictEqual(create.status, 'formatted');
+        assert.ok(create.text.includes('COMMENT ' + entry[1]),
+            'formatting generated DDL must retain the literal bytes');
+    }
+});
 
 fixtures.extract.forEach(function(fixture) {
     var result = ddl.extractDdl(fixture.source);

@@ -31,6 +31,7 @@ import {
     type ResolvedExtractDdlOptions,
 } from "./options";
 import { ddlDiagnostic, extractDdlResult } from "./result";
+import { hiveStringLiteral } from "./string-literal";
 import type {
     ExtractDdlExecutionResult,
     ExtractDdlOptions,
@@ -415,10 +416,6 @@ function commentText(artifact: AnalyzedArtifact, leafId: number | null): string 
     return raw.replace(/^--\s?/, "").replace(/\s+$/g, "");
 }
 
-function commentLiteral(value: string): string {
-    return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "''").replace(/\r\n|\r|\n/g, "\\n")}'`;
-}
-
 function extractType(options: ResolvedExtractDdlOptions): string {
     const value = options.defaultType ?? "__TYPE_REQUIRED__";
     if (value.length > MAX_EXTRACT_TYPE_CODE_UNITS) {
@@ -458,7 +455,7 @@ function renderExtract(
     );
     const lines = branch.columns.map((column, index) => {
         const comment = commentText(artifact, column.commentLeafId);
-        const suffix = comment === null ? "" : ` COMMENT ${commentLiteral(comment)}`;
+        const suffix = comment === null ? "" : ` COMMENT ${hiveStringLiteral(comment)}`;
         return `${prefixes[index]!}${column.name}${" ".repeat(paddings[index]!)}${type}${suffix}`;
     });
     return `${lines.join("\n")}\n`;
