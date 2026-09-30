@@ -112,6 +112,7 @@ var wave4 = tests([
 
 var wave5StageA = tests([
     'build-suite-infrastructure',
+    'production-private-contract',
     'wave4a-transaction',
     'wave4d-transaction',
     'wave5-runtime-artifact',

@@ -31,8 +31,34 @@ function read_options(filePath) {
 	try {
 		return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 	} catch (error) {
-		throw new Error('Invalid corpus options JSON: ' + filePath + ': ' + error.message);
+		throw new Error('Invalid corpus options JSON: ' + filePath);
 	}
+}
+
+function validate_private_expectation(value, label) {
+    assert.ok(value !== null && typeof value === 'object' && !Array.isArray(value),
+        label + ' must be an expectation object');
+    assert.ok(Object.keys(value).sort().join(',') === 'codes,status',
+        label + ' must contain exactly status and codes');
+    assert.ok(['formatted', 'unchanged', 'preserved'].indexOf(value.status) >= 0,
+        label + ' status must be formatted, unchanged or preserved; failed is never allowed');
+    assert.ok(Array.isArray(value.codes) && value.codes.every(function(code) {
+        return typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/.test(code);
+    }), label + ' codes must be an array of diagnostic codes');
+    return Object.freeze({ status: value.status, codes: Object.freeze(value.codes.slice()) });
+}
+
+function read_private_expectation(filePath) {
+    if (!fs.existsSync(filePath)) {
+        return null;
+    }
+    var parsed;
+    try {
+        parsed = JSON.parse(read_text(filePath));
+    } catch (error) {
+        throw new Error('Invalid private corpus expectation JSON: ' + filePath);
+    }
+    return validate_private_expectation(parsed, 'Private corpus expectation ' + filePath);
 }
 
 function list_sql_files(root) {
@@ -59,6 +85,7 @@ function list_sql_files(root) {
 function build_case(root, sqlPath) {
 	var relativePath = normalize_slashes(path.relative(root, sqlPath));
 	var optionsPath = sqlPath.replace(/\.sql$/i, '.options.json');
+	var expectationPath = sqlPath.replace(/\.sql$/i, '.expected.json');
 	var options = Object.assign({}, DEFAULT_OPTIONS, read_options(optionsPath));
 	return {
 		name: relativePath.replace(/\.sql$/i, ''),
@@ -66,7 +93,8 @@ function build_case(root, sqlPath) {
 		relativePath: relativePath,
 		optionsPath: fs.existsSync(optionsPath) ? optionsPath : null,
 		sql: read_text(sqlPath),
-		options: options
+		options: options,
+		privateExpectation: read_private_expectation(expectationPath)
 	};
 }
 
@@ -198,7 +226,7 @@ function assert_eol_and_bom_contract(source, output, caseName) {
 	}
 }
 
-function assert_formatted_contract(sqlFormatter, testCase, result) {
+function assert_formatted_contract(sqlFormatter, testCase, result, validateSecondResult) {
 	assert.strictEqual(typeof result.text, 'string', testCase.name + ' formatter result text must be a string');
 	assert_diagnostics_shape(result.diagnostics, testCase.name);
 	if (testCase.expected) {
@@ -232,8 +260,13 @@ function assert_formatted_contract(sqlFormatter, testCase, result) {
 			testCase.name + ' non-editable result must preserve source bytes');
 		return;
 	}
-	assert.ok(/(?:\r\n|\r|\n)$/.test(result.text),
-		testCase.name + ' formatted output must end with one newline');
+	if (testCase.operation === 'formatHiveDdl') {
+		assert.ok(/[\r\n]$/.test(result.text),
+			testCase.name + ' generated DDL must end with a newline');
+	} else {
+		assert.strictEqual(/[\r\n]$/.test(result.text), /[\r\n]$/.test(testCase.sql),
+			testCase.name + ' query formatting must preserve the final newline boundary');
+	}
 	assert.deepStrictEqual(
 		token_fingerprint(sqlFormatter, result.text, testCase.options.dialect),
 		token_fingerprint(sqlFormatter, testCase.sql, testCase.options.dialect),
@@ -243,8 +276,93 @@ function assert_formatted_contract(sqlFormatter, testCase, result) {
 
 	var idempotentCase = Object.assign({}, testCase, { sql: result.text });
 	var second = format_case(sqlFormatter, idempotentCase);
+	if (validateSecondResult !== undefined) {
+		validateSecondResult(second);
+	}
 	assert.strictEqual(second.text, result.text, testCase.name + ' formatted output must be idempotent');
 	assert.strictEqual(second.status, 'unchanged', testCase.name + ' second pass status');
+}
+
+function private_assert(condition, reason) {
+    if (!condition) {
+        var error = new Error('Private corpus rejected: ' + reason);
+        error.privateCorpusReason = reason;
+        throw error;
+    }
+}
+
+function assert_private_result_health(result) {
+    private_assert(result !== null && typeof result === 'object' &&
+        typeof result.text === 'string' && Array.isArray(result.diagnostics), 'invalid-result');
+    private_assert(result.status !== 'failed', 'formatter-failed');
+    private_assert(['formatted', 'unchanged', 'preserved'].indexOf(result.status) >= 0,
+        'invalid-result');
+    private_assert(result.diagnostics.every(function(item) {
+        return item !== null && typeof item === 'object' &&
+            typeof item.code === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/.test(item.code) &&
+            ['info', 'warning', 'error'].indexOf(item.severity) >= 0;
+    }), 'invalid-diagnostics');
+    private_assert(result.diagnostics.every(function(item) {
+        return item.severity !== 'error' &&
+            !/(?:^|_)(?:INTERNAL|CONTRACT|INVARIANT)(?:_|$)/.test(item.code);
+    }), 'internal-or-error-diagnostic');
+}
+
+function assert_private_formatted_contract(sqlFormatter, testCase, result) {
+    assert_private_result_health(result);
+    var expected = testCase.privateExpectation;
+    if (expected !== null && expected !== undefined) {
+        expected = validate_private_expectation(expected, 'Private corpus expectation');
+        private_assert(result.status === expected.status, 'unexpected-status');
+        private_assert(JSON.stringify(result.diagnostics.map(function(item) {
+            return item.code;
+        })) === JSON.stringify(expected.codes), 'unexpected-diagnostics');
+    } else {
+        private_assert(result.status === 'formatted' || result.status === 'unchanged',
+            'undeclared-preservation');
+    }
+    assert_formatted_contract(sqlFormatter, testCase, result, assert_private_result_health);
+}
+
+/** Aggregate only safe status/code facts; assertion details can contain private SQL. */
+function evaluate_private_cases(sqlFormatter, cases) {
+    var summary = {
+        total: cases.length,
+        passed: 0,
+        statuses: { formatted: 0, unchanged: 0, preserved: 0, failed: 0, invalid: 0, threw: 0 },
+        diagnosticCodes: Object.create(null),
+        failures: []
+    };
+    cases.forEach(function(testCase, index) {
+        var result;
+        try {
+            result = format_case(sqlFormatter, testCase);
+        } catch (error) {
+            summary.statuses.threw += 1;
+            summary.failures.push({ caseIndex: index, reason: 'formatter-threw' });
+            return;
+        }
+        var status = result && ['formatted', 'unchanged', 'preserved', 'failed']
+            .indexOf(result.status) >= 0 ? result.status : 'invalid';
+        summary.statuses[status] += 1;
+        if (result && Array.isArray(result.diagnostics)) {
+            result.diagnostics.forEach(function(item) {
+                var code = item && typeof item.code === 'string' &&
+                    /^[A-Z][A-Z0-9_]{0,127}$/.test(item.code) ? item.code : 'INVALID_DIAGNOSTIC';
+                summary.diagnosticCodes[code] = (summary.diagnosticCodes[code] || 0) + 1;
+            });
+        }
+        try {
+            assert_private_formatted_contract(sqlFormatter, testCase, result);
+            summary.passed += 1;
+        } catch (error) {
+            summary.failures.push({
+                caseIndex: index,
+                reason: error.privateCorpusReason || 'contract-mismatch'
+            });
+        }
+    });
+    return summary;
 }
 
 exports.DEFAULT_OPTIONS = DEFAULT_OPTIONS;
@@ -256,3 +374,5 @@ exports.load_private_cases = load_private_cases;
 exports.format_case = format_case;
 exports.assert_diagnostics_shape = assert_diagnostics_shape;
 exports.assert_formatted_contract = assert_formatted_contract;
+exports.assert_private_formatted_contract = assert_private_formatted_contract;
+exports.evaluate_private_cases = evaluate_private_cases;
