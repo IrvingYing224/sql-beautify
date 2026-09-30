@@ -202,4 +202,5 @@ assertInvalid(
 var stable = valid(source, [target('stable', fromStart, fromEnd)]);
 assert.strictEqual(Object.isFrozen(stable), true);
 assert.strictEqual(Object.isFrozen(stable.diagnostics), true);
+require('./helpers/range-index-regression')(range);
 console.log('v2 Wave 4B range transaction tests passed');

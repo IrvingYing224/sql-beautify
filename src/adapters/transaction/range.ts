@@ -87,7 +87,10 @@ interface RangeEvidence {
     readonly artifact: AnalysisArtifact;
     readonly ownedBoundaries: ReadonlySet<string>;
     readonly statementBoundaries: readonly ContentBoundary[];
+    readonly nextSyntaxLeaf: Int32Array;
+    readonly previousSyntaxLeaf: Int32Array;
     readonly opaqueSpans: readonly ContentBoundary[];
+    readonly opaquePrefixMaxEnd: Float64Array;
 }
 
 function fail(
@@ -159,22 +162,30 @@ function boundaryInsideProtectedOrComment(
 function contentBoundaryForTarget(
     startOffset: number,
     endOffset: number,
-    leaves: readonly SourceLeaf[]
+    evidence: RangeEvidence
 ): ContentBoundary | null {
-    let start: number | null = null;
-    let end: number | null = null;
-    for (const leaf of leaves) {
-        if (
-            isTrivia(leaf) ||
-            leaf.span.start >= endOffset ||
-            startOffset >= leaf.span.end
-        ) {
-            continue;
-        }
-        start ??= leaf.span.start;
-        end = leaf.span.end;
+    const index = evidence.artifact.index!;
+    const startLocation = index.offsetToLeaf(startOffset);
+    // The range is non-empty and end-exclusive. Looking up end - 1 also
+    // handles EOF and CRLF without selecting the next leaf at a boundary.
+    const endLocation = index.offsetToLeaf(endOffset - 1);
+    if (startLocation === null || endLocation === null) {
+        return null;
     }
-    return start === null || end === null ? null : { start, end };
+    const firstLeafId = evidence.nextSyntaxLeaf[startLocation.leafId]!;
+    const lastLeafId = evidence.previousSyntaxLeaf[endLocation.leafId + 1]!;
+    if (
+        firstLeafId < startLocation.leafId ||
+        firstLeafId > endLocation.leafId ||
+        lastLeafId < firstLeafId
+    ) {
+        return null;
+    }
+    const leaves = evidence.artifact.leaves;
+    return {
+        start: leaves[firstLeafId]!.span.start,
+        end: leaves[lastLeafId]!.span.end,
+    };
 }
 
 function boundaryKey(boundary: ContentBoundary): string {
@@ -236,13 +247,23 @@ function buildRangeEvidence(artifact: AnalysisArtifact): RangeEvidence | null {
             statementBoundaries.push(boundary);
         }
     }
+    opaqueSpans.sort((left, right) => left.start - right.start || left.end - right.end);
+    const opaquePrefixMaxEnd = new Float64Array(opaqueSpans.length);
+    let maximumEnd = 0;
+    for (let index = 0; index < opaqueSpans.length; index += 1) {
+        maximumEnd = Math.max(maximumEnd, opaqueSpans[index]!.end);
+        opaquePrefixMaxEnd[index] = maximumEnd;
+    }
     return {
         artifact,
         ownedBoundaries,
+        nextSyntaxLeaf,
+        previousSyntaxLeaf,
         statementBoundaries: Object.freeze(statementBoundaries.sort(
             (left, right) => left.start - right.start || left.end - right.end
         )),
-        opaqueSpans: Object.freeze(opaqueSpans.slice()),
+        opaqueSpans: Object.freeze(opaqueSpans),
+        opaquePrefixMaxEnd,
     };
 }
 
@@ -251,9 +272,21 @@ function intersectsOpaque(
     end: number,
     evidence: RangeEvidence
 ): boolean {
-    return evidence.opaqueSpans.some(
-        (span) => span.start < end && start < span.end
-    );
+    const spans = evidence.opaqueSpans;
+    let low = 0;
+    let high = spans.length;
+    // Find all spans starting before the target ends. A prefix maximum is
+    // required: opaque nodes may nest or overlap, so the last span alone
+    // does not prove whether an earlier span still contains this target.
+    while (low < high) {
+        const middle = low + Math.floor((high - low) / 2);
+        if (spans[middle]!.start < end) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return low > 0 && evidence.opaquePrefixMaxEnd[low - 1]! > start;
 }
 
 function isCompleteStatementSequence(
@@ -279,13 +312,19 @@ function isCompleteStatementSequence(
     if (first < 0) {
         return false;
     }
-    for (let index = first; index < statements.length; index++) {
-        const end = statements[index]!.end;
-        if (end === boundary.end) {
-            return index > first;
-        }
-        if (end > boundary.end) {
-            return false;
+    // Canonical statement nodes are disjoint direct children of Program,
+    // so sorting by start also makes their ends strictly increasing.
+    low = first;
+    high = statements.length - 1;
+    while (low <= high) {
+        const middle = low + Math.floor((high - low) / 2);
+        const end = statements[middle]!.end;
+        if (end < boundary.end) {
+            low = middle + 1;
+        } else if (end > boundary.end) {
+            high = middle - 1;
+        } else {
+            return middle > first;
         }
     }
     return false;
@@ -350,7 +389,7 @@ function validateTarget(
     const boundary = contentBoundaryForTarget(
         target.start,
         target.end,
-        evidence.artifact.leaves
+        evidence
     );
     if (boundary === null) {
         return fail("ADAPTER_RANGE_EMPTY", target.id);
