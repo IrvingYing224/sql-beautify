@@ -5,6 +5,7 @@ var childProcess = require('child_process');
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
+var packageTools = require('../../scripts/package-tools');
 
 var root = path.join(__dirname, '..', '..');
 var packageManifest = require(path.join(root, 'scripts', 'package-manifest.js'))
@@ -27,7 +28,10 @@ var architecture = fs.readFileSync(
 
 function copyReleaseTrustRoot(destination) {
     ['package.json', 'package-lock.json'].concat(
-        packageManifest.staticFiles
+        packageManifest.staticFiles,
+        packageManifest.declarationFiles.map(function(fileName) {
+            return 'src/runtime/' + path.basename(fileName);
+        })
     ).forEach(function(fileName) {
         var destinationPath = path.join(destination, fileName);
         fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
@@ -78,8 +82,17 @@ assert.strictEqual(packageJson.version, '2.2.0',
 assert.strictEqual(packageLock.version, packageJson.version);
 assert.strictEqual(packageLock.packages[''].version, packageJson.version);
 assert.strictEqual(packageJson.scripts.prepack, 'node scripts/build-v2-runtime.js');
-assert.match(packageJson.scripts['package:vsix'], /verify-release-artifact\.js/);
-assert.match(packageJson.scripts['package:vsix'], /--compare-build/);
+assert.strictEqual(packageJson.scripts['package:vsix'], 'node scripts/package-vsix.js');
+var packagePlan = require('../../scripts/package-vsix').packagePlan();
+assert.strictEqual(packagePlan.length, 3);
+assert.strictEqual(path.basename(packagePlan[0][0]), 'build-v2-runtime.js');
+assert.strictEqual(packagePlan[1][0], packageTools.vsceCliPath());
+assert.strictEqual(path.basename(packagePlan[1][4]),
+    'vscode-sql-beautify-v' + packageJson.version + '.vsix');
+assert.strictEqual(path.basename(packagePlan[2][0]), 'verify-release-artifact.js');
+assert.strictEqual(packagePlan[2][3], '--compare-build');
+assert.strictEqual(packagePlan[2][2], packagePlan[1][4]);
+packageTools.requireArchiveTools(['zip', 'unzip']);
 assert.strictEqual(packageJson.scripts['test:verify'],
     'node scripts/run-v2-suite.js verify');
 assert.deepStrictEqual(verifyPlan.steps.filter(function(step) {
@@ -229,8 +242,8 @@ try {
     var artifactName = 'vscode-sql-beautify-v' + packageJson.version + '.vsix';
     var artifactPath = path.join(temporaryRoot, artifactName);
     childProcess.execFileSync(
-        path.join(root, 'node_modules', '.bin', 'vsce'),
-        ['package', '--no-dependencies', '--out', artifactPath],
+        process.execPath,
+        [packageTools.vsceCliPath(), 'package', '--no-dependencies', '--out', artifactPath],
         { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
     );
     childProcess.execFileSync(process.execPath, [
@@ -724,6 +737,18 @@ try {
             'packed static tamper ' + fileName);
     });
 
+    packageManifest.declarationFiles.forEach(function(fileName, index) {
+        var declarationTamper = tamperedArtifact(
+            'declaration-' + index,
+            'extension/' + fileName,
+            function(buffer) {
+                return Buffer.concat([buffer, Buffer.from('\nexport const privateApi: any;\n')]);
+            }
+        );
+        assertArtifactRejectedInBothModes(declarationTamper,
+            'packed declaration tamper ' + fileName);
+    });
+
     var identityTamper = tamperedArtifact(
         'manifest-identity',
         'extension.vsixmanifest',
@@ -835,6 +860,10 @@ try {
     fs.copyFileSync(
         path.join(root, 'scripts', 'strict-xml.js'),
         path.join(cleanRoot, 'scripts', 'strict-xml.js')
+    );
+    fs.copyFileSync(
+        path.join(root, 'scripts', 'package-tools.js'),
+        path.join(cleanRoot, 'scripts', 'package-tools.js')
     );
     fs.copyFileSync(artifactPath, path.join(cleanRoot, artifactName));
     assert.strictEqual(fs.existsSync(path.join(cleanRoot, 'dist')), false,

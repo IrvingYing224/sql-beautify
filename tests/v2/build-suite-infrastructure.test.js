@@ -14,7 +14,7 @@ var coreStamp = path.join(root, '.tmp', 'v2-core', '.build-stamp.json');
 var coreLock = path.join(root, '.tmp', 'locks', 'build-v2-core.lock');
 var runtimeStamp = path.join(root, '.tmp', 'v2-runtime-build-stamp.json');
 var runtimeFiles = require(path.join(root, 'scripts', 'package-manifest.js'))
-    .loadPackageManifest(root).runtimeFiles;
+    .loadPackageManifest(root).buildFiles;
 
 function digest(filePath) {
     return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
@@ -186,6 +186,18 @@ async function main() {
             !fs.readFileSync(runtimeArtifact).equals(runtimeArtifactBefore)) {
             fs.writeFileSync(runtimeArtifact, runtimeArtifactBefore);
         }
+    }
+    var declarationArtifact = path.join(root, 'dist', 'sql-formatter.d.cts');
+    var declarationBefore = fs.readFileSync(declarationArtifact);
+    try {
+        fs.writeFileSync(declarationArtifact, 'export const unintendedApi: any;\n');
+        var declarationRebuild = runBuild('scripts/build-v2-runtime.js');
+        assert.strictEqual(declarationRebuild.status, 0, declarationRebuild.stderr);
+        assert.match(declarationRebuild.stdout, /Built v2 runtime artifacts atomically/);
+        assert.ok(fs.readFileSync(declarationArtifact).equals(declarationBefore),
+            'changed public declarations must invalidate and restore the runtime cache');
+    } finally {
+        fs.writeFileSync(declarationArtifact, declarationBefore);
     }
     var unknownRuntimeArtifact = path.join(root, 'dist', 'audit-extra.cjs');
     try {

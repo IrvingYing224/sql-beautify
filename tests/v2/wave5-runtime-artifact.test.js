@@ -19,6 +19,11 @@ assert.ok(fs.existsSync(formatterPath), 'Wave 5 public formatter facade must be 
 assert.ok(fs.existsSync(ddlPath), 'Wave 5 public DDL facade must be built');
 assert.ok(fs.existsSync(workerPath), 'Wave 5 worker artifact must be built');
 assert.ok(fs.existsSync(extensionPath), 'Wave 5 extension artifact must be built');
+['sql-formatter.d.cts', 'hive-ddl.d.cts'].forEach(function(fileName) {
+    assert.deepStrictEqual(fs.readFileSync(path.join(dist, fileName)),
+        fs.readFileSync(path.join(root, 'src', 'runtime', fileName)),
+        'public declaration artifact must match source: ' + fileName);
+});
 assert.strictEqual(fs.existsSync(legacyBridgePath), false,
     'Wave 5 build must delete the legacy format bridge artifact');
 

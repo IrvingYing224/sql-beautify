@@ -8,6 +8,7 @@ var fs = require('fs');
 var path = require('path');
 var manifestApi = require('./package-manifest');
 var strictXml = require('./strict-xml');
+var packageTools = require('./package-tools');
 
 function argumentValue(args, name) {
     var index = args.indexOf(name);
@@ -474,6 +475,11 @@ function verifyPackedSourceFiles(artifactPath, root, packageManifest) {
         assert.deepStrictEqual(packed, source,
             'packed static file must match source bytes: ' + entry.sourcePath);
     });
+    packageManifest.declarationFiles.forEach(function(fileName) {
+        var source = fs.readFileSync(path.join(root, 'src', 'runtime', path.basename(fileName)));
+        assert.deepStrictEqual(unzipBuffer(artifactPath, 'extension/' + fileName), source,
+            'packed public declarations must match their source bytes: ' + fileName);
+    });
 }
 
 function verifyTrustedBuild(artifactPath, root, packageManifest) {
@@ -498,7 +504,7 @@ function verifyTrustedBuild(artifactPath, root, packageManifest) {
     ), 'current dist must match the trusted build stamp exactly');
     assert.deepStrictEqual(
         stamp.outputManifest.map(function(output) { return output.path; }),
-        packageManifest.runtimeFileNames.slice().sort(),
+        packageManifest.buildFileNames.slice().sort(),
         'trusted build stamp must describe the exact packaged runtime set'
     );
     stamp.outputManifest.forEach(function(output) {
@@ -516,6 +522,7 @@ function verifyTrustedBuild(artifactPath, root, packageManifest) {
 }
 
 function verifyArtifact(artifactPath, options) {
+    packageTools.requireArchiveTools(['unzip']);
     var settings = options || {};
     var root = settings.root || path.join(__dirname, '..');
     var compareBuild = settings.compareBuild === true;
@@ -540,7 +547,7 @@ function verifyArtifact(artifactPath, options) {
     if (compareBuild) {
         verifyTrustedBuild(artifactPath, root, packageManifest);
     }
-    packageManifest.runtimeFiles.forEach(function(fileName) {
+    packageManifest.buildFiles.forEach(function(fileName) {
         assert.ok(entrySet.has('extension/' + fileName),
             'VSIX is missing runtime artifact: ' + fileName);
     });

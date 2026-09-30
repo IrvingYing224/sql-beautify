@@ -37,8 +37,14 @@ assert.strictEqual(packageLock.version, packageJson.version);
 assert.strictEqual(packageLock.packages[''].version, packageJson.version);
 assert.strictEqual(packageJson.main, './dist/extension.cjs');
 assert.deepStrictEqual(packageJson.exports, {
-    './formatter': './dist/sql-formatter.cjs',
-    './experimental/ddl': './dist/hive-ddl.cjs',
+    './formatter': {
+        types: './dist/sql-formatter.d.cts',
+        default: './dist/sql-formatter.cjs'
+    },
+    './experimental/ddl': {
+        types: './dist/hive-ddl.d.cts',
+        default: './dist/hive-ddl.cjs'
+    },
     './package.json': './package.json'
 });
 assert.deepStrictEqual(packageJson.files, packageManifest.packageFiles,

@@ -7,6 +7,7 @@ var fs = require('fs');
 var os = require('os');
 var path = require('path');
 var manifestApi = require('./package-manifest');
+var packageTools = require('./package-tools');
 
 var root = path.join(__dirname, '..');
 var excludedNames = new Set(['.git', '.tmp', 'dist', 'node_modules']);
@@ -54,6 +55,14 @@ function verifyInstalledConsumer(consumerRoot) {
         "if (ddlResult.status !== 'formatted' && ddlResult.status !== 'unchanged') throw new Error('ddl smoke');"
     ].join('\n');
     run(process.execPath, ['-e', probe], { cwd: consumerRoot });
+    run(process.execPath, ['--input-type=module', '-e', [
+        "import { formatSql, lexSql } from 'vscode-sql-beautify/formatter';",
+        "import { formatHiveDdl, extractDdl } from 'vscode-sql-beautify/experimental/ddl';",
+        "if (formatSql('select a from t').status !== 'formatted') throw new Error('ESM formatter');",
+        "if (!lexSql('select a from t').leaves.length) throw new Error('ESM lexer');",
+        "if (formatHiveDdl('CREATE TABLE t (a INT)').status !== 'formatted') throw new Error('ESM DDL');",
+        "if (extractDdl('SELECT a FROM t').status !== 'extracted') throw new Error('ESM extract');"
+    ].join('\n')], { cwd: consumerRoot });
     var installedManifest = require.resolve('vscode-sql-beautify/package.json', {
         paths: [consumerRoot]
     });
@@ -70,6 +79,58 @@ function verifyInstalledConsumer(consumerRoot) {
     );
 }
 
+function verifyTypedConsumer(consumerRoot) {
+    var source = [
+        "import { formatSql, lexSql, type FormatOptions, type FormatResult, type SourceMap } from 'vscode-sql-beautify/formatter';",
+        "import { formatHiveDdl, extractDdl, type ExtractDdlResult } from 'vscode-sql-beautify/experimental/ddl';",
+        "const options: FormatOptions = { dialect: 'postgresql', keywordCase: 'lower' };",
+        "const result: FormatResult = formatSql('select a from t', options);",
+        "const leaves = lexSql('select a', { dialect: 'hive' }).leaves;",
+        "const raw: string | undefined = leaves[0]?.raw;",
+        "if (result.status === 'formatted' || result.status === 'unchanged') {",
+        '    const map: SourceMap = result.sourceMap;',
+        '    map.entries.forEach(entry => entry.output.start);',
+        '} else {',
+        '    // @ts-expect-error preserved/failed results do not contain a source map',
+        '    const map: SourceMap = result.sourceMap;',
+        '}',
+        "formatHiveDdl('CREATE TABLE t (a INT)', { commaStyle: 'trailing' });",
+        "const extracted: ExtractDdlResult = extractDdl('select a from t', { defaultType: 'STRING' });",
+        "if (extracted.status === 'extracted') { const empty: readonly [] = extracted.diagnostics; }",
+        '// @ts-expect-error unsupported dialect alias',
+        "formatSql('select a', { dialect: 'postgres' });",
+        '// @ts-expect-error render environment is not a public formatter option',
+        "formatSql('select a', { tabSize: 2 });",
+        '// @ts-expect-error public formatter is document-only',
+        "formatSql('select a', {}, 'fragment');",
+        '// @ts-expect-error DDL options expose only their modeled subset',
+        "formatHiveDdl('CREATE TABLE t (a INT)', { dialect: 'hive' });",
+        '// @ts-expect-error extract default type must be a string',
+        "extractDdl('select a', { defaultType: 1 });",
+        '// @ts-expect-error package root remains private',
+        "import * as root from 'vscode-sql-beautify';",
+        '// @ts-expect-error internal runtime paths remain private',
+        "import * as internal from 'vscode-sql-beautify/dist/runtime.cjs';",
+        '// @ts-expect-error syntax implementation is not a public facade value',
+        "import { parseSql } from 'vscode-sql-beautify/formatter';",
+        'void raw; void leaves;'
+    ].join('\n');
+    ['consumer.cts', 'consumer.mts'].forEach(function(fileName) {
+        fs.writeFileSync(path.join(consumerRoot, fileName), source, 'utf8');
+    });
+    fs.writeFileSync(path.join(consumerRoot, 'tsconfig.json'), JSON.stringify({
+        compilerOptions: {
+            target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
+            strict: true, exactOptionalPropertyTypes: true, noEmit: true,
+            skipLibCheck: false, types: []
+        },
+        files: ['consumer.cts', 'consumer.mts']
+    }), 'utf8');
+    run(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', 'tsconfig.json'], {
+        cwd: consumerRoot
+    });
+}
+
 function verifyCleanPackage() {
     var temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sql-beautify-clean-package-'));
     var sourceRoot = path.join(temporaryRoot, 'source');
@@ -80,18 +141,19 @@ function verifyCleanPackage() {
     });
     try {
         copySource(root, sourceRoot);
-        fs.symlinkSync(path.join(root, 'node_modules'), path.join(sourceRoot, 'node_modules'), 'dir');
+        fs.symlinkSync(path.join(root, 'node_modules'), path.join(sourceRoot, 'node_modules'),
+            process.platform === 'win32' ? 'junction' : 'dir');
         fs.mkdirSync(packageOutput, { recursive: true });
         assert.strictEqual(fs.existsSync(path.join(sourceRoot, 'dist')), false,
             'clean package probe must begin without dist artifacts');
 
-        var packOutput = run('npm', [
+        var packOutput = run(process.execPath, [packageTools.npmCliPath(),
             'pack',
             '--json',
             '--pack-destination',
             packageOutput
         ], { cwd: sourceRoot, env: npmEnvironment });
-        var jsonStart = packOutput.indexOf('[\n');
+        var jsonStart = packOutput.search(/^\s*\[/m);
         assert.ok(jsonStart >= 0, 'npm pack must emit a JSON result array');
         var packResult = JSON.parse(packOutput.slice(jsonStart))[0];
         var packedFiles = packResult.files.map(function(file) { return file.path; }).sort();
@@ -110,7 +172,7 @@ function verifyCleanPackage() {
         fs.writeFileSync(path.join(consumerRoot, 'package.json'), JSON.stringify({
             private: true
         }), 'utf8');
-        run('npm', [
+        run(process.execPath, [packageTools.npmCliPath(),
             'install',
             '--ignore-scripts',
             '--no-audit',
@@ -118,6 +180,7 @@ function verifyCleanPackage() {
             tarball
         ], { cwd: consumerRoot, env: npmEnvironment });
         verifyInstalledConsumer(consumerRoot);
+        verifyTypedConsumer(consumerRoot);
         console.log('Clean npm package verified: ' + packResult.filename +
             ' (' + packedFiles.length + ' files)');
     } finally {

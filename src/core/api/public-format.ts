@@ -6,7 +6,11 @@ import { formatSql as formatSqlTarget } from "./format";
 /** Public document-only formatter API. Target modes remain adapter-internal. */
 export function formatSql(
     source: string,
-    options: FormatOptions | unknown = undefined
+    options?: FormatOptions
+): FormatResult;
+export function formatSql(
+    source: string,
+    options: unknown = undefined
 ): FormatResult {
     return formatSqlTarget(
         source,

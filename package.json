@@ -31,8 +31,14 @@
 	},
 	"main": "./dist/extension.cjs",
 	"exports": {
-		"./formatter": "./dist/sql-formatter.cjs",
-		"./experimental/ddl": "./dist/hive-ddl.cjs",
+		"./formatter": {
+			"types": "./dist/sql-formatter.d.cts",
+			"default": "./dist/sql-formatter.cjs"
+		},
+		"./experimental/ddl": {
+			"types": "./dist/hive-ddl.d.cts",
+			"default": "./dist/hive-ddl.cjs"
+		},
 		"./package.json": "./package.json"
 	},
 	"files": [
@@ -41,6 +47,8 @@
 		"dist/sql-formatter.cjs",
 		"dist/hive-ddl.cjs",
 		"dist/formatter-worker.cjs",
+		"dist/sql-formatter.d.cts",
+		"dist/hive-ddl.d.cts",
 		"images/icon.png",
 		"README.md",
 		"CHANGELOG.md",
@@ -175,7 +183,7 @@
 	},
 	"scripts": {
 		"test:verify": "node scripts/run-v2-suite.js verify",
-		"package:vsix": "npm run build:v2-runtime && vsce package --no-dependencies --out vscode-sql-beautify-v${npm_package_version}.vsix && node scripts/verify-release-artifact.js --artifact vscode-sql-beautify-v${npm_package_version}.vsix --compare-build",
+		"package:vsix": "node scripts/package-vsix.js",
 		"prepack": "node scripts/build-v2-runtime.js",
 		"verify:clean-package": "node scripts/verify-clean-package.js",
 		"typecheck:v2": "tsc -p tsconfig.v2.json",

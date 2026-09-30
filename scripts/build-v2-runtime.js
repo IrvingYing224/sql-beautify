@@ -21,6 +21,7 @@ var entries = Object.freeze({
     'formatter-worker.cjs': path.join(root, 'src', 'adapters', 'executor', 'worker-entry.ts'),
     'extension.cjs': path.join(root, 'src', 'extension.ts')
 });
+var declarations = Object.freeze(['sql-formatter.d.cts', 'hive-ddl.d.cts']);
 
 function debugSourceMapsEnabled() {
     return process.env.SQL_BEAUTIFY_DEBUG_SOURCEMAP === '1';
@@ -29,8 +30,8 @@ function debugSourceMapsEnabled() {
 function expectedNames(debugSourceMaps) {
     var names = Object.keys(entries);
     return debugSourceMaps
-        ? names.concat(names.map(function(fileName) { return fileName + '.map'; }))
-        : names;
+        ? names.concat(declarations, names.map(function(fileName) { return fileName + '.map'; }))
+        : names.concat(declarations);
 }
 
 function validateGeneratedDirectory(directory, debugSourceMaps) {
@@ -41,7 +42,7 @@ function validateGeneratedDirectory(directory, debugSourceMaps) {
             throw new Error('Runtime staging contains an unexpected file: ' + fileName);
         }
     });
-    Object.keys(entries).forEach(function(fileName) {
+    expectedNames(debugSourceMaps).forEach(function(fileName) {
         var artifact = path.join(directory, fileName);
         if (!fs.existsSync(artifact) || !fs.statSync(artifact).isFile()) {
             throw new Error('Runtime build did not produce ' + fileName);
@@ -54,7 +55,7 @@ function validateExistingDist(manifest) {
         return;
     }
     var allowed = new Set(
-        manifest.runtimeFileNames.concat(
+        manifest.buildFileNames.concat(
             manifest.runtimeFileNames.map(function(fileName) {
                 return fileName + '.map';
             }),
@@ -154,6 +155,10 @@ async function main() {
         await build(entries['extension.cjs'], path.join(stagingDist, 'extension.cjs'), {
             external: ['vscode']
         }, debugSourceMaps);
+        declarations.forEach(function(fileName) {
+            fs.copyFileSync(path.join(root, 'src', 'runtime', fileName),
+                path.join(stagingDist, fileName));
+        });
         validateGeneratedDirectory(stagingDist, debugSourceMaps);
         var outputManifest = utils.outputManifest(stagingDist);
         if (process.env.SQL_BEAUTIFY_BUILD_TEST_FAIL === 'runtime-before-publish') {
@@ -172,7 +177,7 @@ async function main() {
         utils.publishDirectory(stagingDist, outDir, previousDir);
         console.log('Built v2 runtime artifacts atomically' +
             (debugSourceMaps ? ' with external debug source maps' : '') + ': ' +
-            manifest.runtimeFiles.join(', '));
+            manifest.buildFiles.join(', '));
     } catch (error) {
         var state = fs.existsSync(outDir)
             ? 'previous dist was preserved'

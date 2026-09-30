@@ -12,13 +12,18 @@ var RUNTIME_FILES = Object.freeze([
     'dist/hive-ddl.cjs',
     'dist/formatter-worker.cjs'
 ]);
+var DECLARATION_FILES = Object.freeze([
+    'dist/sql-formatter.d.cts',
+    'dist/hive-ddl.d.cts'
+]);
+var BUILD_FILES = Object.freeze(RUNTIME_FILES.concat(DECLARATION_FILES));
 var STATIC_FILES = Object.freeze([
     'images/icon.png',
     'README.md',
     'CHANGELOG.md',
     'LICENSE.txt'
 ]);
-var PACKAGE_FILES = Object.freeze(RUNTIME_FILES.concat(STATIC_FILES));
+var PACKAGE_FILES = Object.freeze(BUILD_FILES.concat(STATIC_FILES));
 var OBSOLETE_RUNTIME_FILES = Object.freeze([
     'dist/v2-core.cjs',
     'dist/v2-ddl.cjs',
@@ -27,6 +32,7 @@ var OBSOLETE_RUNTIME_FILES = Object.freeze([
 ]);
 var VSIX_CONTENT_TYPES = Object.freeze([
     Object.freeze({ extension: '.cjs', contentType: 'application/octet-stream' }),
+    Object.freeze({ extension: '.cts', contentType: 'application/octet-stream' }),
     Object.freeze({ extension: '.json', contentType: 'application/json' }),
     Object.freeze({ extension: '.md', contentType: 'text/markdown' }),
     Object.freeze({ extension: '.png', contentType: 'image/png' }),
@@ -59,8 +65,14 @@ function loadPackageManifest(root) {
     );
     assert.strictEqual(packageJson.main, './dist/extension.cjs');
     assert.deepStrictEqual(packageJson.exports, {
-        './formatter': './dist/sql-formatter.cjs',
-        './experimental/ddl': './dist/hive-ddl.cjs',
+        './formatter': {
+            types: './dist/sql-formatter.d.cts',
+            default: './dist/sql-formatter.cjs'
+        },
+        './experimental/ddl': {
+            types: './dist/hive-ddl.d.cts',
+            default: './dist/hive-ddl.cjs'
+        },
         './package.json': './package.json'
     });
     var imageFiles = STATIC_FILES.filter(function(fileName) {
@@ -106,6 +118,11 @@ function loadPackageManifest(root) {
         packageFiles: PACKAGE_FILES,
         npmFiles: Object.freeze(npmFiles),
         runtimeFiles: RUNTIME_FILES,
+        declarationFiles: DECLARATION_FILES,
+        buildFiles: BUILD_FILES,
+        buildFileNames: Object.freeze(BUILD_FILES.map(function(fileName) {
+            return path.basename(fileName);
+        })),
         runtimeFileNames: Object.freeze(RUNTIME_FILES.map(function(fileName) {
             return path.basename(fileName);
         })),
