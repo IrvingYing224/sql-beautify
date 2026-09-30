@@ -388,6 +388,65 @@ test('PostgreSQL multi-char operators maximal-munch', function() {
     });
 });
 
+test('PostgreSQL complete operator names preserve unknown and built-in boundaries', function() {
+    [
+        '#-', '^-', '@-', '`', '@', '!!', '+~', '===', '<=>',
+        '||-', '!=-', '%-', '++~++'
+    ].forEach(function(operator) {
+        assertSingleLeaf('SELECT a' + operator + 'b', 'postgresql',
+            operator, 'operator', 'code');
+    });
+    [
+        ['+-', ['+', '-']],
+        ['*+-', ['*', '+', '-']],
+        ['<=-', ['<=', '-']],
+        ['>=+', ['>=', '+']],
+        ['<>-', ['<>', '-']],
+        ['=>-', ['=>', '-']],
+        ['->>-', ['->>', '-']],
+        ['->', ['->']],
+        ['+++', ['+', '+', '+']],
+        ['::-', ['::', '-']],
+        [':=+', [':=', '+']]
+    ].forEach(function(row) {
+        var source = 'SELECT a' + row[0] + 'b';
+        var output = lexSql(source, { dialect: 'postgresql' });
+        assertConservesSource(source, output);
+        assert.deepStrictEqual(output.leaves.filter(function(leaf) {
+            return leaf.kind === 'operator';
+        }).map(function(leaf) { return leaf.raw; }), row[1], row[0]);
+    });
+});
+
+test('PostgreSQL operator scans stop at embedded comments and resume after unknown text', function() {
+    [
+        ['SELECT a#-/*keep*/b', ['#-', '/*keep*/']],
+        ['SELECT a+--keep\nb', ['+', '--keep']],
+        ['SELECT a+/* -- keep */b', ['+', '/* -- keep */']],
+        ['SELECT a#---keep\nb', ['#', '---keep']],
+        ['SELECT a+-+/*keep*/b', ['+', '-', '+', '/*keep*/']],
+        ['SELECT a\\@b', ['@']],
+        ['SELECT a\\`b', ['`']]
+    ].forEach(function(row) {
+        var output = lexSql(row[0], { dialect: 'postgresql' });
+        assertConservesSource(row[0], output);
+        assert.deepStrictEqual(output.leaves.filter(function(leaf) {
+            return leaf.kind === 'operator' || leaf.kind === 'line-comment' ||
+                leaf.kind === 'block-comment';
+        }).map(function(leaf) { return leaf.raw; }), row[1], row[0]);
+    });
+});
+
+test('PostgreSQL long sign suffix is partitioned without changing boundaries', function() {
+    var source = 'SELECT a*' + '+'.repeat(16384) + 'b';
+    var output = lexSql(source, { dialect: 'postgresql' });
+    assertConservesSource(source, output);
+    var operators = output.leaves.filter(function(leaf) { return leaf.kind === 'operator'; });
+    assert.strictEqual(operators.length, 16385);
+    assert.strictEqual(operators[0].raw, '*');
+    assert.ok(operators.slice(1).every(function(leaf) { return leaf.raw === '+'; }));
+});
+
 test('MySQL <=> := ->> maximal-munch', function() {
     assertSingleLeaf('SELECT a <=> b', 'mysql', '<=>', 'operator', 'code');
     assertSingleLeaf('SET @a := 1', 'mysql', ':=', 'operator', 'code');

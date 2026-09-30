@@ -45,7 +45,7 @@ export interface LexicalProfile {
     readonly keywords: ReadonlyLookup<string>;
     /** Syntax-only word operators that must not change Wave 1 token kinds. */
     readonly syntaxOperatorWords: ReadonlyLookup<string>;
-    /** Multi-character operators sorted longest-first for maximal-munch. */
+    /** Known fixed operators, longest-first; PostgreSQL also scans complete operator names. */
     readonly operators: readonly string[];
     /** Longest-first operators whose first UTF-16 code unit matches `value`. */
     readonly operatorsFor: (value: string) => readonly string[];

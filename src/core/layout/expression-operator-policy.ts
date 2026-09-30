@@ -102,7 +102,11 @@ function beforeDecision(occurrence: OperatorOccurrence) {
     }
 }
 
-function afterDecision(occurrence: OperatorOccurrence) {
+function afterDecision(
+    context: QueryLayoutContext,
+    occurrence: OperatorOccurrence,
+    next: ExpressionAnchor
+) {
     switch (occurrence.formatClass) {
         case "prefix-word":
         case "infix-word":
@@ -110,6 +114,13 @@ function afterDecision(occurrence: OperatorOccurrence) {
         case "infix-symbol":
             return SPACE;
         case "prefix-symbol":
+            // The lexer has already proved that these are separate operators.
+            // Keep a boundary before a nested symbol: removing it can create
+            // '--', '~~', or a PostgreSQL user-defined operator name.
+            context.statistics.directLookupCount += 1;
+            return context.analysis.leafKind(next.start) === "operator"
+                ? SPACE
+                : EMPTY;
         case "postfix-symbol":
         case "attached":
             return EMPTY;
@@ -174,7 +185,7 @@ export function formatExpressionOperators(
                         authorityNodeId,
                         leafId + 1,
                         next.start,
-                        afterDecision(occurrence)
+                        afterDecision(context, occurrence, next)
                     ))
             ) {
                 return false;

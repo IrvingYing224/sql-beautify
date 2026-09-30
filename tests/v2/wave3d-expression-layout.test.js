@@ -220,4 +220,49 @@ function closureCase(id) {
     ].join('\n'));
 })();
 
+(function testUnknownPostgresOperatorsStayWholeInsideOpaqueExpressions() {
+    [
+        "doc#-'{a,0}'",
+        "'{\"a\":[1,2]}'::jsonb#-'{a,0}'",
+        'a^-b',
+        'a@-b',
+        'a`b',
+        'a===b',
+        'a||-b'
+    ].forEach(function(expression) {
+        var source = 'select ' + expression + ' from t';
+        var options = { dialect: 'postgresql' };
+        var result = formatApi.formatSql(source, options);
+        assert.strictEqual(result.status, 'formatted', source);
+        assert.strictEqual(result.text, 'SELECT\n      ' + expression + '\nFROM t', source);
+        assert.ok(result.diagnostics.some(function(diagnostic) {
+            return diagnostic.recovery === 'verbatim-node';
+        }), source + ' must preserve the unmodeled expression');
+        assert.strictEqual(formatApi.formatSql(result.text, options).status, 'unchanged');
+    });
+})();
+
+(function testNestedPrefixOperatorsKeepTheirLexicalBoundary() {
+    [
+        ['hive', '- - a', '- -a'],
+        ['generic', '- - a', '- -a'],
+        ['postgresql', '- - a', '- -a'],
+        ['mysql', '- - a', '- -a'],
+        ['postgresql', '~ ~ a', '~ ~a'],
+        ['postgresql', '! ~ a', '! ~a'],
+        ['postgresql', '+ ~ a', '+ ~a'],
+        ['postgresql', '~ - a', '~ -a'],
+        ['postgresql', '! ! a', '! !a'],
+        ['hive', '- /*keep*/ - a', '-\n      /*keep*/\n      -a']
+    ].forEach(function(row) {
+        var source = 'select ' + row[1] + ' from t';
+        var options = { dialect: row[0] };
+        var result = formatApi.formatSql(source, options);
+        assert.strictEqual(result.status, 'formatted', source + ' / ' + row[0]);
+        assert.deepStrictEqual(result.diagnostics, [], source + ' must stay modeled');
+        assert.strictEqual(result.text, 'SELECT\n      ' + row[2] + '\nFROM t', source);
+        assert.strictEqual(formatApi.formatSql(result.text, options).status, 'unchanged');
+    });
+})();
+
 console.log('v2 Wave 3D expression layout tests passed');

@@ -52,6 +52,8 @@ const CHANNEL_BY_KIND: Record<TokenKind, TokenChannel> = {
 };
 
 const PUNCTUATION = new Set([",", ";", "(", ")", "[", "]", "{", "}", ".", ":"]);
+const POSTGRES_OPERATOR_CHARACTERS = new Set("~!@#^&|`?+-*/%<>=".split(""));
+const POSTGRES_NONSTANDARD_OPERATOR_CHARACTERS = new Set("~!@#^&|`?%".split(""));
 
 interface ImmutableSourceLeafPartitionProof {
     readonly source: string;
@@ -750,7 +752,56 @@ function scanIdentifierOrKeyword(state: ScannerState): boolean {
     return true;
 }
 
+/**
+ * PostgreSQL operator names are complete character runs, not a finite list.
+ * Follow scan.l's comment boundaries and trailing +/- rule:
+ * https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-OPERATORS
+ * Unknown names remain one token so syntax recovery preserves their meaning.
+ */
+function scanPostgresOperator(state: ScannerState): boolean {
+    const start = state.cursor;
+    if (!POSTGRES_OPERATOR_CHARACTERS.has(charAt(state, start))) {
+        // :: and := contain ':' and continue through the fixed-token scanner.
+        return false;
+    }
+    let end = start;
+    let lastNonSignEnd = start;
+    let hasNonstandardCharacter = false;
+    while (end < state.length) {
+        const ch = charAt(state, end);
+        if (!POSTGRES_OPERATOR_CHARACTERS.has(ch)) {
+            break;
+        }
+        const next = charAt(state, end + 1);
+        if ((ch === "-" && next === "-") || (ch === "/" && next === "*")) {
+            break;
+        }
+        hasNonstandardCharacter = hasNonstandardCharacter ||
+            POSTGRES_NONSTANDARD_OPERATOR_CHARACTERS.has(ch);
+        end += 1;
+        if (ch !== "+" && ch !== "-") {
+            lastNonSignEnd = end;
+        }
+    }
+    if (end === start) {
+        return false;
+    }
+    const operatorEnd = hasNonstandardCharacter
+        ? end
+        : Math.max(start + 1, lastNonSignEnd);
+    emitLeaf(state, "operator", start, operatorEnd);
+    // Scan a sign suffix once, rather than rescanning the remaining run for
+    // every one-character token (quadratic for a long sequence of '+').
+    while (state.cursor < end) {
+        emitLeaf(state, "operator", state.cursor, state.cursor + 1);
+    }
+    return true;
+}
+
 function scanOperator(state: ScannerState): boolean {
+    if (state.profile.dialect === "postgresql" && scanPostgresOperator(state)) {
+        return true;
+    }
     for (const op of state.profile.operatorsFor(charAt(state, state.cursor))) {
         if (startsWith(state, op)) {
             emitLeaf(state, "operator", state.cursor, state.cursor + op.length);
@@ -861,6 +912,12 @@ function knownLeafStartsAfterUnknown(
         (state.profile.templateParameters &&
             state.source.startsWith("${", index)) ||
         dollarStringTagEnd(state, index) !== null
+    ) {
+        return true;
+    }
+    if (
+        state.profile.dialect === "postgresql" &&
+        POSTGRES_OPERATOR_CHARACTERS.has(ch)
     ) {
         return true;
     }
