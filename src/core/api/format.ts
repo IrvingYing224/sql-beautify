@@ -474,7 +474,10 @@ export function formatSqlWithStatistics(
         }
         if (
             options.unsupportedSyntaxPolicy === "bail_out" &&
-            analysis.diagnostics.some((value) => value.capabilityId !== null)
+            // Opaque syntax is the parser's proof that a range was recovered
+            // rather than modeled. Capability IDs describe known features and
+            // are absent for unknown syntax, malformed input and depth limits.
+            analysis.index.nodes().some((node) => node.kind === "opaque")
         ) {
             const bail = diagnostic(
                 source,

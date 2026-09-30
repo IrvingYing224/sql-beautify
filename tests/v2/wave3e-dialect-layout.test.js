@@ -298,4 +298,107 @@ function assertStable(dialect, source, options, expected) {
     });
 })();
 
+(function testBailOutUsesOpaqueRecoveryRegardlessOfCapabilityIdentity() {
+    [
+        {
+            id: 'registered-statement-in-document',
+            dialect: 'hive',
+            source: 'select  1; select a from t qualify row_number() over(order by a)=1',
+            code: 'SYN_UNMODELED_CONSTRUCT',
+            capabilityId: 'qualify',
+            recovery: 'preserve-statement'
+        },
+        {
+            id: 'unregistered-collate',
+            dialect: 'postgresql',
+            source: 'select a collate "C" from t',
+            code: 'SYN_UNEXPECTED_TOKEN'
+        },
+        {
+            id: 'unregistered-filter',
+            dialect: 'postgresql',
+            source: 'select count(*) filter (where x>1) from t',
+            code: 'SYN_UNEXPECTED_TOKEN'
+        },
+        {
+            id: 'unregistered-div',
+            dialect: 'hive',
+            source: 'select a div b from t',
+            code: 'SYN_UNEXPECTED_TOKEN'
+        },
+        {
+            id: 'unregistered-postgres-operator',
+            dialect: 'postgresql',
+            source: "select doc#-'{a,0}' from t",
+            code: 'SYN_UNEXPECTED_TOKEN'
+        },
+        {
+            id: 'malformed-local-recovery',
+            dialect: 'hive',
+            source: 'select (a +) from t',
+            code: 'SYN_INCOMPLETE_CLAUSE'
+        },
+        {
+            id: 'parser-depth-local-recovery',
+            dialect: 'hive',
+            source: 'select ' + '('.repeat(256) + 'a' + ')'.repeat(256) + ' from t',
+            code: 'SYN_MAX_DEPTH_EXCEEDED'
+        }
+    ].forEach(function(testCase) {
+        var baseline;
+        ['warn', 'preserve'].forEach(function(policy) {
+            var result = formatApi.formatSql(testCase.source, {
+                dialect: testCase.dialect,
+                unsupportedSyntaxPolicy: policy
+            });
+            assert.strictEqual(result.status, 'formatted', testCase.id + '/' + policy);
+            assert.notStrictEqual(result.text, testCase.source, testCase.id + ' formats safe surroundings');
+            assert.ok(result.diagnostics.some(function(diagnostic) {
+                return diagnostic.code === testCase.code &&
+                    diagnostic.capabilityId === (testCase.capabilityId || null) &&
+                    diagnostic.recovery === (testCase.recovery || 'verbatim-node');
+            }), testCase.id + ' recovery evidence');
+            if (baseline === undefined) {
+                baseline = result;
+            } else {
+                assert.deepStrictEqual(result, baseline, testCase.id + ' warn/preserve value parity');
+            }
+        });
+        var run = formatApi.formatSqlWithStatistics(testCase.source, {
+            dialect: testCase.dialect,
+            unsupportedSyntaxPolicy: 'bail_out'
+        });
+        var bailed = run.result;
+        assert.strictEqual(bailed.status, 'preserved', testCase.id);
+        assert.strictEqual(bailed.text, testCase.source, testCase.id + ' exact target');
+        assert.strictEqual(Object.prototype.hasOwnProperty.call(bailed, 'sourceMap'), false,
+            testCase.id + ' preserved results have no edit map');
+        assert.deepStrictEqual(bailed.diagnostics.slice(0, -1), baseline.diagnostics,
+            testCase.id + ' original recovery diagnostics survive');
+        var bail = bailed.diagnostics[bailed.diagnostics.length - 1];
+        assert.strictEqual(bail.code, 'FMT_UNSUPPORTED_BAIL_OUT', testCase.id);
+        assert.strictEqual(bail.recovery, 'preserve-target', testCase.id);
+        assert.deepStrictEqual(bail.span, { start: 0, end: testCase.source.length });
+        assert.strictEqual(run.statistics.planActionCount, 0, testCase.id + ' stops before layout');
+        assert.strictEqual(run.statistics.renderDocVisitCount, 0, testCase.id + ' stops before render');
+    });
+})();
+
+(function testBailOutAllowsModeledProtectedAndStructuredExpressions() {
+    [
+        ['hive', 'select ${hiveconf:v} from t'],
+        ['postgresql', "select payload->>'x' as x from t"],
+        ['postgresql', "select 'a' as x from t"],
+        ['hive', 'select qualify as merge from pivot where unpivot=1']
+    ].forEach(function(row) {
+        var result = formatApi.formatSql(row[1], {
+            dialect: row[0],
+            unsupportedSyntaxPolicy: 'bail_out'
+        });
+        assert.strictEqual(result.status, 'formatted', row[1]);
+        assert.deepStrictEqual(result.diagnostics, [], row[1]);
+        assert.ok(result.sourceMap, row[1] + ' modeled source retains edit map');
+    });
+})();
+
 console.log('v2 Wave 3E dialect layout tests passed');
