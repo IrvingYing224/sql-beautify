@@ -106,7 +106,10 @@ Editor.prototype.edit = function(callback) {
     });
     document.version += 1;
     if (this.onChange !== null) {
-        this.onChange(document);
+        this.onChange(document, replacements.map(function(replacement) {
+            return { rangeOffset: replacement.start,
+                rangeLength: replacement.end - replacement.start, text: replacement.text };
+        }));
     }
     return Promise.resolve(true);
 };
@@ -220,17 +223,17 @@ function createVscode(document, editor) {
             onCancellationRequested: function() { return { dispose: function() {} }; }
         });
     };
-    editor.onChange = function(changedDocument) {
+    editor.onChange = function(changedDocument, contentChanges) {
         documentChangeListeners.forEach(function(listener) {
-            listener({ document: changedDocument });
+            listener({ document: changedDocument, contentChanges: contentChanges === undefined
+                ? [{ rangeOffset: 0, rangeLength: 0, text: changedDocument.text }]
+                : contentChanges });
         });
     };
     return { vscode: vscode, commands: commandHandlers, providers: providers,
         diagnosticValues: diagnosticValues,
-        changeDocument: function(changedDocument) {
-            documentChangeListeners.forEach(function(listener) {
-                listener({ document: changedDocument });
-            });
+        changeDocument: function(changedDocument, contentChanges) {
+            editor.onChange(changedDocument, contentChanges);
         },
         closeDocument: function(closedDocument) {
             documentCloseListeners.forEach(function(listener) { listener(closedDocument); });
@@ -949,6 +952,10 @@ async function main() {
     await zhSession.dispose();
 
     await session.dispose();
+    await require('./helpers/vscode-provider-lifecycle')({
+        adapter: adapter, Document: Document, Editor: Editor, Selection: Selection,
+        Position: Position, Range: Range, createVscode: createVscode
+    });
     console.log('v2 Wave 5 VS Code adapter tests passed');
 }
 

@@ -57,6 +57,7 @@ import type {
 } from "../transaction/types";
 import { createRejectedTransaction } from "../transaction/rejected";
 import { wrapVscodeCancellationToken } from "./cancellation";
+import { createVscodeDiagnostics, type DiagnosticRequest } from "./diagnostics";
 import {
     mergeExplicitFormatOptions,
     readVscodeFormatConfiguration,
@@ -122,7 +123,6 @@ export interface VscodeExtensionOptions {
     readonly extensionVersion: string;
 }
 
-type AnyTransactionResult = FormatTransactionResult | ExperimentalDdlTransactionResult;
 const FORMATTER_SELECTOR = formatterSelector();
 const WORKER_REJECTION_CODES: ReadonlySet<string> = new Set([
     "ADAPTER_WORKER_BACKPRESSURE",
@@ -360,70 +360,10 @@ export function createVscodeExtension(
     executor: FormatterExecutor,
     options: VscodeExtensionOptions
 ): VscodeExtensionSession {
-    const diagnostics = vscode.languages.createDiagnosticCollection("sqlBeautify");
+    const diagnostics = createVscodeDiagnostics(vscode);
     const messages = createVscodeMessages(vscode.env.language);
     let activated = false;
     let disposed = false;
-    let diagnosticGeneration = 0;
-    const latestDiagnosticGeneration = new Map<string, number>();
-
-    function documentKey(document: Vscode.TextDocument): string | null {
-        try {
-            return document.uri.toString();
-        } catch {
-            return null;
-        }
-    }
-
-    function beginDiagnosticRequest(document: Vscode.TextDocument): number {
-        diagnosticGeneration += 1;
-        const generation = diagnosticGeneration;
-        const key = documentKey(document);
-        if (key !== null) {
-            latestDiagnosticGeneration.set(key, generation);
-        }
-        return generation;
-    }
-
-    function invalidateDiagnostics(document: Vscode.TextDocument): void {
-        if (disposed) {
-            return;
-        }
-        const key = documentKey(document);
-        if (key !== null) {
-            latestDiagnosticGeneration.set(key, ++diagnosticGeneration);
-            try {
-                diagnostics.delete(document.uri);
-            } catch {
-                return;
-            }
-        }
-    }
-
-    function closeDiagnostics(document: Vscode.TextDocument): void {
-        if (disposed) {
-            return;
-        }
-        const key = documentKey(document);
-        if (key === null) {
-            return;
-        }
-        latestDiagnosticGeneration.delete(key);
-        try {
-            diagnostics.delete(document.uri);
-        } catch {
-            return;
-        }
-    }
-
-    function isCurrentDiagnosticRequest(
-        document: Vscode.TextDocument,
-        generation: number
-    ): boolean {
-        const key = documentKey(document);
-        return key !== null && latestDiagnosticGeneration.get(key) === generation;
-    }
-
     function configuration(
         document: Vscode.TextDocument
     ): ExtensionConfiguration {
@@ -482,84 +422,6 @@ export function createVscodeExtension(
             },
             async (_progress, token) => await operation(token)
         );
-    }
-
-    function debugSummary(
-        document: Vscode.TextDocument,
-        result: AnyTransactionResult,
-        debugDiagnostics: boolean,
-        phase: string
-    ): void {
-        if (!debugDiagnostics) {
-            return;
-        }
-        const counts: Record<string, number> = Object.create(null) as Record<string, number>;
-        for (const diagnostic of result.diagnostics) {
-            counts[diagnostic.code] = (counts[diagnostic.code] ?? 0) + 1;
-        }
-        console.warn("[SQL Beautify]", Object.freeze({
-            phase,
-            languageId: supportedLanguage(document.languageId)?.languageId ?? "unsupported",
-            documentVersion: result.documentVersion,
-            status: result.status,
-            diagnosticCodes: Object.freeze({ ...counts }),
-        }));
-        if ("debugEvents" in result && Array.isArray(result.debugEvents)) {
-            for (const event of result.debugEvents) {
-                console.warn("[SQL Beautify debug]", event);
-            }
-        }
-    }
-
-    function publishDiagnostics(
-        document: Vscode.TextDocument,
-        result: AnyTransactionResult,
-        unsupportedSyntaxPolicy: UnsupportedSyntaxPolicy,
-        debugDiagnostics: boolean,
-        phase: string,
-        generation: number,
-        sourceStable: boolean
-    ): void {
-        if (!isCurrentDiagnosticRequest(document, generation)) {
-            return;
-        }
-        let sourceLength = 0;
-        if (sourceStable) {
-            try {
-                sourceLength = document.getText().length;
-            } catch {
-                return;
-            }
-        }
-        const visible = diagnosticsForEditor(result.diagnostics.filter((item) => !(
-            unsupportedSyntaxPolicy === "preserve" &&
-            item.severity === "warning" &&
-            item.capabilityId !== null
-        )));
-        const converted: Vscode.Diagnostic[] = [];
-        for (const item of visible) {
-            const severity = item.severity === "error"
-                ? vscode.DiagnosticSeverity.Error
-                : item.severity === "warning"
-                    ? vscode.DiagnosticSeverity.Warning
-                    : vscode.DiagnosticSeverity.Information;
-            const start = sourceStable
-                ? Math.max(0, Math.min(item.span.start, sourceLength))
-                : 0;
-            const end = sourceStable
-                ? Math.max(start, Math.min(item.span.end, sourceLength))
-                : 0;
-            const diagnostic = new vscode.Diagnostic(
-                new vscode.Range(document.positionAt(start), document.positionAt(end)),
-                item.message,
-                severity
-            );
-            diagnostic.code = item.code;
-            diagnostic.source = "SQL Beautify";
-            converted.push(diagnostic);
-        }
-        diagnostics.set(document.uri, converted);
-        debugSummary(document, result, debugDiagnostics, phase);
     }
 
     function reportQueryCommandResult(
@@ -713,7 +575,8 @@ export function createVscodeExtension(
             readonly anchor: number;
             readonly active: number;
         }[],
-        offsetsAreOutput: boolean
+        offsetsAreOutput: boolean,
+        beforeApply: (preview: TextEditPreview) => void
     ): Promise<boolean> {
         const preview = previewTextEdits(expected.source, edits);
         if (preview === null) {
@@ -743,6 +606,7 @@ export function createVscodeExtension(
         if (mappedSelections === null) {
             return false;
         }
+        beforeApply(preview);
         const applied = await editor.edit((builder) => {
             for (const edit of ranges) {
                 builder.replace(edit.range, edit.text);
@@ -762,7 +626,7 @@ export function createVscodeExtension(
 
     async function prepareProvider(
         document: Vscode.TextDocument,
-        requestedTarget: FormatTarget | null,
+        requestedRanges: readonly Vscode.Range[] | null,
         token: Vscode.CancellationToken,
         phase: string,
         formattingOptions: Vscode.FormattingOptions
@@ -770,52 +634,47 @@ export function createVscodeExtension(
         if (supportedLanguage(document.languageId) === null) {
             return [];
         }
-        const generation = beginDiagnosticRequest(document);
-        const capturedSource = document.getText();
-        const capturedVersion = document.version;
-        const current = configuration(document);
-        if (!current.ok) {
-            const failure = rejectedFormatTransaction(
-                capturedVersion,
-                current.code,
-                safeDiagnosticMessage(
-                    current.code,
-                    null,
-                    current.optionKey
-                ),
-                current.optionKey
-            );
-            publishDiagnostics(
-                document,
-                failure,
-                "warn",
-                false,
-                phase,
-                generation,
-                true
-            );
+        const expected = snapshotDocument(document);
+        if (expected === null) {
             return [];
         }
-        const target = requestedTarget ?? documentTarget(capturedSource.length);
+        const diagnosticRequest = diagnostics.begin(document, expected);
+        const current = configuration(document);
+        if (!current.ok) {
+            diagnostics.publishSource(diagnosticRequest, rejectedFormatTransaction(
+                expected.version,
+                current.code,
+                safeDiagnosticMessage(current.code, null, current.optionKey),
+                current.optionKey
+            ), "warn");
+            return [];
+        }
         const cancellation = wrapVscodeCancellationToken(token);
         let result: FormatTransactionResult;
         try {
+            // All ranges share one snapshot and one transaction. VS Code 1.90
+            // exposes the multi-range provider on the stable public API.
+            const targets = requestedRanges === null
+                ? [documentTarget(expected.source.length)]
+                : requestedRanges.map((range, index) => Object.freeze({
+                    id: `range:${String(index)}`,
+                    start: document.offsetAt(range.start),
+                    end: document.offsetAt(range.end),
+                    mode: "fragment" as const,
+                }));
             result = await runtime.prepareFormatTransaction({
-                source: capturedSource,
-                documentVersion: capturedVersion,
-                targets: Object.freeze([target]),
+                source: expected.source,
+                documentVersion: expected.version,
+                targets: Object.freeze(targets),
                 options: current.options,
-                newline: documentRenderNewline(vscode, document, capturedSource),
-                tabSize: editorRenderTabSize(
-                    undefined,
-                    formattingOptions
-                ),
+                newline: documentRenderNewline(vscode, document, expected.source),
+                tabSize: editorRenderTabSize(undefined, formattingOptions),
                 debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
             }, executor);
         } catch {
             result = rejectedFormatTransaction(
-                capturedVersion,
+                expected.version,
                 "ADAPTER_PROVIDER_FAILED",
                 "Formatter provider failed safely"
             );
@@ -827,35 +686,40 @@ export function createVscodeExtension(
             cancelled = true;
         }
         const after = snapshotDocument(document);
-        const currentGeneration = isCurrentDiagnosticRequest(document, generation);
         if (
             cancelled ||
             after === null ||
-            after.version !== capturedVersion ||
-            after.source !== capturedSource ||
-            !currentGeneration
+            after.version !== expected.version ||
+            after.source !== expected.source ||
+            !diagnostics.isCurrent(diagnosticRequest)
         ) {
-            if (currentGeneration) {
-                invalidateDiagnostics(document);
-            }
+            diagnostics.discard(diagnosticRequest);
             return [];
         }
-        publishDiagnostics(
-            document,
-            result,
-            current.options.unsupportedSyntaxPolicy,
-            current.debugDiagnostics,
-            phase,
-            generation,
-            true
-        );
-        if (result.status !== "ready") {
+        diagnostics.debug(diagnosticRequest, result, current.debugDiagnostics, phase);
+        if (result.status !== "ready" || result.edits.length === 0) {
+            diagnostics.publishSource(
+                diagnosticRequest,
+                result,
+                current.options.unsupportedSyntaxPolicy
+            );
             return [];
         }
-        return result.edits.map((edit) => vscode.TextEdit.replace(
+        const preview = previewTextEdits(expected.source, result.edits);
+        if (preview === null) {
+            diagnostics.discard(diagnosticRequest);
+            return [];
+        }
+        const edits = result.edits.map((edit) => vscode.TextEdit.replace(
             new vscode.Range(document.positionAt(edit.start), document.positionAt(edit.end)),
             edit.text
         ));
+        return diagnostics.stageOutput(
+            diagnosticRequest,
+            preview.output,
+            result,
+            current.options.unsupportedSyntaxPolicy
+        ) ? edits : [];
     }
 
     function currentDocument(
@@ -867,7 +731,9 @@ export function createVscodeExtension(
 
     function queryCommit(
         editor: Vscode.TextEditor,
-        document: Vscode.TextDocument
+        document: Vscode.TextDocument,
+        diagnosticRequest: DiagnosticRequest | null,
+        policy: UnsupportedSyntaxPolicy
     ): HostCommit {
         return Object.freeze({
             currentDocument: () => currentDocument(editor, document),
@@ -883,7 +749,10 @@ export function createVscodeExtension(
                     anchor: selection.selectionAnchor,
                     active: selection.selectionActive,
                 })),
-                true
+                true,
+                (preview) => {
+                    diagnostics.stageOutput(diagnosticRequest, preview.output, result, policy, true);
+                }
             ),
         });
     }
@@ -891,7 +760,9 @@ export function createVscodeExtension(
     function ddlCommit(
         editor: Vscode.TextEditor,
         document: Vscode.TextDocument,
-        selections: readonly FormatSelection[]
+        selections: readonly FormatSelection[],
+        diagnosticRequest: DiagnosticRequest | null,
+        policy: UnsupportedSyntaxPolicy
     ): {
         readonly currentDocument: () => DocumentSnapshot | null;
         readonly apply: (
@@ -910,7 +781,10 @@ export function createVscodeExtension(
                     anchor: selection.anchor,
                     active: selection.active,
                 })),
-                false
+                false,
+                (preview) => {
+                    diagnostics.stageOutput(diagnosticRequest, preview.output, result, policy, true);
+                }
             ),
         });
     }
@@ -949,7 +823,7 @@ export function createVscodeExtension(
             return null;
         }
         const commandOptionsValue = commandOptionsResult.options;
-        const generation = beginDiagnosticRequest(editor.document);
+        const diagnosticRequest = diagnostics.begin(editor.document, expected);
         const cancellation = wrapVscodeCancellationToken(token);
         let result: FormatTransactionResult;
         try {
@@ -966,7 +840,12 @@ export function createVscodeExtension(
                 tabSize: editorRenderTabSize(editor),
                 debugEnabled: current.debugDiagnostics,
                 ...(cancellation === undefined ? {} : { cancellation }),
-            }, executor, queryCommit(editor, editor.document));
+            }, executor, queryCommit(
+                editor,
+                editor.document,
+                diagnosticRequest,
+                commandOptionsValue.unsupportedSyntaxPolicy
+            ));
         } catch {
             result = rejectedFormatTransaction(
                 expected.version,
@@ -974,18 +853,12 @@ export function createVscodeExtension(
                 "Formatter command failed safely"
             );
         }
-        const publishedGeneration = result.status === "ready" && result.edits.length > 0
-            ? beginDiagnosticRequest(editor.document)
-            : generation;
-        publishDiagnostics(
-            editor.document,
-            result,
-            commandOptionsValue.unsupportedSyntaxPolicy,
-            current.debugDiagnostics,
-            "command-format",
-            publishedGeneration,
-            true
-        );
+        diagnostics.debug(diagnosticRequest, result, current.debugDiagnostics, "command-format");
+        if (result.status === "ready" && result.edits.length > 0) {
+            diagnostics.confirmOutput(diagnosticRequest);
+        } else {
+            diagnostics.publishSource(diagnosticRequest, result, commandOptionsValue.unsupportedSyntaxPolicy);
+        }
         reportQueryCommandResult(
             result,
             commandOptionsValue.unsupportedSyntaxPolicy
@@ -1026,7 +899,7 @@ export function createVscodeExtension(
             ));
             return null;
         }
-        const generation = beginDiagnosticRequest(editor.document);
+        const diagnosticRequest = diagnostics.begin(editor.document, expected);
         const cancellation = wrapVscodeCancellationToken(token);
         const ddlOptions: HiveDdlFormatOptions = Object.freeze({
             keywordCase: current.options.keywordCase,
@@ -1066,7 +939,9 @@ export function createVscodeExtension(
             }, selectedOperation, ddlCommit(
                 editor,
                 editor.document,
-                selectionSet.selections
+                selectionSet.selections,
+                diagnosticRequest,
+                current.options.unsupportedSyntaxPolicy
             ));
         } catch {
             result = rejectedDdlTransaction(
@@ -1075,18 +950,12 @@ export function createVscodeExtension(
                 "Experimental DDL command failed safely"
             );
         }
-        const publishedGeneration = result.status === "ready" && result.edits.length > 0
-            ? beginDiagnosticRequest(editor.document)
-            : generation;
-        publishDiagnostics(
-            editor.document,
-            result,
-            current.options.unsupportedSyntaxPolicy,
-            current.debugDiagnostics,
-            phase,
-            publishedGeneration,
-            true
-        );
+        diagnostics.debug(diagnosticRequest, result, current.debugDiagnostics, phase);
+        if (result.status === "ready" && result.edits.length > 0) {
+            diagnostics.confirmOutput(diagnosticRequest);
+        } else {
+            diagnostics.publishSource(diagnosticRequest, result, current.options.unsupportedSyntaxPolicy);
+        }
         reportDdlCommandResult(result);
         return result;
     }
@@ -1193,12 +1062,12 @@ export function createVscodeExtension(
             try {
                 registrations.push(vscode.workspace.onDidChangeTextDocument((event) => {
                     if (supportedLanguage(event.document.languageId) !== null) {
-                        invalidateDiagnostics(event.document);
+                        diagnostics.change(event);
                     }
                 }));
                 registrations.push(vscode.workspace.onDidCloseTextDocument((document) => {
                     if (supportedLanguage(document.languageId) !== null) {
-                        closeDiagnostics(document);
+                        diagnostics.close(document);
                     }
                 }));
                 registrations.push(vscode.languages.registerDocumentFormattingEditProvider(
@@ -1223,12 +1092,17 @@ export function createVscodeExtension(
                             range,
                             formattingOptions,
                             token
-                        ) => await prepareProvider(document, Object.freeze({
-                            id: "range",
-                            start: document.offsetAt(range.start),
-                            end: document.offsetAt(range.end),
-                            mode: "fragment" as const,
-                        }), token, "range-format", formattingOptions),
+                        ) => await prepareProvider(
+                            document, [range], token, "range-format", formattingOptions
+                        ),
+                        provideDocumentRangesFormattingEdits: async (
+                            document,
+                            ranges,
+                            formattingOptions,
+                            token
+                        ) => await prepareProvider(
+                            document, ranges, token, "range-format", formattingOptions
+                        ),
                     }
                 ));
                 registrations.push(vscode.commands.registerCommand(
@@ -1267,7 +1141,7 @@ export function createVscodeExtension(
                         copySafeDiagnosticReport
                     )
                 ));
-                context.subscriptions.push(diagnostics, ...registrations);
+                context.subscriptions.push(diagnostics.collection, ...registrations);
                 activated = true;
             } catch (error) {
                 for (let index = registrations.length - 1; index >= 0; index -= 1) {
@@ -1285,7 +1159,6 @@ export function createVscodeExtension(
                 return;
             }
             disposed = true;
-            latestDiagnosticGeneration.clear();
             diagnostics.dispose();
             await executor.dispose();
         },
