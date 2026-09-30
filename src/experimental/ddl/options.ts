@@ -7,7 +7,8 @@ import type {
 } from "../../core/config/options";
 import type { HiveDdlFormatOptions } from "./types";
 import type { ExtractDdlOptions } from "./types";
-import { DEFAULT_DDL_MAX_ALIGN_WIDTH } from "./alignment";
+import { DEFAULT_FORMAT_OPTIONS } from "../../core/config/definitions";
+import { resolveFormatOptions } from "../../core/config/resolve-options";
 
 const OPTION_KEYS: ReadonlySet<string> = new Set([
     "keywordCase",
@@ -30,10 +31,10 @@ export interface ResolvedExtractDdlOptions {
 
 export const DEFAULT_HIVE_DDL_FORMAT_OPTIONS: ResolvedHiveDdlFormatOptions =
     Object.freeze({
-        keywordCase: "upper",
-        commaStyle: "leading",
-        indentStyle: "space",
-        maxAlignWidth: DEFAULT_DDL_MAX_ALIGN_WIDTH,
+        keywordCase: DEFAULT_FORMAT_OPTIONS.keywordCase,
+        commaStyle: DEFAULT_FORMAT_OPTIONS.commaStyle,
+        indentStyle: DEFAULT_FORMAT_OPTIONS.indentStyle,
+        maxAlignWidth: DEFAULT_FORMAT_OPTIONS.maxAlignWidth,
     });
 
 const DEFAULT_EXTRACT_DDL_OPTIONS: ResolvedExtractDdlOptions = Object.freeze({});
@@ -86,30 +87,12 @@ export function resolveHiveDdlFormatOptions(
         if (raw === null) {
             return null;
         }
-        const keywordCase = raw.keywordCase ??
-            DEFAULT_HIVE_DDL_FORMAT_OPTIONS.keywordCase;
-        const commaStyle = raw.commaStyle ??
-            DEFAULT_HIVE_DDL_FORMAT_OPTIONS.commaStyle;
-        const indentStyle = raw.indentStyle ??
-            DEFAULT_HIVE_DDL_FORMAT_OPTIONS.indentStyle;
-        const maxAlignWidth = raw.maxAlignWidth ??
-            DEFAULT_HIVE_DDL_FORMAT_OPTIONS.maxAlignWidth;
-        if (
-            (keywordCase !== "upper" && keywordCase !== "lower") ||
-            (commaStyle !== "leading" && commaStyle !== "trailing") ||
-            (indentStyle !== "space" && indentStyle !== "tab") ||
-            !Number.isSafeInteger(maxAlignWidth) ||
-            (maxAlignWidth as number) < 1 ||
-            (maxAlignWidth as number) > 500
-        ) {
+        const resolved = resolveFormatOptions(raw);
+        if (!resolved.ok) {
             return null;
         }
-        return Object.freeze({
-            keywordCase,
-            commaStyle,
-            indentStyle,
-            maxAlignWidth: maxAlignWidth as number,
-        });
+        const { keywordCase, commaStyle, indentStyle, maxAlignWidth } = resolved.options;
+        return Object.freeze({ keywordCase, commaStyle, indentStyle, maxAlignWidth });
     } catch {
         return null;
     }
@@ -123,15 +106,15 @@ export function resolveExtractDdlOptions(
     }
     try {
         const raw = snapshotOptions(value, EXTRACT_OPTION_KEYS);
-        if (
-            raw === null ||
-            (raw.defaultType !== undefined && typeof raw.defaultType !== "string")
-        ) {
+        if (raw === null) {
             return null;
         }
-        return raw.defaultType === undefined
-            ? DEFAULT_EXTRACT_DDL_OPTIONS
-            : Object.freeze({ defaultType: raw.defaultType });
+        if (!Object.prototype.hasOwnProperty.call(raw, "defaultType")) {
+            return DEFAULT_EXTRACT_DDL_OPTIONS;
+        }
+        return typeof raw.defaultType === "string"
+            ? Object.freeze({ defaultType: raw.defaultType })
+            : null;
     } catch {
         return null;
     }

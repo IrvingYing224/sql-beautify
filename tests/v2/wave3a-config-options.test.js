@@ -149,4 +149,22 @@ function assertFailure(value, code, label, optionKey) {
     assertFailure(new Date(), 'CFG_OPTIONS_SHAPE', 'exotic prototype');
 })();
 
+(function testManifestMatchesRuntimeDefinitions() {
+    var definitions = require('../../.tmp/v2-core/core/config/definitions');
+    var properties = require('../../package.json').contributes.configuration.properties;
+    definitions.FORMAT_OPTION_KEYS.forEach(function(key) {
+        var definition = definitions.FORMAT_OPTION_DEFINITIONS[key];
+        var property = properties['sqlBeautify.' + key];
+        assert.strictEqual(property.scope, 'language-overridable', key + ' language scope');
+        Object.keys(definition).forEach(function(field) {
+            assert.deepStrictEqual(property[field], definition[field], key + ' ' + field);
+        });
+        [null, undefined].forEach(function(value) {
+            var input = {};
+            input[key] = value;
+            assertFailure(input, 'CFG_OPTION_VALUE', key + ' explicit empty value', key);
+        });
+    });
+})();
+
 console.log('v2 Wave 3A canonical option resolver tests passed');

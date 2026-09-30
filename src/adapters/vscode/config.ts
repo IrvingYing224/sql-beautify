@@ -3,18 +3,7 @@ import type * as Vscode from "vscode";
 import type { FormatOptions } from "../../core/config/options";
 import { snapshotDataProperties } from "../boundary/data-snapshot";
 
-const FORMAT_OPTION_KEYS = Object.freeze([
-    "dialect",
-    "keywordCase",
-    "commaStyle",
-    "indentStyle",
-    "maxAlignWidth",
-    "caseWhenThenWrapLength",
-    "caseLayout",
-    "unsupportedSyntaxPolicy",
-] as const);
-
-type FormatOptionKey = (typeof FORMAT_OPTION_KEYS)[number];
+import { FORMAT_OPTION_KEYS, type FormatOptionKey } from "../../core/config/definitions";
 
 export interface VscodeFormatConfiguration {
     readonly options: FormatOptions;

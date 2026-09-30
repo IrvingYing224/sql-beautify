@@ -124,6 +124,12 @@ assert.strictEqual(hostileOptions.diagnostics[0].code, 'EXTRACT_OPTIONS');
 assert.strictEqual(hostileOptions.diagnostics[0].message,
     'Extract DDL options are invalid');
 
+[null, undefined].forEach(function(value) {
+    var result = ddl.extractDdl('SELECT a FROM t', { defaultType: value });
+    assert.strictEqual(result.status, 'failed', 'explicit empty defaultType');
+    assert.strictEqual(result.diagnostics[0].code, 'EXTRACT_OPTIONS');
+});
+
 var getterCalls = 0;
 var accessorExtractOptions = {};
 Object.defineProperty(accessorExtractOptions, 'defaultType', {

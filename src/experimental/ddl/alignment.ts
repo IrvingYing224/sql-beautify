@@ -1,7 +1,8 @@
+import { DEFAULT_FORMAT_OPTIONS } from "../../core/config/definitions";
 import type { RenderTabSize } from "../../core/renderer/environment";
 import { displayWidth } from "../../core/renderer/display-width";
 
-export const DEFAULT_DDL_MAX_ALIGN_WIDTH = 150;
+export const DEFAULT_DDL_MAX_ALIGN_WIDTH = DEFAULT_FORMAT_OPTIONS.maxAlignWidth;
 export const MAX_EXTRACT_TYPE_CODE_UNITS = 128;
 
 interface AlignmentMeasure {

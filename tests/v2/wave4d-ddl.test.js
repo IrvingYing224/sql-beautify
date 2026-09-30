@@ -85,6 +85,15 @@ assert.strictEqual(ddl.formatHiveDdl(optionResult.text, {
     assert.strictEqual(invalid.text, 'CREATE TABLE t (a INT)');
     assert.strictEqual(invalid.diagnostics[0].code, 'DDL_OPTIONS');
 });
+['keywordCase', 'commaStyle', 'indentStyle', 'maxAlignWidth'].forEach(function(key) {
+    [null, undefined].forEach(function(value) {
+        var options = {};
+        options[key] = value;
+        var result = ddl.formatHiveDdl('CREATE TABLE t (a INT)', options);
+        assert.strictEqual(result.status, 'failed', key + ' explicit empty value');
+        assert.strictEqual(result.diagnostics[0].code, 'DDL_OPTIONS');
+    });
+});
 var accessorOptions = {};
 Object.defineProperty(accessorOptions, 'keywordCase', {
     enumerable: true,

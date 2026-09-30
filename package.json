@@ -86,7 +86,7 @@
 			"title": "SQL Beautify",
 			"properties": {
 				"sqlBeautify.keywordCase": {
-					"scope": "resource",
+					"scope": "language-overridable",
 					"type": "string",
 					"enum": [
 						"upper",
@@ -96,7 +96,7 @@
 					"description": "Keyword case for formatted SQL. /格式化后的 SQL 关键词大小写"
 				},
 				"sqlBeautify.commaStyle": {
-					"scope": "resource",
+					"scope": "language-overridable",
 					"type": "string",
 					"enum": [
 						"leading",
@@ -106,7 +106,7 @@
 					"description": "Comma placement style. /逗号位置风格"
 				},
 				"sqlBeautify.indentStyle": {
-					"scope": "resource",
+					"scope": "language-overridable",
 					"type": "string",
 					"enum": [
 						"tab",
@@ -116,23 +116,23 @@
 					"description": "Indentation style for formatted SQL. /格式化缩进风格"
 				},
 				"sqlBeautify.maxAlignWidth": {
-					"scope": "resource",
-					"type": "number",
+					"scope": "language-overridable",
+					"type": "integer",
 					"default": 150,
 					"minimum": 1,
 					"maximum": 500,
 					"description": "Maximum code width for AS and trailing comment alignment. /AS 和行尾注释对齐的最大代码宽度"
 				},
 				"sqlBeautify.caseWhenThenWrapLength": {
-					"scope": "resource",
-					"type": "number",
+					"scope": "language-overridable",
+					"type": "integer",
 					"default": 50,
 					"minimum": 1,
 					"maximum": 300,
 					"description": "Wrap threshold for CASE WHEN THEN and ELSE values. /CASE WHEN 中 THEN 和 ELSE 值的换行阈值"
 				},
 				"sqlBeautify.caseLayout": {
-					"scope": "resource",
+					"scope": "language-overridable",
 					"type": "string",
 					"enum": [
 						"expanded",
@@ -142,7 +142,7 @@
 					"description": "CASE expression layout strategy. /CASE 表达式布局策略"
 				},
 				"sqlBeautify.dialect": {
-					"scope": "resource",
+					"scope": "language-overridable",
 					"type": "string",
 					"enum": [
 						"generic",
@@ -154,7 +154,7 @@
 					"description": "Best-effort SQL dialect boundary handling. Hive remains the primary formatting target. /SQL 方言边界处理；Hive 仍是主要格式化目标"
 				},
 				"sqlBeautify.unsupportedSyntaxPolicy": {
-					"scope": "resource",
+					"scope": "language-overridable",
 					"type": "string",
 					"enum": [
 						"preserve",

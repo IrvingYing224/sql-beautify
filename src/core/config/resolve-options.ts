@@ -1,15 +1,13 @@
 import { isProxy } from "node:util/types";
 
-import type {
-    CanonicalFormatOptions,
-    CaseLayout,
-    CommaStyle,
-    Dialect,
-    FormatOptions,
-    IndentStyle,
-    KeywordCase,
-    UnsupportedSyntaxPolicy,
-} from "./options";
+import type { CanonicalFormatOptions, FormatOptions } from "./options";
+import {
+    DEFAULT_FORMAT_OPTIONS,
+    FORMAT_OPTION_KEYS,
+    isFormatOptionValue,
+    type FormatOptionKey,
+} from "./definitions";
+export type { FormatOptionKey } from "./definitions";
 
 export type FormatConfigFailureCode =
     | "CFG_OPTIONS_TYPE"
@@ -34,37 +32,8 @@ export interface ResolvedFormatOptions {
 
 export type ResolveFormatOptionsResult = ResolvedFormatOptions | FormatConfigFailure;
 
-const OPTION_KEYS = Object.freeze([
-    "dialect",
-    "keywordCase",
-    "commaStyle",
-    "indentStyle",
-    "maxAlignWidth",
-    "caseWhenThenWrapLength",
-    "caseLayout",
-    "unsupportedSyntaxPolicy",
-] as const);
-
-export type FormatOptionKey = (typeof OPTION_KEYS)[number];
-
-const OPTION_KEY_SET: ReadonlySet<string> = new Set(OPTION_KEYS);
+const OPTION_KEY_SET: ReadonlySet<string> = new Set(FORMAT_OPTION_KEYS);
 const CANONICAL_OPTIONS = new WeakSet<object>();
-
-const DIALECTS: ReadonlySet<Dialect> = new Set([
-    "hive",
-    "generic",
-    "postgresql",
-    "mysql",
-]);
-const KEYWORD_CASES: ReadonlySet<KeywordCase> = new Set(["upper", "lower"]);
-const COMMA_STYLES: ReadonlySet<CommaStyle> = new Set(["leading", "trailing"]);
-const INDENT_STYLES: ReadonlySet<IndentStyle> = new Set(["space", "tab"]);
-const CASE_LAYOUTS: ReadonlySet<CaseLayout> = new Set(["expanded", "compactShort"]);
-const UNSUPPORTED_POLICIES: ReadonlySet<UnsupportedSyntaxPolicy> = new Set([
-    "warn",
-    "preserve",
-    "bail_out",
-]);
 
 function freezeCanonicalOptions(
     options: CanonicalFormatOptions
@@ -74,16 +43,7 @@ function freezeCanonicalOptions(
     return frozen;
 }
 
-const DEFAULT_OPTIONS = freezeCanonicalOptions({
-    dialect: "hive",
-    keywordCase: "upper",
-    commaStyle: "leading",
-    indentStyle: "space",
-    maxAlignWidth: 150,
-    caseWhenThenWrapLength: 50,
-    caseLayout: "expanded",
-    unsupportedSyntaxPolicy: "warn",
-});
+const DEFAULT_OPTIONS = freezeCanonicalOptions(DEFAULT_FORMAT_OPTIONS);
 
 function failure(
     code: FormatConfigFailureCode,
@@ -91,22 +51,6 @@ function failure(
     optionKey: FormatOptionKey | null = null
 ): FormatConfigFailure {
     return Object.freeze({ ok: false, code, message, optionKey });
-}
-
-function enumValue<T extends string>(
-    value: unknown,
-    allowed: ReadonlySet<T>
-): value is T {
-    return typeof value === "string" && allowed.has(value as T);
-}
-
-function integerInRange(value: unknown, minimum: number, maximum: number): value is number {
-    return (
-        typeof value === "number" &&
-        Number.isSafeInteger(value) &&
-        value >= minimum &&
-        value <= maximum
-    );
 }
 
 function invalidValue(key: FormatOptionKey): FormatConfigFailure {
@@ -213,28 +157,28 @@ export function resolveFormatOptions(
         DEFAULT_OPTIONS.unsupportedSyntaxPolicy
     );
 
-    if (!enumValue(dialectValue, DIALECTS)) {
+    if (!isFormatOptionValue("dialect", dialectValue)) {
         return invalidValue("dialect");
     }
-    if (!enumValue(keywordCaseValue, KEYWORD_CASES)) {
+    if (!isFormatOptionValue("keywordCase", keywordCaseValue)) {
         return invalidValue("keywordCase");
     }
-    if (!enumValue(commaStyleValue, COMMA_STYLES)) {
+    if (!isFormatOptionValue("commaStyle", commaStyleValue)) {
         return invalidValue("commaStyle");
     }
-    if (!enumValue(indentStyleValue, INDENT_STYLES)) {
+    if (!isFormatOptionValue("indentStyle", indentStyleValue)) {
         return invalidValue("indentStyle");
     }
-    if (!integerInRange(maxAlignWidthValue, 1, 500)) {
+    if (!isFormatOptionValue("maxAlignWidth", maxAlignWidthValue)) {
         return invalidValue("maxAlignWidth");
     }
-    if (!integerInRange(caseWhenThenWrapLengthValue, 1, 300)) {
+    if (!isFormatOptionValue("caseWhenThenWrapLength", caseWhenThenWrapLengthValue)) {
         return invalidValue("caseWhenThenWrapLength");
     }
-    if (!enumValue(caseLayoutValue, CASE_LAYOUTS)) {
+    if (!isFormatOptionValue("caseLayout", caseLayoutValue)) {
         return invalidValue("caseLayout");
     }
-    if (!enumValue(unsupportedPolicyValue, UNSUPPORTED_POLICIES)) {
+    if (!isFormatOptionValue("unsupportedSyntaxPolicy", unsupportedPolicyValue)) {
         return invalidValue("unsupportedSyntaxPolicy");
     }
 
