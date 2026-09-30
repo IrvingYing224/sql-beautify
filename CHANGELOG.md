@@ -4,6 +4,14 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### Unreleased
+* 保留完整 PostgreSQL 运算符和相邻一元符号边界，按 Hive 字符串解码规则生成 DDL 注释
+* 修复非默认 tabSize 下的 AS/注释错列，以及未建模语句前重复格式化不断增加换行的问题
+* 让标准多选区格式化共用一次原子事务；仅在实际编辑生效后发布输出坐标诊断，覆盖保存、取消、撤销、重开和异步请求交错
+* 统一配置默认值与校验，支持语言级设置；`bail_out` 对所有 opaque 结构保留完整输入，DDL 显式空值选项不再隐式采用默认值
+* 将多选区边界查询改为索引和二分，提供公开 TypeScript 声明及真实安装包消费端验证
+* 收紧私有语料可用性门，增加最低/当前 VS Code 宿主 CI 验证，固定最低版本 API 类型并更新构建依赖安全修复
+
 ### 2.2.0 (2026/07/29)
 * 为嵌套 `QUALIFY` 证明建立请求内缓存与线性预算，资源耗尽按已证明边界 warning + preserve，不再出现指数级解析或把合法预算耗尽误报为内部 artifact 破坏
 * 修复 AS/尾注释零间距、合法宽字段 poison plan、逗号与注释 ownership、statement footer/terminator trivia 和 trailing comma 静默回退；局部降级现在报告 `LAYOUT_COMMA_FALLBACK`

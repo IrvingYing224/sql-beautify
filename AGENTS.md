@@ -4,7 +4,7 @@
 
 该仓库是 Hive-first 的 SQL Beautify 2.x VS Code 扩展。`src/` 是唯一源码来源：`src/core/` 依次包含 lossless lexer、formatter-oriented CST、analysis、Layout IR、renderer、diagnostics 与 public API；`src/adapters/` 负责事务、direct/worker executor 和 VS Code host；`src/experimental/ddl/` 隔离 experimental Hive DDL / Extract DDL。`src/extension.ts` 是源码入口。
 
-`npm run build:v2-runtime` 生成五个被 Git 忽略的生产 artifact：`dist/runtime.cjs`、`dist/sql-formatter.cjs`、`dist/hive-ddl.cjs`、`dist/formatter-worker.cjs`、`dist/extension.cjs`。不得恢复根 `extension.js`、`vkbeautify.js`、`lib/**`、旧 bridge、root shim 或第二套生产 formatter。
+`npm run build:v2-runtime` 生成五个被 Git 忽略的生产可执行 artifact：`dist/runtime.cjs`、`dist/sql-formatter.cjs`、`dist/hive-ddl.cjs`、`dist/formatter-worker.cjs`、`dist/extension.cjs`，并复制 `src/runtime/` 的两个公开 `.d.cts` 声明。不得恢复根 `extension.js`、`vkbeautify.js`、`lib/**`、旧 bridge、root shim 或第二套生产 formatter。
 
 用户文档位于 `README.md`、`CHANGELOG.md` 和 `docs/migration-to-2.1.md`；维护者契约位于 `docs/technical/`。`docs/technical/sql-support-matrix.md` 是由 dialect registry 生成的唯一能力矩阵。
 

@@ -4,6 +4,20 @@ SQL Beautify 2.2 是一次兼容的安全性、可观测性和性能修订。公
 
 ## 从 2.1.x 升级
 
+### 后续整改行为
+
+`sqlBeautify.*` 格式化选项支持 `[sql]` / `[hive-sql]` 语言级覆盖。命令显式 options 优先于
+解析后的配置；`indentStyle` 决定 Tab/空格，空格每层固定 4 列，Tab 的实际显示列按编辑器
+`tabSize` 计算。整数配置与公开 API 采用同一范围校验。省略 DDL 选项字段使用默认值，
+显式 `null` / `undefined` 字段失败；Extract DDL 只接受 SELECT/WITH 投影，不接受 INSERT SELECT。
+
+`bail_out` 现在覆盖所有分析确认的 opaque 结构，包括未登记 capability 的表达式和局部恢复，
+整份输入保留且不进入布局。标准 Format Selection 的多个选区合并为一次事务，任一个非法则
+零编辑。输出诊断等待文档实际应用相同结果后发布，保存不会清除有效诊断，普通编辑和撤销会失效旧诊断。
+
+两个公开 Node.js subpath 随包提供 `.d.cts` 类型声明；CommonJS / ESM TypeScript 消费端均可
+解析公开选项、结果判别联合和只读 source map，运行时值 export 不增加。
+
 ### Parser、布局与保留边界
 
 - 嵌套、歧义的 unsupported clause 证明现在使用请求内缓存和线性工作预算。类似深层 `QUALIFY` 的输入不再出现指数级解析；预算耗尽会报告 `SYN_PROOF_BUDGET` 并在已证明的 statement 边界保留原文。

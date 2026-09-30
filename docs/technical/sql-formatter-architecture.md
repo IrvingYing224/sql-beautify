@@ -58,6 +58,12 @@ The public package exports are intentionally narrow:
 
 The package root and internal runtime paths are not public exports.
 
+`src/core/config/definitions.ts` owns formatter defaults, enum choices, and integer bounds;
+the manifest contract test checks its language-overridable schema against this authority.
+DDL snapshots its narrower option subset before reusing the same resolver. Explicit nullish
+properties fail validation. `bail_out` inspects analysis opaque nodes rather than diagnostic
+capability IDs, so unregistered recovery is covered as well.
+
 The production formatter is a Node.js runtime contract, including when reached
 through the public formatter facade. Defensive object boundaries use
 `node:util/types.isProxy` to reject even transparent Proxy objects; ECMAScript
@@ -77,6 +83,18 @@ Document, range, and multi-selection formatting share one transaction sequence:
 5. commit all edits once, or no edits at all.
 
 Range formatting only accepts complete, structurally safe fragments. Any cancellation, stale state, preservation, failure, malformed executor response, or host rejection returns no partial edits. Selection direction is preserved through the validated source map.
+
+The stable multi-range provider submits every range in one transaction. Range evidence retains
+next/previous syntax-leaf tables and uses indexed offsets; sorted opaque starts with prefix maximum
+ends support logarithmic overlap queries even for nested spans. Deterministic read-count tests and
+an independent scan oracle guard complexity and boundary equivalence.
+
+`src/adapters/vscode/diagnostics.ts` owns request generations and coordinate publication. Provider
+results remain pending until the same document identity applies exactly the predicted output at a
+newer version. Commands additionally require successful commit confirmation. Empty change events
+retain diagnostics, while unrelated text changes and close invalidate them. Late events and old
+request completions cannot replace a newer request. Completed provider cancellation tokens do not
+own publication after edits have been handed to the host.
 
 Requests with fewer than 8,192 source code units and fewer than 2,000 leaves may use the direct executor. Other supported requests use one persistent worker. Range validation and target formatting share the same routed executor; a worker validates the complete document before formatting any fragments. Both paths load `dist/runtime.cjs`; requests bind identity, generation, version, target, source digest, and runtime digest. The worker uses an enqueue-based 60-second deadline and a size-aware active-cancellation drain grace of `min(2,000 ms, 200 ms + ceil(sourceCodeUnits / 1,024) × 3 ms)`. Runtime skew and identifiable protocol errors settle immediately; timeout, crash, malformed or stale responses, backpressure, cancellation, and disposal fail closed.
 
@@ -100,17 +118,22 @@ DDL command batches use their own all-or-nothing transaction. Before any target-
 
 ## Production artifacts and packaging
 
-`npm run build:v2-runtime` creates exactly five ignored artifacts:
+`npm run build:v2-runtime` creates five ignored executable artifacts and two public declarations:
 
 - `dist/runtime.cjs`: the single production core plus internal adapter runtime;
 - `dist/sql-formatter.cjs`: public formatter facade loading the shared runtime;
 - `dist/hive-ddl.cjs`: public experimental DDL facade loading the shared runtime;
 - `dist/formatter-worker.cjs`: persistent worker entry;
 - `dist/extension.cjs`: VS Code host wiring.
+- `dist/sql-formatter.d.cts` and `dist/hive-ddl.d.cts`: curated public type contracts, copied from `src/runtime/`.
+
+Declarations expose only public data types and the four existing value functions. Type contracts
+compare facade function parameters/results with source implementations; clean-package tests compile
+CommonJS and ESM consumers from the packed tarball and reject internal paths and invalid options.
 
 Core and runtime builds use project-local ownership locks, content/toolchain hash stamps, complete output SHA-256 manifests, unique staging directories, and recoverable directory swaps. Runtime rebuild ownership is limited to allowlisted regular files; a directory, symlink, special entry, or unknown basename is rejected without deletion. A cache hit skips compilation; a failed build retains the last complete artifact set. Release comparison recomputes the same runtime source fingerprint used by the builder before matching both dist and VSIX to the stamped output manifest. The verifier also compares the packed package manifest and repository-owned static bytes with the current checkout, then validates generated VSIX identity and dependency metadata; an exact entry allowlist alone is not artifact provenance. `SQL_BEAUTIFY_DEBUG_SOURCEMAP=1` emits external maps for local debugging, while normal builds and the package allowlist exclude them.
 
-`scripts/package-manifest.js` is the shared npm/VSIX/cutover allowlist authority. `package.json.files` allows only the five runtime artifacts, extension icon, package metadata, README, CHANGELOG, and license. Source, tests, scripts, technical docs, agent files, dependencies, historical plans, source maps, and temporary output must not enter the VSIX. `prepack` builds runtime artifacts so a clean checkout cannot produce a package with dangling `main` or `exports`.
+`scripts/package-manifest.js` is the shared npm/VSIX/cutover allowlist authority. `package.json.files` allows only the five runtime artifacts, two public declarations, extension icon, package metadata, README, CHANGELOG, and license. Source, tests, scripts, technical docs, agent files, dependencies, historical plans, source maps, and temporary output must not enter the VSIX. `prepack` builds runtime artifacts so a clean checkout cannot produce a package with dangling `main` or `exports`.
 
 PR/push CI runs with `contents: read`. Only the manual `main` release job receives `contents: write`. Release gates require package, lockfile, VSIX manifest, VSIX filename, tag, workflow SHA, `origin/main`, and GitHub Release target to identify the same version and commit.
 
@@ -123,6 +146,7 @@ PR/push CI runs with `contents: read`. Only the manual `main` release job receiv
 - `npm run test:verify`: the complete maintained regression aggregate;
 - `npm run test:v2:performance-relative`: strict release-relative wall-clock and RSS gates;
 - `npm run verify:clean-package`: isolated clean-source npm package lifecycle and public facade smoke;
+- `npm run test:vscode-smoke`: real VS Code host commands, editing, diagnostics and worker cancellation; CI requires both minimum 1.90.0 and stable;
 - `npm run package:vsix`: build, package, and inspect the versioned VSIX;
 - `npm exec -- vsce ls --tree --no-dependencies`: human-readable package inventory;
 - `git diff --check`: patch hygiene.

@@ -16,6 +16,7 @@
 | package/build/test runner 本身 | `npm run test:v2:infrastructure` | build lock/cache/failure、single-build plan、manifest negative case |
 | registry / support boundary | `npm run test:v2:support-matrix` | generated support matrix 与 `--check` |
 | 所有公开回归 | `npm run test:verify` | 上述 suite 去重后按固定顺序执行 |
+| 真实 VS Code 宿主 | `npm run test:vscode-smoke` | 真实格式化命令、多选原子性、undo、诊断、CRLF、worker 取消 |
 
 `test:verify` 的 prerequisites 固定为一次 typecheck、一次 current core build、一次
 runtime build；可用下面的只读命令检查展开后的计划：
@@ -52,3 +53,32 @@ FORMATTER_FUZZ_SEED=0x91e10da5 FORMATTER_FUZZ_CASES=20000 node tests/v2/wave3-pr
 
 `scripts/profile-alignment-candidates.js` 与 `scripts/profile-source-map-memory.js` 用于诊断；
 profile 中的绝对 timing/allocation 仅作观测，不作为严格 hosted wall-clock 判定。
+
+## 私有生产语料
+
+`SQL_BEAUTIFY_CORPUS_DIR=/absolute/path npm run test:production-private`
+读取指定目录的 `.sql` 和可选同名 `.options.json`。默认每条必须得到
+`formatted` 或 `unchanged`，再验证 token 保真、幂等和换行边界。
+需要有意保留的输入可使用同名 `foo.expected.json`。例如 `CREATE TABLE` 配合
+`foo.options.json` 中的 `unsupportedSyntaxPolicy: "bail_out"`：
+
+```json
+{ "status": "preserved", "codes": ["SYN_UNSUPPORTED_STATEMENT", "FMT_UNSUPPORTED_BAIL_OUT"] }
+```
+
+状态和 codes 必须与当前输入及选项的预期精确一致；不允许声明 `failed`，内部错误、
+契约破坏或 error 诊断始终失败。运行器汇总状态、诊断码和失败 caseIndex，避免输出私有
+SQL、文件路径或底层异常详情。公开模拟契约门会故意注入整批失败，确保安全回退不能冒充可用性通过。
+
+## 真实宿主测试
+
+测试使用 `@vscode/test-electron` 的独立 Extension Development Host，缓存、workspace、
+设置和扩展目录均在 `.tmp/vscode-smoke`；不会使用个人配置。首次下载需要网络。
+`SQL_BEAUTIFY_VSCODE_VERSION=1.90.0` 指定最低版本，默认 `stable`；也可通过
+`SQL_BEAUTIFY_VSCODE_EXECUTABLE=/absolute/path/to/executable` 复用已安装的可执行文件。
+Linux 无显示环境时使用 `xvfb-run -a npm run test:vscode-smoke`。
+
+此门独立于不下载宿主的 `test:verify`，CI 对 `1.90.0` 和 `stable` 都要求通过。
+取消测试使用真实 `CancellationTokenSource` 与生产 worker 事务；没有模拟点击通知栏的取消按钮。
+发布打包仍要求 PATH 中存在 `zip` / `unzip`；Node 编排消除了 shell 版本插值，Windows 宿主
+和 ZIP 工具兼容性仍需在对应平台运行验证。

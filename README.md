@@ -45,6 +45,8 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 请在 VS Code 设置中搜索 `sqlBeautify`。
 
+格式化选项支持工作区、文件夹及 `[sql]` / `[hive-sql]` 按语言覆盖，由 VS Code 按当前文档解析；程序调用 `sqlBeautify.formatSql` 时传入的显式选项再覆盖这些设置。`debugDiagnostics` 是窗口级设置。缩进风格以 `sqlBeautify.indentStyle` 为准，空格缩进固定为 4 个空格；编辑器的 `insertSpaces` 不覆盖它，`tabSize` 只决定 tab stop 和显示宽度。数值选项只接受表中范围内的整数。
+
 | 配置项 | 可选值 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `sqlBeautify.keywordCase` | `upper` / `lower` | `upper` | SQL 关键词大小写 |
@@ -77,19 +79,21 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 ### Hive Extract DDL
 
-`Extract Hive DDL (Experimental)` 适合从常规 `SELECT` / `INSERT SELECT` 字段列表生成 DDL 草稿。
+`Extract Hive DDL (Experimental)` 只从完整的 `SELECT` 查询字段列表生成 DDL 草稿，支持带 `WITH` 的查询；当前不接受 `INSERT SELECT`，此类输入会保留原文并提示不支持。
 
 它支持高置信的顶层 `UNION` / `UNION ALL` 分支提取；只有分支字段形状一致时才会生成 DDL，不一致时会跳过，避免输出误导性 schema。生成的字段注释会转义为 Hive 兼容字符串字面量。
 
 它不会推断真实字段类型；Node.js API 的可选 `defaultType` 必须来自普通 data property、最长 128 个 UTF-16 code units，Proxy、accessor、未知 key 或异常 prototype 会安全失败。复杂表达式、非 Hive 语法、未加别名的表达式或复杂列推断场景，请人工复核输出。
+
+公开 Node.js `formatSql()`、`formatHiveDdl()`、`extractDdl()` 通过省略选项使用默认值；选项对象为 `null`，或对象内字段显式设为 `null` / `undefined`，都会失败，避免把配置错误静默解释为默认值。Extract DDL 生成的是待补全类型的字段草稿，使用固定的行首逗号和空格布局，不读取主 formatter 的排版选项。
 
 ## 简洁风险提示
 
 - 复杂 SQL、非 Hive 方言、以及未建模语法场景下，请在格式化后复核结果。
 - `unsupportedSyntaxPolicy=warn` 会继续格式化周边 SQL，并在 VS Code 中给出 warning。
 - `unsupportedSyntaxPolicy=preserve` 使用相同的安全输出，但不在编辑器中显示 capability warning；手动执行 `SQL Beautify: Format SQL` 且因未建模区域没有修改时，会显示一次不含 SQL 内容的汇总提示。format provider 与 format-on-save 不弹出该提示。
-- `unsupportedSyntaxPolicy=bail_out` 会在遇到未建模语法时直接拒绝格式化。
-- parser 或 layout 的有界资源预算耗尽时会保留已证明 target 的完整原文并报告 warning，不会提交部分布局；这与内部不变量破坏的 hard failure 是不同边界。
+- `unsupportedSyntaxPolicy=bail_out` 会在出现任何未建模或解析恢复区域时保留整个格式化目标的原文，包括尚未登记能力名称的语法、局部语法错误和 parser 深度超限；同一目标中其余语句也不会修改。
+- parser 遇到未建模语法、局部语法错误或资源预算耗尽时，按可证明边界保留对应区域、整条语句或整个目标，并报告 warning。`warn` / `preserve` 允许继续格式化局部保留区域之外的 SQL；`bail_out` 则保留整个目标。layout 或 renderer 预算耗尽会保留整个目标，不提交部分布局；内部不变量破坏仍作为 hard failure 处理。
 - Hive 的 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、主 formatter 中的 DDL、`UPDATE` 和 `DELETE` 目前明确按 verbatim 保留，不宣称已格式化；完整边界以生成的 support matrix 为准。
 - 选区格式化接受完整文档、完整单句或两个以上连续完整 statement；半条 statement、跨 protected/opaque 边界或结构不完整的片段会被拒绝，而不是猜测性改写。
 - `sqlBeautify.debugDiagnostics=true` 会在本地扩展宿主控制台输出 opt-in 调试事件，可能包含 SQL 片段、错误栈和本地文件路径；只在可以接受这些信息暴露到控制台时启用。编辑器诊断和 `Copy Safe Diagnostic Report` 不包含这些调试事件。
