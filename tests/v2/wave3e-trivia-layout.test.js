@@ -194,4 +194,27 @@ function protectedRows(source, dialect) {
     assert.strictEqual(result.text, source);
 })();
 
+(function testOpaqueStatementLeadingNewlinesAreNotGeneratedAgain() {
+    ['\n', '\r\n'].forEach(function(newline) {
+        ['', ' ', newline, newline.repeat(2), ' \t' + newline.repeat(3)].forEach(function(gap) {
+            var opaque = 'CREATE TABLE t (x INT);';
+            var source = 'select a,b from t;' + gap + opaque;
+            ['warn', 'preserve'].forEach(function(policy) {
+                var options = { unsupportedSyntaxPolicy: policy };
+                var first = formatApi.formatSql(source, options, 'document', newline);
+                assert.strictEqual(first.status, 'formatted');
+                var existingLineBreak = gap.indexOf(newline) >= 0;
+                var expectedGap = existingLineBreak ? gap : newline + gap;
+                assert.strictEqual(first.text,
+                    ['SELECT', '      a', '    , b', 'FROM t;'].join(newline) +
+                    expectedGap + opaque,
+                    JSON.stringify(gap) + '/' + policy + ' exact opaque prefix');
+                var second = formatApi.formatSql(first.text, options, 'document', newline);
+                assert.strictEqual(second.status, 'unchanged');
+                assert.strictEqual(second.text, first.text, 'opaque prefix is idempotent');
+            });
+        });
+    });
+})();
+
 console.log('v2 Wave 3E trivia layout tests passed');

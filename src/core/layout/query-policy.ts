@@ -349,6 +349,27 @@ function formatStatements(context: QueryLayoutContext): boolean {
     for (let index = 1; index < statements.length; index++) {
         const left = statements[index - 1]!;
         const rightStart = firstStatementSyntax(context, statements[index]!);
+        if (rightStart !== null) {
+            const claim = context.claims.claimForLeaf(rightStart);
+            context.statistics.directLookupCount += 1;
+            if (claim !== null && claim.leafRange.start === rightStart) {
+                // An opaque statement owns its leading trivia. Its existing
+                // line break already separates the statements; inserting one
+                // outside the claim would add another on every format pass.
+                let prefix = rightStart;
+                while (
+                    prefix < claim.leafRange.end &&
+                    context.analysis.leafKind(prefix) === "whitespace"
+                ) {
+                    context.statistics.leafVisitCount += 1;
+                    prefix += 1;
+                }
+                context.statistics.leafVisitCount += 1;
+                if (context.analysis.leafKind(prefix) === "newline") {
+                    continue;
+                }
+            }
+        }
         if (
             rightStart === null ||
             !replaceStructuralGap(
