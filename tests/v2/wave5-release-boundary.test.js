@@ -77,8 +77,8 @@ function copyReleaseTrustRoot(destination) {
 })();
 
 assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
-assert.strictEqual(packageJson.version, '2.2.0',
-    'the unified audit remediation candidate must be 2.2.0');
+assert.strictEqual(packageJson.version, '2.2.1',
+    'the engineering audit patch candidate must be 2.2.1');
 assert.strictEqual(packageLock.version, packageJson.version);
 assert.strictEqual(packageLock.packages[''].version, packageJson.version);
 assert.strictEqual(packageJson.scripts.prepack, 'node scripts/build-v2-runtime.js');

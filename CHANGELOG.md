@@ -4,7 +4,7 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
-### Unreleased
+### 2.2.1 (2026/10/01)
 * 保留完整 PostgreSQL 运算符和相邻一元符号边界，按 Hive 字符串解码规则生成 DDL 注释
 * 修复非默认 tabSize 下的 AS/注释错列，以及未建模语句前重复格式化不断增加换行的问题
 * 让标准多选区格式化共用一次原子事务；仅在实际编辑生效后发布输出坐标诊断，覆盖保存、取消、撤销、重开和异步请求交错

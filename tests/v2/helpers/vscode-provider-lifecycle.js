@@ -34,7 +34,7 @@ module.exports = async function(h) {
             workerPath: path.resolve(__dirname, '../../../dist/formatter-worker.cjs')
         });
         var session = h.adapter.createVscodeExtension(host.vscode, runtimeOverride || runtime, executor,
-            { extensionVersion: '2.2.0' });
+            { extensionVersion: require('../../../package.json').version });
         session.activate({ subscriptions: [] });
         sessions.push(session);
         return { document: document, editor: editor, host: host, executor: executor,

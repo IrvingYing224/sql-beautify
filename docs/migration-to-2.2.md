@@ -2,9 +2,11 @@
 
 SQL Beautify 2.2 是一次兼容的安全性、可观测性和性能修订。公开 Node.js subpath export 与主 formatter 的值 API 保持不变；`formatHiveDdl()` 只增加可选 options。格式化边界、诊断反馈和 Experimental Hive DDL 子集有意扩展，建议先在版本控制中抽样复核输出，再批量升级。
 
-## 从 2.1.x 升级
+## 从 2.2.0 升级至 2.2.1
 
-### 后续整改行为
+2.2.1 收录工程复审修复，保留现有公开值 API。PostgreSQL 运算符和相邻一元符号保持完整
+词法边界；Hive Extract DDL 注释按 Hive 字符串解码规则转义。Tab 缩进下 AS/注释对齐按实际
+`tabSize` 计算，未建模语句前的换行不再随重复格式化增加。
 
 `sqlBeautify.*` 格式化选项支持 `[sql]` / `[hive-sql]` 语言级覆盖。命令显式 options 优先于
 解析后的配置；`indentStyle` 决定 Tab/空格，空格每层固定 4 列，Tab 的实际显示列按编辑器
@@ -17,6 +19,8 @@ SQL Beautify 2.2 是一次兼容的安全性、可观测性和性能修订。公
 
 两个公开 Node.js subpath 随包提供 `.d.cts` 类型声明；CommonJS / ESM TypeScript 消费端均可
 解析公开选项、结果判别联合和只读 source map，运行时值 export 不增加。
+
+## 从 2.1.x 升级
 
 ### Parser、布局与保留边界
 
