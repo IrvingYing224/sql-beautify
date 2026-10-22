@@ -475,11 +475,6 @@ function verifyPackedSourceFiles(artifactPath, root, packageManifest) {
         assert.deepStrictEqual(packed, source,
             'packed static file must match source bytes: ' + entry.sourcePath);
     });
-    packageManifest.declarationFiles.forEach(function(fileName) {
-        var source = fs.readFileSync(path.join(root, 'src', 'runtime', path.basename(fileName)));
-        assert.deepStrictEqual(unzipBuffer(artifactPath, 'extension/' + fileName), source,
-            'packed public declarations must match their source bytes: ' + fileName);
-    });
 }
 
 function verifyTrustedBuild(artifactPath, root, packageManifest) {

@@ -1,12 +1,11 @@
 var assert = require('assert');
-var sqlFormatter = require('../../dist/sql-formatter.cjs');
-var hiveDdl = require('../../dist/hive-ddl.cjs');
+var runtime = require('../../dist/runtime.cjs');
 var corpus = require('./helpers/production-corpus');
 
 var publicApi = Object.freeze({
-    formatSql: sqlFormatter.formatSql,
-    lexSql: sqlFormatter.lexSql,
-    formatHiveDdl: hiveDdl.formatHiveDdl
+    formatSql: runtime.formatSql,
+    lexSql: runtime.lexSql,
+    formatHiveDdl: runtime.formatHiveDdl
 });
 
 var cases = corpus.load_public_cases();

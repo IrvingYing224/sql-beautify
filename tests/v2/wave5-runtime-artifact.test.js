@@ -7,34 +7,19 @@ var path = require('path');
 var root = path.join(__dirname, '..', '..');
 var dist = path.join(root, 'dist');
 var runtimePath = path.join(dist, 'runtime.cjs');
-var formatterPath = path.join(dist, 'sql-formatter.cjs');
-var ddlPath = path.join(dist, 'hive-ddl.cjs');
 var workerPath = path.join(dist, 'formatter-worker.cjs');
 var extensionPath = path.join(dist, 'extension.cjs');
 var legacyBridgePath = path.join(dist, 'v2-format-bridge.cjs');
 var runtimeSourcePath = path.join(root, 'src', 'runtime', 'internal.ts');
 
 assert.ok(fs.existsSync(runtimePath), 'Wave 5 runtime artifact must be built');
-assert.ok(fs.existsSync(formatterPath), 'Wave 5 public formatter facade must be built');
-assert.ok(fs.existsSync(ddlPath), 'Wave 5 public DDL facade must be built');
 assert.ok(fs.existsSync(workerPath), 'Wave 5 worker artifact must be built');
 assert.ok(fs.existsSync(extensionPath), 'Wave 5 extension artifact must be built');
-['sql-formatter.d.cts', 'hive-ddl.d.cts'].forEach(function(fileName) {
-    assert.deepStrictEqual(fs.readFileSync(path.join(dist, fileName)),
-        fs.readFileSync(path.join(root, 'src', 'runtime', fileName)),
-        'public declaration artifact must match source: ' + fileName);
-});
 assert.strictEqual(fs.existsSync(legacyBridgePath), false,
     'Wave 5 build must delete the legacy format bridge artifact');
 
 var runtime = require(runtimePath);
-var formatter = require(formatterPath);
-var ddl = require(ddlPath);
 
-assert.deepStrictEqual(Object.keys(formatter).sort(), ['formatSql', 'lexSql'],
-    'public formatter facade must expose only approved values');
-assert.deepStrictEqual(Object.keys(ddl).sort(), ['extractDdl', 'formatHiveDdl'],
-    'public DDL facade must expose only approved values');
 [
     'formatSql', 'formatSqlTarget', 'executeFormatSql',
     'validateAndFormatTargets', 'lexSql', 'executeExtractDdl', 'executeFormatHiveDdl',
@@ -45,18 +30,6 @@ assert.deepStrictEqual(Object.keys(ddl).sort(), ['extractDdl', 'formatHiveDdl'],
     assert.strictEqual(typeof runtime[name], 'function',
         'internal runtime must expose host-neutral capability ' + name);
 });
-assert.strictEqual(formatter.formatSql, runtime.formatSql,
-    'public formatter facade must delegate to shared runtime artifact');
-assert.strictEqual(formatter.lexSql, runtime.lexSql,
-    'public lexer facade must delegate to shared runtime artifact');
-assert.strictEqual(ddl.formatHiveDdl, runtime.formatHiveDdl,
-    'public DDL facade must delegate to shared runtime artifact');
-assert.strictEqual(ddl.extractDdl, runtime.extractDdl,
-    'public DDL facade must delegate to shared runtime artifact');
-assert.ok(fs.statSync(formatterPath).size < fs.statSync(runtimePath).size / 4,
-    'public formatter facade must not bundle a second formatter core');
-assert.ok(fs.statSync(ddlPath).size < fs.statSync(runtimePath).size / 4,
-    'public DDL facade must not bundle a second formatter core');
 assert.ok(fs.statSync(extensionPath).size < fs.statSync(runtimePath).size / 4,
     'extension host wiring must not bundle a second formatter core');
 assert.ok(fs.readFileSync(extensionPath, 'utf8').indexOf('runtime.cjs') >= 0,
@@ -250,7 +223,7 @@ async function main() {
         'direct and worker must execute the same runtime artifact bytes');
     assert.throws(function() {
         runtime.createProductionFormatterExecutor({
-            runtimePath: formatterPath,
+            runtimePath: extensionPath,
             workerPath: workerPath
         });
     }, /runtime/i, 'production executor factory must reject a different runtime artifact');

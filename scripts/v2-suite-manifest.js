@@ -133,7 +133,7 @@ var SUITES = Object.freeze({
         needs: ['typecheck', 'core', 'runtime'],
         steps: wave5StageA.concat(tests([
             'wave5-production-corpus'
-        ]), [nodeStep('scripts/verify-clean-package.js')])
+        ]))
     }),
     golden: Object.freeze({
         needs: ['core'],

@@ -30,25 +30,10 @@
 		"url": "https://github.com/IrvingYing224/sql-beautify.git"
 	},
 	"main": "./dist/extension.cjs",
-	"exports": {
-		"./formatter": {
-			"types": "./dist/sql-formatter.d.cts",
-			"default": "./dist/sql-formatter.cjs"
-		},
-		"./experimental/ddl": {
-			"types": "./dist/hive-ddl.d.cts",
-			"default": "./dist/hive-ddl.cjs"
-		},
-		"./package.json": "./package.json"
-	},
 	"files": [
 		"dist/extension.cjs",
 		"dist/runtime.cjs",
-		"dist/sql-formatter.cjs",
-		"dist/hive-ddl.cjs",
 		"dist/formatter-worker.cjs",
-		"dist/sql-formatter.d.cts",
-		"dist/hive-ddl.d.cts",
 		"images/icon.png",
 		"README.md",
 		"CHANGELOG.md",
@@ -187,7 +172,6 @@
 		"golden:update": "node scripts/build-v2-core.js && node tests/golden/run.js --update",
 		"package:vsix": "node scripts/package-vsix.js",
 		"prepack": "node scripts/build-v2-runtime.js",
-		"verify:clean-package": "node scripts/verify-clean-package.js",
 		"typecheck:v2": "tsc -p tsconfig.v2.json",
 		"build:v2-core": "node scripts/build-v2-core.js",
 		"build:v2-runtime": "node scripts/build-v2-runtime.js",

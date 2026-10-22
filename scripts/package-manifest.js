@@ -8,15 +8,9 @@ var path = require('path');
 var RUNTIME_FILES = Object.freeze([
     'dist/extension.cjs',
     'dist/runtime.cjs',
-    'dist/sql-formatter.cjs',
-    'dist/hive-ddl.cjs',
     'dist/formatter-worker.cjs'
 ]);
-var DECLARATION_FILES = Object.freeze([
-    'dist/sql-formatter.d.cts',
-    'dist/hive-ddl.d.cts'
-]);
-var BUILD_FILES = Object.freeze(RUNTIME_FILES.concat(DECLARATION_FILES));
+var BUILD_FILES = RUNTIME_FILES;
 var STATIC_FILES = Object.freeze([
     'images/icon.png',
     'README.md',
@@ -32,7 +26,6 @@ var OBSOLETE_RUNTIME_FILES = Object.freeze([
 ]);
 var VSIX_CONTENT_TYPES = Object.freeze([
     Object.freeze({ extension: '.cjs', contentType: 'application/octet-stream' }),
-    Object.freeze({ extension: '.cts', contentType: 'application/octet-stream' }),
     Object.freeze({ extension: '.json', contentType: 'application/json' }),
     Object.freeze({ extension: '.md', contentType: 'text/markdown' }),
     Object.freeze({ extension: '.png', contentType: 'image/png' }),
@@ -64,17 +57,7 @@ function loadPackageManifest(root) {
         'package.json files must match the shared production allowlist'
     );
     assert.strictEqual(packageJson.main, './dist/extension.cjs');
-    assert.deepStrictEqual(packageJson.exports, {
-        './formatter': {
-            types: './dist/sql-formatter.d.cts',
-            default: './dist/sql-formatter.cjs'
-        },
-        './experimental/ddl': {
-            types: './dist/hive-ddl.d.cts',
-            default: './dist/hive-ddl.cjs'
-        },
-        './package.json': './package.json'
-    });
+    assert.strictEqual(packageJson.exports, undefined);
     var imageFiles = STATIC_FILES.filter(function(fileName) {
         return fileName.indexOf('images/') === 0;
     });
@@ -118,7 +101,6 @@ function loadPackageManifest(root) {
         packageFiles: PACKAGE_FILES,
         npmFiles: Object.freeze(npmFiles),
         runtimeFiles: RUNTIME_FILES,
-        declarationFiles: DECLARATION_FILES,
         buildFiles: BUILD_FILES,
         buildFileNames: Object.freeze(BUILD_FILES.map(function(fileName) {
             return path.basename(fileName);

@@ -16,12 +16,9 @@ var lockPath = path.join(temporaryRoot, 'locks', 'build-v2-runtime.lock');
 var stampPath = path.join(temporaryRoot, 'v2-runtime-build-stamp.json');
 var entries = Object.freeze({
     'runtime.cjs': path.join(root, 'src', 'runtime', 'internal.ts'),
-    'sql-formatter.cjs': path.join(root, 'src', 'runtime', 'index.ts'),
-    'hive-ddl.cjs': path.join(root, 'src', 'runtime', 'experimental-ddl.ts'),
     'formatter-worker.cjs': path.join(root, 'src', 'adapters', 'executor', 'worker-entry.ts'),
     'extension.cjs': path.join(root, 'src', 'extension.ts')
 });
-var declarations = Object.freeze(['sql-formatter.d.cts', 'hive-ddl.d.cts']);
 
 function debugSourceMapsEnabled() {
     return process.env.SQL_BEAUTIFY_DEBUG_SOURCEMAP === '1';
@@ -30,8 +27,8 @@ function debugSourceMapsEnabled() {
 function expectedNames(debugSourceMaps) {
     var names = Object.keys(entries);
     return debugSourceMaps
-        ? names.concat(declarations, names.map(function(fileName) { return fileName + '.map'; }))
-        : names.concat(declarations);
+        ? names.concat(names.map(function(fileName) { return fileName + '.map'; }))
+        : names;
 }
 
 function validateGeneratedDirectory(directory, debugSourceMaps) {
@@ -77,17 +74,6 @@ function validateExistingDist(manifest) {
             );
         }
     });
-}
-
-function sharedRuntimePlugin() {
-    return {
-        name: 'wave5-shared-runtime',
-        setup: function(build) {
-            build.onResolve({ filter: /^\.\/internal$/ }, function() {
-                return { path: './runtime.cjs', external: true };
-            });
-        }
-    };
 }
 
 async function build(entryPoint, outfile, extra, debugSourceMaps) {
@@ -144,21 +130,11 @@ async function main() {
         }
         await build(entries['runtime.cjs'], path.join(stagingDist, 'runtime.cjs'), null,
             debugSourceMaps);
-        await build(entries['sql-formatter.cjs'], path.join(stagingDist, 'sql-formatter.cjs'), {
-            plugins: [sharedRuntimePlugin()]
-        }, debugSourceMaps);
-        await build(entries['hive-ddl.cjs'], path.join(stagingDist, 'hive-ddl.cjs'), {
-            plugins: [sharedRuntimePlugin()]
-        }, debugSourceMaps);
         await build(entries['formatter-worker.cjs'], path.join(stagingDist, 'formatter-worker.cjs'),
             null, debugSourceMaps);
         await build(entries['extension.cjs'], path.join(stagingDist, 'extension.cjs'), {
             external: ['vscode']
         }, debugSourceMaps);
-        declarations.forEach(function(fileName) {
-            fs.copyFileSync(path.join(root, 'src', 'runtime', fileName),
-                path.join(stagingDist, fileName));
-        });
         validateGeneratedDirectory(stagingDist, debugSourceMaps);
         var outputManifest = utils.outputManifest(stagingDist);
         if (process.env.SQL_BEAUTIFY_BUILD_TEST_FAIL === 'runtime-before-publish') {
