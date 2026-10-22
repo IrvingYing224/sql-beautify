@@ -14,7 +14,7 @@ import {
 } from "../diagnostics/debug-event";
 import { resolveFormatOptions } from "../config/resolve-options";
 import { lexSql } from "../lexer/lossless-lexer";
-import type { SourceLeaf } from "../lexer/token";
+import type { SourceLeaf, TokenKind } from "../lexer/token";
 import { compileLayoutPlan } from "../layout/compiler";
 import { deriveLayoutAlignmentPlan } from "../layout/alignment-policy";
 import type { LayoutPlan } from "../layout/plan";
@@ -83,9 +83,25 @@ interface TokenEquivalenceStatistics {
 }
 
 interface TokenEquivalenceCheck {
-    readonly equivalent: boolean;
+    readonly failure: "token" | "glue" | null;
     readonly statistics: TokenEquivalenceStatistics;
 }
+
+/** A non-whitespace source leaf, its rendered counterpart, and whether whitespace precedes each. */
+export interface LeafPair {
+    readonly source: SourceLeaf;
+    readonly output: SourceLeaf;
+    readonly sourceGap: boolean;
+    readonly outputGap: boolean;
+}
+
+const WORD_KINDS: ReadonlySet<TokenKind> = new Set([
+    "keyword",
+    "identifier",
+    "number",
+    "parameter",
+]);
+const FRAGMENT_STOPS: ReadonlySet<string> = new Set([",", "(", ")", ";"]);
 
 function spanForSource(source: string) {
     return Object.freeze({ start: 0, end: source.length });
@@ -298,8 +314,68 @@ function run(
     return Object.freeze({ result, statistics: freezeStatistics(value) });
 }
 
+function fragmentAbsorbs(leaf: SourceLeaf): boolean {
+    return (
+        leaf.kind !== "line-comment" &&
+        leaf.kind !== "block-comment" &&
+        !(leaf.kind === "punctuation" && FRAGMENT_STOPS.has(leaf.raw))
+    );
+}
+
+/**
+ * Safety floor 2 (plan §4) glue rules on token-equivalent pairs: adjacent word-like leaves keep
+ * whether whitespace separates them, and a `${…}` template fragment (the template plus its
+ * zero-gap neighbours up to a comment or `,` `(` `)` `;`) gains no inner whitespace, keeps its
+ * case, and loses none of the whitespace around it.
+ */
+export function glueKept(pairs: readonly LeafPair[]): boolean {
+    for (let index = 1; index < pairs.length; index += 1) {
+        const pair = pairs[index]!;
+        if (
+            WORD_KINDS.has(pairs[index - 1]!.source.kind) &&
+            WORD_KINDS.has(pair.source.kind) &&
+            pair.sourceGap !== pair.outputGap
+        ) {
+            return false;
+        }
+    }
+    for (let index = 0; index < pairs.length; index += 1) {
+        const template = pairs[index]!.source;
+        if (template.kind !== "parameter" || !template.raw.startsWith("${")) {
+            continue;
+        }
+        let low = index;
+        let high = index;
+        while (low > 0 && !pairs[low]!.sourceGap && fragmentAbsorbs(pairs[low - 1]!.source)) {
+            low -= 1;
+        }
+        while (
+            high + 1 < pairs.length &&
+            !pairs[high + 1]!.sourceGap &&
+            fragmentAbsorbs(pairs[high + 1]!.source)
+        ) {
+            high += 1;
+        }
+        for (let inner = low; inner <= high; inner += 1) {
+            const pair = pairs[inner]!;
+            if ((inner > low && pair.outputGap) || pair.output.raw !== pair.source.raw) {
+                return false;
+            }
+        }
+        const before = pairs[low]!;
+        const after = pairs[high + 1];
+        if (
+            (low > 0 && before.sourceGap && !before.outputGap) ||
+            (after !== undefined && after.sourceGap && !after.outputGap)
+        ) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function tokenEquivalenceCheck(
-    equivalent: boolean,
+    failure: "token" | "glue" | null,
     statistics: {
         inputCodeUnits: number;
         diagnosticVisitCount: number;
@@ -310,7 +386,7 @@ function tokenEquivalenceCheck(
     }
 ): TokenEquivalenceCheck {
     return Object.freeze({
-        equivalent,
+        failure,
         statistics: Object.freeze({ ...statistics }),
     });
 }
@@ -333,13 +409,15 @@ function tokenEquivalent(
     for (const value of lexed.diagnostics) {
         statistics.diagnosticVisitCount += 1;
         if (value.severity === "error") {
-            return tokenEquivalenceCheck(false, statistics);
+            return tokenEquivalenceCheck("token", statistics);
         }
     }
+    const pairs: LeafPair[] = [];
     let sourceIndex = 0;
     let outputIndex = 0;
     while (true) {
         let sourceLeaf: SourceLeaf | null = null;
+        let sourceGap = pairs.length === 0;
         while (sourceIndex < analysis.leaves.length) {
             const candidate = analysis.leaves[sourceIndex++]!;
             statistics.sourceLeafVisitCount += 1;
@@ -347,8 +425,10 @@ function tokenEquivalent(
                 sourceLeaf = candidate;
                 break;
             }
+            sourceGap = true;
         }
         let outputLeaf: SourceLeaf | null = null;
+        let outputGap = pairs.length === 0;
         while (outputIndex < lexed.leaves.length) {
             const candidate = lexed.leaves[outputIndex++]!;
             statistics.outputLeafVisitCount += 1;
@@ -356,19 +436,20 @@ function tokenEquivalent(
                 outputLeaf = candidate;
                 break;
             }
+            outputGap = true;
         }
         if (sourceLeaf === null || outputLeaf === null) {
-            return tokenEquivalenceCheck(
-                sourceLeaf === null && outputLeaf === null,
-                statistics
-            );
+            if (sourceLeaf !== null || outputLeaf !== null) {
+                return tokenEquivalenceCheck("token", statistics);
+            }
+            return tokenEquivalenceCheck(glueKept(pairs) ? null : "glue", statistics);
         }
         statistics.comparisonCount += 1;
         if (
             sourceLeaf.kind !== outputLeaf.kind ||
             sourceLeaf.channel !== outputLeaf.channel
         ) {
-            return tokenEquivalenceCheck(false, statistics);
+            return tokenEquivalenceCheck("token", statistics);
         }
         statistics.directLookupCount += 1;
         const plannedTransform =
@@ -382,15 +463,16 @@ function tokenEquivalent(
                 syntax.keywordCaseEligible !== true ||
                 !isKeywordCaseRole(syntax.syntaxRole)
             ) {
-                return tokenEquivalenceCheck(false, statistics);
+                return tokenEquivalenceCheck("token", statistics);
             }
         }
         const expected = plannedTransform
             ? applyKeywordCase(sourceLeaf.raw, keywordCase)
             : sourceLeaf.raw;
         if (expected === null || outputLeaf.raw !== expected) {
-            return tokenEquivalenceCheck(false, statistics);
+            return tokenEquivalenceCheck("token", statistics);
         }
+        pairs.push({ source: sourceLeaf, output: outputLeaf, sourceGap, outputGap });
     }
 }
 
@@ -705,7 +787,7 @@ export function formatSqlWithStatistics(
             statistics,
             equivalence.statistics
         );
-        if (!equivalence.equivalent) {
+        if (equivalence.failure === "token") {
             const value = diagnostic(
                 source,
                 "FMT_TOKEN_EQUIVALENCE",
@@ -714,6 +796,22 @@ export function formatSqlWithStatistics(
             return run(
                 originalResult(
                     "failed",
+                    source,
+                    frozenDiagnostics(analysis.diagnostics, value)
+                ),
+                statistics
+            );
+        }
+        if (equivalence.failure === "glue") {
+            const value = diagnostic(
+                source,
+                "FMT_GLUE_PRESERVED",
+                "Rendered output would change spacing between glued tokens or inside a template fragment",
+                "warning"
+            );
+            return run(
+                originalResult(
+                    "preserved",
                     source,
                     frozenDiagnostics(analysis.diagnostics, value)
                 ),

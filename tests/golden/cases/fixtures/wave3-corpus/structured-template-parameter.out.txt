@@ -1,3 +1,0 @@
-SELECT
-      ${hiveconf:value} + 1
-FROM t

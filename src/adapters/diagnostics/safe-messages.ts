@@ -92,6 +92,7 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     FMT_INPUT_LIMIT: "SQL input exceeds the supported 512 Ki code-unit limit",
     FMT_UNSUPPORTED_BAIL_OUT: "Formatting stopped at an unsupported SQL construct",
     FMT_TOKEN_EQUIVALENCE: "Formatted SQL did not pass token-equivalence validation",
+    FMT_GLUE_PRESERVED: "SQL was left unchanged to keep glued tokens and template fragments intact",
     FMT_INTERNAL: "Formatter failed safely during internal processing",
     LAYOUT_COMMA_FALLBACK:
         "Trailing comma could not be applied without moving a line comment",

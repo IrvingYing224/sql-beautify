@@ -1,4 +1,0 @@
-SELECT
-      a
-FROM t
-WHERE ${lhs} = 1

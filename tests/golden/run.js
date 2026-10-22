@@ -419,13 +419,22 @@ function selfTest() {
         ['where ds=${hiveconf:run_date}', 'where ds = ${hiveconf:run_date}', 2],
         ['x=${v}and y=1', 'x=${v}\nand y=1', 1],
         ['select 0L', 'select 0 L', 1],
+        ['select 1 + ${v} from t', 'select 1 +${v} from t', 1],
+        ['select ${v}and from t', 'select ${v}AND from t', 1],
         ['select ${v},x from t', 'select ${v}, x from t', 0],
+        ['select ${v}/*c*/x from t', 'select ${v}/*c*/ x from t', 0],
         ['select a  from t', 'select a\nfrom t', 0],
     ].forEach(function(probe) {
-        var actual = glueViolations(codeLeaves(probe[0], 'hive'), codeLeaves(probe[1], 'hive'));
-        if (actual.length !== probe[2]) {
+        var a = codeLeaves(probe[0], 'hive');
+        var b = codeLeaves(probe[1], 'hive');
+        var actual = glueViolations(a, b);
+        // The same probes hold for the runtime rule in format.ts.
+        var kept = format.glueKept(a.map(function(leaf, i) {
+            return { source: leaf, output: b[i], sourceGap: leaf.gap, outputGap: b[i].gap };
+        }));
+        if (actual.length !== probe[2] || kept !== (probe[2] === 0)) {
             throw new Error('glue self-test ' + JSON.stringify(probe) + ' reported ' +
-                JSON.stringify(actual));
+                JSON.stringify(actual) + ', runtime kept ' + kept);
         }
     });
     var ddl = { op: 'formatHiveDdl' };

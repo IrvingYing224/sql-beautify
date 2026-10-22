@@ -133,7 +133,7 @@
             "id": "hive-statement-sequence",
             "file": "hive-statement-sequence.sql",
             "options": { "dialect": "hive", "keywordCase": "upper", "commaStyle": "leading" },
-            "expected": { "status": "formatted", "codes": [], "capabilities": [] }
+            "expected": { "status": "preserved", "codes": ["FMT_GLUE_PRESERVED"], "capabilities": [], "exactText": true }
         },
         {
             "id": "hive-template-variables",

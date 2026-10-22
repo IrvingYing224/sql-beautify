@@ -109,6 +109,7 @@ module.exports = Object.freeze([
     frozenCase({
         id: 'structured-template-parameter',
         source: 'select ${hiveconf:value}+1 from t',
-        options: { dialect: 'hive' }
+        options: { dialect: 'hive' },
+        expectedOutcome: 'original'
     })
 ]);

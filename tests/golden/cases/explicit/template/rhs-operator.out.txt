@@ -1,4 +1,0 @@
-SELECT
-      a
-FROM t
-WHERE ds = ${hiveconf:run_date}

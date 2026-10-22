@@ -1,5 +1,0 @@
-SELECT
-      a
-FROM t
-WHERE x = ${v}
-    AND y = 1

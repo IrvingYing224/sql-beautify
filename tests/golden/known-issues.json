@@ -1,56 +1,14 @@
 {
- "corpus/hive-statement-sequence": {
-  "issue": "K7",
-  "waive": [
-   "glue"
-  ]
- },
  "explicit/known/k06-then-string-else": {
   "issue": "K6",
   "waive": [
    "idempotence"
   ]
  },
- "explicit/known/k07-template-and": {
-  "issue": "K7",
-  "waive": [
-   "glue"
-  ]
- },
- "explicit/known/k07-template-desc": {
-  "issue": "K7",
-  "waive": [
-   "glue"
-  ]
- },
- "explicit/template/lhs-operator": {
-  "issue": "K7",
-  "waive": [
-   "glue"
-  ]
- },
- "explicit/template/rhs-operator": {
-  "issue": "K7",
-  "waive": [
-   "glue"
-  ]
- },
  "fixtures/ddl/external-complex-types": {
   "issue": "K29",
   "waive": [
    "token"
-  ]
- },
- "fixtures/wave3-corpus/structured-template-parameter": {
-  "issue": "K7",
-  "waive": [
-   "glue"
-  ]
- },
- "recapture/wave3-properties/select-a-b-from-source-table-where-enabl-4f6fb351": {
-  "issue": "K7",
-  "waive": [
-   "glue"
   ]
  }
 }

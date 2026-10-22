@@ -314,7 +314,8 @@ function corpusCases() {
             id: 'production/' + testCase.name,
             source: testCase.sql,
             options: testCase.options,
-            expectedOutcome: 'safe'
+            expectedOutcome: testCase.expected && (testCase.expected.status === 'preserved' ||
+                testCase.expected.status === 'failed') ? 'original' : 'safe'
         });
     });
     return cases;
