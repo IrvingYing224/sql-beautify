@@ -42,6 +42,7 @@ var core = (function() {
         format: 'cjs',
         target: 'node20',
         outfile: outfile,
+        tsconfig: path.join(root, 'tsconfig.json'),
         logLevel: 'warning'
     });
     return require(outfile);
