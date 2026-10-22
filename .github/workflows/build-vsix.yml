@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   node-smoke:
-    name: Node ${{ matrix.node }} core/public smoke
+    name: Node ${{ matrix.node }} tests
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -39,7 +39,7 @@ jobs:
         run: npm ci
 
       - name: Run core, public facade, and extension activation smoke
-        run: npm run test:v2:node-smoke
+        run: npm run typecheck && npm test
 
   vscode-smoke:
     name: VS Code ${{ matrix.vscode }} extension host smoke
@@ -64,7 +64,7 @@ jobs:
       - name: Run real extension host tests
         env:
           SQL_BEAUTIFY_VSCODE_VERSION: ${{ matrix.vscode }}
-        run: xvfb-run -a npm run test:vscode-smoke
+        run: xvfb-run -a npm run test:vscode
 
   build-vsix:
     name: Verify and build VSIX
@@ -89,10 +89,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run deterministic regression and package lifecycle tests
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-        run: npm run test:verify
+      - name: Run tests
+        run: npm run typecheck && npm test
 
       - name: Read package metadata
         id: package

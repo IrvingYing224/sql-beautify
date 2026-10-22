@@ -1,11 +1,10 @@
-#!/usr/bin/env node
 'use strict';
 
 var assert = require('assert');
 var fs = require('fs');
 var path = require('path');
 
-var root = path.join(__dirname, '..');
+var root = path.join(__dirname, '..', '..');
 var nodeSource = fs.readFileSync(
     path.join(root, 'src', 'core', 'syntax', 'node.ts'),
     'utf8'

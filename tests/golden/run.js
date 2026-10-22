@@ -3,7 +3,6 @@
 
 // Golden snapshot runner: the formatting spec for 3.0 (docs/technical/3.0-refactor-plan.md §6 P1).
 // Usage: node tests/golden/run.js [--update] [--filter s] [--private <dir>] [--fuzz N]
-// Requires a fresh `.tmp/v2-core` (node scripts/build-v2-core.js).
 
 var fs = require('fs');
 var path = require('path');
@@ -12,20 +11,53 @@ var root = path.join(__dirname, '..', '..');
 var casesDir = path.join(__dirname, 'cases');
 var snapshotPath = path.join(__dirname, 'snapshot.json');
 var knownIssuesPath = path.join(__dirname, 'known-issues.json');
-var core = path.join(root, '.tmp', 'v2-core');
 
-var format = require(path.join(core, 'core', 'api', 'format.js'));
-var lexer = require(path.join(core, 'core', 'lexer', 'index.js'));
-var analyze = require(path.join(core, 'core', 'analysis', 'analyze.js'));
-var resolveOptions = require(path.join(core, 'core', 'config', 'resolve-options.js'));
-var policy = require(path.join(core, 'core', 'layout', 'policy.js'));
-var contract = require(path.join(core, 'core', 'syntax', 'contextual-fact-contract.js'));
-var environment = require(path.join(core, 'core', 'renderer', 'environment.js'));
-var parser = require(path.join(core, 'core', 'syntax', 'parser.js'));
-var typeCursor = require(path.join(core, 'core', 'syntax', 'type-cursor.js'));
-var hiveDdl = require(path.join(core, 'experimental', 'ddl', 'hive-ddl.js'));
-var extract = require(path.join(core, 'experimental', 'ddl', 'extract.js'));
-var ddlTransaction = require(path.join(core, 'adapters', 'transaction', 'experimental-ddl.js'));
+// The internal modules this runner calls, bundled from src with esbuild on every run.
+var core = (function() {
+    var modules = {
+        format: 'core/api/format',
+        lexer: 'core/lexer/lossless-lexer',
+        analyze: 'core/analysis/analyze',
+        resolveOptions: 'core/config/resolve-options',
+        policy: 'core/layout/policy',
+        contract: 'core/syntax/contextual-fact-contract',
+        environment: 'core/renderer/environment',
+        parser: 'core/syntax/parser',
+        typeCursor: 'core/syntax/type-cursor',
+        hiveDdl: 'experimental/ddl/hive-ddl',
+        extract: 'experimental/ddl/extract',
+        ddlTransaction: 'adapters/transaction/experimental-ddl'
+    };
+    var outfile = path.join(root, '.tmp', 'tests', 'golden-core.cjs');
+    require('esbuild').buildSync({
+        stdin: {
+            contents: Object.keys(modules).map(function(name) {
+                return 'export * as ' + name + ' from "./' + modules[name] + '";';
+            }).join('\n'),
+            resolveDir: path.join(root, 'src'),
+            loader: 'ts'
+        },
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',
+        target: 'node20',
+        outfile: outfile,
+        logLevel: 'warning'
+    });
+    return require(outfile);
+})();
+var format = core.format;
+var lexer = core.lexer;
+var analyze = core.analyze;
+var resolveOptions = core.resolveOptions;
+var policy = core.policy;
+var contract = core.contract;
+var environment = core.environment;
+var parser = core.parser;
+var typeCursor = core.typeCursor;
+var hiveDdl = core.hiveDdl;
+var extract = core.extract;
+var ddlTransaction = core.ddlTransaction;
 
 var HEADER = '-- golden: ';
 var FIELDS = ['op', 'options', 'mode', 'newline', 'tabSize', 'startColumn'];
@@ -696,13 +728,3 @@ if (require.main === module) {
         process.exitCode = 1;
     });
 }
-
-// For the P1 one-off checks in tools/.
-module.exports = {
-    codeLeaves: codeLeaves,
-    ddlCaseAuthorized: ddlCaseAuthorized,
-    sqlCaseAuthorized: sqlCaseAuthorized,
-    floorFailures: floorFailures,
-    loadRuns: loadRuns,
-    resolveEnvironment: resolveEnvironment,
-};
