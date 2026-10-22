@@ -183,6 +183,8 @@
 	},
 	"scripts": {
 		"test:verify": "node scripts/run-v2-suite.js verify",
+		"test:golden": "node scripts/run-v2-suite.js golden",
+		"golden:update": "node scripts/build-v2-core.js && node tests/golden/run.js --update",
 		"package:vsix": "node scripts/package-vsix.js",
 		"prepack": "node scripts/build-v2-runtime.js",
 		"verify:clean-package": "node scripts/verify-clean-package.js",

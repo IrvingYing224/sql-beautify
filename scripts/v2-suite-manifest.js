@@ -180,8 +180,12 @@ var SUITES = Object.freeze({
             'wave5-release-boundary'
         ]), [nodeStep('scripts/verify-clean-package.js')])
     }),
+    golden: Object.freeze({
+        needs: ['core'],
+        steps: [nodeStep('tests/golden/run.js')]
+    }),
     verify: Object.freeze({
-        includes: ['wave1', 'wave2', 'wave3', 'wave4', 'wave5']
+        includes: ['wave1', 'wave2', 'wave3', 'wave4', 'wave5', 'golden']
     }),
     'performance-relative': Object.freeze({
         needs: ['core'],

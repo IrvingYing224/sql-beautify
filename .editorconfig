@@ -1,0 +1,4 @@
+# Golden snapshots are byte-exact: never add a final newline or trim trailing whitespace.
+[tests/golden/cases/**]
+insert_final_newline = false
+trim_trailing_whitespace = false
