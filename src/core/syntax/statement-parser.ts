@@ -3,6 +3,7 @@ import type {
     RecoveryAction,
 } from "../diagnostics/diagnostic";
 import { isParserStructuredCapabilityState } from "../dialects/capability-state";
+import { isTemplateFragment } from "../lexer/token";
 import { getDialect } from "../dialects/registry";
 import type { LeafRange } from "./leaf-range";
 import type { QueryNode, StatementNode } from "./node";
@@ -64,6 +65,10 @@ function validateSetKey(
     range: LeafRange
 ): void {
     const first = context.leaves[range.start]!;
+    // `set a.b=${v}` is one template fragment carrying both key and value.
+    if (range.end === range.start + 1 && isTemplateFragment(first)) {
+        return;
+    }
     if (first.kind !== "identifier" && first.kind !== "keyword") {
         throw new ParserSyntaxError(
             "SYN_UNEXPECTED_TOKEN",

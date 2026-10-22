@@ -1,5 +1,5 @@
 import { isProxy } from "node:util/types";
-import type { SourceLeaf } from "../lexer/token";
+import { isTemplateFragment, type SourceLeaf } from "../lexer/token";
 import type { CstDialectInvariantContext } from "./cst-dialect-context";
 import type { InvariantFailure } from "./invariant-types";
 import { listItemRoleFor } from "./list-role-contract";
@@ -370,10 +370,13 @@ function validateSetPayloadRelationships(
         );
         return;
     }
-    let expectWord = true;
+    const fragmentKey = raw.keyLeafRange.end === raw.keyLeafRange.start + 1 &&
+        leaves[raw.keyLeafRange.start] !== undefined &&
+        isTemplateFragment(leaves[raw.keyLeafRange.start]!);
+    let expectWord = !fragmentKey;
     for (
         let leafId = raw.keyLeafRange.start;
-        leafId < raw.keyLeafRange.end && leafId < leaves.length;
+        !fragmentKey && leafId < raw.keyLeafRange.end && leafId < leaves.length;
         leafId++
     ) {
         const leaf = leaves[leafId]!;

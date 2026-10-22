@@ -196,7 +196,8 @@ function assertOnlyEol(text, newline) {
         'select 1 + 2'
     );
 
-    var aroundClaim = analyze('select ${hiveconf:value}+2', 'hive');
+    // `,` stops the template fragment, so the template stays a claim of its own (plan §4).
+    var aroundClaim = analyze('select ${hiveconf:value},2', 'hive');
     assert.strictEqual(aroundClaim.status, 'analyzed');
     var aroundQueryId = aroundClaim.index.queries()[0].id;
     var aroundBuilder = planApi.createLayoutPlanBuilder(
@@ -207,7 +208,7 @@ function assertOnlyEol(text, newline) {
         return leaf.raw === '${hiveconf:value}';
     })[0].id;
     var afterFunction = aroundClaim.leaves.filter(function(leaf) {
-        return leaf.raw === '+';
+        return leaf.raw === ',';
     })[0].id;
     assert.strictEqual(aroundBuilder.replaceGap(
         aroundQueryId,
@@ -227,7 +228,7 @@ function assertOnlyEol(text, newline) {
     assert.strictEqual(aroundCompiled.ok, true);
     assert.strictEqual(
         renderApi.renderLayoutArtifact(aroundCompiled.artifact).text,
-        'select  ${hiveconf:value} +2',
+        'select  ${hiveconf:value} ,2',
         'actions on both sides of a verbatim claim must be emitted'
     );
 

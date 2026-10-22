@@ -1,5 +1,5 @@
 import type { Dialect } from "../config/options";
-import type { SourceLeaf } from "../lexer/token";
+import { isTemplateFragment, type SourceLeaf } from "../lexer/token";
 import type { ExpressionKind } from "./node";
 
 function isMysqlPrefixedLiteral(raw: string): boolean {
@@ -27,11 +27,7 @@ export function primitiveExpressionCapabilityId(
         return null;
     }
     if (expressionKind === "parameter" && leaf.kind === "parameter") {
-        if (
-            dialect === "hive" &&
-            leaf.raw.charAt(0) === "$" &&
-            leaf.raw.charAt(1) === "{"
-        ) {
+        if (dialect === "hive" && isTemplateFragment(leaf)) {
             return "template-parameter";
         }
         if (dialect === "mysql" && leaf.raw.charAt(0) === "@") {

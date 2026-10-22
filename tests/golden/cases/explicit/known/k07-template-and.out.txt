@@ -1,0 +1,4 @@
+SELECT
+      a
+FROM t
+WHERE x=${v}and y=1

@@ -213,7 +213,7 @@ function test(name, fn) {
 // I1: protected syntax leaves must not be skipped
 // =============================================================================
 test('I1 syntax sequence includes string/parameter/quoted-id/?', function() {
-    var source = "SELECT 'x', ${db}.`t` WHERE id = ?";
+    var source = "SELECT 'x', ${db}, `t` WHERE id = ?";
     var t = tableFor(source, 'hive');
     var seq = syntaxSequence(t.table, t.leaves);
     var raws = seq.map(function(s) { return s.raw; });
@@ -222,7 +222,7 @@ test('I1 syntax sequence includes string/parameter/quoted-id/?', function() {
     assert.ok(raws.indexOf('`t`') >= 0, 'quoted-identifier must appear');
     assert.ok(raws.indexOf('?') >= 0, 'positional parameter must appear');
     // Exact expected non-trivia syntax order
-    var expected = ['SELECT', "'x'", ',', '${db}', '.', '`t`', 'WHERE', 'id', '=', '?'];
+    var expected = ['SELECT', "'x'", ',', '${db}', ',', '`t`', 'WHERE', 'id', '=', '?'];
     assert.deepStrictEqual(raws, expected, 'syntax sequence raws mismatch\n' + JSON.stringify(seq, null, 2));
     seq.forEach(function(entry) {
         assert.ok(entry.channel === 'code' || entry.channel === 'protected', 'syntax channel');
@@ -272,7 +272,7 @@ test('I1 unknown is atomic syntax leaf (no false adjacency across it)', function
 });
 
 test('I1 parser cursor advanceSyntax visits protected leaves', function() {
-    var source = "SELECT 'x', ${db}.`t` WHERE id = ?";
+    var source = "SELECT 'x', ${db}, `t` WHERE id = ?";
     var t = tableFor(source, 'hive');
     var cursor = cursorMod.createTokenCursor(t.table);
     assert.strictEqual(typeof cursor.advanceSyntax, 'function', 'advanceSyntax required');

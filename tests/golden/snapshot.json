@@ -2632,10 +2632,8 @@
  },
  "corpus/hive-statement-sequence": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "FMT_GLUE_PRESERVED"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "corpus/hive-template-variables": {
   "op": "formatSql",
@@ -2908,9 +2906,7 @@
  "explicit/known/k07-adjacent-templates": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/known/k07-spaced-templates": {
   "op": "formatSql",
@@ -2921,17 +2917,15 @@
  },
  "explicit/known/k07-template-and": {
   "op": "formatSql",
-  "status": "preserved",
+  "status": "formatted",
   "codes": [
-   "FMT_GLUE_PRESERVED"
+   "SYN_UNEXPECTED_TOKEN"
   ]
  },
  "explicit/known/k07-template-desc": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "FMT_GLUE_PRESERVED"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k09-row-star": {
   "op": "formatSql",
@@ -2986,9 +2980,7 @@
  "explicit/known/k10-templated-names": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
+  "codes": []
  },
  "explicit/known/k10-with-rollup": {
   "op": "formatSql",
@@ -3069,11 +3061,7 @@
  "explicit/known/k28-template-after-identifier": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/known/k29-shift-operators": {
   "op": "formatSql",
@@ -3254,10 +3242,8 @@
  },
  "explicit/template/lhs-operator": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "FMT_GLUE_PRESERVED"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/template/outer-space-probe": {
   "op": "formatSql",
@@ -3266,10 +3252,8 @@
  },
  "explicit/template/rhs-operator": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "FMT_GLUE_PRESERVED"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "fixtures/cst/hive-case-and-subquery-expression": {
   "op": "formatSql",
@@ -3905,10 +3889,8 @@
  },
  "fixtures/wave3-corpus/structured-template-parameter": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "FMT_GLUE_PRESERVED"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "fixtures/wave3-corpus/trailing-comma-blank-line": {
   "op": "formatSql",
@@ -8915,9 +8897,7 @@
  "probe/hive/template-in-table-name": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
+  "codes": []
  },
  "probe/hive/template-params": {
   "op": "formatSql",
@@ -10370,10 +10350,8 @@
  },
  "recapture/wave3-properties/select-a-b-from-source-table-where-enabl-4f6fb351": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "FMT_GLUE_PRESERVED"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "recapture/wave3-properties/select-a-user-id-bizdate-as-bizdate-env-1d144e83": {
   "op": "formatSql",

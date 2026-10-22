@@ -14,7 +14,7 @@ import {
 } from "../diagnostics/debug-event";
 import { resolveFormatOptions } from "../config/resolve-options";
 import { lexSql } from "../lexer/lossless-lexer";
-import type { SourceLeaf, TokenKind } from "../lexer/token";
+import { isTemplateFragment, type SourceLeaf, type TokenKind } from "../lexer/token";
 import { compileLayoutPlan } from "../layout/compiler";
 import { deriveLayoutAlignmentPlan } from "../layout/alignment-policy";
 import type { LayoutPlan } from "../layout/plan";
@@ -101,7 +101,6 @@ const WORD_KINDS: ReadonlySet<TokenKind> = new Set([
     "number",
     "parameter",
 ]);
-const FRAGMENT_STOPS: ReadonlySet<string> = new Set([",", "(", ")", ";"]);
 
 function spanForSource(source: string) {
     return Object.freeze({ start: 0, end: source.length });
@@ -314,59 +313,22 @@ function run(
     return Object.freeze({ result, statistics: freezeStatistics(value) });
 }
 
-function fragmentAbsorbs(leaf: SourceLeaf): boolean {
-    return (
-        leaf.kind !== "line-comment" &&
-        leaf.kind !== "block-comment" &&
-        !(leaf.kind === "punctuation" && FRAGMENT_STOPS.has(leaf.raw))
-    );
-}
-
 /**
  * Safety floor 2 (plan §4) glue rules on token-equivalent pairs: adjacent word-like leaves keep
- * whether whitespace separates them, and a `${…}` template fragment (the template plus its
- * zero-gap neighbours up to a comment or `,` `(` `)` `;`) gains no inner whitespace, keeps its
- * case, and loses none of the whitespace around it.
+ * whether whitespace separates them, and a template fragment loses none of the whitespace around
+ * it. The lexer makes each fragment one protected leaf, so token equivalence already keeps its
+ * inside free of new whitespace and case changes.
  */
 export function glueKept(pairs: readonly LeafPair[]): boolean {
-    for (let index = 1; index < pairs.length; index += 1) {
-        const pair = pairs[index]!;
-        if (
-            WORD_KINDS.has(pairs[index - 1]!.source.kind) &&
-            WORD_KINDS.has(pair.source.kind) &&
-            pair.sourceGap !== pair.outputGap
-        ) {
-            return false;
-        }
-    }
     for (let index = 0; index < pairs.length; index += 1) {
-        const template = pairs[index]!.source;
-        if (template.kind !== "parameter" || !template.raw.startsWith("${")) {
-            continue;
-        }
-        let low = index;
-        let high = index;
-        while (low > 0 && !pairs[low]!.sourceGap && fragmentAbsorbs(pairs[low - 1]!.source)) {
-            low -= 1;
-        }
-        while (
-            high + 1 < pairs.length &&
-            !pairs[high + 1]!.sourceGap &&
-            fragmentAbsorbs(pairs[high + 1]!.source)
-        ) {
-            high += 1;
-        }
-        for (let inner = low; inner <= high; inner += 1) {
-            const pair = pairs[inner]!;
-            if ((inner > low && pair.outputGap) || pair.output.raw !== pair.source.raw) {
-                return false;
-            }
-        }
-        const before = pairs[low]!;
-        const after = pairs[high + 1];
+        const pair = pairs[index]!;
+        const previous = pairs[index - 1];
         if (
-            (low > 0 && before.sourceGap && !before.outputGap) ||
-            (after !== undefined && after.sourceGap && !after.outputGap)
+            previous !== undefined &&
+            pair.sourceGap !== pair.outputGap &&
+            ((WORD_KINDS.has(previous.source.kind) && WORD_KINDS.has(pair.source.kind)) ||
+                (pair.sourceGap &&
+                    (isTemplateFragment(previous.source) || isTemplateFragment(pair.source))))
         ) {
             return false;
         }
@@ -415,6 +377,27 @@ function tokenEquivalent(
     const pairs: LeafPair[] = [];
     let sourceIndex = 0;
     let outputIndex = 0;
+    // Removing whitespace beside a template fragment lets the fragment absorb its neighbour when
+    // the output is lexed again: a glue violation (plan §4 floor 2), not a changed token.
+    const mismatch = (outputLeaf: SourceLeaf): "token" | "glue" => {
+        if (!isTemplateFragment(outputLeaf)) {
+            return "token";
+        }
+        let text = "";
+        for (
+            let index = sourceIndex - 1;
+            index < analysis.leaves.length && text.length < outputLeaf.raw.length;
+            index += 1
+        ) {
+            const leaf = analysis.leaves[index]!;
+            if (leaf.kind !== "whitespace" && leaf.kind !== "newline") {
+                text += plan.leafEmissions[leaf.id] === "keyword-case"
+                    ? applyKeywordCase(leaf.raw, keywordCase) ?? leaf.raw
+                    : leaf.raw;
+            }
+        }
+        return text === outputLeaf.raw ? "glue" : "token";
+    };
     while (true) {
         let sourceLeaf: SourceLeaf | null = null;
         let sourceGap = pairs.length === 0;
@@ -449,7 +432,7 @@ function tokenEquivalent(
             sourceLeaf.kind !== outputLeaf.kind ||
             sourceLeaf.channel !== outputLeaf.channel
         ) {
-            return tokenEquivalenceCheck("token", statistics);
+            return tokenEquivalenceCheck(mismatch(outputLeaf), statistics);
         }
         statistics.directLookupCount += 1;
         const plannedTransform =
@@ -470,7 +453,7 @@ function tokenEquivalent(
             ? applyKeywordCase(sourceLeaf.raw, keywordCase)
             : sourceLeaf.raw;
         if (expected === null || outputLeaf.raw !== expected) {
-            return tokenEquivalenceCheck("token", statistics);
+            return tokenEquivalenceCheck(mismatch(outputLeaf), statistics);
         }
         pairs.push({ source: sourceLeaf, output: outputLeaf, sourceGap, outputGap });
     }

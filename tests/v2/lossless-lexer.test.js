@@ -524,7 +524,9 @@ test('PostgreSQL dollar strings', function() {
 });
 
 test('Hive template parameters', function() {
-    assertSingleLeaf('SELECT ${db}.t', 'hive', '${db}', 'parameter', 'protected');
+    // A template and its zero-gap neighbours form one template fragment leaf (plan §4).
+    assertSingleLeaf('SELECT ${db}.t', 'hive', '${db}.t', 'parameter', 'protected');
+    assertSingleLeaf('SELECT ${db} .t', 'hive', '${db}', 'parameter', 'protected');
     assertSingleLeaf(
         'SELECT ${hivevar:day}',
         'hive',

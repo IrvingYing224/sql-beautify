@@ -74,7 +74,7 @@ module.exports = Object.freeze([
         dialect: 'hive',
         expectation: 'opaque',
         source: "SELECT id FROM ${db}.src WHERE ds = ${hivevar:day}",
-        atomicLexemes: ['${db}', '${hivevar:day}'],
+        atomicLexemes: ['${db}.src', '${hivevar:day}'],
         tags: ['template', 'opaque'],
     },
     {

@@ -360,7 +360,7 @@ function glueViolations(a, b) {
         }
     }
     for (i = 0; i < a.length; i++) {
-        if (a[i].kind !== 'parameter' || a[i].raw.slice(0, 2) !== '${') {
+        if (a[i].kind !== 'parameter' || a[i].raw.indexOf('${') < 0) {
             continue;
         }
         var low = i;
@@ -412,29 +412,37 @@ function floorFailures(source, output, spec) {
 // The checker must catch known glue breaks, including deleted space beside a template, and
 // case changes outside the keywords each operation is allowed to case.
 function selfTest() {
+    // The lexer makes a template fragment one leaf, so splitting it is a token failure; the
+    // fragment rules below still check runs the lexer did not merge, as in this hand-built pair.
+    var split = [{ kind: 'parameter', raw: '${v}', gap: true }, { kind: 'operator', raw: '+', gap: false }];
+    if (glueViolations(split, [split[0], { kind: 'operator', raw: '+', gap: true }]).length !== 1) {
+        throw new Error('glue self-test: space inside an unmerged template fragment not reported');
+    }
     [
-        ['select ${v} + 1 from t', 'select ${v}+ 1 from t', 1],
-        ['order by ${p}desc', 'order by ${p} desc', 1],
-        ['select ${a}${b}', 'select ${a} ${b}', 1],
-        ['where ds=${hiveconf:run_date}', 'where ds = ${hiveconf:run_date}', 2],
-        ['x=${v}and y=1', 'x=${v}\nand y=1', 1],
-        ['select 0L', 'select 0 L', 1],
-        ['select 1 + ${v} from t', 'select 1 +${v} from t', 1],
-        ['select ${v}and from t', 'select ${v}AND from t', 1],
-        ['select ${v},x from t', 'select ${v}, x from t', 0],
-        ['select ${v}/*c*/x from t', 'select ${v}/*c*/ x from t', 0],
-        ['select a  from t', 'select a\nfrom t', 0],
+        ['select ${v} , x from t', 'select ${v}, x from t', 'glue'],
+        ['select f( ${v} ) from t', 'select f(${v}) from t', 'glue'],
+        ['select ${v} /* c */ from t', 'select ${v}/* c */ from t', 'glue'],
+        ['select 0L', 'select 0 L', 'glue'],
+        ['select ${v} + 1 from t', 'select ${v}+ 1 from t', 'token'],
+        ['select 1 + ${v} from t', 'select 1 +${v} from t', 'token'],
+        ['order by ${p}desc', 'order by ${p} desc', 'token'],
+        ['select ${a}${b}', 'select ${a} ${b}', 'token'],
+        ['where ds=${hiveconf:run_date}', 'where ds = ${hiveconf:run_date}', 'token'],
+        ['x=${v}and y=1', 'x=${v}\nand y=1', 'token'],
+        ['select ${v},x from t', 'select ${v}, x from t', ''],
+        ['select ${v}/*c*/x from t', 'select ${v}/*c*/ x from t', ''],
+        ['select a  from t', 'select a\nfrom t', ''],
     ].forEach(function(probe) {
+        var actual = Object.keys(floorFailures(probe[0], probe[1], {})).join();
         var a = codeLeaves(probe[0], 'hive');
         var b = codeLeaves(probe[1], 'hive');
-        var actual = glueViolations(a, b);
-        // The same probes hold for the runtime rule in format.ts.
-        var kept = format.glueKept(a.map(function(leaf, i) {
+        // Token-equivalent probes hold for the runtime rule in format.ts as well.
+        var kept = probe[2] === 'token' || format.glueKept(a.map(function(leaf, i) {
             return { source: leaf, output: b[i], sourceGap: leaf.gap, outputGap: b[i].gap };
-        }));
-        if (actual.length !== probe[2] || kept !== (probe[2] === 0)) {
+        })) === (probe[2] === '');
+        if (actual !== probe[2] || !kept) {
             throw new Error('glue self-test ' + JSON.stringify(probe) + ' reported ' +
-                JSON.stringify(actual) + ', runtime kept ' + kept);
+                JSON.stringify(actual) + ', runtime agrees ' + kept);
         }
     });
     var ddl = { op: 'formatHiveDdl' };
@@ -442,7 +450,7 @@ function selfTest() {
         ['select MixedCase from MyTable', 'SELECT MIXEDCASE FROM MYTABLE', {}, 'token'],
         ['add jar /tmp/current.jar;', 'ADD jar /tmp/CURRENT.jar;', {}, 'token'],
         ['select ${v}and from t', 'SELECT ${v}AND FROM t', {}, 'token'],
-        ['select ${v}and from t', 'select ${v}AND from t', {}, 'glue'],
+        ['select ${v}and from t', 'select ${v}AND from t', {}, 'token'],
         ['select a rlike b from t', 'SELECT a RLIKE b FROM t', {}, ''],
         ['select cast(a as varchar(10)) from t', 'SELECT CAST(a AS VARCHAR(10)) FROM t', {}, ''],
         ['create table Orc (Date string)', 'CREATE TABLE ORC (Date STRING)', ddl, 'token'],

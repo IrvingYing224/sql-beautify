@@ -211,13 +211,14 @@ function closureCase(id) {
     });
     assert.ok(template);
     assert.strictEqual(analysis.index.capabilityForNode(template.id).state, 'structured');
-    // `${hiveconf:value}+1` is one template fragment (plan §4 floor 2), so the target is preserved.
+    // `${hiveconf:value}+1` is one template fragment (plan §4), laid out as one operand.
     var result = formatApi.formatSql(testCase.source, testCase.options);
-    assert.strictEqual(result.status, 'preserved');
-    assert.strictEqual(result.text, testCase.source);
-    assert.deepStrictEqual(result.diagnostics.map(function(value) {
-        return value.code;
-    }), ['FMT_GLUE_PRESERVED']);
+    assert.strictEqual(result.status, 'formatted');
+    assert.strictEqual(result.text, [
+        'SELECT',
+        '      ${hiveconf:value}+1',
+        'FROM t'
+    ].join('\n'));
 })();
 
 (function testUnknownPostgresOperatorsStayWholeInsideOpaqueExpressions() {

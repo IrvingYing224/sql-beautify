@@ -1,6 +1,6 @@
 import type { Dialect } from "../config/options";
 import type { Diagnostic } from "../diagnostics/diagnostic";
-import type { SourceLeaf, TokenChannel, TokenKind } from "./token";
+import { isTemplateFragment, type SourceLeaf, type TokenChannel, type TokenKind } from "./token";
 import { getLexicalProfile } from "./lexical-profile";
 import {
     codePointAt,
@@ -52,6 +52,7 @@ const CHANNEL_BY_KIND: Record<TokenKind, TokenChannel> = {
 };
 
 const PUNCTUATION = new Set([",", ";", "(", ")", "[", "]", "{", "}", ".", ":"]);
+const FRAGMENT_STOPS = new Set([",", "(", ")", ";"]);
 const POSTGRES_OPERATOR_CHARACTERS = new Set("~!@#^&|`?+-*/%<>=".split(""));
 const POSTGRES_NONSTANDARD_OPERATOR_CHARACTERS = new Set("~!@#^&|`?%".split(""));
 
@@ -1053,9 +1054,65 @@ export function lexSql(source: string, options?: LexOptions): LexOutput {
     while (state.cursor < state.length) {
         advanceOneLeaf(state);
     }
+    const leaves = state.profile.templateParameters
+        ? mergeTemplateFragments(source, state.leaves)
+        : state.leaves;
 
     return {
-        leaves: freezeSourceLeafPartition(state.leaves, source, dialect),
+        leaves: freezeSourceLeafPartition(leaves, source, dialect),
         diagnostics: state.diagnostics,
     };
+}
+
+function fragmentAbsorbs(leaf: SourceLeaf): boolean {
+    if (leaf.kind === "punctuation") {
+        return !FRAGMENT_STOPS.has(leaf.raw);
+    }
+    return leaf.channel !== "trivia";
+}
+
+/**
+ * Safety floor 5 (plan §4): a `${…}` template together with its zero-gap neighbours, up to
+ * whitespace, a comment or `,` `(` `)` `;`, is one template fragment, such as `${p}desc`,
+ * `ds=${dt}` or `db_${env}.tbl_${dt}`. Hive substitutes the text before lexing it, so the token
+ * boundaries inside a fragment are unknown: the fragment becomes one protected parameter leaf.
+ */
+function mergeTemplateFragments(source: string, leaves: SourceLeaf[]): SourceLeaf[] {
+    if (!leaves.some(isTemplateFragment)) {
+        return leaves;
+    }
+    const merged: SourceLeaf[] = [];
+    let index = 0;
+    while (index < leaves.length) {
+        let end = index + 1;
+        let template = isTemplateFragment(leaves[index]!);
+        if (fragmentAbsorbs(leaves[index]!)) {
+            while (end < leaves.length && fragmentAbsorbs(leaves[end]!)) {
+                template ||= isTemplateFragment(leaves[end]!);
+                end += 1;
+            }
+        }
+        if (template && end - index > 1) {
+            const span = Object.freeze({
+                start: leaves[index]!.span.start,
+                end: leaves[end - 1]!.span.end,
+            });
+            merged.push(Object.freeze({
+                id: merged.length,
+                kind: "parameter",
+                channel: CHANNEL_BY_KIND.parameter,
+                raw: source.slice(span.start, span.end),
+                span,
+            }));
+        } else {
+            for (let leafIndex = index; leafIndex < end; leafIndex += 1) {
+                const leaf = leaves[leafIndex]!;
+                merged.push(leaf.id === merged.length
+                    ? leaf
+                    : Object.freeze({ ...leaf, id: merged.length }));
+            }
+        }
+        index = end;
+    }
+    return merged;
 }
