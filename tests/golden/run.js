@@ -615,18 +615,24 @@ async function runCases(args) {
     return { count: count, failures: failures };
 }
 
-// Real SQL files outside the repository: properties only, no snapshot.
+// Real SQL files outside the repository: properties and internal failures only, no snapshot.
 async function runPrivate(dir) {
     var failures = [];
+    var statuses = {};
     var files = walk(dir, '.sql');
     for (var file of files) {
         var source = fs.readFileSync(file, 'utf8');
         var actual = await execute(source, {});
+        statuses[actual.status] = (statuses[actual.status] || 0) + 1;
+        if (actual.status === 'failed') {
+            failures.push(path.relative(dir, file) + ': failed ' + actual.codes.join(','));
+        }
         var properties = await propertyFailures(source, {}, actual);
         Object.keys(properties).forEach(function(property) {
             failures.push(path.relative(dir, file) + ': ' + property + ' ' + properties[property]);
         });
     }
+    console.log('private statuses: ' + JSON.stringify(statuses));
     return { count: files.length, failures: failures };
 }
 

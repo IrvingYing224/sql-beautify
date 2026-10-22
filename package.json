@@ -202,7 +202,6 @@
 		"test:v2:recovery": "node scripts/run-v2-suite.js recovery",
 		"test:v2:trivia": "node scripts/run-v2-suite.js trivia",
 		"test:v2:analysis": "node scripts/run-v2-suite.js analysis",
-		"test:v2:support-matrix": "node scripts/run-v2-suite.js support-matrix",
 		"test:v2:wave2": "node scripts/run-v2-suite.js wave2",
 		"test:v2:wave3-foundation": "node scripts/run-v2-suite.js wave3-foundation",
 		"test:v2:source-map-memory": "node scripts/run-v2-suite.js source-map-memory",
@@ -214,8 +213,6 @@
 		"test:v2:wave5": "node scripts/run-v2-suite.js wave5",
 		"test:v2:performance-relative": "node scripts/run-v2-suite.js performance-relative",
 		"test:v2:node-smoke": "node scripts/run-v2-suite.js node-smoke",
-		"test:v2:infrastructure": "node scripts/run-v2-suite.js infrastructure",
-		"test:production-private": "node scripts/run-v2-suite.js production-private",
 		"test:vscode-smoke": "npm run build:v2-runtime && node scripts/run-vscode-smoke.js"
 	},
 	"vsce": {

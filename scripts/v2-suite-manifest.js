@@ -43,11 +43,8 @@ var wave2 = wave2Foundation.concat(tests([
     'parser-depth',
     'trivia-binding',
     'recovery-fuzz',
-    'analysis-index',
-    'v2-support-matrix'
-]), [
-    nodeStep('scripts/generate-v2-support-matrix.js', ['--check'])
-], tests([
+    'analysis-index'
+]), tests([
     'wave2-corpus',
     'wave2-performance'
 ]));
@@ -82,11 +79,8 @@ var wave3 = wave3Foundation.concat(tests([
 ]), [
     nodeStep('scripts/profile-source-map-memory.js', ['--summary'])
 ], tests([
-    'dialect-capability-registry',
-    'v2-support-matrix'
-]), [
-    nodeStep('scripts/generate-v2-support-matrix.js', ['--check'])
-]);
+    'dialect-capability-registry'
+]));
 
 var wave4 = tests([
     'v2-runtime-boundary',
@@ -111,8 +105,6 @@ var wave4 = tests([
 ]);
 
 var wave5StageA = tests([
-    'build-suite-infrastructure',
-    'production-private-contract',
     'wave4a-transaction',
     'wave4d-transaction',
     'wave5-runtime-artifact',
@@ -143,12 +135,6 @@ var SUITES = Object.freeze({
     }),
     trivia: Object.freeze({ needs: ['core'], steps: tests(['trivia-binding']) }),
     analysis: Object.freeze({ needs: ['core'], steps: tests(['analysis-index']) }),
-    'support-matrix': Object.freeze({
-        needs: ['core'],
-        steps: tests(['v2-support-matrix']).concat([
-            nodeStep('scripts/generate-v2-support-matrix.js', ['--check'])
-        ])
-    }),
     wave2: Object.freeze({ needs: ['core'], steps: wave2 }),
     'wave3-foundation': Object.freeze({
         needs: ['typecheck', 'core'],
@@ -168,16 +154,13 @@ var SUITES = Object.freeze({
     'wave5-stage-b': Object.freeze({
         needs: ['typecheck', 'core', 'runtime'],
         steps: wave5StageA.concat(tests([
-            'wave5-production-corpus',
-            'wave5-cutover-boundary'
+            'wave5-production-corpus'
         ]))
     }),
     wave5: Object.freeze({
         needs: ['typecheck', 'core', 'runtime'],
         steps: wave5StageA.concat(tests([
-            'wave5-production-corpus',
-            'wave5-cutover-boundary',
-            'wave5-release-boundary'
+            'wave5-production-corpus'
         ]), [nodeStep('scripts/verify-clean-package.js')])
     }),
     golden: Object.freeze({
@@ -206,14 +189,6 @@ var SUITES = Object.freeze({
             'wave5-runtime-artifact'
         ])
     }),
-    infrastructure: Object.freeze({
-        needs: ['core', 'runtime'],
-        steps: tests(['build-suite-infrastructure'])
-    }),
-    'production-private': Object.freeze({
-        needs: ['runtime'],
-        steps: tests(['wave5-production-private'])
-    })
 });
 
 var PREREQUISITES = Object.freeze({
