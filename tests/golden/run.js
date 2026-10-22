@@ -30,6 +30,10 @@ var DIALECTS = ['generic', 'hive', 'postgresql', 'mysql'];
 var WAIVABLE = ['token', 'glue', 'idempotence'];
 var WORD = { keyword: true, identifier: true, number: true, parameter: true };
 var STOP = { ',': true, '(': true, ')': true, ';': true };
+var DDL_SUFFIX_WORDS = {
+    partitioned: true, by: true, stored: true, as: true,
+    avro: true, orc: true, parquet: true, rcfile: true, sequencefile: true, textfile: true,
+};
 
 function parseArgs(argv) {
     var args = { update: false, filter: null, privateDir: null, fuzz: 0 };
@@ -232,13 +236,17 @@ function sqlCaseAuthorized(source, dialect, mode, a) {
     return allowed;
 }
 
-// formatHiveDdl may change the case of its header and suffix keywords, `COMMENT` and builtin type
-// names; table, column and struct field names stay verbatim.
+// formatHiveDdl may change the case of its header keywords, the modeled suffix keywords and storage
+// formats, `COMMENT` and builtin type names. Names, strings and comments stay verbatim.
 function ddlCaseAuthorized(a) {
     var allowed = new Set();
     var i = 0;
-    function take(word) {
-        if (i < a.length && a[i].raw.toLowerCase() === word) {
+    function word(index) {
+        return (a[index].kind === 'keyword' || a[index].kind === 'identifier') &&
+            a[index].channel === 'code';
+    }
+    function take(value) {
+        if (i < a.length && word(i) && a[i].raw.toLowerCase() === value) {
             allowed.add(i++);
             return true;
         }
@@ -256,6 +264,9 @@ function ddlCaseAuthorized(a) {
     var itemStart = false;
     for (; i < a.length; i++) {
         var raw = a[i].raw.toLowerCase();
+        if (a[i].kind === 'line-comment' || a[i].kind === 'block-comment') {
+            continue;
+        }
         if (raw === '(' || raw === '<') {
             depth += 1;
             listSeen = true;
@@ -272,7 +283,9 @@ function ddlCaseAuthorized(a) {
         }
         var name = !listSeen || itemStart || (i + 1 < a.length && a[i + 1].raw === ':');
         itemStart = false;
-        if (!name && (depth === 0 || raw === 'comment' || contract.isBuiltinTypeName(raw))) {
+        if (!name && word(i) && (depth === 0
+            ? DDL_SUFFIX_WORDS[raw]
+            : raw === 'comment' || contract.isBuiltinTypeName(raw))) {
             allowed.add(i);
         }
     }
@@ -390,6 +403,14 @@ function selfTest() {
         ['create table Orc (Date string)', 'CREATE TABLE ORC (Date STRING)', ddl, 'token'],
         ['create table t (date string)', 'CREATE TABLE t (DATE STRING)', ddl, 'token'],
         ['create table t (comment string)', 'CREATE TABLE t (COMMENT STRING)', ddl, 'token'],
+        ['create table t (a int) -- KeepCase', 'create table t (a int) -- KEEPCASE', ddl, 'token'],
+        ['create table t (a int) /* KeepCase */ stored as orc',
+            'create table t (a int) /* KEEPCASE */ stored as orc', ddl, 'token'],
+        ["create table t (a int) location '/tmp/KeepCase'",
+            "create table t (a int) location '/TMP/KEEPCASE'", ddl, 'token'],
+        ["create table t (a int) comment 'KeepCase'", "create table t (a int) comment 'KEEPCASE'", ddl,
+            'token'],
+        ['create table t (a int) location x', 'create table t (a int) LOCATION X', ddl, 'token'],
         ['create table t (s struct<Name:string>)', 'CREATE TABLE t (s STRUCT<NAME:STRING>)', ddl,
             'token'],
         ['create external table if not exists Orc (comment map<string,array<int>> comment \'X\') ' +
