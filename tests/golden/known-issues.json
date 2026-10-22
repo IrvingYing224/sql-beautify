@@ -10,5 +10,11 @@
   "waive": [
    "idempotence"
   ]
+ },
+ "explicit/known/k30-comment-in-function-case": {
+  "issue": "K30",
+  "waive": [
+   "idempotence"
+  ]
  }
 }

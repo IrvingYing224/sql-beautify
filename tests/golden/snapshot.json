@@ -3076,6 +3076,11 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k30-comment-in-function-case": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k31-malformed-window": {
   "op": "formatSql",
   "status": "failed",
