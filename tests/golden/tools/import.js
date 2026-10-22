@@ -156,6 +156,8 @@ var DDL_ENV = {
     ['known/k28-template-after-identifier', 'select tbl_${dt}.a from db_${env}.tbl_${dt} where p_${k}=1'],
     ['known/k29-shift-operators', 'select a >> 1, b<<2 from t'],
     ['known/k30-comment-before-paren', 'select a from t where (b and c /* c */)'],
+    ['known/k31-recovered-item-comments', 'select a, -- 1\nb c d, -- 2\ne -- 3\nfrom t'],
+    ['known/k31-malformed-window', 'select row_number() over (partition byx a order by b desc) as rn from t'],
     ['known/k11-use', 'use db;'],
     ['known/k11-msck', 'msck repair table t;'],
     ['known/k11-analyze', 'analyze table t compute statistics;'],

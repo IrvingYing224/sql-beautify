@@ -3076,6 +3076,21 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k31-malformed-window": {
+  "op": "formatSql",
+  "status": "failed",
+  "codes": [
+   "LAYOUT_PLAN_PROVENANCE"
+  ]
+ },
+ "explicit/known/k31-recovered-item-comments": {
+  "op": "formatSql",
+  "status": "failed",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "LAYOUT_ALIGNMENT_FACTS"
+  ]
+ },
  "explicit/literal/alias-l": {
   "op": "formatSql",
   "status": "formatted",
