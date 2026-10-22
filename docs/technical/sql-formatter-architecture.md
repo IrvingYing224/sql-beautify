@@ -1,5 +1,7 @@
 # SQL Formatter Architecture
 
+> 3.0 重构期间以 [`3.0-refactor-plan.md`](3.0-refactor-plan.md) 为准。本文描述 2.x 架构；与该方案冲突时，以该方案为准。
+
 This document defines the maintained SQL Beautify 2.x architecture. User-facing behavior belongs in `README.md`; upgrade steps belong in `docs/migration-to-2.2.md`.
 
 ## Source and dependency boundaries

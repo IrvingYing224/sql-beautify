@@ -1,73 +1,91 @@
 # 仓库指南
 
-## 项目结构与模块组织
+## 定位
 
-该仓库是 Hive-first 的 SQL Beautify 2.x VS Code 扩展。`src/` 是唯一源码来源：`src/core/` 依次包含 lossless lexer、formatter-oriented CST、analysis、Layout IR、renderer、diagnostics 与 public API；`src/adapters/` 负责事务、direct/worker executor 和 VS Code host；`src/experimental/ddl/` 隔离 experimental Hive DDL / Extract DDL。`src/extension.ts` 是源码入口。
+SQL Beautify 是所有者个人使用的 Hive SQL 格式化 VS Code 扩展，VSIX 通过 GitHub Releases 分发，
+不发布 npm 或 Marketplace。优先级：排版正确 > 代码简单 > 性能。不追求可证明正确，
+不防御恶意输入，也不防御项目自身的代码。
 
-`npm run build:v2-runtime` 生成五个被 Git 忽略的生产可执行 artifact：`dist/runtime.cjs`、`dist/sql-formatter.cjs`、`dist/hive-ddl.cjs`、`dist/formatter-worker.cjs`、`dist/extension.cjs`，并复制 `src/runtime/` 的两个公开 `.d.cts` 声明。不得恢复根 `extension.js`、`vkbeautify.js`、`lib/**`、旧 bridge、root shim 或第二套生产 formatter。
+3.0 重构期间，以 `docs/technical/3.0-refactor-plan.md` 为准；该文与本文冲突时以该文为准。
 
-用户文档位于 `README.md`、`CHANGELOG.md` 和 `docs/migration-to-2.1.md`；维护者契约位于 `docs/technical/`。`docs/technical/sql-support-matrix.md` 是由 dialect registry 生成的唯一能力矩阵。
+## 结构（3.0 目标结构，重构期间逐步到位）
 
-## 构建、测试与开发命令
+- `src/core/`：lexer → syntax（CST）→ analysis → layout（Layout IR）→ renderer → api（formatSql）
+- `src/ddl/`：Hive `CREATE TABLE` 格式化与 Extract DDL
+- `src/edits/`：计算 edits、范围校验、执行器（direct / worker）
+- `src/vscode/` 与 `src/extension.ts`：VS Code 宿主
+- `tests/golden/`：排版规格（黄金快照）；`tests/unit/`：行为测试；`tests/vscode/`：真实宿主冒烟（手动）
 
-- `npm ci`：按 lockfile 安装项目本地依赖。
-- `npm run typecheck:v2`：运行 TypeScript strict 类型检查。
-- `npm run test:verify`：运行 Wave 1–5 的完整长期回归、性能和发布门。
-- `npm run verify:clean-package`：在无 `dist` 的隔离源码副本中执行 npm package lifecycle 并加载公开 facade。
-- `npm run package:vsix`：构建并验证版本化 `.vsix`。
-- `npm exec -- vsce ls --tree --no-dependencies`：检查 VSIX allowlist。
+## 命令
 
-这些本地命令不需要代理。只有远端 Git、GitHub API、依赖下载、Homebrew、`npm install` 或 `npm ci` 等真实网络操作才按当前机器要求设置 `ALL_PROXY=socks5://127.0.0.1:7897`。
+- `npm ci`、`npm run typecheck`、`npm run build`
+- `npm test`：golden 加 unit，结果必须确定
+- `npm run golden:update`：重写快照；之后必须逐条审 diff
+- `npm run package`：构建并检查 VSIX
 
-同一 worktree 的 build/test 必须串行：构建共享 `.tmp/v2-core` 和 `dist`，并行重建会制造非代码竞争。`.vsix`、`dist/**`、`.tmp/**` 不提交。
+P2 落地之前，上面这些命令还不存在，沿用现有命令：`npm run typecheck:v2`、`npm run build:v2-runtime`、
+`npm run test:verify`、`npm run package:vsix`。同一工作区的 build 和 test 串行执行。
 
-## 编码与架构规则
+本地命令不需要代理。只有远端 Git、GitHub API、依赖下载等真实网络操作，才按当前机器要求
+设置 `ALL_PROXY=socks5://127.0.0.1:7897`。
 
-TypeScript 源码遵循现有 strict、ES module、不可变对象与 4 空格缩进风格；Node 构建/测试脚本继续使用 4 空格、分号、`var` 与 CommonJS。改动应落在拥有该职责的层，不在 facade 或 host 中复制 core 逻辑。
+## 安全底线（只有这五条）
 
-- `src/core/**` 不得导入 adapter、VS Code 或 experimental DDL。
-- lexer 是 token/source span 的唯一权威；CST/syntax 是结构边界的唯一权威；analysis index 是后续查询结构关系的唯一权威。
-- layout policy 只生成 Layout IR；renderer 是格式化空白和 keyword case 的唯一写入者。render 后不得增加全局 SQL regex 或 whitespace normalization。
-- 注释、字符串、quoted identifier、参数、方言 literal 和 verbatim/opaque source slice 不得被结构 pass 改写。
-- 未建模或 malformed 结构必须按可证明边界 preserve；禁止通过单词值或局部正则猜测语法。
-- document、range、multi-selection、worker 和 experimental DDL 必须 fail closed 且 all-or-nothing；失败、取消、stale 或任一 target 拒绝时不提交部分 edit。
-- 热路径查询复用 analysis index 和预计算 facts；不得为每个 node/leaf 重新全表扫描。
+1. lexer 无损：所有 leaf 拼接等于原文。
+2. 格式化输出 token 等价且粘连保持：相邻的单词类 leaf（keyword、identifier、number、
+   parameter）之间有没有空白与原文相同；`${…}` 模板片段内部不出现空白，片段外侧原有的空白
+   不删除（完整定义见 3.0 方案 §4）；不成立时返回原文。Extract 不适用。
+3. 编辑原子提交：快照版本 → 计算全部 target → 复查版本 → 一次提交并检查结果；
+   任一失败、取消或过期时不提交任何 edit。
+4. 资源上限：输入长度、parser 深度、输出上限；超限时返回原文。
+5. 字符串、注释、引号标识符、`${…}` 模板、Hive 数字 literal、脚本命令载荷、模板片段，
+   内容（包括大小写和内部空白）不改写。模板保护以"展开值不改变词法结构"为前提（D13）。
 
-公开值 API 只允许 `vscode-sql-beautify/formatter` 的 `formatSql`/`lexSql` 和 `vscode-sql-beautify/experimental/ddl` 的 `formatHiveDdl`/`extractDdl`。不得公开 parser、CST、layout、transaction、executor 或 internal `dist` 路径。
+内部 bug 直接 throw，由顶层 catch 返回原文加 `FMT_INTERNAL`。除此之外没有运行时"契约"。
 
-## 配置、命令与 experimental 边界
+## 排版规则
 
-VS Code 只读取 `sqlBeautify.*`；仅注册 `sqlBeautify.formatSql`、`sqlBeautify.formatHiveDdl`、`sqlBeautify.extractHiveDdl`、`sqlBeautify.copySafeDiagnosticReport`。不得恢复 `extension.*` command、`languageMode` fallback、positional API 或 `postgres` alias。canonical PostgreSQL 值是 `postgresql`，默认 dialect 是 `hive`，默认 unsupported policy 是 `warn`。
+- `tests/golden` 是排版行为的唯一规格。任何排版变化都必须体现为 golden diff，并在提交说明中解释。
+- 修排版 bug：先加或改 golden 用例，再改 layout policy。
+- 纯重构提交：golden 必须零变化。
+- layout policy 只产出 Layout IR；renderer 是唯一写空白和关键字大小写的地方；render 之后不做全局正则。
+- 未建模结构优先走通用排版层；只有词法不安全时才原样保留，且只保留最小安全片段。
+- 通用排版层只改空白的量，不改空白的有无；只对语句头表中的前导关键字改大小写；命令载荷原样保留。
+- 结构判断来自 CST，不按单词值或局部正则猜测语法。
 
-Experimental Hive DDL 不是通用 DDL parser。格式化器只接受完整消费的已建模 `CREATE TABLE` 子集；Extract DDL 只接受完整且不歧义的 projection schema，不推断真实类型。任何非成功结果必须保留完整原文，批量 DDL 任一目标失败时整批不提交。
+## 明确不做（写代码和复核都不要提出）
 
-README 只写最终用户的安装、使用、配置和风险信息。迁移细节写入 `docs/migration-to-2.1.md`；架构与内部契约写入 `docs/technical/`；不要把阶段性实现计划复制回 README。
+- 对内部构造的对象做 Proxy、descriptor、prototype、brand、provenance、WeakSet 归属检查
+- debug-only 的不变量 oracle、只给测试用的统计计数、记账型资源预算
+- 墙钟或比值性能门、发布字节溯源、锁定文档措辞的测试
+- 为没有复现的理论竞态增加防御
+- npm 公共 API、第二套事务实现
 
-## 测试指南
+## 编码
 
-格式化 core 改动至少运行受影响的 targeted test 与 `npm run test:verify`。registry/support boundary 改动还要运行 `npm run test:v2:support-matrix` 并明确执行 generator `--write` 后再 `--check`。adapter、命令、配置、range、selection、worker 或 DDL 改动必须覆盖对应 `tests/v2/wave4*.test.js` 与 Wave 5 boundary。发布、exports、files、版本或 workflow 改动还要运行：
+- TypeScript strict、ES module、4 空格缩进；Node 脚本使用 CommonJS。
+- 改动落在拥有该职责的层，不在宿主里复制 core 逻辑。
+- 新增抽象必须让总代码量下降，或直接支撑某个 golden 用例。
+- 函数尽量不超过 150 行，文件尽量不超过 800 行（parser 除外）。
 
-```bash
-npm run verify:clean-package
-npm run package:vsix
-npm exec -- vsce ls --tree --no-dependencies
-node tests/v2/wave5-release-boundary.test.js
-git diff --check
-```
+## 测试
 
-验证完成必须以实际命令输出为证据，不把人工 smoke 当成自动化门的替代。
+- 改 core 或 ddl：`npm test`。
+- 改 edits 或 vscode：`npm test`，必要时手动运行 `npm run test:vscode`。
+- 行为以 golden 和少量 unit 测试为准，不要求逐函数写单测。
 
 ## 提交与发布
 
-提交格式为 `<type>(scope): <summary>`；中文 summary 以动词开头、不超过 50 个汉字且不以句号结尾。每个提交只覆盖一个可回滚边界。不得提交 `.vsix`。
+- 提交格式 `<type>(scope): <summary>`，中文 summary 以动词开头、不超过 50 字、不以句号结尾；
+  一个提交对应一个可回滚的边界。
+- 在功能分支上开发，通过 PR 合入 `main`。
+- 发布：在 `main` 上手动触发 workflow；package 版本、tag、CHANGELOG 三者一致；
+  未发布的版本不写发布日期。
+- 不提交 `.vsix`、`dist/`、`.tmp/`。
 
-PR/push CI 默认只读并执行测试/package smoke。正式发布必须先把发布提交合入并推送 `main`，再从 `main` 手动触发 `Build VSIX` workflow。package version、lock root version、VSIX 文件名/manifest、workflow SHA、`origin/main`、tag 和 Release target 必须一致。不要从功能分支发布。
+## 协作
 
-## 经验规则：仓库内工作无须用户确认
-
-- 触发信号：用户已给出长期目标或明确范围，后续需要规划、跨 checkpoint、修改代码、测试、审查、委派、文档、stage 或创建聚焦本地提交。
-- 根因 / 约束：逐次等待“继续”会割裂长期任务，且不能替代自动验证与独立审查。
-- 正确做法：主代理在既定范围内自主连续推进，并可自主委派边界清晰的实现或只读 review；主代理对证据和结论负责。
-- 完成约束：验证失败、证据不足或 Critical/Important 未清零时不得声称完成或创建对应完成提交。用户明确暂停、禁止提交或改变范围时立即遵从。
-- 授权边界：适用于仓库内可验证、可回退的规划、实现、测试、审查、委派、文档、暂存、本地合并和本地提交；不授权 push、release、改写历史、删除用户数据或其他不可逆 / 外部状态变更。
-- 验证方法：交付列出改动、实际命令结果、审查结论和本地提交，并声明未越过外部状态边界。
+- Claude 主导实现，GPT 复核；复核规则见 `docs/technical/3.0-refactor-plan.md` §8。
+- 仓库内可回退的规划、实现、测试、文档和本地提交可以自主推进；可以 push 到 `claude/*`
+  功能分支（D12）；合入 `main`、发布、改写历史、删除用户数据需要所有者确认。
+- 验证失败或证据不足时，不得声称完成。
