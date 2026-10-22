@@ -17,8 +17,12 @@ var core = path.join(root, '.tmp', 'v2-core');
 var format = require(path.join(core, 'core', 'api', 'format.js'));
 var lexer = require(path.join(core, 'core', 'lexer', 'index.js'));
 var analyze = require(path.join(core, 'core', 'analysis', 'analyze.js'));
+var resolveOptions = require(path.join(core, 'core', 'config', 'resolve-options.js'));
+var policy = require(path.join(core, 'core', 'layout', 'policy.js'));
 var contract = require(path.join(core, 'core', 'syntax', 'contextual-fact-contract.js'));
 var environment = require(path.join(core, 'core', 'renderer', 'environment.js'));
+var parser = require(path.join(core, 'core', 'syntax', 'parser.js'));
+var typeCursor = require(path.join(core, 'core', 'syntax', 'type-cursor.js'));
 var hiveDdl = require(path.join(core, 'experimental', 'ddl', 'hive-ddl.js'));
 var extract = require(path.join(core, 'experimental', 'ddl', 'extract.js'));
 var ddlTransaction = require(path.join(core, 'adapters', 'transaction', 'experimental-ddl.js'));
@@ -30,10 +34,6 @@ var DIALECTS = ['generic', 'hive', 'postgresql', 'mysql'];
 var WAIVABLE = ['token', 'glue', 'idempotence'];
 var WORD = { keyword: true, identifier: true, number: true, parameter: true };
 var STOP = { ',': true, '(': true, ')': true, ';': true };
-var DDL_SUFFIX_WORDS = new Set([
-    'partitioned', 'by', 'stored', 'as',
-    'avro', 'orc', 'parquet', 'rcfile', 'sequencefile', 'textfile',
-]);
 
 function parseArgs(argv) {
     var args = { update: false, filter: null, privateDir: null, fuzz: 0 };
@@ -218,28 +218,33 @@ function describe(leaves, index) {
     }));
 }
 
-// Indexes into the input code leaves whose case formatSql may change: the CST keyword roles
-// that the runtime token check accepts (src/core/api/format.ts).
-function sqlCaseAuthorized(source, dialect, mode, a) {
+// Indexes into the input code leaves whose case formatSql may change: leaves the layout plan
+// re-cases that also have a CST keyword role, as in the runtime token check (src/core/api/format.ts).
+function sqlCaseAuthorized(source, options, dialect, mode, a) {
     var analysis = analyze.analyzeSql(source, { dialect: dialect, mode: mode });
+    var resolved = resolveOptions.resolveFormatOptions(options);
+    var planned = resolved.ok && analysis.status === 'analyzed'
+        ? policy.buildLayoutPlan(analysis, resolved.options)
+        : null;
+    var emissions = planned !== null && planned.ok ? planned.plan.leafEmissions : [];
     var allowed = new Set();
     a.forEach(function(leaf, index) {
         if (analysis.leaves[leaf.id].raw !== leaf.raw) {
             throw new Error('analysis leaves differ from lexer leaves at ' + leaf.id);
         }
         var syntax = analysis.index ? analysis.index.leafContext(leaf.id).syntax : null;
-        if (leaf.channel === 'code' && syntax !== null && syntax.keywordCaseEligible === true &&
-            contract.isKeywordCaseRole(syntax.syntaxRole)) {
+        if (emissions[leaf.id] === 'keyword-case' && leaf.channel === 'code' && syntax !== null &&
+            syntax.keywordCaseEligible === true && contract.isKeywordCaseRole(syntax.syntaxRole)) {
             allowed.add(index);
         }
     });
     return allowed;
 }
 
-// formatHiveDdl may change the case of its header keywords, the modeled suffix keywords and storage
-// formats, `COMMENT` and builtin type names. Names, strings and comments stay verbatim. Only input
-// the DDL formatter models (CREATE TABLE with columns, PARTITIONED BY, STORED AS) gets any: there
-// is no expression in that subset, so `<` and `>` only bracket types.
+// formatHiveDdl may change the case of its header and suffix keywords, the column `COMMENT` keyword
+// and the type names the type parser marks keyword-case eligible (`type:name`). Names, scalar type
+// arguments, strings and comments stay verbatim. Only input the DDL formatter models (CREATE TABLE
+// with columns, PARTITIONED BY, STORED AS) gets any, read with the parser calls the formatter uses.
 function ddlCaseAuthorized(source, env, a) {
     var allowed = new Set();
     var status = hiveDdl.executeFormatHiveDdl(
@@ -248,13 +253,54 @@ function ddlCaseAuthorized(source, env, a) {
     if (status !== 'formatted' && status !== 'unchanged') {
         return allowed;
     }
-    var i = 0;
-    function word(index) {
-        return (a[index].kind === 'keyword' || a[index].kind === 'identifier') &&
-            a[index].channel === 'code';
+    var artifact = parser.parseSqlArtifact(source, { dialect: 'hive', mode: 'document' });
+    var leaves = artifact.output.leaves;
+    var codeIndex = new Map();
+    a.forEach(function(leaf, index) {
+        if (leaves[leaf.id].raw !== leaf.raw) {
+            throw new Error('DDL parse leaves differ from lexer leaves at ' + leaf.id);
+        }
+        codeIndex.set(leaf.id, index);
+    });
+    function nextCode(id) {
+        return a.findIndex(function(leaf) { return leaf.id >= id; });
     }
+    function wordAt(index, value) {
+        return index >= 0 && index < a.length && a[index].channel === 'code' &&
+            (a[index].kind === 'keyword' || a[index].kind === 'identifier') &&
+            a[index].raw.toLowerCase() === value;
+    }
+    function typeNames(node) {
+        if (node.kind === 'type-expression' && node.syntaxMarkers.some(function(marker) {
+            return marker.syntaxId === 'type:name' && marker.keywordCaseEligible;
+        })) {
+            allowed.add(codeIndex.get(node.typeNameLeafRange.start));
+        }
+        if (node.kind === 'type-expression' || node.kind === 'list' || node.kind === 'list-item') {
+            node.children.forEach(typeNames);
+        }
+    }
+    // Items `name type [COMMENT 'text']` between `(` at code index `open` and its match; returns the
+    // code index after the match.
+    function columnList(open) {
+        var close = artifact.tokenTable.matchingDelimiterIndex(a[open].id);
+        typeCursor.splitTopLevelTypeItems(leaves, artifact.tokenTable, { start: a[open].id + 1, end: close })
+            .forEach(function(range) {
+                var name = nextCode(range.start);
+                var parsed = parser.parseTypePrefixFromArtifact(
+                    artifact, { start: a[name + 1].id, end: range.end }
+                );
+                typeNames(parsed.node);
+                var after = nextCode(parsed.endLeafIndex);
+                if (after >= 0 && a[after].id < range.end && wordAt(after, 'comment')) {
+                    allowed.add(after);
+                }
+            });
+        return codeIndex.get(close) + 1;
+    }
+    var i = 0;
     function take(value) {
-        if (i < a.length && word(i) && a[i].raw.toLowerCase() === value) {
+        if (wordAt(i, value)) {
             allowed.add(i++);
             return true;
         }
@@ -267,35 +313,17 @@ function ddlCaseAuthorized(source, env, a) {
         take('not');
         take('exists');
     }
-    var depth = 0;
-    var listSeen = false;
-    var itemStart = false;
-    for (; i < a.length; i++) {
-        var raw = a[i].raw.toLowerCase();
-        if (a[i].kind === 'line-comment' || a[i].kind === 'block-comment') {
-            continue;
-        }
-        if (raw === '(' || raw === '<') {
-            depth += 1;
-            listSeen = true;
-            itemStart = depth === 1;
-            continue;
-        }
-        if (raw === ')' || raw === '>' || raw === '>>') {
-            depth -= raw === '>>' ? 2 : 1;
-            continue;
-        }
-        if (raw === ',') {
-            itemStart = depth === 1;
-            continue;
-        }
-        var name = !listSeen || itemStart || (i + 1 < a.length && a[i + 1].raw === ':');
-        itemStart = false;
-        if (!name && word(i) && (depth === 0
-            ? DDL_SUFFIX_WORDS.has(raw)
-            : raw === 'comment' || contract.isBuiltinTypeName(raw))) {
-            allowed.add(i);
-        }
+    while (a[i].raw !== '(') {
+        i += 1;
+    }
+    i = columnList(i);
+    if (take('partitioned')) {
+        take('by');
+        i = columnList(i);
+    }
+    if (take('stored')) {
+        take('as');
+        allowed.add(i);
     }
     return allowed;
 }
@@ -371,7 +399,7 @@ function floorFailures(source, output, spec) {
     var a = codeLeaves(source, dialect);
     var b = codeLeaves(output, dialect);
     var allowed = env.op === 'formatSql'
-        ? sqlCaseAuthorized(source, dialect, env.mode, a)
+        ? sqlCaseAuthorized(source, env.options, dialect, env.mode, a)
         : ddlCaseAuthorized(source, env, a);
     var mismatch = tokenMismatch(a, b, allowed);
     if (mismatch !== null) {
@@ -425,6 +453,13 @@ function selfTest() {
             'create table t (a int, b int, orc int, check (a > b and b > ORC))', ddl, 'token'],
         ['create table t (a int, string int, check (a = string))',
             'create table t (a int, string int, check (a = STRING))', ddl, 'token'],
+        ['create table t (a decimal(int))', 'create table t (a decimal(INT))', ddl, 'token'],
+        ['create table t (a custom_type(string))', 'create table t (a custom_type(STRING))', ddl,
+            'token'],
+        ['create table t (a varchar(comment))', 'create table t (a varchar(COMMENT))', ddl, 'token'],
+        ['create table t (a comment)', 'create table t (a COMMENT)', ddl, 'token'],
+        ['create table t (a map<string,comment>)', 'create table t (a map<string,COMMENT>)', ddl,
+            'token'],
         ['create table t (s struct<Name:string>)', 'CREATE TABLE t (s STRUCT<NAME:STRING>)', ddl,
             'token'],
         ['create external table if not exists Orc (comment map<string,array<int>> comment \'X\') ' +
@@ -643,6 +678,7 @@ if (require.main === module) {
 module.exports = {
     codeLeaves: codeLeaves,
     ddlCaseAuthorized: ddlCaseAuthorized,
+    sqlCaseAuthorized: sqlCaseAuthorized,
     floorFailures: floorFailures,
     loadRuns: loadRuns,
     resolveEnvironment: resolveEnvironment,
