@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT count(*) AS count_16_0 FROM t16 t) q

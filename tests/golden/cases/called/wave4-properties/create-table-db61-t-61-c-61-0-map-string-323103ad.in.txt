@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db61.`t(61` (
+`c,61_0` MAP<STRING,ARRAY<INT>>,
+`c,61_1` DECIMAL(17,1),
+c61_2 ARRAY<STRUCT<x:STRING,n:INT>> COMMENT 'FROM,61 (2)',
+`c,61_3` STRING
+);

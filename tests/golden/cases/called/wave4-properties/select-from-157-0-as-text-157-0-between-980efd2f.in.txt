@@ -1,0 +1,1 @@
+SELECT 'FROM,157_0' AS text_157_0, /* between */ `quoted,157_1` AS quoted_157_1, /* between */ t.c2 AS c157_2, /* between */ `quoted,157_3` AS quoted_157_3, /* between */ t.c4 AS c157_4 FROM t157 t WHERE (t.c0 >= 3 AND t.c0 IS NOT NULL)

@@ -1,0 +1,14 @@
+WITH
+      c86 AS (
+          SELECT
+                'FROM,86_0' AS text_86_0
+          FROM t86 t
+          WHERE (t.c0 >= 9
+              AND t.c0 IS NOT NULL)
+          ORDER BY
+                t.c0 DESC
+          LIMIT 12
+      )
+SELECT
+      *
+FROM c86

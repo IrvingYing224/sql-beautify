@@ -1,0 +1,6 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db117.`t(117` (
+c117_0 MAP<STRING,ARRAY<INT>>,
+c117_1 DECIMAL(10,1),
+c117_2 STRING COMMENT 'FROM,117 (2)'
+);

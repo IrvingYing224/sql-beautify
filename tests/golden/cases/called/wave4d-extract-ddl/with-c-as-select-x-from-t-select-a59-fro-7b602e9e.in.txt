@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+WITH c AS (SELECT x FROM t) SELECT a59 FROM c

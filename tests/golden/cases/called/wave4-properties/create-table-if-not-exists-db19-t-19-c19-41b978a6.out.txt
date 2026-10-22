@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS db19.`t(19`
+(
+     c19_0 DECIMAL(11,3)
+);

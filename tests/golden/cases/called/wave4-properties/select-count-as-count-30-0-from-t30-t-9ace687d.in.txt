@@ -1,0 +1,1 @@
+SELECT count(*) AS count_30_0 FROM t30 t

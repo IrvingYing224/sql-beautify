@@ -1,0 +1,8 @@
+SELECT
+      t.c0 AS c2_0
+FROM t2 t
+WHERE (t.c0 >= 2
+    AND t.c0 IS NOT NULL)
+ORDER BY
+      t.c0 DESC
+LIMIT 3

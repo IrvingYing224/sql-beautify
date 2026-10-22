@@ -1,0 +1,5 @@
+CREATE EXTERNAL TABLE db104.`t(104`
+(
+     `c,104_0` STRING COMMENT 'FROM,104 (0)'
+    ,c104_1    STRING
+);

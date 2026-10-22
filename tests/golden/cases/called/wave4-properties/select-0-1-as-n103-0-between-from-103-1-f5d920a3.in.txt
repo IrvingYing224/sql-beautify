@@ -1,0 +1,1 @@
+SELECT (0 + 1) AS n103_0, /* between */ 'FROM,103_1' AS text_103_1 FROM t103 t WHERE (t.c0 >= 4 AND t.c0 IS NOT NULL) -- tail 103

@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT count(*) AS count_116_0 FROM t116 t ORDER BY t.c0 DESC LIMIT 17) q

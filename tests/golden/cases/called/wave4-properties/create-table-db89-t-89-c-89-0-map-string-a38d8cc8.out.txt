@@ -1,0 +1,4 @@
+CREATE TABLE db89.`t(89`
+(
+     `c,89_0` MAP<STRING,ARRAY<INT>>
+);

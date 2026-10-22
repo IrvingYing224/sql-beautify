@@ -1,0 +1,1 @@
+SELECT count(DISTINCT *) AS invalid_37 FROM t37

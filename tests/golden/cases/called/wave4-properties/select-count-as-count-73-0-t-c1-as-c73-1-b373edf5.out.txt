@@ -1,0 +1,3 @@
+     count_73_0 __TYPE_REQUIRED__
+    ,c73_1      __TYPE_REQUIRED__
+    ,n73_2      __TYPE_REQUIRED__

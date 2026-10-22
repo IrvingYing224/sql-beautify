@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE db3.`t(3` (
+`c,3_0` STRING,
+c3_1 MAP<STRING,ARRAY<INT>>
+);

@@ -1,0 +1,3 @@
+SELECT count(*) AS count_73_0,
+t.c1 AS c73_1,
+(2 + 5) AS n73_2 FROM t73 t -- tail 73

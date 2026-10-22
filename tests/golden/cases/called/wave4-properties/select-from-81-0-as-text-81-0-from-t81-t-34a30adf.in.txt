@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT 'FROM,81_0' AS text_81_0 FROM t81 t WHERE (t.c0 >= 4 AND t.c0 IS NOT NULL)

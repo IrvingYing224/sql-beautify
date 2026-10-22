@@ -1,0 +1,10 @@
+SELECT
+      q.c0
+FROM (
+    SELECT
+          (0 + 11) AS n11_0
+    FROM t11 t
+    ORDER BY
+          t.c0 DESC
+    LIMIT 12
+) q -- tail 11

@@ -1,0 +1,10 @@
+SELECT
+      'FROM,144_0' AS text_144_0, /* between */
+      (1 + 8)      AS n144_1,     /* between */
+      CASE
+          WHEN t.c2 = 4 THEN t.c2
+          ELSE 0
+      END AS case_144_2
+FROM t144 t
+WHERE (t.c0 >= 1
+    AND t.c0 IS NOT NULL)

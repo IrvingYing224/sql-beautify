@@ -1,0 +1,1 @@
+SELECT count(*) AS count_74_0, /* between */ t.c1 AS c74_1, /* between */ count(*) AS count_74_2, /* between */ 'FROM,74_3' AS text_74_3, /* between */ count(*) AS count_74_4 FROM t74 t -- tail 74

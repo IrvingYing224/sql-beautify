@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db88.`t(88` (
+c88_0 STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,88 (0)'
+);

@@ -1,0 +1,11 @@
+SELECT
+      q.c0
+FROM (
+    SELECT
+          (0 + 11)       AS n113_0,       /* between */
+          'FROM,113_1'   AS text_113_1,   /* between */
+          `quoted,113_2` AS quoted_113_2, /* between */
+          'FROM,113_3'   AS text_113_3,   /* between */
+          (4 + 11)       AS n113_4
+    FROM t113 t
+) q

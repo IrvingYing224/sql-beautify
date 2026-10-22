@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db9.`t(9` (
+`c,9_0` DECIMAL(10,1) COMMENT 'FROM,9 (0)',
+c9_1 STRING
+);

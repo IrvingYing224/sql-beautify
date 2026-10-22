@@ -1,0 +1,3 @@
+SELECT q.c0 FROM (SELECT `quoted,27_0` AS quoted_27_0,
+CASE WHEN t.c1 = 6 THEN t.c1 ELSE 0 END AS case_27_1,
+(2 + 10) AS n27_2 FROM t27 t) q

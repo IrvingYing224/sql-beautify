@@ -1,0 +1,4 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+select `a	b` as x,
+       `abcdef` as y
+from t

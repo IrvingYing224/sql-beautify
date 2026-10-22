@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db7.`t(7` (
+`c,7_0` STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+`c,7_1` STRING COMMENT 'FROM,7 (1)',
+c7_2 STRING,
+c7_3 DECIMAL(17,3)
+);

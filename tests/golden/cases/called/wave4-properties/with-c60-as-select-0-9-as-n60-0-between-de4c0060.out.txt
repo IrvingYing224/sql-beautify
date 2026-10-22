@@ -1,0 +1,17 @@
+WITH
+      c60 AS (
+          SELECT
+                (0 + 9)       AS n60_0,       /* between */
+                t.c1          AS c60_1,       /* between */
+                `quoted,60_2` AS quoted_60_2, /* between */
+                CASE
+                    WHEN t.c3 = 4 THEN t.c3
+                    ELSE 0
+                END AS case_60_3
+          FROM t60 t
+          WHERE (t.c0 >= 5
+              AND t.c0 IS NOT NULL)
+      )
+SELECT
+      *
+FROM c60

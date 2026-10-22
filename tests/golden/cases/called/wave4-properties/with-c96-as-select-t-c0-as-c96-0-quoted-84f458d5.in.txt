@@ -1,0 +1,5 @@
+WITH c96 AS (SELECT t.c0 AS c96_0,
+`quoted,96_1` AS quoted_96_1,
+'FROM,96_2' AS text_96_2,
+count(*) AS count_96_3,
+'FROM,96_4' AS text_96_4 FROM t96 t WHERE (t.c0 >= 8 AND t.c0 IS NOT NULL)) SELECT * FROM c96 -- tail 96

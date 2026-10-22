@@ -1,0 +1,4 @@
+     count_83_0 __TYPE_REQUIRED__
+    ,text_83_1  __TYPE_REQUIRED__
+    ,count_83_2 __TYPE_REQUIRED__
+    ,text_83_3  __TYPE_REQUIRED__

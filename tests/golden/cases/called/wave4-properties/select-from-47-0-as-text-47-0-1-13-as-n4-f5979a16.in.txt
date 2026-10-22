@@ -1,0 +1,4 @@
+SELECT 'FROM,47_0' AS text_47_0,
+(1 + 13) AS n47_1,
+t.c2 AS c47_2,
+`quoted,47_3` AS quoted_47_3 FROM t47 t

@@ -1,0 +1,4 @@
+WITH c137 AS (SELECT (0 + 1) AS n137_0,
+t.c1 AS c137_1,
+`quoted,137_2` AS quoted_137_2,
+t.c3 AS c137_3 FROM t137 t WHERE (t.c0 >= 5 AND t.c0 IS NOT NULL)) SELECT * FROM c137

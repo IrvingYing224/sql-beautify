@@ -1,0 +1,5 @@
+SELECT
+      'FROM,  x' AS text_value
+    , `Case`
+FROM t -- tail
+WHERE a = 1

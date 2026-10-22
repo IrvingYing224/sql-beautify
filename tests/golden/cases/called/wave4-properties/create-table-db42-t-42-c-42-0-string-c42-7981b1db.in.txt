@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db42.`t(42` (
+`c,42_0` STRING,
+c42_1 ARRAY<STRUCT<x:STRING,n:INT>>,
+`c,42_2` MAP<STRING,ARRAY<INT>> COMMENT 'FROM,42 (2)',
+c42_3 ARRAY<STRUCT<x:STRING,n:INT>>
+);

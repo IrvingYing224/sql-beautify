@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT count(*) AS count_83_0, 'FROM,83_1' AS text_83_1, count(*) AS count_83_2, 'FROM,83_3' AS text_83_3 FROM t83 t WHERE (t.c0 >= 6 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 9

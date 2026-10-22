@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT 'FROM,153_0' AS text_153_0, (1 + 0) AS n153_1 FROM t153 t) q

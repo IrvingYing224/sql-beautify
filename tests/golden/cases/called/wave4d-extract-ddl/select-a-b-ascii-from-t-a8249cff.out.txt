@@ -1,0 +1,3 @@
+     `a	b` __TYPE_REQUIRED__
+    ,ascii __TYPE_REQUIRED__
+    ,`中`  __TYPE_REQUIRED__

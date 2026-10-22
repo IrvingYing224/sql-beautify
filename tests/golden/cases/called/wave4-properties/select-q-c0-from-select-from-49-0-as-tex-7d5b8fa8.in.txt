@@ -1,0 +1,5 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT 'FROM,49_0' AS text_49_0,
+count(*) AS count_49_1,
+CASE WHEN t.c2 = 0 THEN t.c2 ELSE 0 END AS case_49_2,
+`quoted,49_3` AS quoted_49_3 FROM t49 t) q -- tail 49

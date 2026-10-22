@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT (0 + 7) AS n24_0 FROM t24 t ORDER BY t.c0 DESC LIMIT 25) q -- tail 24

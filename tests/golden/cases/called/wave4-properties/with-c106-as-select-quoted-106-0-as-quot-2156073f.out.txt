@@ -1,0 +1,12 @@
+WITH
+      c106 AS (
+          SELECT
+                `quoted,106_0` AS quoted_106_0, /* between */
+                'FROM,106_1'   AS text_106_1
+          FROM t106 t
+          WHERE (t.c0 >= 7
+              AND t.c0 IS NOT NULL)
+      )
+SELECT
+      *
+FROM c106 -- tail 106

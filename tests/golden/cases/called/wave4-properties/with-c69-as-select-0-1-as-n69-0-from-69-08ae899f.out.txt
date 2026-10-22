@@ -1,0 +1,17 @@
+WITH
+      c69 AS (
+          SELECT
+                (0 + 1)     AS n69_0
+              , 'FROM,69_1' AS text_69_1
+              , (2 + 1)     AS n69_2
+              , CASE
+                  WHEN t.c3 = 6 THEN t.c3
+                  ELSE 0
+              END AS case_69_3
+          FROM t69 t
+          WHERE (t.c0 >= 3
+              AND t.c0 IS NOT NULL)
+      )
+SELECT
+      *
+FROM c69

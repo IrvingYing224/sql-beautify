@@ -1,0 +1,2 @@
+     text_18_0 __TYPE_REQUIRED__
+    ,n18_1     __TYPE_REQUIRED__

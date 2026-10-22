@@ -1,0 +1,5 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT t.c0 AS c158_0,
+`quoted,158_1` AS quoted_158_1,
+'FROM,158_2' AS text_158_2,
+count(*) AS count_158_3 FROM t158 t ORDER BY t.c0 DESC LIMIT 9) q

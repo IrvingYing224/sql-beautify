@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT a121, count(*) AS n FROM t

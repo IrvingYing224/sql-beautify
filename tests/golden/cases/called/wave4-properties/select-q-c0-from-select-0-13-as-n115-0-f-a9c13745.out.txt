@@ -1,0 +1,7 @@
+SELECT
+      q.c0
+FROM (
+    SELECT
+          (0 + 13) AS n115_0
+    FROM t115 t
+) q

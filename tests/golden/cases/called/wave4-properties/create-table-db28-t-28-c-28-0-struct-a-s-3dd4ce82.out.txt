@@ -1,0 +1,6 @@
+CREATE TABLE db28.`t(28`
+(
+     `c,28_0` STRUCT<a:STRING,b:ARRAY<BIGINT>>
+    ,`c,28_1` DECIMAL(11,0) COMMENT 'FROM,28 (1)'
+    ,c28_2    STRING
+);

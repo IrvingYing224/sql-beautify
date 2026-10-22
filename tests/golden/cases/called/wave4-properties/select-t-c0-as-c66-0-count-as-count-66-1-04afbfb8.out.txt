@@ -1,0 +1,5 @@
+     c66_0       __TYPE_REQUIRED__
+    ,count_66_1  __TYPE_REQUIRED__
+    ,c66_2       __TYPE_REQUIRED__
+    ,quoted_66_3 __TYPE_REQUIRED__
+    ,text_66_4   __TYPE_REQUIRED__

@@ -1,0 +1,1 @@
+SELECT CASE WHEN t.c0 = 5 THEN t.c0 ELSE 0 END AS case_124_0, /* between */ (1 + 5) AS n124_1, /* between */ CASE WHEN t.c2 = 5 THEN t.c2 ELSE 0 END AS case_124_2, /* between */ (3 + 5) AS n124_3, /* between */ t.c4 AS c124_4 FROM t124 t WHERE (t.c0 >= 3 AND t.c0 IS NOT NULL)

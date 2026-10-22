@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT (0 + 3) AS n3_0, /* between */ CASE WHEN t.c1 = 3 THEN t.c1 ELSE 0 END AS case_3_1, /* between */ count(*) AS count_3_2 FROM t3 t) q

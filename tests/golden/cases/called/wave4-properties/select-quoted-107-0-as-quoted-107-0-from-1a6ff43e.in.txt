@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT `quoted,107_0` AS quoted_107_0 FROM t107 t

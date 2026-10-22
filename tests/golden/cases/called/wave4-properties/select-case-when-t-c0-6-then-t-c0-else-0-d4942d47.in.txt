@@ -1,0 +1,1 @@
+SELECT CASE WHEN t.c0 = 6 THEN t.c0 ELSE 0 END AS case_76_0, /* between */ count(*) AS count_76_1, /* between */ CASE WHEN t.c2 = 6 THEN t.c2 ELSE 0 END AS case_76_2, /* between */ (3 + 8) AS n76_3 FROM t76 t ORDER BY t.c0 DESC LIMIT 2 -- tail 76

@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db43.`t(43` (
+`c,43_0` DECIMAL(17,3),
+`c,43_1` ARRAY<STRUCT<x:STRING,n:INT>>,
+c43_2 STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,43 (2)',
+`c,43_3` STRING
+);

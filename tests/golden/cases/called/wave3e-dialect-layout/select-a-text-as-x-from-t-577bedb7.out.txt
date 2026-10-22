@@ -1,0 +1,3 @@
+SELECT
+      a::text AS x
+FROM t

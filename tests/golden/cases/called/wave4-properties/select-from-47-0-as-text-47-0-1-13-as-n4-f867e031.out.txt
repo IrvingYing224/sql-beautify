@@ -1,0 +1,4 @@
+     text_47_0   __TYPE_REQUIRED__
+    ,n47_1       __TYPE_REQUIRED__
+    ,c47_2       __TYPE_REQUIRED__
+    ,quoted_47_3 __TYPE_REQUIRED__

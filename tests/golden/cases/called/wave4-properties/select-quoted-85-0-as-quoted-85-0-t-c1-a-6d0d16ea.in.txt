@@ -1,0 +1,3 @@
+-- golden: {"op":"extractDdl"}
+SELECT `quoted,85_0` AS quoted_85_0,
+t.c1 AS c85_1 FROM t85 t WHERE (t.c0 >= 8 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 11

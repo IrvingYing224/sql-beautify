@@ -1,0 +1,1 @@
+WITH c21 AS (SELECT count(*) AS count_21_0, /* between */ 'FROM,21_1' AS text_21_1 FROM t21 t WHERE (t.c0 >= 10 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 22) SELECT * FROM c21

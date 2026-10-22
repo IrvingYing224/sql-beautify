@@ -1,0 +1,4 @@
+SELECT 'FROM,127_0' AS text_127_0,
+count(*) AS count_127_1,
+'FROM,127_2' AS text_127_2,
+`quoted,127_3` AS quoted_127_3 FROM t127 t ORDER BY t.c0 DESC LIMIT 3 -- tail 127

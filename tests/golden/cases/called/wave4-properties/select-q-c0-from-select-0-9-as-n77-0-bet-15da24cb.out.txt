@@ -1,0 +1,9 @@
+SELECT
+      q.c0
+FROM (
+    SELECT
+          (0 + 9) AS n77_0, /* between */
+          t.c1    AS c77_1, /* between */
+          (2 + 9) AS n77_2
+    FROM t77 t
+) q -- tail 77

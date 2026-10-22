@@ -1,0 +1,12 @@
+SELECT
+      'FROM,4_0'   AS text_4_0
+    , (1 + 4)      AS n4_1
+    , 'FROM,4_2'   AS text_4_2
+    , `quoted,4_3` AS quoted_4_3
+    , 'FROM,4_4'   AS text_4_4
+FROM t4 t
+WHERE (t.c0 >= 4
+    AND t.c0 IS NOT NULL)
+ORDER BY
+      t.c0 DESC
+LIMIT 5

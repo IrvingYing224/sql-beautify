@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl","options":{"defaultType":"STRING"}}
+SELECT a FROM t

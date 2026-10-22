@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db53.`t(53` (
+c53_0 ARRAY<STRUCT<x:STRING,n:INT>>,
+c53_1 STRING COMMENT 'FROM,53 (1)',
+`c,53_2` DECIMAL(18,1),
+`c,53_3` MAP<STRING,ARRAY<INT>>
+);

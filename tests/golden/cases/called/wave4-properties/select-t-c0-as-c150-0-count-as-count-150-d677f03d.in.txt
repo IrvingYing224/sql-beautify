@@ -1,0 +1,1 @@
+SELECT t.c0 AS c150_0, count(*) AS count_150_1, CASE WHEN t.c2 = 3 THEN t.c2 ELSE 0 END AS case_150_2 FROM t150 t WHERE (t.c0 >= 7 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 1

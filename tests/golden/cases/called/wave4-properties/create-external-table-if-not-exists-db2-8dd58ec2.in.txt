@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db2.`t(2` (
+`c,2_0` STRING,
+c2_1 STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,2 (1)'
+);

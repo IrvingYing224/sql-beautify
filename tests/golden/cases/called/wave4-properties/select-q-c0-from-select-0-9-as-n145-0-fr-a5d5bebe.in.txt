@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT (0 + 9) AS n145_0 FROM t145 t ORDER BY t.c0 DESC LIMIT 21) q

@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db12.`t(12` (
+`c,12_0` STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+c12_1 DECIMAL(13,0)
+);

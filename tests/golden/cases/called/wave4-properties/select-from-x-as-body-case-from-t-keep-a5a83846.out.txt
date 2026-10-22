@@ -1,0 +1,4 @@
+SELECT
+      $$FROM, x$$ AS body
+    , "Case"
+FROM t /* keep */

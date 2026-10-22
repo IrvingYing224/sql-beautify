@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db142.`t(142` (
+`c,142_0` STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

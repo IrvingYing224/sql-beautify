@@ -1,0 +1,1 @@
+SELECT (0 + 12) AS n46_0, t.c1 AS c46_1 FROM t46 t WHERE (t.c0 >= 2 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 22 -- tail 46

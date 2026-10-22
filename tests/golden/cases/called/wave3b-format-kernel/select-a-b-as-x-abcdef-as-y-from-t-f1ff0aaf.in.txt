@@ -1,0 +1,4 @@
+-- golden: {"tabSize":8}
+select `a	b` as x,
+       `abcdef` as y
+from t

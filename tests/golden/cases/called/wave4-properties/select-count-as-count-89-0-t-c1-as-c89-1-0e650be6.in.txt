@@ -1,0 +1,1 @@
+SELECT count(*) AS count_89_0, t.c1 AS c89_1 FROM t89 t WHERE (t.c0 >= 1 AND t.c0 IS NOT NULL) -- tail 89

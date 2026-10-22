@@ -1,0 +1,11 @@
+SELECT
+      count(*)     AS count_156_0
+    , 'FROM,156_1' AS text_156_1
+    , (2 + 3)      AS n156_2
+    , CASE
+        WHEN t.c3 = 2 THEN t.c3
+        ELSE 0
+    END AS case_156_3
+FROM t156 t
+WHERE (t.c0 >= 2
+    AND t.c0 IS NOT NULL)

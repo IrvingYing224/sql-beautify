@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl","tabSize":8,"startColumn":2}
+SELECT `a	b`, ascii, `中` FROM t

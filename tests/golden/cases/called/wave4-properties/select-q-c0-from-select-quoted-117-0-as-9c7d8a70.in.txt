@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT `quoted,117_0` AS quoted_117_0, /* between */ t.c1 AS c117_1, /* between */ `quoted,117_2` AS quoted_117_2, /* between */ CASE WHEN t.c3 = 5 THEN t.c3 ELSE 0 END AS case_117_3, /* between */ (4 + 15) AS n117_4 FROM t117 t) q

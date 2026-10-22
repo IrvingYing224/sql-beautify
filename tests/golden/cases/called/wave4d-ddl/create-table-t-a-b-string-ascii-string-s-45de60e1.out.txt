@@ -1,0 +1,6 @@
+CREATE TABLE t
+(
+	 `a	b` STRING
+	,ascii     STRING
+	,`中`      STRING
+)

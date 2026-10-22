@@ -1,0 +1,4 @@
+     text_127_0   __TYPE_REQUIRED__
+    ,count_127_1  __TYPE_REQUIRED__
+    ,text_127_2   __TYPE_REQUIRED__
+    ,quoted_127_3 __TYPE_REQUIRED__

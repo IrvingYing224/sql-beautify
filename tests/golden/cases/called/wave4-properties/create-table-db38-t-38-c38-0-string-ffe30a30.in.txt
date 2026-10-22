@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db38.`t(38` (
+c38_0 STRING
+);

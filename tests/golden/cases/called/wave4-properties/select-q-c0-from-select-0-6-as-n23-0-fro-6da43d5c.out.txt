@@ -1,0 +1,17 @@
+SELECT
+      q.c0
+FROM (
+    SELECT
+          (0 + 6)       AS n23_0
+        , 'FROM,23_1'   AS text_23_1
+        , `quoted,23_2` AS quoted_23_2
+        , CASE
+            WHEN t.c3 = 2 THEN t.c3
+            ELSE 0
+        END AS case_23_3
+        , count(*) AS count_23_4
+    FROM t23 t
+    ORDER BY
+          t.c0 DESC
+    LIMIT 24
+) q -- tail 23

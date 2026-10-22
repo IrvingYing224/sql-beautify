@@ -1,0 +1,3 @@
+     n0_0       __TYPE_REQUIRED__
+    ,text_0_1   __TYPE_REQUIRED__
+    ,quoted_0_2 __TYPE_REQUIRED__

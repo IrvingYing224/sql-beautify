@@ -1,0 +1,1 @@
+WITH c80 AS (SELECT t.c0 AS c80_0, /* between */ count(*) AS count_80_1, /* between */ t.c2 AS c80_2 FROM t80 t WHERE (t.c0 >= 3 AND t.c0 IS NOT NULL)) SELECT * FROM c80 -- tail 80

@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT count(*) AS count_45_0 FROM t45 t ORDER BY t.c0 DESC LIMIT 21

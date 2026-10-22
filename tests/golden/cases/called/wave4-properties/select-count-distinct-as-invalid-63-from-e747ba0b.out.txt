@@ -1,0 +1,3 @@
+SELECT
+      count(DISTINCT *) AS invalid_63
+FROM t63

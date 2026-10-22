@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT `quoted,32_0` AS quoted_32_0 FROM t32 t) q

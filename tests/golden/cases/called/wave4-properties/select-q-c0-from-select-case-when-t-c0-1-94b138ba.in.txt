@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT CASE WHEN t.c0 = 1 THEN t.c0 ELSE 0 END AS case_57_0, /* between */ (1 + 6) AS n57_1 FROM t57 t) q

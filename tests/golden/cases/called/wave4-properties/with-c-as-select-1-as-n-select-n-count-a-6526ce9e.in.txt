@@ -1,0 +1,2 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+with c as (select 1 as n) select n, count(*) as total from c group by n

@@ -1,0 +1,1 @@
+SELECT t.c0 AS c125_0, count(*) AS count_125_1, CASE WHEN t.c2 = 6 THEN t.c2 ELSE 0 END AS case_125_2 FROM t125 t WHERE (t.c0 >= 4 AND t.c0 IS NOT NULL)

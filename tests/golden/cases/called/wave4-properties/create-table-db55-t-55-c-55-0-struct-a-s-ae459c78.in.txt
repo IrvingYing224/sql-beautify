@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db55.`t(55` (
+`c,55_0` STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+c55_1 ARRAY<STRUCT<x:STRING,n:INT>>,
+`c,55_2` ARRAY<STRUCT<x:STRING,n:INT>> COMMENT 'FROM,55 (2)',
+c55_3 STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

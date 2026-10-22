@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db98.`t(98` (
+c98_0 STRING COMMENT 'FROM,98 (0)',
+`c,98_1` MAP<STRING,ARRAY<INT>>
+);

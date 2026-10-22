@@ -1,0 +1,2 @@
+SELECT `quoted,126_0` AS quoted_126_0,
+t.c1 AS c126_1 FROM t126 t WHERE (t.c0 >= 5 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 2

@@ -1,0 +1,3 @@
+SELECT
+      count(*) filter (where x>1)
+FROM t

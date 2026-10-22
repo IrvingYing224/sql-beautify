@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT t.c0 AS c15_0, (1 + 15) AS n15_1, CASE WHEN t.c2 = 1 THEN t.c2 ELSE 0 END AS case_15_2, count(*) AS count_15_3 FROM t15 t ORDER BY t.c0 DESC LIMIT 16) q

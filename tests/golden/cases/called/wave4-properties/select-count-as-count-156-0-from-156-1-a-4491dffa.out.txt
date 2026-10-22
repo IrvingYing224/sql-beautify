@@ -1,0 +1,4 @@
+     count_156_0 __TYPE_REQUIRED__
+    ,text_156_1  __TYPE_REQUIRED__
+    ,n156_2      __TYPE_REQUIRED__
+    ,case_156_3  __TYPE_REQUIRED__

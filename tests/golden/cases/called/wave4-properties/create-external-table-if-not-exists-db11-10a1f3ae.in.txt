@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db114.`t(114` (
+c114_0 ARRAY<STRUCT<x:STRING,n:INT>>
+);

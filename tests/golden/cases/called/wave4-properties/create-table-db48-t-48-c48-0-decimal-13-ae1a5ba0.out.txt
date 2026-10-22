@@ -1,0 +1,7 @@
+CREATE TABLE db48.`t(48`
+(
+     c48_0    DECIMAL(13,0)
+    ,c48_1    STRUCT<a:STRING,b:ARRAY<BIGINT>>
+    ,`c,48_2` STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,48 (2)'
+    ,c48_3    DECIMAL(13,0)
+);

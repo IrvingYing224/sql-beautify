@@ -1,0 +1,8 @@
+SELECT
+      q.c0
+FROM (
+    SELECT
+          t.c0     AS c142_0
+        , count(*) AS count_142_1
+    FROM t142 t
+) q

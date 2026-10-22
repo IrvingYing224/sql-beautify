@@ -1,0 +1,8 @@
+CREATE TABLE db148.`t(148`
+(
+     `c,148_0` DECIMAL(14,0)
+    ,`c,148_1` MAP<STRING,ARRAY<INT>> COMMENT 'FROM,148 (1)'
+    ,c148_2    DECIMAL(14,0)
+    ,c148_3    DECIMAL(14,0)
+    ,c148_4    DECIMAL(14,0)
+);

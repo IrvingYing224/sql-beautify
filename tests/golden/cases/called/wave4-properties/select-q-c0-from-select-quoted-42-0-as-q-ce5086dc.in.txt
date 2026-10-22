@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT `quoted,42_0` AS quoted_42_0 FROM t42 t ORDER BY t.c0 DESC LIMIT 18) q

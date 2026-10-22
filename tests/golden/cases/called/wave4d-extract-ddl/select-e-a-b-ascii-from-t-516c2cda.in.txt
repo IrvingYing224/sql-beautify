@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT `🙂`, `é`, `a	b`, ascii FROM t

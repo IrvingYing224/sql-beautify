@@ -1,0 +1,11 @@
+SELECT
+      `quoted,102_0` AS quoted_102_0, /* between */
+      t.c1           AS c102_1,       /* between */
+      (2 + 0)        AS n102_2,       /* between */
+      CASE
+          WHEN t.c3 = 4 THEN t.c3
+          ELSE 0
+      END AS case_102_3
+FROM t102 t
+WHERE (t.c0 >= 3
+    AND t.c0 IS NOT NULL) -- tail 102

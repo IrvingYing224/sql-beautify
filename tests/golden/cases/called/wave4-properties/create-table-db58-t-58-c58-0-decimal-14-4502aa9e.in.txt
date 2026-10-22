@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db58.`t(58` (
+c58_0 DECIMAL(14,2),
+`c,58_1` MAP<STRING,ARRAY<INT>>,
+`c,58_2` STRING COMMENT 'FROM,58 (2)',
+`c,58_3` STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

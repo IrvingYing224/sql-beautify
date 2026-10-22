@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT (0 + 3) AS n122_0, t.c1 AS c122_1, `quoted,122_2` AS quoted_122_2 FROM t122 t) q

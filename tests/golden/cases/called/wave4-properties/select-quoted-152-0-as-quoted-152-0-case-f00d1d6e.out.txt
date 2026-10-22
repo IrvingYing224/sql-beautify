@@ -1,0 +1,14 @@
+SELECT
+      `quoted,152_0` AS quoted_152_0
+    , CASE
+        WHEN t.c1 = 5 THEN t.c1
+        ELSE 0
+    END AS case_152_1
+    , (2 + 16) AS n152_2
+    , CASE
+        WHEN t.c3 = 5 THEN t.c3
+        ELSE 0
+    END AS case_152_3
+FROM t152 t
+WHERE (t.c0 >= 9
+    AND t.c0 IS NOT NULL)

@@ -1,0 +1,6 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db86.`t(86` (
+c86_0 STRING,
+c86_1 DECIMAL(15,2),
+c86_2 ARRAY<STRUCT<x:STRING,n:INT>> COMMENT 'FROM,86 (2)'
+);

@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT (0 + 4) AS n55_0, CASE WHEN t.c1 = 6 THEN t.c1 ELSE 0 END AS case_55_1, `quoted,55_2` AS quoted_55_2 FROM t55 t) q -- tail 55

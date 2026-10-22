@@ -1,0 +1,10 @@
+SELECT
+      'FROM,75_0' AS text_75_0,  /* between */
+      count(*)    AS count_75_1, /* between */
+      CASE
+          WHEN t.c2 = 5 THEN t.c2
+          ELSE 0
+      END AS case_75_2
+FROM t75 t
+WHERE (t.c0 >= 9
+    AND t.c0 IS NOT NULL)

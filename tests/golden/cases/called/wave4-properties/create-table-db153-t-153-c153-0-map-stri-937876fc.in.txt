@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db153.`t(153` (
+c153_0 MAP<STRING,ARRAY<INT>>,
+`c,153_1` ARRAY<STRUCT<x:STRING,n:INT>>,
+c153_2 STRING COMMENT 'FROM,153 (2)',
+c153_3 ARRAY<STRUCT<x:STRING,n:INT>>
+);

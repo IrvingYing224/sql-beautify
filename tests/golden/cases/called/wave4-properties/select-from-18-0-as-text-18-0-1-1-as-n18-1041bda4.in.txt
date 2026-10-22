@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT 'FROM,18_0' AS text_18_0, (1 + 1) AS n18_1 FROM t18 t

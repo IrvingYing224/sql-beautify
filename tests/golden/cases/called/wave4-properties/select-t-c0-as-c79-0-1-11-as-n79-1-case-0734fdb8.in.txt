@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT t.c0 AS c79_0, (1 + 11) AS n79_1, CASE WHEN t.c2 = 2 THEN t.c2 ELSE 0 END AS case_79_2, `quoted,79_3` AS quoted_79_3, 'FROM,79_4' AS text_79_4 FROM t79 t WHERE (t.c0 >= 2 AND t.c0 IS NOT NULL)

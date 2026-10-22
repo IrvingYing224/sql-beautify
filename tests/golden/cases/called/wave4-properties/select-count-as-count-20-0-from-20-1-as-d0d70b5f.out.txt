@@ -1,0 +1,11 @@
+SELECT
+      count(*)    AS count_20_0
+    , 'FROM,20_1' AS text_20_1
+    , count(*)    AS count_20_2
+    , 'FROM,20_3' AS text_20_3
+FROM t20 t
+WHERE (t.c0 >= 9
+    AND t.c0 IS NOT NULL)
+ORDER BY
+      t.c0 DESC
+LIMIT 21

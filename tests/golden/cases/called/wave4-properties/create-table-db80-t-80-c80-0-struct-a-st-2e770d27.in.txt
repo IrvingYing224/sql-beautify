@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db80.`t(80` (
+c80_0 STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+c80_1 ARRAY<STRUCT<x:STRING,n:INT>>
+);

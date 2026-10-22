@@ -1,0 +1,4 @@
+SELECT `quoted,119_0` AS quoted_119_0,
+t.c1 AS c119_1,
+`quoted,119_2` AS quoted_119_2,
+t.c3 AS c119_3 FROM t119 t WHERE (t.c0 >= 9 AND t.c0 IS NOT NULL) -- tail 119

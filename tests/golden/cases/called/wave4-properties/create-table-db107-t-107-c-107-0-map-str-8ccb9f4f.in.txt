@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db107.`t(107` (
+`c,107_0` MAP<STRING,ARRAY<INT>> COMMENT 'FROM,107 (0)',
+c107_1 STRING
+);

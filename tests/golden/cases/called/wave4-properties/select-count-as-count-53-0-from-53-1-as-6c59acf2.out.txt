@@ -1,0 +1,6 @@
+SELECT
+      count(*)    AS count_53_0
+    , 'FROM,53_1' AS text_53_1
+FROM t53 t
+WHERE (t.c0 >= 9
+    AND t.c0 IS NOT NULL)

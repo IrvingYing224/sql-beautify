@@ -1,0 +1,7 @@
+CREATE TABLE db25.`t(25`
+(
+     `c,25_0` ARRAY<STRUCT<x:STRING,n:INT>>
+    ,c25_1    STRUCT<a:STRING,b:ARRAY<BIGINT>>
+    ,`c,25_2` DECIMAL(17,1) COMMENT 'FROM,25 (2)'
+    ,c25_3    MAP<STRING,ARRAY<INT>>
+);

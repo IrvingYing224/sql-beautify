@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT count(*) AS count_97_0, /* between */ t.c1 AS c97_1, /* between */ `quoted,97_2` AS quoted_97_2, /* between */ 'FROM,97_3' AS text_97_3, /* between */ (4 + 12) AS n97_4 FROM t97 t ORDER BY t.c0 DESC LIMIT 23) q

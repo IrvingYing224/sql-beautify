@@ -1,0 +1,6 @@
+-- golden: {"op":"extractDdl"}
+SELECT t.c0 AS c66_0,
+count(*) AS count_66_1,
+t.c2 AS c66_2,
+`quoted,66_3` AS quoted_66_3,
+'FROM,66_4' AS text_66_4 FROM t66 t WHERE (t.c0 >= 0 AND t.c0 IS NOT NULL)

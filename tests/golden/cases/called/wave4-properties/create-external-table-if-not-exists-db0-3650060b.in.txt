@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db0.`t(0` (
+`c,0_0` STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,0 (0)'
+);

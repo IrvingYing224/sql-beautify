@@ -1,0 +1,4 @@
+SELECT
+      `a	b` AS x
+    , `abcdef` AS y
+FROM t

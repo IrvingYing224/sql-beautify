@@ -1,0 +1,2 @@
+-- golden: {"mode":"fragment","newline":"\r\n"}
+select a,b from t

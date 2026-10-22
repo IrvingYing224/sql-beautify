@@ -1,0 +1,2 @@
+-- golden: {"options":{"commaStyle":"trailing"}}
+select aaaaaaaaaa as x, b as y, cc as z from t

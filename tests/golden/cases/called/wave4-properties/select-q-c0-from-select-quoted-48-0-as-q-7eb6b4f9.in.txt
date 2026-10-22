@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT `quoted,48_0` AS quoted_48_0, CASE WHEN t.c1 = 6 THEN t.c1 ELSE 0 END AS case_48_1, count(*) AS count_48_2, CASE WHEN t.c3 = 6 THEN t.c3 ELSE 0 END AS case_48_3, `quoted,48_4` AS quoted_48_4 FROM t48 t) q

@@ -1,0 +1,6 @@
+-- golden: {"op":"extractDdl"}
+SELECT CASE WHEN t.c0 = 0 THEN t.c0 ELSE 0 END AS case_35_0,
+count(*) AS count_35_1,
+'FROM,35_2' AS text_35_2,
+(3 + 1) AS n35_3,
+'FROM,35_4' AS text_35_4 FROM t35 t WHERE (t.c0 >= 2 AND t.c0 IS NOT NULL)

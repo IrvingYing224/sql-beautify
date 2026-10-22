@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db16.`t(16` (
+c16_0 STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+`c,16_1` DECIMAL(17,0),
+`c,16_2` STRING COMMENT 'FROM,16 (2)',
+`c,16_3` STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

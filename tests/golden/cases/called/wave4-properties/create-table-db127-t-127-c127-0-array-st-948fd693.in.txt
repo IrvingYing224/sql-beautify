@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db127.`t(127` (
+c127_0 ARRAY<STRUCT<x:STRING,n:INT>> COMMENT 'FROM,127 (0)',
+c127_1 ARRAY<STRUCT<x:STRING,n:INT>>
+);

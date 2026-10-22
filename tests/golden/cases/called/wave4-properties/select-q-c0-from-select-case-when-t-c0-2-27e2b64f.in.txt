@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT CASE WHEN t.c0 = 2 THEN t.c0 ELSE 0 END AS case_149_0, /* between */ count(*) AS count_149_1 FROM t149 t) q

@@ -1,0 +1,7 @@
+SELECT
+      CASE
+          WHEN t.c0 = 5 THEN t.c0
+          ELSE 0
+      END AS case_26_0
+    , `quoted,26_1` AS quoted_26_1
+FROM t26 t

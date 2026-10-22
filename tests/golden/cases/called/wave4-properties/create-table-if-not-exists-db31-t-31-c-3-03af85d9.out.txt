@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS db31.`t(31`
+(
+     `c,31_0` DECIMAL(14,3)
+);

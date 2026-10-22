@@ -1,0 +1,16 @@
+WITH
+      c120 AS (
+          SELECT
+                CASE
+                    WHEN t.c0 = 1 THEN t.c0
+                    ELSE 0
+                END AS case_120_0
+              , (1 + 1) AS n120_1
+              , t.c2    AS c120_2
+          FROM t120 t
+          WHERE (t.c0 >= 10
+              AND t.c0 IS NOT NULL)
+      )
+SELECT
+      *
+FROM c120 -- tail 120

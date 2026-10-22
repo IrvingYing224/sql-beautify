@@ -1,0 +1,6 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db51.`t(51` (
+c51_0 DECIMAL(16,3),
+`c,51_1` MAP<STRING,ARRAY<INT>>,
+c51_2 STRING COMMENT 'FROM,51 (2)'
+);

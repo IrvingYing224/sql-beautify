@@ -1,0 +1,8 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db111.`t(111` (
+c111_0 STRING,
+`c,111_1` STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,111 (1)',
+c111_2 DECIMAL(13,3),
+`c,111_3` STRING,
+c111_4 MAP<STRING,ARRAY<INT>>
+);

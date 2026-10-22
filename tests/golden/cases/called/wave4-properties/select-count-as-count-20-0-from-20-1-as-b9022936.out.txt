@@ -1,0 +1,4 @@
+     count_20_0 __TYPE_REQUIRED__
+    ,text_20_1  __TYPE_REQUIRED__
+    ,count_20_2 __TYPE_REQUIRED__
+    ,text_20_3  __TYPE_REQUIRED__

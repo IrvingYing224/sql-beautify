@@ -1,0 +1,5 @@
+CREATE EXTERNAL TABLE db5.`t(5`
+(
+     `c,5_0` STRUCT<a:STRING,b:ARRAY<BIGINT>>
+    ,`c,5_1` DECIMAL(15,1)
+);

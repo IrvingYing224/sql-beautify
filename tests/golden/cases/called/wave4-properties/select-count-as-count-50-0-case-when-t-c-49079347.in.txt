@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT count(*) AS count_50_0, CASE WHEN t.c1 = 1 THEN t.c1 ELSE 0 END AS case_50_1 FROM t50 t WHERE (t.c0 >= 6 AND t.c0 IS NOT NULL)

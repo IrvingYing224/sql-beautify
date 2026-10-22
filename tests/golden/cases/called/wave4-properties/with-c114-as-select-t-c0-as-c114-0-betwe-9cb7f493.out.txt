@@ -1,0 +1,15 @@
+WITH
+      c114 AS (
+          SELECT
+                t.c0           AS c114_0,       /* between */
+                `quoted,114_1` AS quoted_114_1, /* between */
+                'FROM,114_2'   AS text_114_2,   /* between */
+                (3 + 12)       AS n114_3,       /* between */
+                'FROM,114_4'   AS text_114_4
+          FROM t114 t
+          WHERE (t.c0 >= 4
+              AND t.c0 IS NOT NULL)
+      )
+SELECT
+      *
+FROM c114

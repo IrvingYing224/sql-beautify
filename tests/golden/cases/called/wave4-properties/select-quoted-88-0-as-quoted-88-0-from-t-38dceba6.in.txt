@@ -1,0 +1,1 @@
+SELECT `quoted,88_0` AS quoted_88_0 FROM t88 t

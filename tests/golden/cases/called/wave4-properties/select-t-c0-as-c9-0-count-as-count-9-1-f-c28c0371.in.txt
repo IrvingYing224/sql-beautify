@@ -1,0 +1,1 @@
+SELECT t.c0 AS c9_0, count(*) AS count_9_1 FROM t9 t

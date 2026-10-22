@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db37.`t(37` (
+c37_0 MAP<STRING,ARRAY<INT>>,
+c37_1 MAP<STRING,ARRAY<INT>>
+);

@@ -1,0 +1,7 @@
+CREATE EXTERNAL TABLE db95.`t(95`
+(
+     `c,95_0` STRING
+    ,c95_1    STRING
+    ,c95_2    STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,95 (2)'
+    ,c95_3    DECIMAL(15,3)
+);

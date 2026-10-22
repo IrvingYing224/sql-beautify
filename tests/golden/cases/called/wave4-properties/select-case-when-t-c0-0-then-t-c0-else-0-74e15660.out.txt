@@ -1,0 +1,7 @@
+SELECT
+      CASE
+          WHEN t.c0 = 0 THEN t.c0
+          ELSE 0
+      END AS case_91_0
+    , `quoted,91_1` AS quoted_91_1
+FROM t91 t

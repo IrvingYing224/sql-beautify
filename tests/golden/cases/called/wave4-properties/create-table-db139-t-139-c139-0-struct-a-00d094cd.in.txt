@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db139.`t(139` (
+c139_0 STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

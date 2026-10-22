@@ -253,7 +253,8 @@ matrixInputs.forEach(function(entry) {
     add('matrix', entry[0], entry[1], {}, matrix);
 });
 
-// 5. Seeds: review probes, recaptured asserted calls (with environment), parser-test inputs.
+// 5. Seeds: review probes, recaptured asserted calls (with environment), parser-test inputs and
+// the old tests' remaining calls whose output they check only by property.
 seeds.forEach(function(value) {
     var origin = value.origin.split(':');
     if (origin[0] === 'review-probe') {
@@ -281,6 +282,10 @@ seeds.forEach(function(value) {
     if (origin[0] === 'parse-harvest') {
         addSeed('parse/' + origin[1], value.source, { op: value.op, options: value.options });
     }
+});
+// Last, so an old-test call that is already a case elsewhere keeps that case.
+require(path.join(golden, 'seeds', 'called-2026-10.json')).cases.forEach(function(value) {
+    addSeed('called/' + value.origin.split(':')[1], value.source, value);
 });
 
 fs.rmSync(casesDir, { recursive: true, force: true });

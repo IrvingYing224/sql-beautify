@@ -1,0 +1,4 @@
+     quoted_119_0 __TYPE_REQUIRED__
+    ,c119_1       __TYPE_REQUIRED__
+    ,quoted_119_2 __TYPE_REQUIRED__
+    ,c119_3       __TYPE_REQUIRED__

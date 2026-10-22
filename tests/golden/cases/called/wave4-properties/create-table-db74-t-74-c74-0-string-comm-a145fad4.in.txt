@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db74.`t(74` (
+c74_0 STRING COMMENT 'FROM,74 (0)',
+c74_1 STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

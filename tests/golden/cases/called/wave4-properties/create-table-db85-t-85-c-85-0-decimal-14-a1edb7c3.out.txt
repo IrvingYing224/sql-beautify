@@ -1,0 +1,6 @@
+CREATE TABLE db85.`t(85`
+(
+     `c,85_0` DECIMAL(14,1)
+    ,c85_1    STRING COMMENT 'FROM,85 (1)'
+    ,c85_2    MAP<STRING,ARRAY<INT>>
+);

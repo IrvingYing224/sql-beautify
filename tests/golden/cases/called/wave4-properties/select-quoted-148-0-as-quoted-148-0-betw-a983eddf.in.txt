@@ -1,0 +1,1 @@
+SELECT `quoted,148_0` AS quoted_148_0, /* between */ CASE WHEN t.c1 = 1 THEN t.c1 ELSE 0 END AS case_148_1, /* between */ count(*) AS count_148_2, /* between */ 'FROM,148_3' AS text_148_3 FROM t148 t WHERE (t.c0 >= 5 AND t.c0 IS NOT NULL) -- tail 148

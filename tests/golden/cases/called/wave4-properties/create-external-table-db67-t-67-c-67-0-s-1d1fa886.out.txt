@@ -1,0 +1,5 @@
+CREATE EXTERNAL TABLE db67.`t(67`
+(
+     `c,67_0` STRING COMMENT 'FROM,67 (0)'
+    ,c67_1    STRING
+);

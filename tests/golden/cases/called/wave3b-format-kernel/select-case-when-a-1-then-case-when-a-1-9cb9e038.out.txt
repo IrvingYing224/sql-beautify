@@ -1,0 +1,174 @@
+SELECT
+      CASE
+          WHEN a = 1 THEN
+              CASE
+                  WHEN a = 1 THEN
+                      CASE
+                          WHEN a = 1 THEN
+                              CASE
+                                  WHEN a = 1 THEN
+                                      CASE
+                                          WHEN a = 1 THEN
+                                              CASE
+                                                  WHEN a = 1 THEN
+                                                      CASE
+                                                          WHEN a = 1 THEN
+                                                              CASE
+                                                                  WHEN a = 1 THEN
+                                                                      CASE
+                                                                          WHEN a = 1 THEN
+                                                                              CASE
+                                                                                  WHEN a = 1 THEN
+                                                                                      CASE
+                                                                                          WHEN a = 1 THEN
+                                                                                              CASE
+                                                                                                  WHEN a = 1 THEN
+                                                                                                      CASE
+                                                                                                          WHEN a = 1 THEN
+                                                                                                              CASE
+                                                                                                                  WHEN a = 1 THEN
+                                                                                                                      CASE
+                                                                                                                          WHEN a = 1 THEN
+                                                                                                                              CASE
+                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                      CASE
+                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                              CASE
+                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                      CASE
+                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                              CASE
+                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                      CASE
+                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                              CASE
+                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                      CASE
+                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                              CASE
+                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                                                                                          WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                                                                                  WHEN a = 1 THEN
+                                                                                                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                                                                                                          WHEN a = 1 THEN 0
+                                                                                                                                                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                                              END
+                                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                                      END
+                                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                                              END
+                                                                                                                                                                                          ELSE 1
+                                                                                                                                                                                      END
+                                                                                                                                                                                  ELSE 1
+                                                                                                                                                                              END
+                                                                                                                                                                          ELSE 1
+                                                                                                                                                                      END
+                                                                                                                                                                  ELSE 1
+                                                                                                                                                              END
+                                                                                                                                                          ELSE 1
+                                                                                                                                                      END
+                                                                                                                                                  ELSE 1
+                                                                                                                                              END
+                                                                                                                                          ELSE 1
+                                                                                                                                      END
+                                                                                                                                  ELSE 1
+                                                                                                                              END
+                                                                                                                          ELSE 1
+                                                                                                                      END
+                                                                                                                  ELSE 1
+                                                                                                              END
+                                                                                                          ELSE 1
+                                                                                                      END
+                                                                                                  ELSE 1
+                                                                                              END
+                                                                                          ELSE 1
+                                                                                      END
+                                                                                  ELSE 1
+                                                                              END
+                                                                          ELSE 1
+                                                                      END
+                                                                  ELSE 1
+                                                              END
+                                                          ELSE 1
+                                                      END
+                                                  ELSE 1
+                                              END
+                                          ELSE 1
+                                      END
+                                  ELSE 1
+                              END
+                          ELSE 1
+                      END
+                  ELSE 1
+              END
+          ELSE 1
+      END
+FROM t

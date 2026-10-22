@@ -1,0 +1,3 @@
+-- golden: {"op":"extractDdl"}
+SELECT `quoted,118_0` AS quoted_118_0,
+CASE WHEN t.c1 = 6 THEN t.c1 ELSE 0 END AS case_118_1 FROM t118 t WHERE (t.c0 >= 8 AND t.c0 IS NOT NULL)

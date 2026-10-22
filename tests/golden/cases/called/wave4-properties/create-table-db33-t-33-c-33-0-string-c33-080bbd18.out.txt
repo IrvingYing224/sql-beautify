@@ -1,0 +1,7 @@
+CREATE TABLE db33.`t(33`
+(
+     `c,33_0` STRING
+    ,c33_1    ARRAY<STRUCT<x:STRING,n:INT>>
+    ,c33_2    DECIMAL(16,1) COMMENT 'FROM,33 (2)'
+    ,`c,33_3` DECIMAL(16,1)
+);

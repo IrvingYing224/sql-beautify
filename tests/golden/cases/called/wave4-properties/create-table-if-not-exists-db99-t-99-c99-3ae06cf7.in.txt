@@ -1,0 +1,6 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db99.`t(99` (
+c99_0 DECIMAL(10,3),
+c99_1 STRING,
+`c,99_2` ARRAY<STRUCT<x:STRING,n:INT>> COMMENT 'FROM,99 (2)'
+);

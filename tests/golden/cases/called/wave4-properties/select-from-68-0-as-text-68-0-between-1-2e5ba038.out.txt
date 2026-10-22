@@ -1,0 +1,7 @@
+SELECT
+      'FROM,68_0' AS text_68_0, /* between */
+      (1 + 0)     AS n68_1,     /* between */
+      t.c2        AS c68_2
+FROM t68 t
+WHERE (t.c0 >= 2
+    AND t.c0 IS NOT NULL) -- tail 68

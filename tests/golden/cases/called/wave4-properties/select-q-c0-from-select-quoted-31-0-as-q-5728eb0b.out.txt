@@ -1,0 +1,12 @@
+SELECT
+      q.c0
+FROM (
+    SELECT
+          `quoted,31_0` AS quoted_31_0
+        , 'FROM,31_1'   AS text_31_1
+        , count(*)      AS count_31_2
+    FROM t31 t
+    ORDER BY
+          t.c0 DESC
+    LIMIT 7
+) q -- tail 31

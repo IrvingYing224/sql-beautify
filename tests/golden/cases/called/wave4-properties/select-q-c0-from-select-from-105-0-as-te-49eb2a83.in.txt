@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT 'FROM,105_0' AS text_105_0, `quoted,105_1` AS quoted_105_1, t.c2 AS c105_2, (3 + 3) AS n105_3 FROM t105 t ORDER BY t.c0 DESC LIMIT 6) q

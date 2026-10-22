@@ -1,0 +1,1 @@
+WITH c131 AS (SELECT (0 + 12) AS n131_0, /* between */ t.c1 AS c131_1, /* between */ (2 + 12) AS n131_2, /* between */ t.c3 AS c131_3 FROM t131 t WHERE (t.c0 >= 10 AND t.c0 IS NOT NULL)) SELECT * FROM c131

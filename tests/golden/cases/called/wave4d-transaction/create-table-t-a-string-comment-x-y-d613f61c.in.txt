@@ -1,0 +1,3 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE t (a STRING COMMENT 'x
+y')

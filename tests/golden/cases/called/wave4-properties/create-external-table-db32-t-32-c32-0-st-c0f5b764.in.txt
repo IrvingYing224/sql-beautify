@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE db32.`t(32` (
+c32_0 STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+c32_1 STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

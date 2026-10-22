@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl","options":{"indentStyle":"tab"},"tabSize":8}
+CREATE TABLE t (`a	b` STRING, ascii STRING, `中` STRING)

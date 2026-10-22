@@ -1,0 +1,6 @@
+CREATE TABLE db157.`t(157`
+(
+     `c,157_0` STRING
+    ,c157_1    STRING COMMENT 'FROM,157 (1)'
+    ,c157_2    ARRAY<STRUCT<x:STRING,n:INT>>
+);

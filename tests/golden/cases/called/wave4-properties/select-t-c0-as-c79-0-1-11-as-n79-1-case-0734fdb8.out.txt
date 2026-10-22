@@ -1,0 +1,5 @@
+     c79_0       __TYPE_REQUIRED__
+    ,n79_1       __TYPE_REQUIRED__
+    ,case_79_2   __TYPE_REQUIRED__
+    ,quoted_79_3 __TYPE_REQUIRED__
+    ,text_79_4   __TYPE_REQUIRED__

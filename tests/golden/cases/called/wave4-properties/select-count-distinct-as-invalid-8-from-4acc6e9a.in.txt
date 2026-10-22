@@ -1,0 +1,1 @@
+SELECT count(DISTINCT *) AS invalid_8 FROM t8

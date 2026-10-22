@@ -1,0 +1,1 @@
+WITH c19 AS (SELECT (0 + 2) AS n19_0, /* between */ 'FROM,19_1' AS text_19_1, /* between */ (2 + 2) AS n19_2, /* between */ t.c3 AS c19_3 FROM t19 t WHERE (t.c0 >= 8 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 20) SELECT * FROM c19

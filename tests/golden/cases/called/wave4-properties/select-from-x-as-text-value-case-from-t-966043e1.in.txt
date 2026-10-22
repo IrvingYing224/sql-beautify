@@ -1,0 +1,3 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+select 'FROM,  x' as text_value, `Case` from t -- tail
+where a = 1

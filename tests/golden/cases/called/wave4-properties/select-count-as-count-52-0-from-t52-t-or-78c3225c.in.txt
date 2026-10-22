@@ -1,0 +1,1 @@
+SELECT count(*) AS count_52_0 FROM t52 t ORDER BY t.c0 DESC LIMIT 3

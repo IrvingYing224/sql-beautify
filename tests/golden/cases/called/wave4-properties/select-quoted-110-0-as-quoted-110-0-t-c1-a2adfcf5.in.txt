@@ -1,0 +1,4 @@
+SELECT `quoted,110_0` AS quoted_110_0,
+t.c1 AS c110_1,
+`quoted,110_2` AS quoted_110_2,
+t.c3 AS c110_3 FROM t110 t WHERE (t.c0 >= 0 AND t.c0 IS NOT NULL)

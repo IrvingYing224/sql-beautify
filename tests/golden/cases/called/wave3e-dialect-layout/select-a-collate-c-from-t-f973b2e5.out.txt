@@ -1,0 +1,3 @@
+SELECT
+      a collate "C"
+FROM t

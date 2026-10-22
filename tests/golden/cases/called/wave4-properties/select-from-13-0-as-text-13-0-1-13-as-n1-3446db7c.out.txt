@@ -1,0 +1,4 @@
+     text_13_0 __TYPE_REQUIRED__
+    ,n13_1     __TYPE_REQUIRED__
+    ,case_13_2 __TYPE_REQUIRED__
+    ,n13_3     __TYPE_REQUIRED__

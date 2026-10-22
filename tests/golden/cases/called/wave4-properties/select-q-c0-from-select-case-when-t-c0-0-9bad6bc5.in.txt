@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT CASE WHEN t.c0 = 0 THEN t.c0 ELSE 0 END AS case_154_0, /* between */ count(*) AS count_154_1, /* between */ t.c2 AS c154_2, /* between */ count(*) AS count_154_3 FROM t154 t) q -- tail 154

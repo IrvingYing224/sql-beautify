@@ -1,0 +1,6 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db60.`t(60` (
+`c,60_0` DECIMAL(16,0),
+c60_1 MAP<STRING,ARRAY<INT>>,
+c60_2 STRING COMMENT 'FROM,60 (2)'
+);

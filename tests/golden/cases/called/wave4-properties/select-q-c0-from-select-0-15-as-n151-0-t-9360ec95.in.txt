@@ -1,0 +1,5 @@
+SELECT q.c0 FROM (SELECT (0 + 15) AS n151_0,
+t.c1 AS c151_1,
+count(*) AS count_151_2,
+t.c3 AS c151_3,
+(4 + 15) AS n151_4 FROM t151 t) q

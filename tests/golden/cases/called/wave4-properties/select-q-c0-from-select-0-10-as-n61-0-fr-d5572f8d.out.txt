@@ -1,0 +1,9 @@
+SELECT
+      q.c0
+FROM (
+    SELECT
+          (0 + 10)      AS n61_0
+        , 'FROM,61_1'   AS text_61_1
+        , `quoted,61_2` AS quoted_61_2
+    FROM t61 t
+) q

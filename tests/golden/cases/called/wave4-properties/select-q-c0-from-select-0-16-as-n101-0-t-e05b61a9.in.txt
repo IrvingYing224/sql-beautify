@@ -1,0 +1,5 @@
+SELECT q.c0 FROM (SELECT (0 + 16) AS n101_0,
+t.c1 AS c101_1,
+`quoted,101_2` AS quoted_101_2,
+CASE WHEN t.c3 = 3 THEN t.c3 ELSE 0 END AS case_101_3,
+count(*) AS count_101_4 FROM t101 t) q -- tail 101

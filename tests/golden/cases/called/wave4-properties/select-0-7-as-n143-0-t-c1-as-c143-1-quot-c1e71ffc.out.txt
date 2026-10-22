@@ -1,0 +1,8 @@
+SELECT
+      (0 + 7)        AS n143_0
+    , t.c1           AS c143_1
+    , `quoted,143_2` AS quoted_143_2
+    , 'FROM,143_3'   AS text_143_3
+FROM t143 t
+WHERE (t.c0 >= 0
+    AND t.c0 IS NOT NULL)

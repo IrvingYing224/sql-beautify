@@ -1,0 +1,7 @@
+CREATE TABLE db17.`t(17`
+(
+     c17_0    MAP<STRING,ARRAY<INT>>
+    ,c17_1    MAP<STRING,ARRAY<INT>>
+    ,c17_2    DECIMAL(18,1) COMMENT 'FROM,17 (2)'
+    ,`c,17_3` ARRAY<STRUCT<x:STRING,n:INT>>
+);

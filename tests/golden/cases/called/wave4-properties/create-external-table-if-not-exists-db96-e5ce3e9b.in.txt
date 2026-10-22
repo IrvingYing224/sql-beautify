@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db96.`t(96` (
+c96_0 ARRAY<STRUCT<x:STRING,n:INT>>
+);

@@ -1,0 +1,8 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db46.`t(46` (
+c46_0 ARRAY<STRUCT<x:STRING,n:INT>>,
+c46_1 DECIMAL(11,2) COMMENT 'FROM,46 (1)',
+c46_2 ARRAY<STRUCT<x:STRING,n:INT>>,
+`c,46_3` STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+c46_4 STRING
+);

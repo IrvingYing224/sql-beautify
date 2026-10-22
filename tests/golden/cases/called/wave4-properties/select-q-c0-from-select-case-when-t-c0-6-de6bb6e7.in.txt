@@ -1,0 +1,2 @@
+SELECT q.c0 FROM (SELECT CASE WHEN t.c0 = 6 THEN t.c0 ELSE 0 END AS case_90_0,
+count(*) AS count_90_1 FROM t90 t) q -- tail 90

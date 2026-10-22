@@ -1,0 +1,8 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db6.`t(6` (
+c6_0 STRING,
+`c,6_1` STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+`c,6_2` STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,6 (2)',
+c6_3 STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+`c,6_4` STRING
+);

@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db122.`t(122` (
+`c,122_0` STRING
+);

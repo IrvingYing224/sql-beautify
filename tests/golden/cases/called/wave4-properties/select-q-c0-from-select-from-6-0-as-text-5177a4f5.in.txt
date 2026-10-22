@@ -1,0 +1,2 @@
+SELECT q.c0 FROM (SELECT 'FROM,6_0' AS text_6_0,
+`quoted,6_1` AS quoted_6_1 FROM t6 t ORDER BY t.c0 DESC LIMIT 7) q

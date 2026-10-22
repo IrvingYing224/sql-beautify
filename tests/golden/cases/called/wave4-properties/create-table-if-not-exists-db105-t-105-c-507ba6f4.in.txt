@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db105.`t(105` (
+c105_0 ARRAY<STRUCT<x:STRING,n:INT>>
+);

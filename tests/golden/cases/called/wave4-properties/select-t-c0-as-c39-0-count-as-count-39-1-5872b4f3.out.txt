@@ -1,0 +1,5 @@
+     c39_0       __TYPE_REQUIRED__
+    ,count_39_1  __TYPE_REQUIRED__
+    ,text_39_2   __TYPE_REQUIRED__
+    ,quoted_39_3 __TYPE_REQUIRED__
+    ,text_39_4   __TYPE_REQUIRED__

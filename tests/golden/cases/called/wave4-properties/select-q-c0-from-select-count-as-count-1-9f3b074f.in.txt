@@ -1,0 +1,1 @@
+SELECT q.c0 FROM (SELECT count(*) AS count_135_0 FROM t135 t) q -- tail 135

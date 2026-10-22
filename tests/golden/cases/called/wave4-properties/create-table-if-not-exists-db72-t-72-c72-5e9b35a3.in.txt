@@ -1,0 +1,6 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db72.`t(72` (
+c72_0 STRING COMMENT 'FROM,72 (0)',
+c72_1 ARRAY<STRUCT<x:STRING,n:INT>>,
+c72_2 MAP<STRING,ARRAY<INT>>
+);

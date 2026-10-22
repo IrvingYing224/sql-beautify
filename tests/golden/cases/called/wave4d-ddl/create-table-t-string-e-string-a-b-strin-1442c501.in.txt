@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE t (`🙂` STRING, `é` STRING, `a	b` STRING, ascii STRING)

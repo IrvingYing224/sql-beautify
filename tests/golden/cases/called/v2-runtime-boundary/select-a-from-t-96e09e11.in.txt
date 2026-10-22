@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql","unsupportedSyntaxPolicy":"preserve"}}
+select a from t

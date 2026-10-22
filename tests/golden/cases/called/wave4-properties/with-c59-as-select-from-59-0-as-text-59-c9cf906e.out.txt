@@ -1,0 +1,18 @@
+WITH
+      c59 AS (
+          SELECT
+                'FROM,59_0' AS text_59_0
+              , (1 + 8)     AS n59_1
+              , t.c2        AS c59_2
+              , count(*)    AS count_59_3
+              , CASE
+                  WHEN t.c4 = 3 THEN t.c4
+                  ELSE 0
+              END AS case_59_4
+          FROM t59 t
+          WHERE (t.c0 >= 4
+              AND t.c0 IS NOT NULL)
+      )
+SELECT
+      *
+FROM c59

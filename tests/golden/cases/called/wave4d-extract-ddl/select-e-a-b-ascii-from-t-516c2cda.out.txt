@@ -1,0 +1,4 @@
+     `🙂`  __TYPE_REQUIRED__
+    ,`é`   __TYPE_REQUIRED__
+    ,`a	b` __TYPE_REQUIRED__
+    ,ascii __TYPE_REQUIRED__

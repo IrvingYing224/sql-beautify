@@ -1,0 +1,4 @@
+     n143_0       __TYPE_REQUIRED__
+    ,c143_1       __TYPE_REQUIRED__
+    ,quoted_143_2 __TYPE_REQUIRED__
+    ,text_143_3   __TYPE_REQUIRED__

@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT a52 FROM t

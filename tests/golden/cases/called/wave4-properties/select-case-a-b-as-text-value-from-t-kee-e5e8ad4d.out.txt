@@ -1,0 +1,5 @@
+SELECT
+      `Case`
+    , 'a,b' AS text_value
+FROM t # keep
+WHERE a <=> 1

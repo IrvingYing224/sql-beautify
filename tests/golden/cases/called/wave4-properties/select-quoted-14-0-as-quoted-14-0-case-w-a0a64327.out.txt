@@ -1,0 +1,11 @@
+SELECT
+      `quoted,14_0` AS quoted_14_0
+    , CASE
+        WHEN t.c1 = 0 THEN t.c1
+        ELSE 0
+    END AS case_14_1
+    , (2 + 14) AS n14_2
+    , t.c3     AS c14_3
+FROM t14 t
+WHERE (t.c0 >= 3
+    AND t.c0 IS NOT NULL)

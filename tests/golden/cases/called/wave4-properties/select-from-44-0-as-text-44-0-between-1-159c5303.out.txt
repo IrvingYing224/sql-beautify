@@ -1,0 +1,7 @@
+SELECT
+      'FROM,44_0' AS text_44_0, /* between */
+      (1 + 10)    AS n44_1
+FROM t44 t
+ORDER BY
+      t.c0 DESC
+LIMIT 20

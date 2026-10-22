@@ -1,0 +1,3 @@
+SELECT q.c0 FROM (SELECT (0 + 0) AS n136_0,
+'FROM,136_1' AS text_136_1,
+`quoted,136_2` AS quoted_136_2 FROM t136 t) q

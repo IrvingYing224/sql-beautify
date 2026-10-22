@@ -1,0 +1,4 @@
+SELECT CASE WHEN t.c0 = 1 THEN t.c0 ELSE 0 END AS case_141_0,
+`quoted,141_1` AS quoted_141_1,
+CASE WHEN t.c2 = 1 THEN t.c2 ELSE 0 END AS case_141_2,
+count(*) AS count_141_3 FROM t141 t

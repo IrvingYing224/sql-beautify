@@ -1,0 +1,5 @@
+-- golden: {"op":"extractDdl"}
+SELECT 'FROM,104_0' AS text_104_0,
+count(*) AS count_104_1,
+CASE WHEN t.c2 = 6 THEN t.c2 ELSE 0 END AS case_104_2,
+count(*) AS count_104_3 FROM t104 t ORDER BY t.c0 DESC LIMIT 5 -- tail 104

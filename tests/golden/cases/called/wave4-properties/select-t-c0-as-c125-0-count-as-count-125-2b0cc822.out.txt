@@ -1,0 +1,3 @@
+     c125_0      __TYPE_REQUIRED__
+    ,count_125_1 __TYPE_REQUIRED__
+    ,case_125_2  __TYPE_REQUIRED__

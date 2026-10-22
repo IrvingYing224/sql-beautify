@@ -1,0 +1,5 @@
+SELECT t.c0 AS c39_0,
+count(*) AS count_39_1,
+'FROM,39_2' AS text_39_2,
+`quoted,39_3` AS quoted_39_3,
+'FROM,39_4' AS text_39_4 FROM t39 t WHERE (t.c0 >= 6 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 15

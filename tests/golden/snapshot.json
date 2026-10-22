@@ -1,4 +1,2516 @@
 {
+ "called/production-private-contract/select-private-secret-9812-from-private-e092eb66": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/v2-runtime-boundary/select-a-from-t-32c13a1f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/v2-runtime-boundary/select-a-from-t-618d227f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/v2-runtime-boundary/select-a-from-t-96e09e11": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3b-format-kernel/select-a-b-as-x-abcdef-as-y-from-t-cf7108b6": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3b-format-kernel/select-a-b-as-x-abcdef-as-y-from-t-f1ff0aaf": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3b-format-kernel/select-a-b-from-t-38ade628": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3b-format-kernel/select-a-b-from-t-6907d2dc": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3b-format-kernel/select-case-when-a-1-then-case-when-a-1-9cb9e038": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-1-select-a-from-t-qualify-row-num-46d526a3": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNMODELED_CONSTRUCT",
+   "SYN_UNMODELED_CONSTRUCT"
+  ]
+ },
+ "called/wave3e-dialect-layout/select-a-as-x-from-t-f8dbff6c": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-a-collate-c-from-t-f973b2e5": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "called/wave3e-dialect-layout/select-a-div-b-from-t-fb565289": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "called/wave3e-dialect-layout/select-a-from-t-11664245": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_INCOMPLETE_CLAUSE"
+  ]
+ },
+ "called/wave3e-dialect-layout/select-a-from-t-448a4496": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_MAX_DEPTH_EXCEEDED"
+  ]
+ },
+ "called/wave3e-dialect-layout/select-a-text-as-x-from-t-577bedb7": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-array-1-2-as-x-from-t-07a60785": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-count-filter-where-x-1-from-t-ba1ea149": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "called/wave3e-dialect-layout/select-hiveconf-v-from-t-5e9d14bc": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-payload-x-as-x-from-t-28be1f04": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-payload-x-as-x-from-t-3a45e182": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-payload-x-as-x-from-t-b4dd5f7b": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-qualify-as-merge-from-pivot-where-3837a6cf": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-qualify-as-merge-from-pivot-where-42cfdc8c": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-qualify-as-merge-from-pivot-where-9089ccd1": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-dialect-layout/select-qualify-as-merge-from-pivot-where-a4d4575d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-option-matrix/select-aaaaaaaaaa-as-x-b-as-y-cc-as-z-fr-c1c846ca": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave3e-option-matrix/select-aaaaaaaaaa-as-x-c1-b-as-y-c2-cc-a-959eb215": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db103-t-103-c103-0-a55fb7eb": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db104-t-104-c-104-171747ca": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db113-t-113-c-113-43857fa6": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db124-t-124-c124-0-5a6c6338": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db14-t-14-c14-0-ar-bfd5a3d3": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db149-t-149-c-149-2cd8d9ed": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db156-t-156-c156-0-621582d4": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db3-t-3-c-3-0-stri-8859104c": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db32-t-32-c32-0-st-c0f5b764": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db35-t-35-c35-0-ma-b8600c88": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db5-t-5-c-5-0-stru-cfa5daee": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db64-t-64-c64-0-st-e4d42564": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db65-t-65-c65-0-st-bab72a6b": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db67-t-67-c-67-0-s-1d1fa886": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db70-t-70-c70-0-de-6e1c5611": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db79-t-79-c79-0-st-ddbb7466": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db91-t-91-c91-0-de-114bd78b": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db92-t-92-c-92-0-s-da9083ba": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-db95-t-95-c-95-0-s-bc330c1d": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db0-3650060b": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db11-10a1f3ae": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db11-d2d146ae": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db12-5d09ca53": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db13-055ef3ba": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db13-67823253": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db14-9194a031": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db14-f9a8e3ad": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db15-162fb411": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db15-a6974ebc": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db18-a3b51c76": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db2-8dd58ec2": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db27-75198744": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db29-42f7218e": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db4-a6500f07": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db51-afbc27dd": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db59-64613221": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db60-375612a7": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db76-c7694e0a": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db88-addf704a": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db93-aeb6cf25": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-external-table-if-not-exists-db96-e5ce3e9b": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db107-t-107-c-107-0-map-str-8ccb9f4f": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db111-t-111-c111-0-string-c-5df26a76": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db12-t-12-c-12-0-struct-a-s-edb24f1e": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db123-t-123-c-123-0-string-d368123b": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db126-t-126-c126-0-string-c-17810cac": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db127-t-127-c127-0-array-st-948fd693": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db139-t-139-c139-0-struct-a-00d094cd": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db141-t-141-c141-0-array-st-fe807e22": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db143-t-143-c-143-0-map-str-a5d29216": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db148-t-148-c-148-0-decimal-093183d3": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db153-t-153-c153-0-map-stri-937876fc": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db157-t-157-c-157-0-string-39a1ed85": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db16-t-16-c16-0-struct-a-st-afbfb9f2": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db17-t-17-c17-0-map-string-9c77836f": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db21-t-21-c-21-0-decimal-13-f452e27a": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db25-t-25-c-25-0-array-stru-bb550933": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db28-t-28-c-28-0-struct-a-s-3dd4ce82": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db33-t-33-c-33-0-string-c33-080bbd18": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db37-t-37-c37-0-map-string-8fed9052": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db38-t-38-c38-0-string-ffe30a30": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db42-t-42-c-42-0-string-c42-7981b1db": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db43-t-43-c-43-0-decimal-17-94697608": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db46-t-46-c46-0-array-struc-51211d09": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db48-t-48-c48-0-decimal-13-ae1a5ba0": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db55-t-55-c-55-0-struct-a-s-ae459c78": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db58-t-58-c58-0-decimal-14-4502aa9e": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db61-t-61-c-61-0-map-string-323103ad": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db74-t-74-c74-0-string-comm-a145fad4": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db80-t-80-c80-0-struct-a-st-2e770d27": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db85-t-85-c-85-0-decimal-14-a1edb7c3": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db89-t-89-c-89-0-map-string-a38d8cc8": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db9-t-9-c-9-0-decimal-10-1-7156d6ab": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-db98-t-98-c98-0-string-comm-56622378": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db10-t-10-c10-5abd1b23": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db100-t-100-c-4cd70b46": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db101-t-101-c-8ca66de9": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db102-t-102-c-2287d1fb": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db105-t-105-c-507ba6f4": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db106-t-106-c-7aa42c7a": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db109-t-109-c-01fd928d": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db115-t-115-c-fd0706d8": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db117-t-117-c-76f7bdb5": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db120-t-120-c-8eda01b7": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db121-t-121-c-0c343824": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db128-t-128-c-ddf65b2f": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db130-t-130-c-fd3a824c": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db131-t-131-c-ea0e3a82": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db133-t-133-c-ee439808": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db134-t-134-c-8a664bb2": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db135-t-135-c-89897828": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db142-t-142-c-f5e8f536": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db144-t-144-c-7e6760fa": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db150-t-150-c-af2b5065": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db151-t-151-c-f1a312e9": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db154-t-154-c-5a5df4db": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db159-t-159-c-a4bb2caa": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db19-t-19-c19-41b978a6": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db20-t-20-c20-e85a3663": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db26-t-26-c26-1c83d444": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db31-t-31-c-3-03af85d9": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db36-t-36-c36-a4a8099d": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db41-t-41-c-4-57b525a7": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db44-t-44-c44-33d06bdc": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db45-t-45-c45-6aa5562d": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db47-t-47-c47-d3e2f7c4": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db49-t-49-c49-992621a5": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db52-t-52-c52-57f0866a": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db53-t-53-c53-fab1fdf8": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db57-t-57-c-5-de2048f0": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db6-t-6-c6-0-24907ae5": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db63-t-63-c63-f73bf277": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db66-t-66-c66-e6ba452a": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db68-t-68-c68-0d6dc30b": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db7-t-7-c-7-0-9764bdd1": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db72-t-72-c72-5e9b35a3": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db73-t-73-c-7-2dad31d1": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db81-t-81-c81-61da50de": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db84-t-84-c84-c4037f62": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db86-t-86-c86-8e271b24": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db87-t-87-c87-c7c939c3": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/create-table-if-not-exists-db99-t-99-c99-3ae06cf7": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-0-as-n0-0-from-0-1-as-text-0-1-7a573157": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-0-as-n0-0-from-0-1-as-text-0-1-ef5d1c8c": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-1-as-n1-0-case-when-t-c1-1-then-506b451a": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-1-as-n1-0-case-when-t-c1-1-then-65c1e8fb": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-1-as-n103-0-between-from-103-1-f5d920a3": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-12-as-n46-0-t-c1-as-c46-1-from-4487317f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-12-as-n46-0-t-c1-as-c46-1-from-4a888edc": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-7-as-n143-0-t-c1-as-c143-1-quot-afcbd4a9": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-7-as-n143-0-t-c1-as-c143-1-quot-c1e71ffc": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-0-7-as-n7-0-between-t-c1-as-c7-1-23363186": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-a-b-as-text-value-from-t-kee-e5e8ad4d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-3bf7276b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-47179f1b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-74e15660": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-9ece9f04": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-a2fe7290": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-d22a7523": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-f5c1f949": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-fb539620": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-1-then-t-c0-else-0-0dcb0295": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-1-then-t-c0-else-0-6f4e6ecc": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-2-then-t-c0-else-0-f549bc0b": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-5-then-t-c0-else-0-2ad171b7": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-5-then-t-c0-else-0-3eede0f5": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-5-then-t-c0-else-0-6d0f8d46": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-6-then-t-c0-else-0-118b0eca": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-6-then-t-c0-else-0-7a50fda3": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-case-when-t-c0-6-then-t-c0-else-0-d4942d47": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-130-0-between-from-031f5902": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-156-0-from-156-1-a-4491dffa": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-156-0-from-156-1-a-fb014702": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-20-0-from-20-1-as-b9022936": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-20-0-from-20-1-as-d0d70b5f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-30-0-from-t30-t-7b5cd6ed": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-30-0-from-t30-t-9ace687d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-45-0-from-t45-t-or-056c4e2d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-45-0-from-t45-t-or-eea78cc4": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-50-0-case-when-t-c-49079347": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-50-0-case-when-t-c-82b3191d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-52-0-from-t52-t-or-71445d95": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-52-0-from-t52-t-or-78c3225c": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-53-0-from-53-1-as-6c59acf2": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-53-0-from-53-1-as-81659479": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-73-0-t-c1-as-c73-1-439e5ce7": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-73-0-t-c1-as-c73-1-b373edf5": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-74-0-between-t-c1-6c10148f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-83-0-from-83-1-as-96a0ffe7": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-83-0-from-83-1-as-c6d575e4": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-89-0-t-c1-as-c89-1-0e650be6": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-as-count-89-0-t-c1-as-c89-1-630bc216": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-121-fro-0ce481f3": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-123-fro-6e539c74": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-146-fro-b2821828": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-147-fro-3fdcffdd": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-159-fro-e31334eb": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-22-from-08c16d47": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-37-from-853f4199": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-51-from-a3d12c67": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-63-from-e747ba0b": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-64-from-d3943963": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-8-from-4acc6e9a": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-84-from-5b730760": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-count-distinct-as-invalid-87-from-9bd9b7e4": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-104-0-as-text-104-0-count-as-86de2368": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-104-0-as-text-104-0-count-as-aa863482": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-112-0-as-text-112-0-between-264522fc": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-127-0-as-text-127-0-count-as-3ffdb048": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-127-0-as-text-127-0-count-as-6792b09d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-13-0-as-text-13-0-1-13-as-n1-3446db7c": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-13-0-as-text-13-0-1-13-as-n1-408cc13f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-144-0-as-text-144-0-between-ff2cfd90": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-157-0-as-text-157-0-between-980efd2f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-18-0-as-text-18-0-1-1-as-n18-1041bda4": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-18-0-as-text-18-0-1-1-as-n18-61f3ce5f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-4-0-as-text-4-0-1-4-as-n4-1-d59d79fe": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-4-0-as-text-4-0-1-4-as-n4-1-fa1cd2b9": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-44-0-as-text-44-0-between-1-159c5303": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-47-0-as-text-47-0-1-13-as-n4-f5979a16": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-47-0-as-text-47-0-1-13-as-n4-f867e031": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-56-0-as-text-56-0-between-co-f82ec6bc": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-68-0-as-text-68-0-between-1-2e5ba038": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-75-0-as-text-75-0-between-co-061cc388": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-81-0-as-text-81-0-from-t81-t-0a3399c6": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-81-0-as-text-81-0-from-t81-t-34a30adf": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-x-as-body-case-from-t-keep-a5a83846": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-from-x-as-text-value-case-from-t-966043e1": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-0-as-n136-0-fr-c5e29d68": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-0-as-n136-0-fr-c70263fd": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-10-as-n61-0-fr-9b12c462": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-10-as-n61-0-fr-d5572f8d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-11-as-n11-0-fr-20c2ba8b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-11-as-n11-0-fr-28f74ca8": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-11-as-n113-0-b-a21c684d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-11-as-n113-0-b-ce5f8fbf": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-13-as-n115-0-f-a9c13745": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-13-as-n115-0-f-f1d12dd8": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-15-as-n100-0-b-155b853d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-15-as-n100-0-b-d6c338d4": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-15-as-n151-0-t-868fd382": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-15-as-n151-0-t-9360ec95": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-16-as-n101-0-t-e05b61a9": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-16-as-n101-0-t-f2f95eff": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-3-as-n122-0-t-1b8c3261": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-3-as-n122-0-t-9927f1ab": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-3-as-n3-0-betw-a831fa6e": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-3-as-n3-0-betw-b77bd504": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-4-as-n55-0-cas-5a152f75": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-4-as-n55-0-cas-895402b7": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-6-as-n23-0-fro-6da43d5c": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-6-as-n23-0-fro-d1bda4fc": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-7-as-n24-0-fro-1edc5adc": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-7-as-n24-0-fro-96664fac": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-9-as-n145-0-fr-2dc629a4": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-9-as-n145-0-fr-a5d5bebe": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-9-as-n77-0-bet-15da24cb": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-0-9-as-n77-0-bet-dc2d8152": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-case-when-t-c0-0-5a4812dd": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-case-when-t-c0-0-9bad6bc5": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-case-when-t-c0-1-94b138ba": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-case-when-t-c0-1-c148d82d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-case-when-t-c0-2-220ede76": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-case-when-t-c0-2-27e2b64f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-case-when-t-c0-6-33bb9e7d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-case-when-t-c0-6-de6bb6e7": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-count-as-count-1-7ffd996d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-count-as-count-1-9f3b074f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-count-as-count-1-b07a1670": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-count-as-count-1-d662307e": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-count-as-count-1-d734c5f9": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-count-as-count-1-e9638c2f": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-count-as-count-9-35632050": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-count-as-count-9-be4ae030": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-105-0-as-te-49eb2a83": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-105-0-as-te-96e3faf4": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-12-0-as-tex-dcc76d78": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-12-0-as-tex-e9ec7eca": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-153-0-as-te-29646714": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-153-0-as-te-54c3f826": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-49-0-as-tex-7d5b8fa8": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-49-0-as-tex-dbe6a944": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-6-0-as-text-5177a4f5": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-6-0-as-text-ec8cf30b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-62-0-as-tex-c31c645b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-from-62-0-as-tex-de9867f2": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-117-0-as-1a109e68": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-117-0-as-9c7d8a70": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-27-0-as-q-2c8d2a01": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-27-0-as-q-7fcfc335": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-31-0-as-q-2121a56a": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-31-0-as-q-5728eb0b": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-32-0-as-q-3b57d8a4": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-32-0-as-q-abc19053": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-42-0-as-q-b076e2d4": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-42-0-as-q-ce5086dc": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-48-0-as-q-7eb6b4f9": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-48-0-as-q-b9b572da": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-5-0-as-qu-04105f25": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-quoted-5-0-as-qu-cddc8673": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-t-c0-as-c142-0-c-bf9c3fa8": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-t-c0-as-c142-0-c-dea37ab2": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-t-c0-as-c15-0-1-196228e5": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-t-c0-as-c15-0-1-4820a9e8": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-t-c0-as-c158-0-q-74f83948": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-t-c0-as-c158-0-q-b591f101": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-t-c0-as-c40-0-be-5740e8f0": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-q-c0-from-select-t-c0-as-c40-0-be-8e7cd451": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-102-0-as-quoted-102-0-betw-04e709ee": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-107-0-as-quoted-107-0-from-1a6ff43e": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-107-0-as-quoted-107-0-from-4ff2c42e": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-110-0-as-quoted-110-0-t-c1-89b180e1": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-110-0-as-quoted-110-0-t-c1-a2adfcf5": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-118-0-as-quoted-118-0-case-a1175033": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-118-0-as-quoted-118-0-case-e15f1350": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-119-0-as-quoted-119-0-t-c1-5363fedf": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-119-0-as-quoted-119-0-t-c1-b8ba1f64": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-126-0-as-quoted-126-0-t-c1-ad474336": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-126-0-as-quoted-126-0-t-c1-e5da2c31": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-139-0-as-quoted-139-0-betw-2d5a68fd": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-14-0-as-quoted-14-0-case-w-84e2edd1": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-14-0-as-quoted-14-0-case-w-a0a64327": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-148-0-as-quoted-148-0-betw-a983eddf": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-152-0-as-quoted-152-0-case-a9b3834e": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-152-0-as-quoted-152-0-case-f00d1d6e": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-85-0-as-quoted-85-0-t-c1-a-6d0d16ea": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-85-0-as-quoted-85-0-t-c1-a-f7524ec5": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-88-0-as-quoted-88-0-from-t-1688748b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-quoted-88-0-as-quoted-88-0-from-t-38dceba6": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c125-0-count-as-count-125-2b0cc822": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c125-0-count-as-count-125-b29ff996": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c150-0-count-as-count-150-113f8971": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c150-0-count-as-count-150-d677f03d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c2-0-from-t2-t-where-t-c0-a5504ba1": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c2-0-from-t2-t-where-t-c0-d739a578": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c39-0-count-as-count-39-1-5872b4f3": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c39-0-count-as-count-39-1-99283741": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c66-0-count-as-count-66-1-04afbfb8": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c66-0-count-as-count-66-1-cdfe4122": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c79-0-1-11-as-n79-1-case-0734fdb8": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c79-0-1-11-as-n79-1-case-07dead80": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c9-0-count-as-count-9-1-f-c28c0371": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/select-t-c0-as-c9-0-count-as-count-9-1-f-d6a85efb": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c-as-select-1-as-n-select-n-count-a-6526ce9e": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c106-as-select-quoted-106-0-as-quot-2156073f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c109-as-select-from-109-0-as-text-1-1e594aa0": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c114-as-select-t-c0-as-c114-0-betwe-9cb7f493": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c120-as-select-case-when-t-c0-1-the-3d59b90e": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c129-as-select-quoted-129-0-as-quot-58d70868": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c131-as-select-0-12-as-n131-0-betwe-991d5147": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c137-as-select-0-1-as-n137-0-t-c1-a-eebdf390": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c155-as-select-quoted-155-0-as-quot-74661ed8": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c17-as-select-t-c0-as-c17-0-from-t1-28ff6bc6": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c19-as-select-0-2-as-n19-0-between-85dc0eba": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c21-as-select-count-as-count-21-0-b-a4f7167f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c29-as-select-t-c0-as-c29-0-from-t2-7b8be9ce": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c34-as-select-case-when-t-c0-6-then-6ae5758d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c41-as-select-case-when-t-c0-6-then-4e62a69d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c43-as-select-case-when-t-c0-1-then-592170f3": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c58-as-select-count-as-count-58-0-b-84e8cfe1": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c59-as-select-from-59-0-as-text-59-c9cf906e": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c60-as-select-0-9-as-n60-0-between-de4c0060": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c69-as-select-0-1-as-n69-0-from-69-08ae899f": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c71-as-select-t-c0-as-c71-0-from-t7-3596afb1": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c80-as-select-t-c0-as-c80-0-between-b4816968": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c86-as-select-from-86-0-as-text-86-59af320b": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4-properties/with-c96-as-select-t-c0-as-c96-0-quoted-84f458d5": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4c-executor/from-t-7c1dbe77": {
+  "op": "formatSql",
+  "status": "preserved",
+  "codes": [
+   "SYN_UNMODELED_CONSTRUCT"
+  ]
+ },
+ "called/wave4c-executor/select-a-b-02ca632d": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4c-executor/select-a-b-as-x-abcdef-as-y-from-t-72b51a80": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-ddl/create-table-t-a-b-string-ascii-string-s-45de60e1": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-ddl/create-table-t-a-b-string-ascii-string-s-89307963": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-ddl/create-table-t-string-e-string-a-b-strin-1442c501": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-b-a37f6fe3": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-bb-62b969bd": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-nb-e34c2edf": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-tb-9fd03029": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-u0000-e030db9c": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-u00001-5e8349b1": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-u00007-6b07afcd": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-u0000b-ee3a689c": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-u0001b-719f9439": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-a-zb-a5435fd2": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-note-1fd99aa2": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/create-table-t-a-string-comment-owner-s-4e78b39c": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a-b-ascii-from-t-a8249cff": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a-b-ascii-from-t-c7e0b232": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a-b-ascii-from-t-e43abc03": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a-from-t-73082e16": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a0-from-t-a056ef0d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a1-count-as-n-from-t-b7afede5": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a100-from-t-b930dccc": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a101-count-as-n-from-t-0e22c14f": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a104-from-t-6d62690b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a105-count-as-n-from-t-309e68c6": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a108-from-t-9ac42d82": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a109-count-as-n-from-t-01b9f654": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a112-from-t-a49ae171": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a113-count-as-n-from-t-6adc450d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a116-from-t-b5b55b89": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a117-count-as-n-from-t-9efc2757": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a12-from-t-5d627a8e": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a120-from-t-436941cf": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a121-count-as-n-from-t-c2202258": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a124-from-t-5ff29ed2": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a125-count-as-n-from-t-69c7fa52": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a13-count-as-n-from-t-a1090636": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a16-from-t-fba56372": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a17-count-as-n-from-t-3de17422": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a20-from-t-1410727b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a21-count-as-n-from-t-a79c30b6": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a24-from-t-724773a2": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a25-count-as-n-from-t-a076e355": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a28-from-t-5e48c092": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a29-count-as-n-from-t-bc5729e3": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a32-from-t-eb28bfbd": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a33-count-as-n-from-t-3da8af53": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a36-from-t-383a3fc4": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a37-count-as-n-from-t-208119d5": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a4-from-t-9aaf2438": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a40-from-t-b974954c": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a41-count-as-n-from-t-e28bade2": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a44-from-t-75b560aa": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a45-count-as-n-from-t-1627a9dd": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a48-from-t-31987b4d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a49-count-as-n-from-t-78222432": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a5-count-as-n-from-t-a7ca6ba3": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a52-from-t-187270a8": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a53-count-as-n-from-t-b84573d5": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a56-from-t-29c81e5d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a57-count-as-n-from-t-1eee1f34": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a60-from-t-da46bece": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a61-count-as-n-from-t-c1f2ed53": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a64-from-t-8eb82441": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a65-count-as-n-from-t-d389b422": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a68-from-t-786213d0": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a69-count-as-n-from-t-1bd2e003": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a72-from-t-812d0bf3": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a73-count-as-n-from-t-8f19607f": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a76-from-t-72e898a5": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a77-count-as-n-from-t-e9e31b09": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a8-from-t-285dd64a": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a80-from-t-bbc86620": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a81-count-as-n-from-t-4de69a4d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a84-from-t-c7900210": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a85-count-as-n-from-t-fb0d8fbb": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a88-from-t-ce25823a": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a89-count-as-n-from-t-245fd6df": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a9-count-as-n-from-t-bdf2e1b2": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a92-from-t-0e677350": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a93-count-as-n-from-t-97e18169": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a96-from-t-1f636aa7": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-a97-count-as-n-from-t-7ee41185": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/select-e-a-b-ascii-from-t-516c2cda": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a103-fr-40dad255": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a107-fr-b7b61647": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a11-fro-f31f3405": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a111-fr-696346ec": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a115-fr-7781d60e": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a119-fr-c4ce6fbc": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a123-fr-0b819ff1": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a127-fr-5d9642ce": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a15-fro-49420eb0": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a19-fro-8f123623": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a23-fro-66b27754": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a27-fro-0d57fe98": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a3-from-b2f39b7c": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a31-fro-3e16c3ca": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a35-fro-f575c518": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a39-fro-4f543129": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a43-fro-f6306f05": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a47-fro-8eb88468": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a51-fro-d85aabf2": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a55-fro-c8ff8aef": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a59-fro-7b602e9e": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a63-fro-c102652a": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a67-fro-4c872302": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a7-from-689d7212": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a71-fro-f1efad3b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a75-fro-177df69b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a79-fro-08543fb8": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a83-fro-d505ee9c": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a87-fro-7d1d2d4b": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a91-fro-b891fb77": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a95-fro-50782f7f": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-extract-ddl/with-c-as-select-x-from-t-select-a99-fro-6b96d9d3": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-transaction/create-table-t-a-b-string-ascii-string-s-e43b1430": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-transaction/create-table-t-a-string-comment-x-y-9f19d0bc": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-transaction/create-table-t-a-string-comment-x-y-d613f61c": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "called/wave4d-transaction/select-a-from-t-9c428b2d": {
+  "op": "extractDdl",
+  "status": "extracted",
+  "codes": []
+ },
+ "called/wave4d-transaction/select-from-t-edebba72": {
+  "op": "extractDdl",
+  "status": "ambiguous",
+  "codes": [
+   "EXTRACT_WILDCARD"
+  ]
+ },
  "corpus/cjk-identifier-generic": {
   "op": "formatSql",
   "status": "formatted",

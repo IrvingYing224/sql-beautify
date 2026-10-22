@@ -1,0 +1,6 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE db124.`t(124` (
+c124_0 DECIMAL(17,0),
+c124_1 STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,124 (1)',
+c124_2 STRING
+);

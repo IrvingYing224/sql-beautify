@@ -1,9 +1,10 @@
 'use strict';
 
 // P1 one-off (deleted with the old tests in P2): preloaded with `node -r` into an old test file,
-// it records every formatter / DDL call whose output the test asserts, with the full execution
-// environment (mode, newline, tabSize, startColumn). Only explicitly passed values are recorded,
-// so an omitted newline stays "inferred" instead of being frozen to LF.
+// it records every formatter / DDL call with the full execution environment (mode, newline,
+// tabSize, startColumn), and separately the calls whose output the test asserts verbatim. Only
+// explicitly passed values are recorded, so an omitted newline stays "inferred" instead of being
+// frozen to LF.
 
 var assert = require('assert');
 var fs = require('fs');
@@ -23,6 +24,7 @@ var CALLS = {
 var MODULES = /[\\/](?:\.tmp[\\/]v2-core[\\/](?:core[\\/]api[\\/]format|experimental[\\/]ddl[\\/](?:index|hive-ddl|extract)|runtime[\\/](?:index|internal|experimental-ddl|formatter))\.js|dist[\\/](?:runtime|sql-formatter|hive-ddl)\.cjs)$/;
 var byText = new Map();
 var hits = new Map();
+var calls = new Map();
 var wrapped = new WeakMap();
 
 function plainOptions(value) {
@@ -72,6 +74,11 @@ function environmentOf(name, args) {
     return env;
 }
 
+function callKey(entry) {
+    return JSON.stringify([entry.op, entry.source, entry.options, entry.mode, entry.newline,
+        entry.tabSize, entry.startColumn]);
+}
+
 function record(name, args, returned) {
     var source = args[0];
     var result = returned && returned.result ? returned.result : returned;
@@ -91,6 +98,10 @@ function record(name, args, returned) {
         status: result.status,
         text: result.text,
     });
+    var key = callKey(entry);
+    if (!calls.has(key)) {
+        calls.set(key, entry);
+    }
     var previous = byText.get(result.text);
     // An identity call (text === source) must not shadow a formatting call with the same text.
     if (!(previous && previous.text !== previous.source && entry.text === entry.source)) {
@@ -179,8 +190,7 @@ function check(actual, expected) {
             : null;
     if (text !== null && text === other && byText.has(text)) {
         var entry = byText.get(text);
-        var key = JSON.stringify([entry.op, entry.source, entry.options, entry.mode, entry.newline,
-            entry.tabSize, entry.startColumn]);
+        var key = callKey(entry);
         if (!hits.has(key)) {
             hits.set(key, entry);
         }
@@ -198,5 +208,8 @@ function check(actual, expected) {
 });
 
 process.on('exit', function() {
-    fs.writeFileSync(out, JSON.stringify(Array.from(hits.values())));
+    fs.writeFileSync(out, JSON.stringify({
+        asserted: Array.from(hits.values()),
+        called: Array.from(calls.values()),
+    }));
 });

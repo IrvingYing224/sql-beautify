@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db141.`t(141` (
+c141_0 ARRAY<STRUCT<x:STRING,n:INT>> COMMENT 'FROM,141 (0)',
+`c,141_1` ARRAY<STRUCT<x:STRING,n:INT>>,
+c141_2 DECIMAL(16,1),
+c141_3 ARRAY<STRUCT<x:STRING,n:INT>>
+);
