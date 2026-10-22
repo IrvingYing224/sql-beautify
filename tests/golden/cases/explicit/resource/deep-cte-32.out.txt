@@ -1,0 +1,193 @@
+WITH
+      q0 AS (
+          WITH
+                q1 AS (
+                    WITH
+                          q2 AS (
+                              WITH
+                                    q3 AS (
+                                        WITH
+                                              q4 AS (
+                                                  WITH
+                                                        q5 AS (
+                                                            WITH
+                                                                  q6 AS (
+                                                                      WITH
+                                                                            q7 AS (
+                                                                                WITH
+                                                                                      q8 AS (
+                                                                                          WITH
+                                                                                                q9 AS (
+                                                                                                    WITH
+                                                                                                          q10 AS (
+                                                                                                              WITH
+                                                                                                                    q11 AS (
+                                                                                                                        WITH
+                                                                                                                              q12 AS (
+                                                                                                                                  WITH
+                                                                                                                                        q13 AS (
+                                                                                                                                            WITH
+                                                                                                                                                  q14 AS (
+                                                                                                                                                      WITH
+                                                                                                                                                            q15 AS (
+                                                                                                                                                                WITH
+                                                                                                                                                                      q16 AS (
+                                                                                                                                                                          WITH
+                                                                                                                                                                                q17 AS (
+                                                                                                                                                                                    WITH
+                                                                                                                                                                                          q18 AS (
+                                                                                                                                                                                              WITH
+                                                                                                                                                                                                    q19 AS (
+                                                                                                                                                                                                        WITH
+                                                                                                                                                                                                              q20 AS (
+                                                                                                                                                                                                                  WITH
+                                                                                                                                                                                                                        q21 AS (
+                                                                                                                                                                                                                            WITH
+                                                                                                                                                                                                                                  q22 AS (
+                                                                                                                                                                                                                                      WITH
+                                                                                                                                                                                                                                            q23 AS (
+                                                                                                                                                                                                                                                WITH
+                                                                                                                                                                                                                                                      q24 AS (
+                                                                                                                                                                                                                                                          WITH
+                                                                                                                                                                                                                                                                q25 AS (
+                                                                                                                                                                                                                                                                    WITH
+                                                                                                                                                                                                                                                                          q26 AS (
+                                                                                                                                                                                                                                                                              WITH
+                                                                                                                                                                                                                                                                                    q27 AS (
+                                                                                                                                                                                                                                                                                        WITH
+                                                                                                                                                                                                                                                                                              q28 AS (
+                                                                                                                                                                                                                                                                                                  WITH
+                                                                                                                                                                                                                                                                                                        q29 AS (
+                                                                                                                                                                                                                                                                                                            WITH
+                                                                                                                                                                                                                                                                                                                  q30 AS (
+                                                                                                                                                                                                                                                                                                                      WITH
+                                                                                                                                                                                                                                                                                                                            q31 AS (
+                                                                                                                                                                                                                                                                                                                                SELECT 'leaf' AS v
+                                                                                                                                                                                                                                                                                                                            )
+                                                                                                                                                                                                                                                                                                                      SELECT
+                                                                                                                                                                                                                                                                                                                            v
+                                                                                                                                                                                                                                                                                                                      FROM q31
+                                                                                                                                                                                                                                                                                                                  )
+                                                                                                                                                                                                                                                                                                            SELECT
+                                                                                                                                                                                                                                                                                                                  v
+                                                                                                                                                                                                                                                                                                            FROM q30
+                                                                                                                                                                                                                                                                                                        )
+                                                                                                                                                                                                                                                                                                  SELECT
+                                                                                                                                                                                                                                                                                                        v
+                                                                                                                                                                                                                                                                                                  FROM q29
+                                                                                                                                                                                                                                                                                              )
+                                                                                                                                                                                                                                                                                        SELECT
+                                                                                                                                                                                                                                                                                              v
+                                                                                                                                                                                                                                                                                        FROM q28
+                                                                                                                                                                                                                                                                                    )
+                                                                                                                                                                                                                                                                              SELECT
+                                                                                                                                                                                                                                                                                    v
+                                                                                                                                                                                                                                                                              FROM q27
+                                                                                                                                                                                                                                                                          )
+                                                                                                                                                                                                                                                                    SELECT
+                                                                                                                                                                                                                                                                          v
+                                                                                                                                                                                                                                                                    FROM q26
+                                                                                                                                                                                                                                                                )
+                                                                                                                                                                                                                                                          SELECT
+                                                                                                                                                                                                                                                                v
+                                                                                                                                                                                                                                                          FROM q25
+                                                                                                                                                                                                                                                      )
+                                                                                                                                                                                                                                                SELECT
+                                                                                                                                                                                                                                                      v
+                                                                                                                                                                                                                                                FROM q24
+                                                                                                                                                                                                                                            )
+                                                                                                                                                                                                                                      SELECT
+                                                                                                                                                                                                                                            v
+                                                                                                                                                                                                                                      FROM q23
+                                                                                                                                                                                                                                  )
+                                                                                                                                                                                                                            SELECT
+                                                                                                                                                                                                                                  v
+                                                                                                                                                                                                                            FROM q22
+                                                                                                                                                                                                                        )
+                                                                                                                                                                                                                  SELECT
+                                                                                                                                                                                                                        v
+                                                                                                                                                                                                                  FROM q21
+                                                                                                                                                                                                              )
+                                                                                                                                                                                                        SELECT
+                                                                                                                                                                                                              v
+                                                                                                                                                                                                        FROM q20
+                                                                                                                                                                                                    )
+                                                                                                                                                                                              SELECT
+                                                                                                                                                                                                    v
+                                                                                                                                                                                              FROM q19
+                                                                                                                                                                                          )
+                                                                                                                                                                                    SELECT
+                                                                                                                                                                                          v
+                                                                                                                                                                                    FROM q18
+                                                                                                                                                                                )
+                                                                                                                                                                          SELECT
+                                                                                                                                                                                v
+                                                                                                                                                                          FROM q17
+                                                                                                                                                                      )
+                                                                                                                                                                SELECT
+                                                                                                                                                                      v
+                                                                                                                                                                FROM q16
+                                                                                                                                                            )
+                                                                                                                                                      SELECT
+                                                                                                                                                            v
+                                                                                                                                                      FROM q15
+                                                                                                                                                  )
+                                                                                                                                            SELECT
+                                                                                                                                                  v
+                                                                                                                                            FROM q14
+                                                                                                                                        )
+                                                                                                                                  SELECT
+                                                                                                                                        v
+                                                                                                                                  FROM q13
+                                                                                                                              )
+                                                                                                                        SELECT
+                                                                                                                              v
+                                                                                                                        FROM q12
+                                                                                                                    )
+                                                                                                              SELECT
+                                                                                                                    v
+                                                                                                              FROM q11
+                                                                                                          )
+                                                                                                    SELECT
+                                                                                                          v
+                                                                                                    FROM q10
+                                                                                                )
+                                                                                          SELECT
+                                                                                                v
+                                                                                          FROM q9
+                                                                                      )
+                                                                                SELECT
+                                                                                      v
+                                                                                FROM q8
+                                                                            )
+                                                                      SELECT
+                                                                            v
+                                                                      FROM q7
+                                                                  )
+                                                            SELECT
+                                                                  v
+                                                            FROM q6
+                                                        )
+                                                  SELECT
+                                                        v
+                                                  FROM q5
+                                              )
+                                        SELECT
+                                              v
+                                        FROM q4
+                                    )
+                              SELECT
+                                    v
+                              FROM q3
+                          )
+                    SELECT
+                          v
+                    FROM q2
+                )
+          SELECT
+                v
+          FROM q1
+      )
+SELECT
+      v
+FROM q0

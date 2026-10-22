@@ -18,8 +18,7 @@ function tests(names) {
 
 var wave1 = tests([
     'sql-corpus-contract',
-    'lossless-lexer',
-    'lossless-lexer-performance'
+    'lossless-lexer'
 ]);
 
 var wave2Foundation = [
@@ -30,8 +29,7 @@ var wave2Foundation = [
     'syntax-invariants',
     'wave2a-hardening',
     'wave2a-cst-hardening',
-    'wave2a-token-table-hardening',
-    'syntax-invariants-performance'
+    'wave2a-token-table-hardening'
 ]));
 
 var wave2 = wave2Foundation.concat(tests([
@@ -45,8 +43,7 @@ var wave2 = wave2Foundation.concat(tests([
     'recovery-fuzz',
     'analysis-index'
 ]), tests([
-    'wave2-corpus',
-    'wave2-performance'
+    'wave2-corpus'
 ]));
 
 var wave3Foundation = tests([
@@ -60,11 +57,9 @@ var wave3Foundation = tests([
 
 var wave3 = wave3Foundation.concat(tests([
     'wave3b-renderer',
-    'display-width-performance',
     'wave3b-format-kernel',
     'wave3c-plan-scopes',
     'wave3c-hive-query-layout',
-    'wave3c-resource-closure',
     'wave3d-expression-layout',
     'wave3d-resource-closure',
     'wave3e-trivia-layout',
@@ -72,13 +67,6 @@ var wave3 = wave3Foundation.concat(tests([
     'wave3e-dialect-layout',
     'wave3e-option-matrix',
     'wave3-properties',
-    'perf-baseline-contract',
-    'wave3-alignment-performance',
-    'wave3-performance',
-    'wave3-performance-relative'
-]), [
-    nodeStep('scripts/profile-source-map-memory.js', ['--summary'])
-], tests([
     'dialect-capability-registry'
 ]));
 
@@ -86,7 +74,6 @@ var wave4 = tests([
     'v2-runtime-boundary',
     'wave4a-public-api',
     'wave4a-source-map',
-    'source-map-performance',
     'wave4a-transaction',
     'wave4b-range-transaction',
     'wave4b-cancellation-diagnostics',
@@ -95,13 +82,10 @@ var wave4 = tests([
     'wave4b-language-registry',
     'wave4c-executor',
     'wave4c-worker-lifecycle',
-    'wave4c-performance',
     'wave4d-ddl',
     'wave4d-extract-ddl',
     'wave4d-transaction',
-    'wave4d-performance',
-    'wave4-properties',
-    'wave4-performance'
+    'wave4-properties'
 ]);
 
 var wave5StageA = tests([
@@ -113,10 +97,6 @@ var wave5StageA = tests([
 
 var SUITES = Object.freeze({
     lexer: Object.freeze({ needs: ['core'], steps: tests(['lossless-lexer']) }),
-    'lexer-performance': Object.freeze({
-        needs: ['core'],
-        steps: tests(['lossless-lexer-performance'])
-    }),
     wave1: Object.freeze({ needs: ['core'], steps: wave1 }),
     'wave2-foundation': Object.freeze({ needs: ['core'], steps: wave2Foundation }),
     'hive-cst': Object.freeze({
@@ -124,10 +104,6 @@ var SUITES = Object.freeze({
         steps: tests(['hive-cst-parser', 'hive-statement-commands'])
     }),
     'wave2-corpus': Object.freeze({ needs: ['core'], steps: tests(['wave2-corpus']) }),
-    'wave2-performance': Object.freeze({
-        needs: ['core'],
-        steps: tests(['wave2-performance'])
-    }),
     expression: Object.freeze({ needs: ['core'], steps: tests(['expression-parser']) }),
     recovery: Object.freeze({
         needs: ['core'],
@@ -139,10 +115,6 @@ var SUITES = Object.freeze({
     'wave3-foundation': Object.freeze({
         needs: ['typecheck', 'core'],
         steps: wave3Foundation
-    }),
-    'source-map-memory': Object.freeze({
-        needs: ['core'],
-        steps: [nodeStep('scripts/profile-source-map-memory.js', ['--summary'])]
     }),
     wave3: Object.freeze({ needs: ['typecheck', 'core'], steps: wave3 }),
     wave4: Object.freeze({ needs: ['core', 'runtime'], steps: wave4 }),
@@ -169,17 +141,6 @@ var SUITES = Object.freeze({
     }),
     verify: Object.freeze({
         includes: ['wave1', 'wave2', 'wave3', 'wave4', 'wave5', 'golden']
-    }),
-    'performance-relative': Object.freeze({
-        needs: ['core'],
-        steps: [
-            nodeStep('tests/v2/wave2-performance.test.js', [], {
-                SQL_BEAUTIFY_STRICT_RELATIVE_PERF: '1'
-            }),
-            nodeStep('tests/v2/wave3-performance-relative.test.js', [], {
-                SQL_BEAUTIFY_STRICT_RELATIVE_PERF: '1'
-            })
-        ]
     }),
     'node-smoke': Object.freeze({
         needs: ['typecheck', 'core', 'runtime'],

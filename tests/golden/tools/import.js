@@ -117,6 +117,20 @@ function nestedCase(depth) {
     }
     return 'select ' + expression + ' as x from t';
 }
+function deepCte(depth) {
+    var query = "select 'leaf' as v";
+    for (var index = depth - 1; index >= 0; index--) {
+        query = 'with q' + index + ' as (' + query + ') select v from q' + index;
+    }
+    return query;
+}
+function commentDenseList(count) {
+    var items = [];
+    for (var index = 0; index < count; index++) {
+        items.push('a' + index + ' /*c' + index + '*/');
+    }
+    return 'select ' + items.join(', ') + ' from t';
+}
 function wideSelect(columns) {
     var names = [];
     for (var index = 0; index < columns; index++) {
@@ -214,6 +228,9 @@ var DDL_ENV = {
     ['resource/nested-case-40', nestedCase(40)],
     ['resource/nested-case-60', nestedCase(60)],
     ['resource/nested-case-80', nestedCase(80)],
+    ['resource/deep-cte-32', deepCte(32)],
+    ['resource/deep-cte-64', deepCte(64)],
+    ['resource/comment-dense-2000', commentDenseList(2000)],
     ['resource/extract-12000-columns', wideSelect(12000), { op: 'extractDdl' }],
     ['resource/extract-20000-columns', wideSelect(20000), { op: 'extractDdl' }],
 ].forEach(function(entry) {

@@ -3221,6 +3221,23 @@
    "SYN_UNSUPPORTED_STATEMENT"
   ]
  },
+ "explicit/resource/comment-dense-2000": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/resource/deep-cte-32": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/resource/deep-cte-64": {
+  "op": "formatSql",
+  "status": "preserved",
+  "codes": [
+   "LAYOUT_COMPILE_RESOURCE"
+  ]
+ },
  "explicit/resource/extract-12000-columns": {
   "op": "extractDdl",
   "status": "extracted",
