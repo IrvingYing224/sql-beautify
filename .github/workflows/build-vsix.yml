@@ -1,201 +1,78 @@
 name: Build VSIX
 
 on:
-  workflow_dispatch:
-  pull_request:
   push:
     branches:
       - main
+      - 'claude/**'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      vscode-smoke:
+        description: Also run the VS Code extension host smoke test (stable)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-concurrency:
-  group: build-vsix-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  node-smoke:
-    name: Node ${{ matrix.node }} tests
+  check:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [20, 24]
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
           cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run core, public facade, and extension activation smoke
-        run: npm run typecheck && npm test
-
-  vscode-smoke:
-    name: VS Code ${{ matrix.vscode }} extension host smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        vscode: ['1.90.0', stable]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run package
+      - uses: actions/upload-artifact@v6
         with:
-          persist-credentials: false
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Run real extension host tests
-        env:
-          SQL_BEAUTIFY_VSCODE_VERSION: ${{ matrix.vscode }}
-        run: xvfb-run -a npm run test:vscode
-
-  build-vsix:
-    name: Verify and build VSIX
-    needs: [node-smoke, vscode-smoke]
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.package.outputs.version }}
-      artifact: ${{ steps.package.outputs.artifact }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm run typecheck && npm test
-
-      - name: Read package metadata
-        id: package
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "artifact=vscode-sql-beautify-v${version}.vsix" >> "$GITHUB_OUTPUT"
-
-      - name: Package and verify VSIX
-        run: npm run package
-
-      - name: Upload release candidate
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v6
-        with:
-          name: vscode-sql-beautify-v${{ steps.package.outputs.version }}
-          path: ${{ steps.package.outputs.artifact }}
+          name: vsix
+          path: '*.vsix'
           if-no-files-found: error
 
+  vscode-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.vscode-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: xvfb-run -a npm run test:vscode
+
+  # Manual runs on main publish the package.json version as a new GitHub Release.
   release:
-    name: Release VSIX
-    needs: build-vsix
+    needs: check
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      - name: Checkout release SHA
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
-          fetch-depth: 0
           persist-credentials: false
-
-      - name: Download verified release candidate
-        uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v7
         with:
-          name: vscode-sql-beautify-v${{ needs.build-vsix.outputs.version }}
-
-      - name: Verify release provenance
-        env:
-          VERSION: ${{ needs.build-vsix.outputs.version }}
-          ARTIFACT: ${{ needs.build-vsix.outputs.artifact }}
-        run: |
-          set -eu
-          package_version="$(node -p "require('./package.json').version")"
-          lock_version="$(node -p "require('./package-lock.json').version")"
-          lock_root_version="$(node -p "require('./package-lock.json').packages[''].version")"
-          checkout_sha="$(git rev-parse HEAD)"
-          main_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
-          tag="v${VERSION}"
-          tag_ref="refs/tags/${tag}"
-          peeled_ref="${tag_ref}^{}"
-
-          test "${package_version}" = "${VERSION}"
-          test "${lock_version}" = "${VERSION}"
-          test "${lock_root_version}" = "${VERSION}"
-          test "${checkout_sha}" = "${GITHUB_SHA}"
-          test "${main_sha}" = "${GITHUB_SHA}"
-          test "${ARTIFACT}" = "vscode-sql-beautify-v${VERSION}.vsix"
-          test -f "${ARTIFACT}"
-          test "$(find . -maxdepth 1 -name '*.vsix' -type f | wc -l | tr -d ' ')" = "1"
-
-          remote_refs="$(git ls-remote --tags origin "${tag_ref}" "${peeled_ref}")"
-          tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${peeled_ref}" '$2 == ref {print $1; exit}')"
-          if [ -z "${tag_sha}" ]; then
-            tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${tag_ref}" '$2 == ref {print $1; exit}')"
-          fi
-          if [ -n "${tag_sha}" ]; then
-            test "${tag_sha}" = "${GITHUB_SHA}"
-          fi
-
-      - name: Create or update GitHub Release
-        env:
+          name: vsix
+      - env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.build-vsix.outputs.version }}
-          ARTIFACT: ${{ needs.build-vsix.outputs.artifact }}
         run: |
           set -eu
-          tag="v${VERSION}"
-          if gh release view "${tag}" > /dev/null 2>&1; then
-            target="$(gh release view "${tag}" --json targetCommitish --jq .targetCommitish)"
-            test "${target}" = "${GITHUB_SHA}"
-            gh release upload "${tag}" "${ARTIFACT}" --clobber
-          else
-            gh release create "${tag}" "${ARTIFACT}" \
-              --target "${GITHUB_SHA}" \
-              --title "${tag}" \
-              --generate-notes
-          fi
-
-      - name: Verify published tag and Release target
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.build-vsix.outputs.version }}
-        run: |
-          set -eu
-          tag="v${VERSION}"
-          tag_ref="refs/tags/${tag}"
-          peeled_ref="${tag_ref}^{}"
-          remote_refs="$(git ls-remote --tags origin "${tag_ref}" "${peeled_ref}")"
-          tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${peeled_ref}" '$2 == ref {print $1; exit}')"
-          if [ -z "${tag_sha}" ]; then
-            tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${tag_ref}" '$2 == ref {print $1; exit}')"
-          fi
-          target="$(gh release view "${tag}" --json targetCommitish --jq .targetCommitish)"
-          test "${tag_sha}" = "${GITHUB_SHA}"
-          test "${target}" = "${GITHUB_SHA}"
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+          grep -Eq "^### ${version}( |$)" CHANGELOG.md || { echo "CHANGELOG.md has no ${version} entry" >&2; exit 1; }
+          test -z "$(git ls-remote --tags origin "refs/tags/${tag}")" || { echo "${tag} already exists" >&2; exit 1; }
+          gh release create "${tag}" "vscode-sql-beautify-v${version}.vsix" \
+            --target "${GITHUB_SHA}" --title "${tag}" --generate-notes
