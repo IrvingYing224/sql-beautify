@@ -1,0 +1,1 @@
+select /*+ STREAMTABLE(a) */ a.x, b.y from a join b on a.id = b.id;

@@ -1,0 +1,4 @@
+-- golden: {"options":{"caseWhenThenWrapLength":55,"dialect":"generic","maxAlignWidth":52,"unsupportedSyntaxPolicy":"bail_out"}}
+SELECT  'FROM  x' as x,	/* fuzz 21 */  coalesce(b,0)  as y
+FrOm
+t where a=1 and b>2

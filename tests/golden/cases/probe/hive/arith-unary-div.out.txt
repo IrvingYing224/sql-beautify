@@ -1,0 +1,13 @@
+SELECT
+      -a
+    , -b
+    , a * -1
+    , a div 2
+    , a % 3
+    , -(a + b)
+    , a <=> b
+    , ~a
+    , a & b
+    , a | b
+    , a ^ b
+FROM t;

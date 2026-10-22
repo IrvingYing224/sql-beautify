@@ -1,0 +1,5 @@
+SELECT
+      /* lead */
+      a           AS x
+    , longer_name AS y
+FROM t

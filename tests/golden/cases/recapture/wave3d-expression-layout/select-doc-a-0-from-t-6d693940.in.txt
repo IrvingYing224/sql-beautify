@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select doc#-'{a,0}' from t

@@ -1,0 +1,13 @@
+(
+    /*e:subquery-set*/
+    SELECT
+          'a'
+    FROM t
+    UNION /*e:set*/ ALL
+    SELECT
+          'b'
+    FROM u
+    ORDER BY
+          1
+    LIMIT 2
+)

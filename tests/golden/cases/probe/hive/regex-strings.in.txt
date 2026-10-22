@@ -1,0 +1,1 @@
+select regexp_extract(url, '^https?://([^/]+)/(.*)$', 1), regexp_replace(s, '\\s+', ' '), a rlike '^\\d{3}-\\d{4}$' from t where b regexp '[a-z]+' and c not rlike 'x';

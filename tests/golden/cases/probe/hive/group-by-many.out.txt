@@ -1,0 +1,24 @@
+SELECT
+      a
+    , b
+    , c
+    , d
+    , e
+    , f
+    , g
+    , count(*) AS cnt
+    , sum(x)   AS sx
+FROM t
+GROUP BY
+      a
+    , b
+    , c
+    , d
+    , e
+    , f
+    , g
+HAVING count(*) > 1
+ORDER BY
+      cnt DESC
+    , a
+LIMIT 100;

@@ -1,0 +1,5 @@
+-- golden: {"options":{"caseWhenThenWrapLength":43,"dialect":"generic","maxAlignWidth":74,"unsupportedSyntaxPolicy":"preserve"}}
+SELECT
+"Mixed Name"
+as x,	/* fuzz 105 */ :value	as y  FROM
+t where a=1 and b>2

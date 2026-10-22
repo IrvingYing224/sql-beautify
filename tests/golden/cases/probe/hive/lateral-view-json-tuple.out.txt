@@ -1,0 +1,6 @@
+SELECT
+      t.id
+    , j.name
+    , j.age
+FROM src t
+LATERAL VIEW json_tuple(t.js, 'name', 'age') j AS name, age;

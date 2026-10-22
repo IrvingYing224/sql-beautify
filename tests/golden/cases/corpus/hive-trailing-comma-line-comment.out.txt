@@ -1,0 +1,5 @@
+SELECT
+account_id, -- account identifier
+gross_amount, -- trailing comma must remain attached to this item
+FROM daily_account_summary
+WHERE ds = '${bizdate}';

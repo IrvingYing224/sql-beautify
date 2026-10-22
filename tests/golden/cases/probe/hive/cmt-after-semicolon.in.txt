@@ -1,0 +1,2 @@
+select a from t; -- trailing comment
+select b from u; /* block */

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic"}}
+SELECT * FROM (SELECT 1) qualify(c1)

@@ -1,0 +1,9 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE TABLE db110.`t(110` (
+c110_0 STRING,
+c110_1 ARRAY<STRUCT<x:STRING,n:INT>> COMMENT 'FROM,110 (1)',
+c110_2 DECIMAL(12,2),
+`c,110_3` STRING,
+c110_4 DECIMAL(12,2)
+);

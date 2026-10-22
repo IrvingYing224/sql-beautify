@@ -1,0 +1,6 @@
+SELECT
+      aaa
+    ,
+    /* comment */
+    bbb
+FROM t

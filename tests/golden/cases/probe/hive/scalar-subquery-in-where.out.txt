@@ -1,0 +1,8 @@
+SELECT
+      a
+FROM t
+WHERE b > (
+    SELECT
+          avg(b)
+    FROM t
+);

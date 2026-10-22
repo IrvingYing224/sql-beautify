@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT a FROM x UNION ALL SELECT a FROM y ORDER BY a

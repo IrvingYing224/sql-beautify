@@ -1,0 +1,4 @@
+SELECT
+      *
+FROM base qualify(c1)
+CROSS JOIN other

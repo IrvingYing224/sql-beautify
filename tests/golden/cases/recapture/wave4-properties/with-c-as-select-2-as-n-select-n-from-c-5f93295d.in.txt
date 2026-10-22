@@ -1,0 +1,2 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+with c as (select 2 as n) select n from c

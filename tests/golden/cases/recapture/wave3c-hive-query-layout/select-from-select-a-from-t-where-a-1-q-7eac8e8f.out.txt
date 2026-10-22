@@ -1,0 +1,8 @@
+SELECT
+      *
+FROM (
+    SELECT
+          a
+    FROM t
+    WHERE a = 1
+) q

@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":35,"commaStyle":"trailing","dialect":"generic","keywordCase":"lower","maxAlignWidth":68}}
+SELECT	'FROM  x'	as x, /* fuzz 37 */  :value  as y	from
+t where a=1 and b>2

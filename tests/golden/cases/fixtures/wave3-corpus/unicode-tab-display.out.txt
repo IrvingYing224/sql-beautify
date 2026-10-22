@@ -1,0 +1,4 @@
+SELECT
+	  `名字` AS x
+	, abc    AS y
+FROM t

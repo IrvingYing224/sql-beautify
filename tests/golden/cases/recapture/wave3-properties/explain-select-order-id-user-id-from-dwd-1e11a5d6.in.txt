@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":80,"keywordCase":"lower","unsupportedSyntaxPolicy":"preserve"}}
+EXPLAIN SELECT order_id, user_id FROM dwd_order_detail WHERE ds='${bizdate}';

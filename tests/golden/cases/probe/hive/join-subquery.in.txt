@@ -1,0 +1,1 @@
+select a.x, b.y from (select id, x from t1) a left join (select id, y from t2 where y > 0) b on a.id = b.id;

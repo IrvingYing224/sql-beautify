@@ -1,0 +1,7 @@
+SELECT
+      CASE
+          WHEN a = 1 THEN
+              CASE WHEN b = 2 THEN 'x' ELSE 'y' END
+          ELSE 'z'
+      END
+FROM t

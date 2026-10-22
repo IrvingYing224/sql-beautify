@@ -1,0 +1,5 @@
+CREATE EXTERNAL TABLE IF NOT EXISTS db.`t(`
+(
+     `a,b`   DECIMAL(18,2) COMMENT 'a  b, (c)'
+    ,payload MAP<STRING,ARRAY<STRUCT<`x,y`:STRING,n:INT>>>
+)

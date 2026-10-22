@@ -1,0 +1,1 @@
+select * from a where x = 1 and exists (select 1 from b where b.id = a.id) and y = 2

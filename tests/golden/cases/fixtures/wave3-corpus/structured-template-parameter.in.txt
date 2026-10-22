@@ -1,0 +1,1 @@
+select ${hiveconf:value}+1 from t

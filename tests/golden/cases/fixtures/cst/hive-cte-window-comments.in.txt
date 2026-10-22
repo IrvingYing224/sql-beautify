@@ -1,0 +1,5 @@
+WITH src AS (
+SELECT user_id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts DESC) AS rn
+FROM fact_orders -- keep FROM
+WHERE ds = '2026-07-11'
+) SELECT user_id FROM src WHERE rn = 1

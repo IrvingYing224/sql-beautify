@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+SELECT a && b = c, payload @> '{}' = true, payload ? 'id' AND flag

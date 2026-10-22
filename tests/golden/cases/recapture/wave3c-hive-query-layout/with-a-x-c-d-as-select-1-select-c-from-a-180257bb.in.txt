@@ -1,0 +1,1 @@
+with a(/*x*/c,d) as (select 1) select c from a

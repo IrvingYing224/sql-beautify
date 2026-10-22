@@ -1,0 +1,2 @@
+-- golden: {"options":{"commaStyle":"trailing","indentStyle":"tab"}}
+select a as x, bbbb as yyy from t

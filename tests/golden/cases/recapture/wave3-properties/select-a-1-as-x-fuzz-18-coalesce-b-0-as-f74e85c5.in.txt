@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":59,"commaStyle":"trailing","dialect":"postgresql","indentStyle":"tab","maxAlignWidth":46}}
+select a+1 as x,	/* fuzz 18 */	coalesce(b,0) as y FrOm	t where a=1 and b>2

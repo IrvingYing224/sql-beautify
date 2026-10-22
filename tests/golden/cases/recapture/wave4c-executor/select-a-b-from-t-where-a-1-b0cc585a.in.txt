@@ -1,0 +1,2 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+select a, b from t where a = 1

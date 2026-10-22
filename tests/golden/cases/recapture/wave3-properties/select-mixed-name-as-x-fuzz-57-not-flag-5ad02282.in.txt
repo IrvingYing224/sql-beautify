@@ -1,0 +1,4 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":41,"dialect":"generic","indentStyle":"tab","maxAlignWidth":61}}
+select "Mixed Name"	as x,
+/* fuzz 57 */  not flag
+as y  FROM	t where a=1 and b>2

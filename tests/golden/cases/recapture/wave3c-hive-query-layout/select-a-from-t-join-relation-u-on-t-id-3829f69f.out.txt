@@ -1,0 +1,7 @@
+SELECT
+      a
+FROM t
+JOIN
+    -- relation
+    u
+    ON t.id = u.id

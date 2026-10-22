@@ -1,0 +1,6 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE IF NOT EXISTS db77.`t(77` (
+c77_0 ARRAY<STRUCT<x:STRING,n:INT>>,
+c77_1 STRING,
+`c,77_2` MAP<STRING,ARRAY<INT>> COMMENT 'FROM,77 (2)'
+;

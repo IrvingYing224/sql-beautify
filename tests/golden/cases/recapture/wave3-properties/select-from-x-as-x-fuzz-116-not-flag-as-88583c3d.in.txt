@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":71,"indentStyle":"tab","maxAlignWidth":107,"unsupportedSyntaxPolicy":"bail_out"}}
+select	'FROM  x'  as x,
+/* fuzz 116 */	not flag as y	FrOm	t where a=1 and b>2

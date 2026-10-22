@@ -1,0 +1,13 @@
+with
+	  q as (
+		  select
+			    a
+			  , b
+			  , row_number() over (partition by a order by b desc) as rn
+		  from t
+	  )
+select
+	  a
+	, b
+from q
+where rn = 1

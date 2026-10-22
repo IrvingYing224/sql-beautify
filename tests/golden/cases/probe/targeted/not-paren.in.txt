@@ -1,0 +1,1 @@
+select a from t where not (a = 1 or b = 2)

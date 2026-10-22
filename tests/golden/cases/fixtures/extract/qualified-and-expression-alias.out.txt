@@ -1,0 +1,2 @@
+     user_id __TYPE_REQUIRED__
+    ,total   __TYPE_REQUIRED__

@@ -1,0 +1,1 @@
+with x as (select a from t) insert overwrite table dw.t partition (dt='${dt}') select a from x;

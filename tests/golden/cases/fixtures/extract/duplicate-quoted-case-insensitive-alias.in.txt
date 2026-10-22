@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT a AS `X`, b AS `x` FROM t

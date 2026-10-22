@@ -1,0 +1,8 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE EXTERNAL TABLE db140.`t(140` (
+`c,140_0` STRING COMMENT 'FROM,140 (0)',
+c140_1 ARRAY<STRUCT<x:STRING,n:INT>>,
+c140_2 MAP<STRING,ARRAY<INT>>,
+`c,140_3` STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

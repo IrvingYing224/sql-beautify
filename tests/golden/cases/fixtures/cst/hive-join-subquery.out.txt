@@ -1,0 +1,10 @@
+SELECT
+      a.id
+FROM a
+LEFT OUTER JOIN (
+    SELECT
+          id
+    FROM b
+) q
+    ON a.id = q.id
+WHERE q.id > 0

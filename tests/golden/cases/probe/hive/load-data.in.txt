@@ -1,0 +1,1 @@
+load data inpath '/x' overwrite into table dw.t partition (dt='2024');

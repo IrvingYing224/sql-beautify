@@ -1,0 +1,1 @@
+insert into table d partition(/*e:insert-into*/ds=1) with q as (select 'x' from s) select 'x' from q

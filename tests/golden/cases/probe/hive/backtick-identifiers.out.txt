@@ -1,0 +1,5 @@
+SELECT
+      `a b`
+    , `select`
+    , t.`col-1` AS `别名`
+FROM `db`.`table` t;

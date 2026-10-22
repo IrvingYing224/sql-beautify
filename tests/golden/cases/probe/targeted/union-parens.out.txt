@@ -1,0 +1,11 @@
+(
+    SELECT
+          a
+    FROM t1
+)
+UNION ALL
+(
+    SELECT
+          a
+    FROM t2
+)

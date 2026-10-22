@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+select case when a=1 then lower(cast(a as string)) else (select max(b) from u) end, sum(a) over(partition by a order by a) from t

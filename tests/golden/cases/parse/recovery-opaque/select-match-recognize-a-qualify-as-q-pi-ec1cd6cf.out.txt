@@ -1,0 +1,7 @@
+SELECT
+      match_recognize(a)
+    , qualify AS q
+    , pivot   AS p
+    , merge   AS m
+FROM t AS pivot
+WHERE qualify = 1

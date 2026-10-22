@@ -1,0 +1,4 @@
+SELECT
+      '👍' AS x
+    , abc  AS y
+FROM t

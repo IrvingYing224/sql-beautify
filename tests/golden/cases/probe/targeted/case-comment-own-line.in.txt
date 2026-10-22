@@ -1,0 +1,5 @@
+select case
+  when a = 1 then 'x'
+  -- when a = 2 then 'y'
+  else 'z'
+end as k from t

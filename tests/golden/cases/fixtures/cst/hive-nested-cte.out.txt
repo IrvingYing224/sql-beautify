@@ -1,0 +1,13 @@
+WITH
+      a AS (
+          WITH
+                b AS (
+                    SELECT 1
+                )
+          SELECT
+                *
+          FROM b
+      )
+SELECT
+      *
+FROM a

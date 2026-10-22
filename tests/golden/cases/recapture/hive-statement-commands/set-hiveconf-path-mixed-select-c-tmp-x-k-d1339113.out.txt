@@ -1,0 +1,1 @@
+SET hiveconf:path =  'MiXeD select' = C:/Tmp/X /*keep*/

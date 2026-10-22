@@ -1,0 +1,5 @@
+SELECT
+      *
+FROM
+      base qualify(c1)
+    , other

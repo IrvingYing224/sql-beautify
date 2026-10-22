@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic"}}
+SELECT a FROM t LIMIT 10 OFFSET 2

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select $$FROM where$$ as body, cast(a as text) as value from t where id=$1 union all select 'x', cast(2 as text) from u order by value limit 2

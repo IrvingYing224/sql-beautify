@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select '{"a":[1,2]}'::jsonb#-'{a,0}' from t

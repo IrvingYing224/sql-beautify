@@ -1,0 +1,8 @@
+SELECT
+      /*+ BROADCAST(b), MAPJOIN(c) */
+      *
+FROM a
+JOIN b
+    ON a.k = b.k
+JOIN c
+    ON c.k = a.k;

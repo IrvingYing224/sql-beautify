@@ -1,0 +1,1 @@
+select /*+ BROADCAST(b), MAPJOIN(c) */ * from a join b on a.k = b.k join c on c.k = a.k;

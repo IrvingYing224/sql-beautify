@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT count(DISTINCT *) AS invalid_121 FROM t121

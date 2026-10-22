@@ -1,0 +1,9 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE TABLE db152.`t(152` (
+`c,152_0` STRING,
+`c,152_1` STRING COMMENT 'FROM,152 (1)',
+c152_2 ARRAY<STRUCT<x:STRING,n:INT>>,
+c152_3 STRING,
+c152_4 DECIMAL(18,0)
+);

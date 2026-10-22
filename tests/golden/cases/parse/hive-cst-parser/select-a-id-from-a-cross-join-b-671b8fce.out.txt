@@ -1,0 +1,4 @@
+SELECT
+      a.id
+FROM a
+CROSS JOIN b

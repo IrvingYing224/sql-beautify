@@ -1,0 +1,6 @@
+-- golden: {"options":{"caseWhenThenWrapLength":68,"commaStyle":"trailing","keywordCase":"lower","maxAlignWidth":114,"unsupportedSyntaxPolicy":"preserve"}}
+SELECT
+`Mixed Name`
+as x,
+/* fuzz 72 */
+b*2 as y FrOm  t where a=1 and b>2

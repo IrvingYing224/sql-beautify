@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":71,"dialect":"generic","maxAlignWidth":108,"unsupportedSyntaxPolicy":"preserve"}}
+SeLeCt "Mixed Name"  as x,
+/* fuzz 73 */ b*2 as y  FROM  t where a=1 and b>2

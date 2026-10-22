@@ -1,0 +1,2 @@
+-- golden: {"mode":"statement"}
+select  1 -- keep EOF

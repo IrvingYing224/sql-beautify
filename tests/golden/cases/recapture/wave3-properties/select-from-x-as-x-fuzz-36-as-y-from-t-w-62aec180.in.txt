@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":81,"commaStyle":"trailing","keywordCase":"lower","maxAlignWidth":108,"unsupportedSyntaxPolicy":"preserve"}}
+SELECT  'FROM  x'	as x, /* fuzz 36 */	?  as y	from  t where a=1 and b>2

@@ -1,0 +1,7 @@
+/*
+ * Job: daily
+ * Owner: data team
+ */
+SELECT
+      a
+FROM t;

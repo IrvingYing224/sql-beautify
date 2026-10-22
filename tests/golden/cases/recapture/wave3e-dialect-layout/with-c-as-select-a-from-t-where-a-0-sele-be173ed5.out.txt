@@ -1,0 +1,24 @@
+WITH
+      c AS (
+          SELECT
+                a
+          FROM t
+          WHERE a > 0
+      )
+SELECT
+      c.a
+FROM c
+JOIN (
+    SELECT
+          b AS a
+    FROM u
+) q
+    ON c.a = q.a
+GROUP BY
+      c.a
+HAVING count(*) > 0
+WINDOW
+      w AS (PARTITION BY c.a ORDER BY c.a)
+ORDER BY
+      c.a
+LIMIT 5

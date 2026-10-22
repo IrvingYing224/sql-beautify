@@ -1,0 +1,1 @@
+SELECT from.id FROM src WHERE from.id > 0

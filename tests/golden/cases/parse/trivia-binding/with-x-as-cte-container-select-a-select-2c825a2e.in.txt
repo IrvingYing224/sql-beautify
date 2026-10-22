@@ -1,0 +1,4 @@
+WITH x AS (
+-- cte container
+SELECT a
+) SELECT * FROM x;

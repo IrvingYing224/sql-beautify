@@ -1,0 +1,4 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":96,"dialect":"postgresql","indentStyle":"tab","maxAlignWidth":149,"unsupportedSyntaxPolicy":"bail_out"}}
+SeLeCt  "Mixed Name"  as x,
+/* fuzz 26 */	coalesce(b,0) as y
+from	t where a=1 and b>2

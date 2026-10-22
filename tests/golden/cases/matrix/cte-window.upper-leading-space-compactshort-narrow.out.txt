@@ -1,0 +1,13 @@
+WITH
+      q AS (
+          SELECT
+                a
+              , b
+              , row_number() OVER (PARTITION BY a ORDER BY b DESC) AS rn
+          FROM t
+      )
+SELECT
+      a
+    , b
+FROM q
+WHERE rn = 1

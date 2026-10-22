@@ -1,0 +1,1 @@
+select * from a join b on a.k = case when b.x is null then 0 else b.x end

@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":90,"dialect":"postgresql","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":92,"unsupportedSyntaxPolicy":"preserve"}}
+SeLeCt  'FROM  x'
+as x, /* fuzz 54 */	not flag as y  from t where a=1 and b>2

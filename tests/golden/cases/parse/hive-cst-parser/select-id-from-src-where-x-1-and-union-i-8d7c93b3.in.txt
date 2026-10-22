@@ -1,0 +1,1 @@
+SELECT id FROM src WHERE x = 1 AND union.id > 0

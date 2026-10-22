@@ -1,0 +1,1 @@
+select a from t join u using(/*x*/id,x)

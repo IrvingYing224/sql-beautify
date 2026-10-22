@@ -1,0 +1,9 @@
+select /*+ MAPJOIN(b) */ a.id, b.name, c.v, d.w
+from a
+join b on a.id = b.id
+left outer join c on a.id = c.id and c.dt = '2024'
+right join e on e.id = a.id
+full outer join d on a.id = d.id
+left semi join f on a.id = f.id
+cross join g
+left anti join h on h.id = a.id

@@ -1,0 +1,2 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+select case when a = 7 then b else c end as value from t

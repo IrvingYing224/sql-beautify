@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+WITH c82 AS (SELECT `quoted,82_0` AS quoted_82_0, /* between */ CASE WHEN t.c1 = 5 THEN t.c1 ELSE 0 END AS case_82_1, /* between */ count(*) AS count_82_2, /* between */ CASE WHEN t.c3 = 5 THEN t.c3 ELSE 0 END AS case_82_3 FROM t82 t WHERE (t.c0 >= 5 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 8) SELECT * FROM c82 /* unterminated 82

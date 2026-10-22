@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select a as x, longer as y, payload->>'x' as j, c as z, widest_name as q from t

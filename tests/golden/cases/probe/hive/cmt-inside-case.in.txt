@@ -1,0 +1,8 @@
+select case
+  -- first branch
+  when a = 1 then 'x' -- one
+  /* second */
+  when a = 2 then 'y'
+  else 'z' -- default
+end as c
+from t

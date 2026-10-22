@@ -1,0 +1,3 @@
+-- golden: {"op":"extractDdl"}
+SELECT a -- 中文 "note"
+FROM t

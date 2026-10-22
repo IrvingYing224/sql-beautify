@@ -1,0 +1,7 @@
+-- golden: {"op":"extractDdl"}
+SELECT count(*) AS count_67_0,
+t.c1 AS c67_1,
+`quoted,67_2` AS quoted_67_2,
+t.c3 AS c67_3,
+(4 + 16) AS n67_4 FROM t67 t -- tail 67
+)

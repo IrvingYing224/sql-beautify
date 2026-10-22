@@ -1,0 +1,8 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE TABLE db90.`t(90` (
+c90_0 ARRAY<STRUCT<x:STRING,n:INT>>,
+c90_1 ARRAY<STRUCT<x:STRING,n:INT>>,
+c90_2 DECIMAL(10,2) COMMENT 'FROM,90 (2)',
+`c,90_3` MAP<STRING,ARRAY<INT>>
+);

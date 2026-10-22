@@ -1,0 +1,2 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"bail_out"}}
+select * from t qualify row_number() over () = 1

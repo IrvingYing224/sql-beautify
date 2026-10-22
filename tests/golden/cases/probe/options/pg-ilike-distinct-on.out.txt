@@ -1,0 +1,8 @@
+SELECT DISTINCT
+      on(a) a
+    , b
+FROM t
+WHERE b ILIKE '%x%'
+ORDER BY
+      a
+    , b DESC

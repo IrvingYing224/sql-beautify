@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select $$it's a string$$, $tag$x$tag$ from t

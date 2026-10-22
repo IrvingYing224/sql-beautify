@@ -1,0 +1,3 @@
+SELECT
+      *
+FROM a straight_join b on a.id = b.id

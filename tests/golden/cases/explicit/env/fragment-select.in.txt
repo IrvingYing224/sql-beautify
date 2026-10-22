@@ -1,0 +1,2 @@
+-- golden: {"mode":"fragment"}
+select a,b from t where x=1

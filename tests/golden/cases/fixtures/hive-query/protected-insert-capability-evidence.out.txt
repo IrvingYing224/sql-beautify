@@ -1,0 +1,5 @@
+INSERT OVERWRITE TABLE d
+PARTITION (/*e:insert*/ds = 1, hr)
+SELECT
+      'x'
+FROM s

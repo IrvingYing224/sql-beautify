@@ -1,0 +1,1 @@
+SELECT a @ b AS preserved, good + 1 AS structured FROM t

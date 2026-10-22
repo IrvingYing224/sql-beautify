@@ -1,0 +1,5 @@
+-- golden: {"options":{"caseWhenThenWrapLength":37,"dialect":"mysql","maxAlignWidth":95,"unsupportedSyntaxPolicy":"preserve"}}
+SeLeCt	a+1  as x,	-- fuzz 99
+ @value
+as y  from
+t where a=1 and b>2

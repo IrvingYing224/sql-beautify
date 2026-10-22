@@ -1,0 +1,1 @@
+select a as x, longer as y, case when b=1 then 1 else 2 end as middle, c as z, widest_name as q from t

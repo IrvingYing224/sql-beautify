@@ -1,0 +1,1 @@
+with x as (select a, row_number() over (partition by user_id, device_id, app_version order by event_time desc, seq_no desc) as rn from t) select * from x where rn = 1

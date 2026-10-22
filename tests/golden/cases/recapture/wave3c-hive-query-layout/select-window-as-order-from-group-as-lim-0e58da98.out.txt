@@ -1,0 +1,3 @@
+select
+    window as order
+from `group` as limit

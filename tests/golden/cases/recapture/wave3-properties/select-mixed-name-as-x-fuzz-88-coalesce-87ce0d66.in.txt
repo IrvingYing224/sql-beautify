@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":93,"commaStyle":"trailing","maxAlignWidth":149,"unsupportedSyntaxPolicy":"preserve"}}
+SELECT	`Mixed Name` as x,  -- fuzz 88
+  coalesce(b,0) as y from  t where a=1 and b>2

@@ -1,0 +1,6 @@
+SELECT
+      a
+    , b, -- 注释b
+      c
+    , d
+FROM t

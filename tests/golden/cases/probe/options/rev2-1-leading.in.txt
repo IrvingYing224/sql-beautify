@@ -1,0 +1,4 @@
+select aaaaaaaaaa as x -- c1
+, b as y -- c2
+, cc as z -- c3
+from t

@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":80,"keywordCase":"lower","unsupportedSyntaxPolicy":"preserve"}}
+SELECT TRANSFORM(payload) USING 'python3 normalize.py' AS (normalized string) FROM raw_events WHERE ds='${bizdate}';

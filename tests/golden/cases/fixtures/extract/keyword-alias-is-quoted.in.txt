@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT window AS order FROM t

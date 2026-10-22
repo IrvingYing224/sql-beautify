@@ -1,0 +1,3 @@
+select * from a join b on a.id = b.id
+  -- and a.dt = b.dt
+  and a.x = b.x

@@ -1,0 +1,3 @@
+select a --x
+, long_name --y
+from t

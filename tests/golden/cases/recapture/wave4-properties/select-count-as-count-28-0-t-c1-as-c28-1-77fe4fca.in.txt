@@ -1,0 +1,2 @@
+SELECT count(*) AS count_28_0, t.c1 AS c28_1, count(*) AS count_28_2, t.c3 AS c28_3 FROM t28 t WHERE (t.c0 >= 6 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 4 -- tail 28
+)

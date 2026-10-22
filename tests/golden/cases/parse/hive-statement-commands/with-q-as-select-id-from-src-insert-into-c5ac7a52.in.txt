@@ -1,0 +1,1 @@
+WITH q AS (SELECT id FROM src) INSERT INTO dst SELECT id FROM q

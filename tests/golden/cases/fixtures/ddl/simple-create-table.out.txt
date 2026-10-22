@@ -1,0 +1,5 @@
+CREATE TABLE t
+(
+     a INT
+    ,b STRING
+)

@@ -1,0 +1,1 @@
+WITH x AS (SELECT 'literal' AS c) SELECT c FROM x

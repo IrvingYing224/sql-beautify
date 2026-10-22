@@ -1,0 +1,7 @@
+WITH q AS (
+  SELECT CASE WHEN a > 0 THEN a ELSE 0 END AS value,
+         row_number() OVER (PARTITION BY k ORDER BY ts) AS rn
+  FROM src WHERE flag = 1
+)
+SELECT value, rn FROM q WHERE rn = 1;
+SELECT 2

@@ -1,0 +1,4 @@
+SELECT
+      id
+FROM src
+LATERAL VIEW EXPLODE(items) e AS item extra

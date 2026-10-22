@@ -1,0 +1,2 @@
+SELECT (0 + 10) AS n78_0 FROM t78 t -- tail 78
+)

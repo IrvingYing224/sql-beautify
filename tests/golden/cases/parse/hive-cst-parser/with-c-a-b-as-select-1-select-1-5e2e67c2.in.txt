@@ -1,0 +1,1 @@
+WITH c(a b) AS (SELECT 1) SELECT 1

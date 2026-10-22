@@ -1,0 +1,6 @@
+SELECT
+      /*+ MAPJOIN(t) */
+      a, -- keep  FROM
+      'x, FROM' AS s
+FROM `db . t` t -- tail
+WHERE a = 1

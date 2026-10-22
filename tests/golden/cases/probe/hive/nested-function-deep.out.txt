@@ -1,0 +1,3 @@
+SELECT
+      nvl(CAST(get_json_object(regexp_replace(js, '\\\\', ''), '$.data.items[0].price') AS DOUBLE), 0.0) AS price
+FROM t;

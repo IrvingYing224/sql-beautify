@@ -1,0 +1,6 @@
+SELECT
+      a8
+    , count(*) AS n
+FROM t
+GROUP BY
+      a8

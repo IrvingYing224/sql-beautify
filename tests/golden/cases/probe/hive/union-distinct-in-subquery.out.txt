@@ -1,0 +1,11 @@
+SELECT
+      *
+FROM (
+    SELECT
+          a
+    FROM t1
+    UNION
+    SELECT
+          a
+    FROM t2
+) u;

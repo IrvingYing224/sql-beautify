@@ -1,0 +1,1 @@
+select case when a = 1 then concat(first_name, ' ', middle_name, ' ', last_name, ' ', suffix_name) else 'n/a' end as full_name from t

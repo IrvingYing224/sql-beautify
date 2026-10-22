@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":53,"commaStyle":"trailing","keywordCase":"lower","maxAlignWidth":145,"unsupportedSyntaxPolicy":"bail_out"}}
+select
+`Mixed Name`  as x, /* fuzz 8 */  b*2	as y	FROM	t where a=1 and b>2

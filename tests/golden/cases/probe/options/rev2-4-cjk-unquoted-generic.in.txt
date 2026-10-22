@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic"}}
+select 中文字段 as c1, b as c2 from t

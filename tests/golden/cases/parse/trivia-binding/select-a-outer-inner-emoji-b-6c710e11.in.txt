@@ -1,0 +1,4 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+SELECT a /* outer
+ /* inner */ emoji: 😀 */
+, b;

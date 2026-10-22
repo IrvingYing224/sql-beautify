@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT 'FROM,112_0' AS text_112_0, /* between */ `quoted,112_1` AS quoted_112_1, /* between */ t.c2 AS c112_2, /* between */ `quoted,112_3` AS quoted_112_3, /* between */ t.c4 AS c112_4 FROM t112 t WHERE (t.c0 >= 2 AND t.c0 IS NOT NULL)

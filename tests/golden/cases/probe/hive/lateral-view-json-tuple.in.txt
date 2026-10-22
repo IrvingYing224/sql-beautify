@@ -1,0 +1,1 @@
+select t.id, j.name, j.age from src t lateral view json_tuple(t.js, 'name', 'age') j as name, age;

@@ -1,0 +1,2 @@
+# not a comment in hive
+select 1;

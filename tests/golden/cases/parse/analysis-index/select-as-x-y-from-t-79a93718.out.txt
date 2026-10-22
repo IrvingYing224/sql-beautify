@@ -1,0 +1,4 @@
+SELECT
+      '😀' AS x
+    , y
+FROM t

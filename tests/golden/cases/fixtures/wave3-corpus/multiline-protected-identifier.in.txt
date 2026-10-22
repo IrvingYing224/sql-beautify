@@ -1,0 +1,2 @@
+select a as `x
+y`, longer_name as z from t

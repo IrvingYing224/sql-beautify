@@ -1,0 +1,81 @@
+-- =============================================
+-- 任务名称: dws_user_order_daily
+-- 负责人: data-team
+-- =============================================
+use dw;
+SET hive.exec.dynamic.partition=true;
+SET hive.exec.dynamic.partition.mode=nonstrict;
+SET mapreduce.map.memory.mb=4096;
+add jar hdfs:///user/lib/udf-1.0.jar;
+create temporary function parse_ua as 'com.x.ParseUA';
+
+drop table if exists tmp.tmp_user_order_${hivevar:dt};
+create table tmp.tmp_user_order_${hivevar:dt} as
+select user_id, order_id, amount from ods.orders where dt = '${hivevar:dt}';
+
+WITH
+      orders AS (
+          SELECT
+                o.user_id
+              , o.order_id
+              , o.amount, -- 订单金额
+                o.status
+              ,
+              -- o.coupon_id,
+                o.create_time
+          FROM ods.orders o
+          WHERE o.dt = '${hivevar:dt}'
+              AND o.status IN (1, 2, 3)
+          -- and o.is_test = 0
+      )
+    , users AS (
+          SELECT
+                /*+ MAPJOIN(c) */
+                u.user_id
+              , u.city
+              , c.city_level
+          FROM dim.users u
+          LEFT JOIN dim.city c
+              ON u.city = c.city_name
+      )
+    , agg AS (
+          SELECT
+                user_id
+              , count(DISTINCT order_id) AS order_cnt
+              , sum(amount)              AS total_amount
+              , sum(CASE
+                  WHEN status = 1 THEN amount
+                  ELSE 0
+              END) AS paid_amount
+              , max(create_time)                                                   AS last_order_time
+              , row_number() OVER (PARTITION BY user_id ORDER BY sum(amount) DESC) AS rn
+          FROM orders
+          GROUP BY
+                user_id
+      )
+INSERT OVERWRITE TABLE dws.user_order_daily
+PARTITION (dt = '${hivevar:dt}')
+SELECT
+      a.user_id
+    , a.order_cnt
+    , a.total_amount
+    , a.paid_amount
+    , CASE
+        WHEN a.total_amount >= 10000 THEN 'S'
+        WHEN a.total_amount >= 1000 THEN 'A'
+        ELSE 'B'
+    END AS user_level -- 用户等级
+    , u.city
+    , nvl(u.city_level, -1) AS city_level
+    , tag
+FROM agg a
+LEFT JOIN users u
+    ON a.user_id = u.user_id
+LATERAL VIEW explode(split(nvl(u.city, ''), ',')) t AS tag
+WHERE a.rn = 1
+DISTRIBUTE BY
+      a.user_id
+SORT BY
+      a.total_amount DESC;
+
+msck repair table dws.user_order_daily;

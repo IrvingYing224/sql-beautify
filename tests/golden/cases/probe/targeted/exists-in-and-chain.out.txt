@@ -1,0 +1,11 @@
+SELECT
+      *
+FROM a
+WHERE x = 1
+    AND EXISTS (
+        SELECT
+              1
+        FROM b
+        WHERE b.id = a.id
+    )
+    AND y = 2

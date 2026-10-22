@@ -1,0 +1,1 @@
+select 'x' from a join /*e:join*/ b using(id) lateral view explode(/*e:table*/b.xs) e as /*e:lateral*/ x

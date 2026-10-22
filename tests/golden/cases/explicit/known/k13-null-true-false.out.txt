@@ -1,0 +1,7 @@
+SELECT
+      CASE
+          WHEN a IS NULL THEN null
+          WHEN b THEN true
+          ELSE false
+      END
+FROM t

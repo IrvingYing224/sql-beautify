@@ -1,0 +1,3 @@
+SELECT
+      1
+FROM src OUTER JOIN other ON src.id = other.id

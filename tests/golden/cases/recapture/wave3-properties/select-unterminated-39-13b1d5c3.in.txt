@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+SELECT /* unterminated 39

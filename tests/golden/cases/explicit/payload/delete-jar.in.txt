@@ -1,0 +1,1 @@
+delete jar /tmp/current.jar;

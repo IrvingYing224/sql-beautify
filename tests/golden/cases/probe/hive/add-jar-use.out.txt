@@ -1,0 +1,6 @@
+add jar hdfs:///lib/udf.jar;
+create temporary function my_udf as 'com.x.MyUdf';
+use dw;
+SELECT
+      my_udf(a)
+FROM t;

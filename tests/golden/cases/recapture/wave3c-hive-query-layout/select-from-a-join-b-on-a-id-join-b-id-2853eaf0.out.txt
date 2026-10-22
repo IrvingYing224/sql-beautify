@@ -1,0 +1,6 @@
+SELECT
+      *
+FROM a
+JOIN b
+    ON a.id -- join
+    = b.id

@@ -1,0 +1,6 @@
+SELECT
+      a
+    , b
+FROM t;
+
+CREATE TABLE t (x INT);

@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":80,"unsupportedSyntaxPolicy":"preserve"}}
+select a from t

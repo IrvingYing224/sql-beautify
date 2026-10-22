@@ -1,0 +1,5 @@
+SELECT
+      now() - INTERVAL '1 day'
+    , a
+FROM t
+WHERE ts > now() - INTERVAL '7 days'

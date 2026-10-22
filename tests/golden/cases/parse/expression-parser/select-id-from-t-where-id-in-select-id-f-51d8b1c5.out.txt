@@ -1,0 +1,15 @@
+SELECT
+      id
+FROM t
+WHERE id IN (
+    SELECT
+          id
+    FROM u
+    WHERE u.k = t.k
+)
+    AND EXISTS (
+        SELECT
+              1
+        FROM v
+        WHERE v.id = t.id
+    )

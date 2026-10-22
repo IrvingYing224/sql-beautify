@@ -1,0 +1,3 @@
+SELECT
+      count(*) c
+FROM src

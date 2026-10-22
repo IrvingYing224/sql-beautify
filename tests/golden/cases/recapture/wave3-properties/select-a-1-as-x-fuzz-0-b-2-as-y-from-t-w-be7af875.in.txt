@@ -1,0 +1,5 @@
+-- golden: {"options":{"caseWhenThenWrapLength":57,"commaStyle":"trailing","keywordCase":"lower","maxAlignWidth":129,"unsupportedSyntaxPolicy":"preserve"}}
+SeLeCt  a+1  as x,
+-- fuzz 0
+  b*2  as y
+FROM  t where a=1 and b>2

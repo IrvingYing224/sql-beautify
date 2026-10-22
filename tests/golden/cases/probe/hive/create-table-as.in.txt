@@ -1,0 +1,1 @@
+create table x as select a from t;

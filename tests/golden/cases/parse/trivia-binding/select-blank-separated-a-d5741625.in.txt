@@ -1,0 +1,4 @@
+SELECT
+/* blank separated */
+
+ a;

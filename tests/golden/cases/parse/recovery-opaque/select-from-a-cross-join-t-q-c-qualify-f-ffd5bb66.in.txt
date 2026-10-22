@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+SELECT * FROM a CROSS JOIN t q(c) QUALIFY (flag)

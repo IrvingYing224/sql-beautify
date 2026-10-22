@@ -1,0 +1,4 @@
+select a -- tail
+
+
+from t

@@ -1,0 +1,4 @@
+SELECT
+      CAST(a AS VARCHAR(10))
+    , a::varchar(10)
+FROM t

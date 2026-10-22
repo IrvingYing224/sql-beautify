@@ -1,0 +1,2 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"bail_out"}}
+SELECT * FROM t QUALIFY row_number() OVER () = 1

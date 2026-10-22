@@ -1,0 +1,15 @@
+SELECT
+      *
+FROM a
+WHERE EXISTS (
+    SELECT
+          1
+    FROM b
+    WHERE b.id = a.id
+)
+    AND NOT EXISTS (
+        SELECT
+              1
+        FROM c
+        WHERE c.id = a.id
+    );

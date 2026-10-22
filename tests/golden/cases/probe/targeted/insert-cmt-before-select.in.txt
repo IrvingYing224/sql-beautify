@@ -1,0 +1,3 @@
+insert overwrite table db.t partition (dt='${dt}')
+-- main query
+select a from s

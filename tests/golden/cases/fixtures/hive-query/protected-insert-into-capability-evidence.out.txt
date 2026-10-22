@@ -1,0 +1,11 @@
+INSERT INTO TABLE d
+PARTITION (/*e:insert-into*/ds = 1)
+WITH
+      q AS (
+          SELECT
+                'x'
+          FROM s
+      )
+SELECT
+      'x'
+FROM q

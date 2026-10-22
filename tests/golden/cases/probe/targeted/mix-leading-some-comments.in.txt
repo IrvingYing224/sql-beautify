@@ -1,0 +1,3 @@
+select a, b, -- 注释b
+c, d
+from t

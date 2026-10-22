@@ -1,0 +1,5 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+select a,b from t; 	
+
+
+CREATE TABLE t (x INT);

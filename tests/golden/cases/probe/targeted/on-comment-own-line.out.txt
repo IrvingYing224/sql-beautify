@@ -1,0 +1,7 @@
+SELECT
+      *
+FROM a
+JOIN b
+    ON a.id = b.id
+    -- and a.dt = b.dt
+        AND a.x = b.x

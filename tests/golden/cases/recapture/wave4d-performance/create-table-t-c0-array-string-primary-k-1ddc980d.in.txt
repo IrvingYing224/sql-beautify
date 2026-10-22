@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE t (c0 ARRAY<STRING>, PRIMARY KEY (c0))

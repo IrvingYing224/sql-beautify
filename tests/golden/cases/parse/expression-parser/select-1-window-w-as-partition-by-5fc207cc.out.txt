@@ -1,0 +1,3 @@
+SELECT 1
+WINDOW
+      w AS (PARTITION BY)

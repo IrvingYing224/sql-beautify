@@ -1,0 +1,6 @@
+select a,
+  /* multi
+     line
+     comment */
+  b
+from t

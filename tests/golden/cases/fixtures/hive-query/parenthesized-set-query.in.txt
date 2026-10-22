@@ -1,0 +1,1 @@
+(select a from t union all select b from u order by 1 limit 2)

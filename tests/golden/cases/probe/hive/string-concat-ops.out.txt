@@ -1,0 +1,8 @@
+SELECT
+      a || b
+    , concat(a, '-', b)
+    , concat_ws(',', collect_set(c))
+FROM t
+GROUP BY
+      a
+    , b;

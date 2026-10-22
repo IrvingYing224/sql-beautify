@@ -1,0 +1,1 @@
+select a /* c1 */, b /* c2 */, c from t;

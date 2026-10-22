@@ -1,0 +1,1 @@
+select a as `用户编号`, bbbbbb as `名称`, c as x from t

@@ -1,0 +1,4 @@
+select * from t
+where -- filter
+  a = 1
+  and c = 3

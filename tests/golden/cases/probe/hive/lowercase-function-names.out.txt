@@ -1,0 +1,4 @@
+SELECT
+      count(a)
+    , sum(b)
+FROM t;

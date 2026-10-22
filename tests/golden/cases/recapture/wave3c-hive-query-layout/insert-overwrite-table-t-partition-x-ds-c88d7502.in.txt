@@ -1,0 +1,1 @@
+insert overwrite table t partition(/*x*/ds=1,hr) select a from s

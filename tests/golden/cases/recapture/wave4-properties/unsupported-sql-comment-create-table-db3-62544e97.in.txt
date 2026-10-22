@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE TABLE db39.`t(39` (
+c39_0 STRING
+);

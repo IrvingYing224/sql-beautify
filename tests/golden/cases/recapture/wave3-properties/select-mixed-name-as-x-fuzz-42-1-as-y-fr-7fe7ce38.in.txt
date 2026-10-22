@@ -1,0 +1,6 @@
+-- golden: {"options":{"caseWhenThenWrapLength":77,"commaStyle":"trailing","dialect":"postgresql","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":138,"unsupportedSyntaxPolicy":"bail_out"}}
+select	"Mixed Name"  as x,  /* fuzz 42 */
+$1
+as y
+from
+t where a=1 and b>2

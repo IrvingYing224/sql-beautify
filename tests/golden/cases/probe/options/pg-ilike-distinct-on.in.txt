@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select distinct on (a) a, b from t where b ilike '%x%' order by a, b desc

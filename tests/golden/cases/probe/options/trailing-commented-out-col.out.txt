@@ -1,0 +1,6 @@
+SELECT
+    a,
+    -- b,
+    c,
+    e
+FROM t

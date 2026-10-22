@@ -1,0 +1,1 @@
+SELECT * FROM t JOIN u ON true, v q QUALIFY (flag)

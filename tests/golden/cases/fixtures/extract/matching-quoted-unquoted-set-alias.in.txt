@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT a AS x FROM t UNION ALL SELECT b AS `x` FROM u

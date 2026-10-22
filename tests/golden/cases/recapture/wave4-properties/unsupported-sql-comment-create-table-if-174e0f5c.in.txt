@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE TABLE IF NOT EXISTS db62.`t(62` (
+c62_0 STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

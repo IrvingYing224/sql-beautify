@@ -1,0 +1,4 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":37,"commaStyle":"trailing","dialect":"generic","maxAlignWidth":80,"unsupportedSyntaxPolicy":"bail_out"}}
+select  'FROM  x'
+as x,	/* fuzz 5 */ b*2  as y
+FROM t where a=1 and b>2

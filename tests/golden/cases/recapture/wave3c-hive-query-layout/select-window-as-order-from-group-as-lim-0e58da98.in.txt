@@ -1,0 +1,2 @@
+-- golden: {"options":{"commaStyle":"trailing","keywordCase":"lower"}}
+select window as order from `group` as limit

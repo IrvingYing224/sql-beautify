@@ -1,0 +1,4 @@
+SELECT
+      q -- member
+      .a
+FROM t

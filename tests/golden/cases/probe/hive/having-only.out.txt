@@ -1,0 +1,7 @@
+SELECT
+      a
+FROM t
+GROUP BY
+      a
+HAVING sum(b) > 10
+    AND count(*) < 5;

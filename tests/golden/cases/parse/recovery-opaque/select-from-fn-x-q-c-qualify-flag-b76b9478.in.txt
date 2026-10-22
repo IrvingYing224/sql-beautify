@@ -1,0 +1,1 @@
+SELECT * FROM fn(x) q(c) QUALIFY (flag)

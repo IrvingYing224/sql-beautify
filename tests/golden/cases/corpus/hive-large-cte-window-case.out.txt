@@ -1,0 +1,262 @@
+WITH
+      base_orders AS (
+          SELECT
+                o.order_id
+              , o.user_id
+              , o.city_id
+              , o.city_name
+              , o.region_name
+              , o.channel_id
+              , o.device_type
+              , o.payment_type
+              , o.order_status
+              , o.refund_status
+              , o.gross_amount
+              , o.discount_amount
+              , o.shipping_amount
+              , o.created_at
+              , o.paid_at
+              , o.ds
+          FROM dwd_order_detail o
+          WHERE o.ds BETWEEN '${start_date}' AND '${end_date}'
+      )
+    , enriched_orders AS (
+          SELECT
+                b.order_id
+              , b.user_id
+              , CASE
+                  WHEN b.city_id IN (1001, 1002, 1003) THEN
+                      'tier_one'
+                  WHEN b.city_id IN (2001, 2002, 2003) THEN
+                      'tier_two'
+                  ELSE 'other'
+              END AS city_tier
+              , CASE
+                  WHEN b.channel_id IN ('app', 'mini_app') THEN
+                      'mobile'
+                  WHEN b.channel_id IN ('web', 'desktop') THEN
+                      'desktop'
+                  ELSE 'unknown'
+              END AS channel_group
+              , CASE
+                  WHEN b.device_type IN ('ios', 'android') THEN
+                      'native'
+                  WHEN b.device_type = 'browser' THEN 'web'
+                  ELSE 'other'
+              END AS device_group
+              , CASE
+                  WHEN b.payment_type IN ('card', 'wallet') THEN
+                      'online'
+                  WHEN b.payment_type = 'cash' THEN 'offline'
+                  ELSE 'unknown'
+              END AS payment_group
+              , CASE
+                  WHEN b.order_status = 'paid'
+                      AND b.refund_status = 'none' THEN
+                      'completed'
+                  WHEN b.refund_status IN ('partial', 'full') THEN
+                      'refunded'
+                  ELSE 'open'
+              END AS lifecycle_group
+              , CASE
+                  WHEN b.gross_amount >= 10000 THEN
+                      'amount_10000_plus'
+                  WHEN b.gross_amount >= 5000 THEN
+                      'amount_5000_9999'
+                  WHEN b.gross_amount >= 1000 THEN
+                      'amount_1000_4999'
+                  ELSE 'amount_below_1000'
+              END AS amount_band
+              , CASE
+                  WHEN b.discount_amount = 0 THEN 'no_discount'
+                  WHEN b.discount_amount < 50 THEN 'discount_small'
+                  WHEN b.discount_amount < 200 THEN
+                      'discount_medium'
+                  ELSE 'discount_large'
+              END AS discount_band
+              , CASE
+                  WHEN b.shipping_amount = 0 THEN 'free_shipping'
+                  WHEN b.shipping_amount < 20 THEN 'shipping_low'
+                  WHEN b.shipping_amount < 50 THEN 'shipping_medium'
+                  ELSE 'shipping_high'
+              END AS shipping_band
+              , CASE
+                  WHEN hour(b.created_at) BETWEEN 0 AND 5 THEN
+                      'night'
+                  WHEN hour(b.created_at) BETWEEN 6 AND 11 THEN
+                      'morning'
+                  WHEN hour(b.created_at) BETWEEN 12 AND 17 THEN
+                      'afternoon'
+                  ELSE 'evening'
+              END AS created_period
+              , CASE
+                  WHEN datediff(b.paid_at, b.created_at) = 0 THEN
+                      'paid_same_day'
+                  WHEN datediff(b.paid_at, b.created_at) = 1 THEN
+                      'paid_next_day'
+                  ELSE 'paid_later'
+              END AS payment_delay
+              , CASE
+                  WHEN b.region_name IN ('华东', '华南') THEN
+                      'south_east'
+                  WHEN b.region_name IN ('华北', '东北') THEN
+                      'north'
+                  WHEN b.region_name IN ('西南', '西北') THEN 'west'
+                  ELSE 'unknown'
+              END AS region_group
+              , CASE
+                  WHEN b.city_name LIKE '%市' THEN
+                      regexp_replace(b.city_name, '市$', '')
+                  ELSE b.city_name
+              END AS normalized_city_name
+              , CASE
+                  WHEN b.user_id IS NULL THEN 'anonymous'
+                  WHEN length(b.user_id) < 8 THEN 'legacy_user'
+                  ELSE 'registered_user'
+              END AS user_group
+              , CASE
+                  WHEN b.order_id LIKE 'TEST%' THEN 1
+                  ELSE 0
+              END AS is_test_order
+              , CASE
+                  WHEN b.order_id LIKE 'RETRY%' THEN 1
+                  ELSE 0
+              END AS is_retry_order
+              , CASE
+                  WHEN b.order_status IN ('cancelled', 'closed') THEN
+                      1
+                  ELSE 0
+              END AS is_closed_order
+              , CASE
+                  WHEN b.refund_status = 'full' THEN b.gross_amount
+                  WHEN b.refund_status = 'partial' THEN
+                      b.discount_amount
+                  ELSE 0
+              END AS estimated_refund_amount
+              , CASE
+                  WHEN b.gross_amount - b.discount_amount + b.shipping_amount < 0 THEN
+                      0
+                  ELSE
+                      b.gross_amount - b.discount_amount + b.shipping_amount
+              END AS net_amount
+              , row_number() OVER (PARTITION BY b.user_id ORDER BY b.paid_at DESC, b.order_id DESC)                           AS user_order_rank
+              , dense_rank() OVER (PARTITION BY b.region_name ORDER BY b.gross_amount DESC)                                   AS regional_amount_rank
+              , sum(b.gross_amount) OVER (PARTITION BY b.user_id ORDER BY b.paid_at ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS rolling_seven_order_amount
+              , count(*) OVER (PARTITION BY b.user_id)                                                                        AS user_order_count
+              , max(b.paid_at) OVER (PARTITION BY b.user_id)                                                                  AS latest_paid_at
+              , b.ds
+          FROM base_orders b
+      )
+    , scored_orders AS (
+          SELECT
+                e.*
+              , CASE
+                  WHEN e.lifecycle_group = 'completed'
+                      AND e.amount_band IN ('amount_10000_plus', 'amount_5000_9999') THEN
+                      100
+                  WHEN e.lifecycle_group = 'completed' THEN 80
+                  WHEN e.lifecycle_group = 'refunded' THEN 20
+                  ELSE 40
+              END AS lifecycle_score
+              , CASE
+                  WHEN e.user_group = 'registered_user'
+                      AND e.user_order_count >= 20 THEN
+                      100
+                  WHEN e.user_group = 'registered_user'
+                      AND e.user_order_count >= 5 THEN
+                      70
+                  WHEN e.user_group = 'legacy_user' THEN 50
+                  ELSE 20
+              END AS loyalty_score
+              , CASE
+                  WHEN e.payment_delay = 'paid_same_day' THEN 100
+                  WHEN e.payment_delay = 'paid_next_day' THEN 70
+                  ELSE 40
+              END AS payment_score
+              , CASE
+                  WHEN e.is_test_order = 1 THEN 0
+                  WHEN e.is_retry_order = 1 THEN 30
+                  WHEN e.is_closed_order = 1 THEN 50
+                  ELSE 100
+              END AS quality_score
+              , CASE
+                  WHEN e.net_amount >= 5000 THEN 'high_value'
+                  WHEN e.net_amount >= 1000 THEN 'medium_value'
+                  WHEN e.net_amount >= 100 THEN 'standard_value'
+                  ELSE 'low_value'
+              END AS value_segment
+              , CASE
+                  WHEN e.rolling_seven_order_amount >= 20000 THEN
+                      'very_active'
+                  WHEN e.rolling_seven_order_amount >= 5000 THEN
+                      'active'
+                  WHEN e.rolling_seven_order_amount > 0 THEN
+                      'occasional'
+                  ELSE 'inactive'
+              END AS activity_segment
+          FROM enriched_orders e
+      )
+    , final_orders AS (
+          SELECT
+                s.order_id
+              , s.user_id
+              , s.city_tier
+              , s.channel_group
+              , s.device_group
+              , s.payment_group
+              , s.lifecycle_group
+              , s.amount_band
+              , s.discount_band
+              , s.shipping_band
+              , s.created_period
+              , s.payment_delay
+              , s.region_group
+              , s.normalized_city_name
+              , s.user_group
+              , s.estimated_refund_amount
+              , s.net_amount
+              , s.user_order_rank
+              , s.regional_amount_rank
+              , s.rolling_seven_order_amount
+              , s.user_order_count
+              , s.latest_paid_at
+              , s.lifecycle_score + s.loyalty_score + s.payment_score + s.quality_score AS total_score
+              , s.value_segment
+              , s.activity_segment
+              , s.ds
+          FROM scored_orders s
+          WHERE s.is_test_order = 0
+      )
+SELECT
+      order_id
+    , user_id
+    , city_tier
+    , channel_group
+    , device_group
+    , payment_group
+    , lifecycle_group
+    , amount_band
+    , discount_band
+    , shipping_band
+    , created_period
+    , payment_delay
+    , region_group
+    , normalized_city_name
+    , user_group
+    , estimated_refund_amount
+    , net_amount
+    , user_order_rank
+    , regional_amount_rank
+    , rolling_seven_order_amount
+    , user_order_count
+    , latest_paid_at
+    , total_score
+    , value_segment
+    , activity_segment
+    , ds
+FROM final_orders
+WHERE user_order_rank <= 10
+ORDER BY
+      ds
+    , user_id
+    , total_score DESC;

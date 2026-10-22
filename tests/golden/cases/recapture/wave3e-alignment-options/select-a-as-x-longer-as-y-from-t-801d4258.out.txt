@@ -1,0 +1,4 @@
+SELECT
+      a      AS x
+    , longer AS y
+FROM t

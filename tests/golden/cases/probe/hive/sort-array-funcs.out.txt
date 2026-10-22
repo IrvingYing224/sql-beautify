@@ -1,0 +1,5 @@
+SELECT
+      sort_array(collect_list(a))
+    , percentile_approx(b, 0.5)
+    , array_contains(c, 'x')
+FROM t;

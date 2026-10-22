@@ -1,0 +1,4 @@
+SELECT
+      a         AS x
+    , long_name AS y
+FROM t

@@ -1,0 +1,4 @@
+SELECT CASE
+    WHEN a THEN b
+    ELSE c
+END

@@ -1,0 +1,1 @@
+create table t as select a, b from s where c = 1

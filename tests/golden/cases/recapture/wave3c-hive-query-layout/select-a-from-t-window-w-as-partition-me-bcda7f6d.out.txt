@@ -1,0 +1,8 @@
+SELECT
+      a
+FROM t
+WINDOW
+      w AS (
+          PARTITION -- member
+          BY a
+      )

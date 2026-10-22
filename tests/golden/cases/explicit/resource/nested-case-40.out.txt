@@ -1,0 +1,162 @@
+SELECT
+      CASE
+          WHEN a1 = 1 THEN
+              CASE
+                  WHEN a2 = 1 THEN
+                      CASE
+                          WHEN a3 = 1 THEN
+                              CASE
+                                  WHEN a4 = 1 THEN
+                                      CASE
+                                          WHEN a5 = 1 THEN
+                                              CASE
+                                                  WHEN a6 = 1 THEN
+                                                      CASE
+                                                          WHEN a7 = 1 THEN
+                                                              CASE
+                                                                  WHEN a8 = 1 THEN
+                                                                      CASE
+                                                                          WHEN a9 = 1 THEN
+                                                                              CASE
+                                                                                  WHEN a10 = 1 THEN
+                                                                                      CASE
+                                                                                          WHEN a11 = 1 THEN
+                                                                                              CASE
+                                                                                                  WHEN a12 = 1 THEN
+                                                                                                      CASE
+                                                                                                          WHEN a13 = 1 THEN
+                                                                                                              CASE
+                                                                                                                  WHEN a14 = 1 THEN
+                                                                                                                      CASE
+                                                                                                                          WHEN a15 = 1 THEN
+                                                                                                                              CASE
+                                                                                                                                  WHEN a16 = 1 THEN
+                                                                                                                                      CASE
+                                                                                                                                          WHEN a17 = 1 THEN
+                                                                                                                                              CASE
+                                                                                                                                                  WHEN a18 = 1 THEN
+                                                                                                                                                      CASE
+                                                                                                                                                          WHEN a19 = 1 THEN
+                                                                                                                                                              CASE
+                                                                                                                                                                  WHEN a20 = 1 THEN
+                                                                                                                                                                      CASE
+                                                                                                                                                                          WHEN a21 = 1 THEN
+                                                                                                                                                                              CASE
+                                                                                                                                                                                  WHEN a22 = 1 THEN
+                                                                                                                                                                                      CASE
+                                                                                                                                                                                          WHEN a23 = 1 THEN
+                                                                                                                                                                                              CASE
+                                                                                                                                                                                                  WHEN a24 = 1 THEN
+                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                          WHEN a25 = 1 THEN
+                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                  WHEN a26 = 1 THEN
+                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                          WHEN a27 = 1 THEN
+                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                  WHEN a28 = 1 THEN
+                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                          WHEN a29 = 1 THEN
+                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                  WHEN a30 = 1 THEN
+                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                          WHEN a31 = 1 THEN
+                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                  WHEN a32 = 1 THEN
+                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                          WHEN a33 = 1 THEN
+                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                  WHEN a34 = 1 THEN
+                                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                                          WHEN a35 = 1 THEN
+                                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                                  WHEN a36 = 1 THEN
+                                                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                                                          WHEN a37 = 1 THEN
+                                                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                                                  WHEN a38 = 1 THEN
+                                                                                                                                                                                                                                                                                                                      CASE
+                                                                                                                                                                                                                                                                                                                          WHEN a39 = 1 THEN
+                                                                                                                                                                                                                                                                                                                              CASE
+                                                                                                                                                                                                                                                                                                                                  WHEN a40 = 1 THEN 0
+                                                                                                                                                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                                                              END
+                                                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                                                      END
+                                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                                              END
+                                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                                      END
+                                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                                              END
+                                                                                                                                                                                          ELSE 0
+                                                                                                                                                                                      END
+                                                                                                                                                                                  ELSE 0
+                                                                                                                                                                              END
+                                                                                                                                                                          ELSE 0
+                                                                                                                                                                      END
+                                                                                                                                                                  ELSE 0
+                                                                                                                                                              END
+                                                                                                                                                          ELSE 0
+                                                                                                                                                      END
+                                                                                                                                                  ELSE 0
+                                                                                                                                              END
+                                                                                                                                          ELSE 0
+                                                                                                                                      END
+                                                                                                                                  ELSE 0
+                                                                                                                              END
+                                                                                                                          ELSE 0
+                                                                                                                      END
+                                                                                                                  ELSE 0
+                                                                                                              END
+                                                                                                          ELSE 0
+                                                                                                      END
+                                                                                                  ELSE 0
+                                                                                              END
+                                                                                          ELSE 0
+                                                                                      END
+                                                                                  ELSE 0
+                                                                              END
+                                                                          ELSE 0
+                                                                      END
+                                                                  ELSE 0
+                                                              END
+                                                          ELSE 0
+                                                      END
+                                                  ELSE 0
+                                              END
+                                          ELSE 0
+                                      END
+                                  ELSE 0
+                              END
+                          ELSE 0
+                      END
+                  ELSE 0
+              END
+          ELSE 0
+      END AS x
+FROM t

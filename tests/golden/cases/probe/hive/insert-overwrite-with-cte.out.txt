@@ -1,0 +1,11 @@
+WITH
+      x AS (
+          SELECT
+                a
+          FROM t
+      )
+INSERT OVERWRITE TABLE dw.t
+PARTITION (dt = '${dt}')
+SELECT
+      a
+FROM x;

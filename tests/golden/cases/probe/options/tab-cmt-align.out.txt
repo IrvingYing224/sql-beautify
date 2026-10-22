@@ -1,0 +1,4 @@
+SELECT
+	  a    AS x,  -- c1
+	  bbbb AS yyy -- c2
+FROM t

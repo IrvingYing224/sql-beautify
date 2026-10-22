@@ -1,0 +1,3 @@
+SELECT
+      distinct.value
+FROM src

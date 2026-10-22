@@ -1,0 +1,5 @@
+-- golden: {"op":"extractDdl"}
+WITH c129 AS (SELECT `quoted,129_0` AS quoted_129_0,
+t.c1 AS c129_1,
+(2 + 10) AS n129_2,
+'FROM,129_3' AS text_129_3 FROM t129 t WHERE (t.c0 >= 8 AND t.c0 IS NOT NULL)) SELECT * FROM c129

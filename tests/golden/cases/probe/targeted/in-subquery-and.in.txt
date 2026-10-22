@@ -1,0 +1,1 @@
+select * from a where x = 1 and a.id in (select id from b) and y = 2

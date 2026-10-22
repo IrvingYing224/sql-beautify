@@ -1,0 +1,1 @@
+SELECT 1 FROM src JOIN other USING (id, tenant_id)

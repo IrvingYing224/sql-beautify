@@ -1,0 +1,4 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":78,"commaStyle":"trailing","dialect":"postgresql","unsupportedSyntaxPolicy":"preserve"}}
+SELECT  'FROM  x'	as x,
+/* fuzz 86 */  coalesce(b,0)	as y
+from t where a=1 and b>2

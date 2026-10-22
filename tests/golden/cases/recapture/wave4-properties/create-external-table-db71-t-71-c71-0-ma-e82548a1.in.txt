@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE db71.`t(71` (
+c71_0 MAP<STRING,ARRAY<INT>,
+`c,71_1` ARRAY<STRUCT<x:STRING,n:INT>>
+);

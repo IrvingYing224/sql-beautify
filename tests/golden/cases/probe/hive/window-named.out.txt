@@ -1,0 +1,6 @@
+SELECT
+      a
+    , sum(b) OVER w AS s
+FROM t
+WINDOW
+      w AS (PARTITION BY a ORDER BY c);

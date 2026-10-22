@@ -1,0 +1,9 @@
+SELECT
+      a
+    , (
+        SELECT
+              max(b)
+        FROM u
+        WHERE u.id = t.id
+    ) AS mb
+FROM t;

@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":86,"dialect":"postgresql","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":106,"unsupportedSyntaxPolicy":"bail_out"}}
+select
+a+1	as x, /* fuzz 82 */	coalesce(b,0)  as y	FROM	t where a=1 and b>2

@@ -1,0 +1,7 @@
+SELECT
+      a
+    , b
+    , c
+FROM t
+LATERAL VIEW explode(arr1) x AS b
+LATERAL VIEW explode(map1) y AS k, c;

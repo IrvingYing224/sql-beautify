@@ -1,0 +1,8 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE TABLE db158.`t(158` (
+`c,158_0` MAP<STRING,ARRAY<INT>>,
+`c,158_1` MAP<STRING,ARRAY<INT>>,
+c158_2 ARRAY<STRUCT<x:STRING,n:INT>> COMMENT 'FROM,158 (2)',
+c158_3 STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

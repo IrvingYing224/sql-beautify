@@ -1,0 +1,5 @@
+SELECT
+      id
+FROM t
+ORDER BY
+      union

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+SELECT * FROM fn(x) q QUALIFY (flag)

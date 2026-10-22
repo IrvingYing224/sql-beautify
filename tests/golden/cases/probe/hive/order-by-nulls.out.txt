@@ -1,0 +1,6 @@
+SELECT
+      a
+FROM t
+ORDER BY
+      a desc nulls last
+    , b asc nulls first;

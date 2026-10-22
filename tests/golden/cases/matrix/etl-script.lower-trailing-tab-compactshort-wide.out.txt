@@ -1,0 +1,36 @@
+set hive.exec.dynamic.partition=true;
+set hive.exec.dynamic.partition.mode=nonstrict;
+set mapreduce.job.queuename=${hivevar:queue};
+
+-- daily user summary
+with
+	base as (
+		select
+			user_id,
+			event_type,
+			event_time,
+			dt
+		from ods.user_events
+		where dt = '${hivevar:dt}'
+			and event_type in ('click', 'view', 'buy')
+	),
+	agg as (
+		select
+			user_id,
+			count(1)                                            as cnt,
+			sum(case when event_type = 'buy' then 1 else 0 end) as buy_cnt
+		from base
+		group by
+			user_id
+	)
+insert overwrite table dw.user_daily
+partition (dt = '${hivevar:dt}')
+select
+	a.user_id,
+	a.cnt,
+	a.buy_cnt,
+	u.city
+from agg a
+left join dim.users u
+	on a.user_id = u.user_id
+where a.cnt > 0;

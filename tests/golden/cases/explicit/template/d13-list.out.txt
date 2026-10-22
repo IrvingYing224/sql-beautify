@@ -1,0 +1,4 @@
+SELECT
+      ${hivevar:left}
+    , ${hivevar:right}
+FROM t

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+SELECT * FROM (SELECT 1 AS c) q(c) QUALIFY (flag)

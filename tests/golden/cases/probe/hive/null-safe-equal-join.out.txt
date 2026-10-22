@@ -1,0 +1,5 @@
+SELECT
+      *
+FROM a
+JOIN b
+    ON a.k <=> b.k;

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select "Col A", "select" from "My Table"

@@ -1,0 +1,3 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT 'FROM,93_0' AS text_93_0, (1 + 8) AS n93_1 FROM t93 t) q -- tail 93
+)

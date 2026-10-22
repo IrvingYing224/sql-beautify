@@ -1,0 +1,2 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+select a0, count(*) as n from t group by a0

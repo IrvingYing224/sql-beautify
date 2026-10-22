@@ -1,0 +1,1 @@
+select case when a=1 then concat('FROM',b) else 'x' end as c from t

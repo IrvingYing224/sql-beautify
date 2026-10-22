@@ -1,0 +1,1 @@
+select a, sum(b) over w as s from t window w as (partition by a order by c);

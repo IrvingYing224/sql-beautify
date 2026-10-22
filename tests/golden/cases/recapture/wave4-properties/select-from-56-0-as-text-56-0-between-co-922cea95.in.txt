@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT 'FROM,56_0' AS text_56_0, /* between */ count(*) AS count_56_1 FROM t56 t -- tail 56

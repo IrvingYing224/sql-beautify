@@ -1,0 +1,6 @@
+SELECT
+      a, -- tail
+    /* before b */
+    -- line before b
+      b
+FROM t

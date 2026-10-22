@@ -1,0 +1,10 @@
+SELECT
+      a
+FROM t
+UNION ALL
+SELECT
+      b
+FROM u
+ORDER BY
+      b
+LIMIT 5

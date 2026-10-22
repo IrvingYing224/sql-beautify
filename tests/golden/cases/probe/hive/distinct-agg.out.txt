@@ -1,0 +1,4 @@
+SELECT
+      count(DISTINCT user_id)
+    , count(DISTINCT a, b)
+FROM t;

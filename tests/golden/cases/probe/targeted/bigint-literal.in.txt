@@ -1,0 +1,1 @@
+select 0L as x, 1.0BD as y, a from t

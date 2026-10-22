@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+SELECT * FROM a JOIN t qualify ON a.id = t.id

@@ -1,0 +1,1 @@
+select t.*, u.name from t join u on t.id = u.id;

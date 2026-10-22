@@ -1,0 +1,5 @@
+SELECT
+      a      AS `用户编号`
+    , bbbbbb AS `名称`
+    , c      AS x
+FROM t

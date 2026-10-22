@@ -1,0 +1,5 @@
+SELECT
+      a.id
+FROM a
+JOIN b AS join
+    ON join.id = a.id

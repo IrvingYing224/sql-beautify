@@ -1,0 +1,8 @@
+SELECT
+	  "Mixed Name" AS x
+	,
+	/* fuzz 57 */
+	NOT flag AS y
+FROM t
+WHERE a = 1
+	AND b > 2

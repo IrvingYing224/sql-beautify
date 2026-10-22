@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+WITH c109 AS (SELECT 'FROM,109_0' AS text_109_0, (1 + 7) AS n109_1, t.c2 AS c109_2, (3 + 7) AS n109_3, t.c4 AS c109_4 FROM t109 t WHERE (t.c0 >= 10 AND t.c0 IS NOT NULL)) SELECT * FROM c109

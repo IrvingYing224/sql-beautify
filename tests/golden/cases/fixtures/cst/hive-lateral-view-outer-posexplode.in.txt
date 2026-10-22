@@ -1,0 +1,1 @@
+SELECT id, pos, item FROM src LATERAL VIEW OUTER POSEXPLODE(items) p AS pos, item

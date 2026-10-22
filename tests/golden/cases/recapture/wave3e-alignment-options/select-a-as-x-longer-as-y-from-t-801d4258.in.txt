@@ -1,0 +1,1 @@
+select a as x, longer as y from t

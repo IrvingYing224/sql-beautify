@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db125.`t(125` (
+`c,125_0` DECIMAL(18,1),
+`c,125_1` STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,125 (1)'
+;

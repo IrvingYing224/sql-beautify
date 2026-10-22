@@ -1,0 +1,4 @@
+SELECT
+      a = b = c AS chained
+    , a IS NULL IS NULL AS repeated
+    , (a = b) = c AS grouped

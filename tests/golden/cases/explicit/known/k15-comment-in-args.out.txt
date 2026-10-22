@@ -1,0 +1,3 @@
+SELECT
+      f(/* arg */x)
+FROM t

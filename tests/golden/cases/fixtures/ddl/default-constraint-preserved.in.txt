@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE t (a STRING DEFAULT 'x')

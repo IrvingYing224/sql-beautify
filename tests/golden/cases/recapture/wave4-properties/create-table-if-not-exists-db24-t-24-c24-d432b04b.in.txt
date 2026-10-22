@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db24.`t(24` (
+c24_0 ARRAY<STRUCT<x:STRING,n:INT>>
+;

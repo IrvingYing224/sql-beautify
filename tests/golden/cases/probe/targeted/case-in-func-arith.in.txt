@@ -1,0 +1,1 @@
+select a, sum(case when x = 1 then amt else 0 end) / sum(amt) as ratio from t

@@ -1,0 +1,3 @@
+SELECT
+      *
+FROM base qualify(c1, c2)

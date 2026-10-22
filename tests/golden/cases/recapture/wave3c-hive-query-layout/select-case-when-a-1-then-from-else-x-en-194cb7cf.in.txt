@@ -1,0 +1,1 @@
+select case when a=1 then 'FROM' else 'x' end as c,b from t

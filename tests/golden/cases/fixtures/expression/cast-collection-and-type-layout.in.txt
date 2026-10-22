@@ -1,0 +1,1 @@
+select cast(array('x',2) as array<string>),cast(v as decimal(18,2)) from t

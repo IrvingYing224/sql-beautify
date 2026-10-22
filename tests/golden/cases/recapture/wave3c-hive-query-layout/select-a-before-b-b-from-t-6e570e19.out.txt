@@ -1,0 +1,6 @@
+SELECT
+      a
+    ,
+    -- before b
+      b
+FROM t

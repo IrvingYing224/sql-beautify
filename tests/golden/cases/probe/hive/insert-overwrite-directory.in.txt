@@ -1,0 +1,1 @@
+insert overwrite local directory '/tmp/out' row format delimited fields terminated by '\t' select a, b from t;

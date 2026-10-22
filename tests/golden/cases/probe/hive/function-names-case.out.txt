@@ -1,0 +1,7 @@
+SELECT
+      COUNT(a)
+    , Sum(b)
+    , MAX(c)
+    , DateDiff(d, e)
+    , from_unixtime(unix_timestamp())
+FROM t;

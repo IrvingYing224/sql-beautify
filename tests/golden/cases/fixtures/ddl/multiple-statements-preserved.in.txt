@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE a (x INT); CREATE TABLE b (y INT)

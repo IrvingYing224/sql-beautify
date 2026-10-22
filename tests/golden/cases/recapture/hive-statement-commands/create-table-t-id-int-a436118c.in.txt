@@ -1,0 +1,2 @@
+-- golden: {"options":{"keywordCase":"lower","unsupportedSyntaxPolicy":"preserve"}}
+CREATE TABLE t (id int)

@@ -1,0 +1,18 @@
+select
+    a.id,
+    b.name,
+    c.total
+from a
+left join b
+    on a.id = b.id
+        and b.dt = a.dt
+join (
+    select
+        id,
+        sum(x) as total
+    from c
+    group by
+        id
+) c
+    on c.id = a.id
+where a.dt = '2024-01-01'

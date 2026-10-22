@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+create external table if not exists db.`t(` (
+`a,b` decimal (18, 2) comment 'a  b, (c)',
+payload map < string, array < struct < `x,y`: string, n: int > > >
+)

@@ -1,0 +1,27 @@
+SELECT
+    a,
+    b
+FROM
+    t,
+    u
+WHERE a = 1
+GROUP BY
+    a,
+    b
+HAVING count(*) > 1
+WINDOW
+    w AS (PARTITION BY a ORDER BY b),
+    x AS (ORDER BY c)
+ORDER BY
+    a,
+    b
+CLUSTER BY
+    a,
+    b
+DISTRIBUTE BY
+    a,
+    b
+SORT BY
+    a,
+    b
+LIMIT 10

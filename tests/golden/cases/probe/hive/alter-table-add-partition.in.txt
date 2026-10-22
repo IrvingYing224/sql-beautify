@@ -1,0 +1,1 @@
+alter table dw.t add if not exists partition (dt='2024-01-01');

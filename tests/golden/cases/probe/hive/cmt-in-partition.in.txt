@@ -1,0 +1,2 @@
+insert overwrite table t partition (dt = '${dt}' -- dt
+) select a from s;

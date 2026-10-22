@@ -1,0 +1,5 @@
+-- golden: {"options":{"caseWhenThenWrapLength":47,"dialect":"generic","keywordCase":"lower","maxAlignWidth":111,"unsupportedSyntaxPolicy":"preserve"}}
+select a+1  as x,
+/* fuzz 17 */
+coalesce(b,0)  as y  FrOm
+t where a=1 and b>2

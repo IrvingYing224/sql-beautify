@@ -1,0 +1,6 @@
+SELECT
+      a +
+      /* inline */
+      b AS c
+    , f(/* arg */x, y /* after y */)
+FROM t;

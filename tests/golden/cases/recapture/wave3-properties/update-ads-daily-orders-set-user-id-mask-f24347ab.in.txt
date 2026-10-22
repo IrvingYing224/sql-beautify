@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":80,"keywordCase":"lower","unsupportedSyntaxPolicy":"preserve"}}
+UPDATE ads_daily_orders SET user_id='masked' WHERE ds='${bizdate}' AND user_id IS NULL;

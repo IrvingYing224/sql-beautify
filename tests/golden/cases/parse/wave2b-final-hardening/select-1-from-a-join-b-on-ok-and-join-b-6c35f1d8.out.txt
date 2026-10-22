@@ -1,0 +1,6 @@
+SELECT
+      1
+FROM a
+JOIN b
+    ON ok
+        AND join(b.x)

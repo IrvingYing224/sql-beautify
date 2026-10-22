@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl","variants":{"plain":{},"col4":{"startColumn":4},"crlf":{"newline":"\r\n"},"t2":{"tabSize":2},"t8":{"tabSize":8}}}
+	create table t (a int, bb string)

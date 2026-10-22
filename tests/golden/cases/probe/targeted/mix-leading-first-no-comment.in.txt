@@ -1,0 +1,5 @@
+select aa as x,
+bbbb as y, -- 2
+cc as z, -- 3
+dd as w -- 4
+from t

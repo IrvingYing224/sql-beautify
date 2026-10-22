@@ -1,0 +1,4 @@
+INSERT OVERWRITE TABLE dst
+SELECT
+      id
+FROM src

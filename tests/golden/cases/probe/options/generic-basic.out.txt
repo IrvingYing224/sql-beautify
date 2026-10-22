@@ -1,0 +1,8 @@
+SELECT
+      a
+    , b
+FROM t
+WHERE x = 1
+ORDER BY
+      a
+LIMIT 10 offset 5

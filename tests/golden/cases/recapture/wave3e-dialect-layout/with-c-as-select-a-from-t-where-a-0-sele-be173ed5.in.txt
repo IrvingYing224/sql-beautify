@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+with c as (select a from t where a>0) select c.a from c join (select b as a from u) q on c.a=q.a group by c.a having count(*)>0 window w as (partition by c.a order by c.a) order by c.a limit 5

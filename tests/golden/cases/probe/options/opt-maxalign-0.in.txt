@@ -1,0 +1,2 @@
+-- golden: {"options":{"maxAlignWidth":0}}
+select 1

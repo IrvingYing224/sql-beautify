@@ -1,0 +1,4 @@
+SELECT CASE
+    WHEN a = 1 THEN 'x' /*keep*/
+    ELSE 'y'
+END

@@ -1,0 +1,12 @@
+WITH
+      s AS (
+          SELECT
+                a
+              , b
+          FROM source
+      )
+INSERT OVERWRITE TABLE target
+SELECT
+      a AS user_id
+    , b AS amount
+FROM s

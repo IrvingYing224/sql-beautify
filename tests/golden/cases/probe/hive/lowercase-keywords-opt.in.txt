@@ -1,0 +1,2 @@
+-- golden: {"options":{"keywordCase":"lower"}}
+select a, b from t where x = 1 group by a order by b

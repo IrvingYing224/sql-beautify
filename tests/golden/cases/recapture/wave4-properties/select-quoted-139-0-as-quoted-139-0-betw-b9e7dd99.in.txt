@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT `quoted,139_0` AS quoted_139_0, /* between */ CASE WHEN t.c1 = 6 THEN t.c1 ELSE 0 END AS case_139_1, /* between */ (2 + 3) AS n139_2, /* between */ 'FROM,139_3' AS text_139_3 FROM t139 t WHERE (t.c0 >= 7 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 15

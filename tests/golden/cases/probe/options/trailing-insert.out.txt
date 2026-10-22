@@ -1,0 +1,7 @@
+INSERT OVERWRITE TABLE t
+PARTITION (dt = '1')
+SELECT
+    a,
+    b,
+    c
+FROM s

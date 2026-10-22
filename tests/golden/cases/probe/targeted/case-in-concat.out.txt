@@ -1,0 +1,7 @@
+SELECT
+      a
+    , concat('p_', CASE
+        WHEN x = 1 THEN 'a'
+        ELSE 'b'
+    END) AS k
+FROM t

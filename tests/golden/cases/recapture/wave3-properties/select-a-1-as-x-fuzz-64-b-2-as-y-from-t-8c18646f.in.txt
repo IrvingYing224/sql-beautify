@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":31,"commaStyle":"trailing","keywordCase":"lower","maxAlignWidth":62}}
+SeLeCt a+1  as x,	/* fuzz 64 */ b*2
+as y  FrOm	t where a=1 and b>2

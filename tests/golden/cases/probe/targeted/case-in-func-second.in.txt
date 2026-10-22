@@ -1,0 +1,1 @@
+select a, sum(case when x = 1 then 1 else 0 end) as k from t

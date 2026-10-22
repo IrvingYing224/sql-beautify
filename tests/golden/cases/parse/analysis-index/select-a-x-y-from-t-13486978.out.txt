@@ -1,0 +1,6 @@
+SELECT
+      a /* x
+
+ y */
+
+FROM t

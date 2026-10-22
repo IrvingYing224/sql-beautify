@@ -1,0 +1,3 @@
+set hive.exec.parallel=true; -- parallel
+set a.b=${x}; /* block */
+select 1;

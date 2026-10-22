@@ -1,0 +1,6 @@
+SELECT
+      aa   AS x
+    , bbbb AS y, -- 注释
+      cc   AS z
+    , d    AS w
+FROM t

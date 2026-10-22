@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT (count(*)) AS total FROM t

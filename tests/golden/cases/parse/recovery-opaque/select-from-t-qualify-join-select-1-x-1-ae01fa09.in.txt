@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic"}}
+SELECT * FROM t QUALIFY join ((SELECT 1)).x = 1

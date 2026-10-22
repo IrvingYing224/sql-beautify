@@ -1,0 +1,10 @@
+WITH
+      q AS (
+          SELECT
+                a
+          FROM t
+          WHERE a = 1
+      )
+SELECT
+      *
+FROM q

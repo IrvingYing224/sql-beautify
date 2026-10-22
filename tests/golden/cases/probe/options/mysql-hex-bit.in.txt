@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+select x'41', 0x41, b'101', _utf8mb4'abc' from t

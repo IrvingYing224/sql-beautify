@@ -1,0 +1,28 @@
+with
+    base as (
+        select
+            user_id,
+            sum(amt) as total,
+            count(*) as n
+        from orders
+        where dt = '${dt}'
+        group by
+            user_id
+    )
+select
+    b.user_id,
+    b.total as total_amount, -- 总额
+    case
+        when b.total > 1000 then 'vip'
+        when b.total > 100 then 'normal'
+        else 'low'
+    end as level,
+    u.name as user_name -- 用户名
+from base b
+left join users u
+    on b.user_id = u.id
+where b.n > 1
+    and u.status in (1, 2)
+order by
+    b.total desc,
+    b.user_id

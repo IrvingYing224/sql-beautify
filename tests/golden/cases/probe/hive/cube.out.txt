@@ -1,0 +1,7 @@
+SELECT
+      a
+    , b
+    , count(*)
+FROM t
+GROUP BY
+      cube(a, b);

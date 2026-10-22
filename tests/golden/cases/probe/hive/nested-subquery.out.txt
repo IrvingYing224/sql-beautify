@@ -1,0 +1,17 @@
+SELECT
+      *
+FROM (
+    SELECT
+          a
+        , b
+    FROM (
+        SELECT
+              a
+            , b
+            , c
+        FROM t
+        WHERE c > 1
+    ) x
+    WHERE b < 2
+) y
+WHERE a = 3;

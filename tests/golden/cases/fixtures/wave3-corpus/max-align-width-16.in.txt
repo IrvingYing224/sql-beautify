@@ -1,0 +1,2 @@
+-- golden: {"options":{"maxAlignWidth":16}}
+select a as x, long_name as y from t

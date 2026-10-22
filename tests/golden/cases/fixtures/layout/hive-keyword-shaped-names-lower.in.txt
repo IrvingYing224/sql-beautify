@@ -1,0 +1,2 @@
+-- golden: {"options":{"keywordCase":"lower"}}
+SELECT    WINDOW AS ORDER

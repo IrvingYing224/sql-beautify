@@ -1,0 +1,7 @@
+select
+  a, -- first
+  bb as x, -- second
+  ccc as yy -- third
+from t -- table
+where a > 1 -- filter
+;

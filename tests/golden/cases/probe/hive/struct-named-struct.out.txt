@@ -1,0 +1,6 @@
+SELECT
+      named_struct('a', 1, 'b', 'x')
+    , struct(1, 2)
+    , array(1, 2, 3)
+    , map('k', 'v')
+FROM t;

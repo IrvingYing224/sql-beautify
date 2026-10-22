@@ -1,0 +1,3 @@
+-- golden: {"op":"extractDdl"}
+WITH c128 AS (SELECT 'FROM,128_0' AS text_128_0 FROM t128 t WHERE (t.c0 >= 7 AND t.c0 IS NOT NULL)) SELECT * FROM c128 -- tail 128
+)

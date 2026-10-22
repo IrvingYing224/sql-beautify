@@ -1,0 +1,3 @@
+SELECT
+      x
+FROM unnest(a) x

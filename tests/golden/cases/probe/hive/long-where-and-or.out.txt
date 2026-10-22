@@ -1,0 +1,11 @@
+SELECT
+      a
+FROM t
+WHERE (a = 1
+    AND b = 2)
+    OR (c = 3
+        AND (d = 4
+            OR e = 5))
+        AND f NOT LIKE '%x%'
+        AND g LIKE 'y%'
+        AND h IS NOT NULL;

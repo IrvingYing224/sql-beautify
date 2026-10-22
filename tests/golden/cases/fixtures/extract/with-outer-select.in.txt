@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+WITH c AS (SELECT hidden FROM src) SELECT visible FROM c

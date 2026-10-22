@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db56.`t(56` (
+c56_0 STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,56 (0)',
+c56_1 STRING,
+`c,56_2` DECIMAL(12,0),
+c56_3 ARRAY<STRUCT<x:STRING,n:INT>>
+, CONSTRAINT x PRIMARY KEY (c0));

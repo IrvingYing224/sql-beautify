@@ -1,0 +1,12 @@
+WITH
+    a AS (
+        SELECT 1 AS x
+    ) -- a
+    , b AS (
+          SELECT 2 AS y
+      ) -- b
+SELECT
+    *
+FROM
+    a,
+    b

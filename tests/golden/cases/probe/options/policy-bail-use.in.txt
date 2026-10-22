@@ -1,0 +1,3 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"bail_out"}}
+use db;
+select a,b from t;

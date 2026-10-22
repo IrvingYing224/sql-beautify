@@ -1,0 +1,6 @@
+set @x = 1;
+SELECT
+      @x
+    , @@session.sql_mode
+    , @y := 2
+FROM t

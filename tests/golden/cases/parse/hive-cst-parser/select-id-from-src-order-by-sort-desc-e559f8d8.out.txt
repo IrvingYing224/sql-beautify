@@ -1,0 +1,5 @@
+SELECT
+      id
+FROM src
+ORDER BY
+      sort.desc

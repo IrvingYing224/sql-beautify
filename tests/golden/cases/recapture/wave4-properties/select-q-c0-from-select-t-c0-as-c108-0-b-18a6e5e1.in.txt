@@ -1,0 +1,2 @@
+SELECT q.c0 FROM (SELECT t.c0 AS c108_0, /* between */ (1 + 6) AS n108_1, /* between */ 'FROM,108_2' AS text_108_2, /* between */ `quoted,108_3` AS quoted_108_3 FROM t108 t) q -- tail 108
+)

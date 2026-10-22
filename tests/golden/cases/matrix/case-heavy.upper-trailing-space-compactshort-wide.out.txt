@@ -1,0 +1,9 @@
+SELECT
+    id,
+    CASE
+        WHEN score >= 90 THEN 'A'
+        WHEN score >= 80 THEN 'B'
+        ELSE 'C'
+    END AS grade,
+    CASE status WHEN 1 THEN 'on' ELSE 'off' END AS st
+FROM s

@@ -1,0 +1,7 @@
+SELECT
+      a
+    , round(sum(CASE
+        WHEN a = 1 THEN x
+        ELSE 0
+    END) / count(*), 2) AS k
+FROM t

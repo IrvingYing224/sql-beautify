@@ -1,0 +1,5 @@
+SELECT
+      '中文字符串' AS s
+    , a
+FROM t
+WHERE b = '北京'

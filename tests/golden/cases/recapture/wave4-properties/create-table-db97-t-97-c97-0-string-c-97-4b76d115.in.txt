@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db97.`t(97` (
+c97_0 STRING,
+`c,97_1` DECIMAL(17,1)
+;

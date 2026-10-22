@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic"}}
+SELECT * FROM a CROSS JOIN b qualify(c1)

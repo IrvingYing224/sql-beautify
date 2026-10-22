@@ -1,0 +1,1 @@
+insert overwrite table db.t partition (dt='${dt}', hr='${hr}', type) select a, b, type from s

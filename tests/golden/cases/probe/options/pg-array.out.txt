@@ -1,0 +1,6 @@
+SELECT
+      array[1,2,3]
+    , a[1:2]
+    , any(arr)
+FROM t
+WHERE x = any(array[1,2])

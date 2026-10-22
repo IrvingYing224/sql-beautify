@@ -1,0 +1,1 @@
+create table t row format delimited null defined as (select 1)

@@ -1,0 +1,6 @@
+select * from t
+where a = 1 -- a
+  and b = 2 -- b
+  -- c disabled
+  -- and c = 3
+  and d = 4

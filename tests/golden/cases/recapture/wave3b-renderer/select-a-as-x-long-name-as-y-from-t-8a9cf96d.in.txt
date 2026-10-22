@@ -1,0 +1,2 @@
+-- golden: {"options":{"indentStyle":"tab"},"tabSize":8}
+select a as x, long_name as y from t

@@ -1,0 +1,1 @@
+select a || b, concat(a, '-', b), concat_ws(',', collect_set(c)) from t group by a, b;

@@ -1,0 +1,4 @@
+SELECT
+      id
+FROM ${db}.src
+WHERE ds = ${hivevar:day}

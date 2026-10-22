@@ -1,0 +1,9 @@
+SELECT
+      CAST(payload AS STRUCT<a: INT>)
+    , CAST(payload AS STRUCT<a: INT>)
+    , CAST(payload AS STRUCT<a: INT>)
+    , CAST(payload AS STRUCT<a: INT>)
+    , CAST(payload AS STRUCT<`a`: BIGINT>)
+    , CAST(payload AS STRUCT<`a`: BIGINT>)
+    , CAST(payload AS STRUCT<b: ARRAY<STRING>>)
+FROM t

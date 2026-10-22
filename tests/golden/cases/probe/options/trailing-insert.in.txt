@@ -1,0 +1,2 @@
+-- golden: {"options":{"commaStyle":"trailing"}}
+insert overwrite table t partition (dt='1') select a, b, c from s

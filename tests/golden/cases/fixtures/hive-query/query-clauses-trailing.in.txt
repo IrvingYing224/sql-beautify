@@ -1,0 +1,2 @@
+-- golden: {"options":{"commaStyle":"trailing"}}
+select a,b from t,u where a=1 group by a,b having count(*)>1 window w as (partition by a order by b),x as (order by c) order by a,b cluster by a,b distribute by a,b sort by a,b limit 10

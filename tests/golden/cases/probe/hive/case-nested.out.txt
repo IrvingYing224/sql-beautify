@@ -1,0 +1,11 @@
+SELECT
+      CASE
+          WHEN a = 1 THEN
+              CASE
+                  WHEN b = 2 THEN 'x'
+                  ELSE 'y'
+              END
+          WHEN a = 2 THEN 'z'
+          ELSE null
+      END AS c
+FROM t;

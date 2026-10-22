@@ -1,0 +1,4 @@
+SELECT
+      *
+FROM t qualify
+LATERAL VIEW explode(xs) e AS x

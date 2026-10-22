@@ -1,0 +1,5 @@
+SELECT
+      sum(x) OVER w
+FROM t
+WINDOW
+      w AS (PARTITION BY k)

@@ -1,0 +1,4 @@
+select (
+/*dangling*/
+a
+) from t

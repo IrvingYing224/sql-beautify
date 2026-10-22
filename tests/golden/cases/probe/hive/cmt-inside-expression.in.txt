@@ -1,0 +1,1 @@
+select a + /* inline */ b as c, f(/* arg */ x, y /* after y */) from t;

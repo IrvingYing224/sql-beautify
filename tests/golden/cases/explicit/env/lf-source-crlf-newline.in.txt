@@ -1,0 +1,3 @@
+-- golden: {"newline":"\r\n"}
+select a,b
+from t

@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db132.`t(132` (
+c132_0 DECIMAL(16,0),
+`c,132_1` DECIMAL(16,0)
+, CONSTRAINT x PRIMARY KEY (c0));

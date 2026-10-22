@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":93,"commaStyle":"trailing","dialect":"mysql","keywordCase":"lower","maxAlignWidth":61,"unsupportedSyntaxPolicy":"bail_out"}}
+SeLeCt a+1	as x,  /* fuzz 35 */	@value as y
+FrOm t where a=1 and b>2

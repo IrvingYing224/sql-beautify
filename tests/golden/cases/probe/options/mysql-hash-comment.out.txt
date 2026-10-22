@@ -1,0 +1,2 @@
+# a comment
+SELECT 1

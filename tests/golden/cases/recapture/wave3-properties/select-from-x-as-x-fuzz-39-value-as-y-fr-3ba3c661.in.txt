@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":26,"commaStyle":"trailing","dialect":"mysql","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":148}}
+SeLeCt	'FROM  x'  as x,  /* fuzz 39 */ @value as y  FrOm  t where a=1 and b>2

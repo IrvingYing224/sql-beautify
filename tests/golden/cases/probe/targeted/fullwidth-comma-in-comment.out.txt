@@ -1,0 +1,4 @@
+SELECT
+      a, -- 用户，名称
+      b
+FROM t

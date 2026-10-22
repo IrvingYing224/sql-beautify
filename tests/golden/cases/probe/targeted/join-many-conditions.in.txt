@@ -1,0 +1,1 @@
+select * from a left join b on a.k1 = b.k1 and a.k2 = b.k2 and a.k3 = b.k3 or a.k4 = b.k4

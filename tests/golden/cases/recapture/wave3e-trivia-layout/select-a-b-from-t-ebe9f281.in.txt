@@ -1,0 +1,6 @@
+-- golden: {"options":{"commaStyle":"trailing"}}
+select a,
+
+
+
+b from t

@@ -1,0 +1,8 @@
+SELECT
+      a
+    , b
+FROM t
+DISTRIBUTE BY
+      a
+SORT BY
+      b DESC;

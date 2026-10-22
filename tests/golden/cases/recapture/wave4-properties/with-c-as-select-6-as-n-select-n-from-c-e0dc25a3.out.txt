@@ -1,0 +1,7 @@
+WITH
+      c AS (
+          SELECT 6 AS n
+      )
+SELECT
+      n
+FROM c

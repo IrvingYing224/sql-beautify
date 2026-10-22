@@ -1,0 +1,1 @@
+select `a b`, `select`, t.`col-1` as `别名` from `db`.`table` t;

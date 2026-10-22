@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":51,"commaStyle":"trailing","indentStyle":"tab","maxAlignWidth":137,"unsupportedSyntaxPolicy":"preserve"}}
+select	a+1 as x, /* fuzz 48 */ not flag	as y FrOm t where a=1 and b>2

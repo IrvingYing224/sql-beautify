@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+select a from t union all select b from u

@@ -1,0 +1,1 @@
+with a (x, y) as (select 1, 2) select x, y from a;

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic"}}
+INSERT OVERWRITE TABLE dst SELECT id FROM src

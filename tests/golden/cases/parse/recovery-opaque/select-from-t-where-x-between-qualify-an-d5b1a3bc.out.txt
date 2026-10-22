@@ -1,0 +1,4 @@
+SELECT
+      *
+FROM t
+WHERE x BETWEEN qualify AND 2

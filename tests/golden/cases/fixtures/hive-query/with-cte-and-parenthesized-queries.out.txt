@@ -1,0 +1,14 @@
+WITH
+      a AS (
+          SELECT
+                x
+          FROM t
+      )
+    , b(c, d) AS (
+          SELECT
+                y
+          FROM u
+      )
+SELECT
+      *
+FROM a

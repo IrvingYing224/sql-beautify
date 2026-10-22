@@ -1,0 +1,4 @@
+SELECT
+      a         --x
+    , long_name --y
+FROM t

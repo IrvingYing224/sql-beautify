@@ -1,0 +1,5 @@
+INSERT INTO dw.t
+SELECT
+      a
+    , b
+FROM src;

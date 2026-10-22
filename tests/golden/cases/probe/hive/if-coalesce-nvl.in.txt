@@ -1,0 +1,1 @@
+select if(a > 0, a, 0), coalesce(a, b, 0), nvl(a, 0), nullif(a, b) from t;

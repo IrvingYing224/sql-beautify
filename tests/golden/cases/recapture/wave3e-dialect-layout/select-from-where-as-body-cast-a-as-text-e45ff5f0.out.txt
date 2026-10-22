@@ -1,0 +1,13 @@
+SELECT
+      $$FROM where$$  AS body
+    , CAST(a AS text) AS value
+FROM t
+WHERE id = $1
+UNION ALL
+SELECT
+      'x'
+    , CAST(2 AS text)
+FROM u
+ORDER BY
+      value
+LIMIT 2

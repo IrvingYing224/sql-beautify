@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":65,"dialect":"mysql","keywordCase":"lower","maxAlignWidth":97,"unsupportedSyntaxPolicy":"preserve"}}
+SeLeCt  case when a=1 then 2 else 3 end  as x,
+/* fuzz 15 */  b*2  as y  FrOm t where a=1 and b>2

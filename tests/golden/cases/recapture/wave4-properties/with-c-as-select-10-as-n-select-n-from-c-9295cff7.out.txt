@@ -1,0 +1,7 @@
+WITH
+      c AS (
+          SELECT 10 AS n
+      )
+SELECT
+      n
+FROM c

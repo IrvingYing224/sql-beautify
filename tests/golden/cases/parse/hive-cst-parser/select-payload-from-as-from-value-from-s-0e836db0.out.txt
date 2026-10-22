@@ -1,0 +1,3 @@
+SELECT
+      payload.from AS from_value
+FROM src

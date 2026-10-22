@@ -1,0 +1,6 @@
+SELECT
+      id
+    , tag
+FROM t
+LATERAL VIEW explode(tags) tt AS tag
+WHERE id > 0;

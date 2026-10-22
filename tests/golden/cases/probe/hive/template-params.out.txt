@@ -1,0 +1,6 @@
+SELECT
+      a
+FROM ${hivevar:db}.t
+WHERE dt = '${hiveconf:dt}'
+    AND x > ${min_x}
+    AND y = ${env:HOME};

@@ -1,0 +1,8 @@
+SELECT
+      a
+FROM t
+WHERE EXISTS (
+    SELECT
+          1
+    FROM u
+)

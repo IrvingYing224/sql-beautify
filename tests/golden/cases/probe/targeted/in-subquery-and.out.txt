@@ -1,0 +1,10 @@
+SELECT
+      *
+FROM a
+WHERE x = 1
+    AND a.id IN (
+        SELECT
+              id
+        FROM b
+    )
+    AND y = 2

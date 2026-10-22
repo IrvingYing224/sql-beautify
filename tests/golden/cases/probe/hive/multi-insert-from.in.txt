@@ -1,0 +1,1 @@
+from src insert overwrite table t1 select a where a > 1 insert overwrite table t2 select b where b < 2;

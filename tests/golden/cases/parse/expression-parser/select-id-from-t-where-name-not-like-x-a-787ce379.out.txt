@@ -1,0 +1,6 @@
+SELECT
+      id
+FROM t
+WHERE name NOT LIKE 'x%'
+    AND id NOT IN (1, 2)
+    AND score NOT BETWEEN 3 AND 5

@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl"}
+create table t (a int,b string)

@@ -1,0 +1,2 @@
+select a from t join -- relation
+u on t.id=u.id

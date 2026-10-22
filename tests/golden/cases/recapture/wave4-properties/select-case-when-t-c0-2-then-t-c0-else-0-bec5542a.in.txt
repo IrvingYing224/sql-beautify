@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT CASE WHEN t.c0 = 2 THEN t.c0 ELSE 0 END AS case_65_0, /* between */ `quoted,65_1` AS quoted_65_1, /* between */ t.c2 AS c65_2, /* between */ count(*) AS count_65_3, /* between */ t.c4 AS c65_4 FROM t65 t WHERE (t.c0 >= 10 AND t.c0 IS NOT NULL)

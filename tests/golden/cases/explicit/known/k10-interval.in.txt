@@ -1,0 +1,1 @@
+select a + interval 2 hour from t

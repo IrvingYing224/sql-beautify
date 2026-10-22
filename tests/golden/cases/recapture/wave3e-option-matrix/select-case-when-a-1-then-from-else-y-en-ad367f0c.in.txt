@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":10,"keywordCase":"lower"}}
+select case when a=1 then 'FROM' else 'y' end as x, b as y from t

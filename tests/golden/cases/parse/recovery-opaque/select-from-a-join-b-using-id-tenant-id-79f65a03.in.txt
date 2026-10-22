@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+SELECT * FROM a JOIN b USING (id, tenant_id)

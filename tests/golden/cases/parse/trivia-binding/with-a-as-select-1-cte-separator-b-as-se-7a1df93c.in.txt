@@ -1,0 +1,2 @@
+WITH a AS (SELECT 1) , -- cte separator
+b AS (SELECT 2) SELECT * FROM a;

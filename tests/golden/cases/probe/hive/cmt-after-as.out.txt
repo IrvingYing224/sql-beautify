@@ -1,0 +1,4 @@
+SELECT
+      a AS -- weird
+      x
+FROM t

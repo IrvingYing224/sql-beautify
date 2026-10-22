@@ -1,0 +1,4 @@
+SELECT
+      CAST(array('x', 2) AS ARRAY<STRING>)
+    , CAST(v AS DECIMAL(18, 2))
+FROM t

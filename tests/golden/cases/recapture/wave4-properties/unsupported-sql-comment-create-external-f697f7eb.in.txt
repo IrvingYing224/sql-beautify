@@ -1,0 +1,8 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE EXTERNAL TABLE IF NOT EXISTS db112.`t(112` (
+c112_0 STRUCT<a:STRING,b:ARRAY<BIGINT>>,
+c112_1 STRING COMMENT 'FROM,112 (1)',
+c112_2 ARRAY<STRUCT<x:STRING,n:INT>>,
+`c,112_3` STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

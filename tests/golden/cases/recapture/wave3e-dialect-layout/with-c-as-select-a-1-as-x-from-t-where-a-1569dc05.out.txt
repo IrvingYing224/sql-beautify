@@ -1,0 +1,23 @@
+with
+    c as (
+        select
+            a + 1 as x
+        from t
+        where a = 1
+    )
+select
+    case
+        when c.x > 1 then lower('FROM')
+        else 'x'
+    end as value,
+    count(*) over (partition by c.x order by c.x) as n
+from c
+left join u
+    on c.x = u.x
+where u.y is not null
+group by
+    c.x
+having count(*) > 0
+order by
+    value
+limit 5

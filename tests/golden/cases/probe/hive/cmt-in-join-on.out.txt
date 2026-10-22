@@ -1,0 +1,8 @@
+SELECT
+      *
+FROM a
+JOIN b -- join b
+    ON a.id = b.id -- key
+        AND a.dt = b.dt -- dt
+LEFT JOIN c
+    ON c.id = a.id

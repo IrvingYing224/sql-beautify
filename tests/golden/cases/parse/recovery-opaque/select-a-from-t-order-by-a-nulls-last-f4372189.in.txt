@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+SELECT a FROM t ORDER BY a NULLS LAST

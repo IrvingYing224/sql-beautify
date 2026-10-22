@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl","options":{"maxAlignWidth":0}}
+CREATE TABLE t (a INT)

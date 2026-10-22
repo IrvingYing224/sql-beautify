@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+WITH c155 AS (SELECT `quoted,155_0` AS quoted_155_0, CASE WHEN t.c1 = 1 THEN t.c1 ELSE 0 END AS case_155_1, (2 + 2) AS n155_2, t.c3 AS c155_3 FROM t155 t WHERE (t.c0 >= 1 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 6) SELECT * FROM c155

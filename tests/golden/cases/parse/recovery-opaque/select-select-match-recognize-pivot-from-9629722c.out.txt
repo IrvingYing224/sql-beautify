@@ -1,0 +1,8 @@
+SELECT
+      (
+          SELECT
+                match_recognize(pivot)
+          FROM inner_t
+      ) AS x
+FROM outer_t
+WHERE merge = qualify

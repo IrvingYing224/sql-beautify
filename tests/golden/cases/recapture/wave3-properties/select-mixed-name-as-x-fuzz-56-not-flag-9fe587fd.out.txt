@@ -1,0 +1,6 @@
+select
+    `Mixed Name` as x, /* fuzz 56 */
+    not flag     as y
+from t
+where a = 1
+    and b > 2

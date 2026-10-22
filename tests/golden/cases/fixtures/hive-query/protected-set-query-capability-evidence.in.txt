@@ -1,0 +1,1 @@
+(/*e:subquery-set*/ select 'a' from t union /*e:set*/ all select 'b' from u order by 1 limit 2)

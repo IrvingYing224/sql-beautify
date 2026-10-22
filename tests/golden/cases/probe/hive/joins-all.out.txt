@@ -1,0 +1,21 @@
+SELECT
+      /*+ MAPJOIN(b) */
+      a.id
+    , b.name
+    , c.v
+    , d.w
+FROM a
+JOIN b
+    ON a.id = b.id
+LEFT OUTER JOIN c
+    ON a.id = c.id
+        AND c.dt = '2024'
+RIGHT JOIN e
+    ON e.id = a.id
+FULL OUTER JOIN d
+    ON a.id = d.id
+LEFT SEMI JOIN f
+    ON a.id = f.id
+CROSS JOIN g
+LEFT ANTI JOIN h
+    ON h.id = a.id

@@ -1,0 +1,3 @@
+select a,
+-- before b
+b from t

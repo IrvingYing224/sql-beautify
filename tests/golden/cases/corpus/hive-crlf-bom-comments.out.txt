@@ -1,0 +1,8 @@
+﻿SELECT
+      `订单编号`, -- 保留中文行注释
+      CASE
+          WHEN `城市代码` = 'HZ' THEN '杭州'
+          ELSE '其他'
+      END AS `城市名称`
+FROM `订单明细`
+WHERE `分区日期` = '${bizdate}';

@@ -1,0 +1,4 @@
+-- golden: {"tabSize":8}
+select a --one
+, long_name --two
+from t

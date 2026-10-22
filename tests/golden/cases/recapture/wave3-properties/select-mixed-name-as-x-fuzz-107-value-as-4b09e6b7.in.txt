@@ -1,0 +1,6 @@
+-- golden: {"options":{"caseWhenThenWrapLength":58,"dialect":"mysql","maxAlignWidth":98,"unsupportedSyntaxPolicy":"bail_out"}}
+select
+`Mixed Name`	as x, /* fuzz 107 */	@value
+as y
+FROM
+t where a=1 and b>2

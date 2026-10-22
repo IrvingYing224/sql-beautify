@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db8.`t(8` (
+c8_0 STRING,
+c8_1 ARRAY<STRUCT<x:STRING,n:INT>>,
+`c,8_2` STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,8 (2)',
+c8_3 STRING
+, CONSTRAINT x PRIMARY KEY (c0));

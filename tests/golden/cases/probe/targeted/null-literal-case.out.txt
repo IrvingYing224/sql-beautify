@@ -1,0 +1,8 @@
+SELECT
+      null  AS a
+    , true  AS b
+    , false AS c
+    , CASE
+        WHEN x IS NULL THEN null
+    END AS d
+FROM t

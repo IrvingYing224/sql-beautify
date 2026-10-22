@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+SELECT @name, @@session, _utf8mb4'abc', json_col->>'$.x', map('x', 1)

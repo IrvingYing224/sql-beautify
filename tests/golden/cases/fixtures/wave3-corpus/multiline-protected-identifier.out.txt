@@ -1,0 +1,5 @@
+SELECT
+      a AS `x
+y`
+    , longer_name AS z
+FROM t

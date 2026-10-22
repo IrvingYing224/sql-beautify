@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+WITH c17 AS (SELECT t.c0 AS c17_0 FROM t17 t WHERE (t.c0 >= 6 AND t.c0 IS NOT NULL)) SELECT * FROM c17

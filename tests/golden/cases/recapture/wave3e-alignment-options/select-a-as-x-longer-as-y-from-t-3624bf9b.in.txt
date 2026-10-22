@@ -1,0 +1,2 @@
+-- golden: {"options":{"indentStyle":"tab"}}
+select a as x, longer as y from t

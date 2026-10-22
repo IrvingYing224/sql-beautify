@@ -1,0 +1,1 @@
+select cast(a as bigint), cast(b as decimal(10,2)) as d, cast(c as string), cast(m as map<string,int>) from t;

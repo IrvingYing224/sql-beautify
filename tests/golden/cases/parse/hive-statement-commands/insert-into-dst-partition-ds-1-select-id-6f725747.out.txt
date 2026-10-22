@@ -1,0 +1,5 @@
+INSERT INTO dst
+PARTITION (ds = 1)
+SELECT
+      id
+FROM src

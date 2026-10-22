@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+INSERT INTO dst VALUES (1)

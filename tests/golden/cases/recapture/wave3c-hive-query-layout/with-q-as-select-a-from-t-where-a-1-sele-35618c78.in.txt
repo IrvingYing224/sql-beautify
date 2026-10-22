@@ -1,0 +1,2 @@
+with q as (select a from t where a
+ =1) select * from q

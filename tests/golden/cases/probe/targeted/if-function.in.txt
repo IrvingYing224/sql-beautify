@@ -1,0 +1,1 @@
+select if(a, 1, 0), `if`(b) from t

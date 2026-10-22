@@ -1,0 +1,5 @@
+CREATE TABLE t
+(
+     a STRING
+)
+STORED AS PARQUET

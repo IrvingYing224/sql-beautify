@@ -1,0 +1,6 @@
+select
+    a + 1    as x, /* fuzz 113 */
+    not flag as y
+from t
+where a = 1
+    and b > 2

@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT coalesce(t.*, a) AS x FROM t t

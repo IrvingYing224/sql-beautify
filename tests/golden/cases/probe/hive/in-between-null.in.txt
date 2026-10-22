@@ -1,0 +1,1 @@
+select * from t where a in (1, 2, 3) and b not in ('x', 'y') and c between 1 and 10 and d not between 5 and 6 and e is not null and f is null;

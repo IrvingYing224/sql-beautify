@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+WITH c25 AS (SELECT count(*) AS count_25_0, /* between */ CASE WHEN t.c1 = 4 THEN t.c1 ELSE 0 END AS case_25_1 FROM t25 t WHERE (t.c0 >= 3 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 1) SELECT * FROM c25 /* unterminated 25

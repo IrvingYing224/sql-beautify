@@ -1,0 +1,4 @@
+select aa as x, -- 1
+bbbb as y, -- 2
+cc as z
+from t

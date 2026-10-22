@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select x from unnest(a) x

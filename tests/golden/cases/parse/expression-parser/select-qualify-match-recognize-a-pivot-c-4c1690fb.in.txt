@@ -1,0 +1,1 @@
+SELECT qualify, match_recognize(a), pivot, 'CASE x WHEN 1 THEN FROM END' FROM t WHERE window = 1

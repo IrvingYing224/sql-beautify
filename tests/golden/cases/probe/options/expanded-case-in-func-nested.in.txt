@@ -1,0 +1,1 @@
+select a, round(sum(case when a = 1 then x else 0 end) / count(*), 2) as k from t

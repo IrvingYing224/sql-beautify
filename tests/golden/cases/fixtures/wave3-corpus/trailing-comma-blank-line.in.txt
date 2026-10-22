@@ -1,0 +1,4 @@
+-- golden: {"options":{"commaStyle":"trailing"}}
+select a as x,
+
+longer_name as y from t

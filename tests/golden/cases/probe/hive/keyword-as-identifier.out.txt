@@ -1,0 +1,10 @@
+SELECT
+      date
+    , timestamp
+    , user
+    , `order`
+    , value
+    , key
+    , comment
+    , location
+FROM t;

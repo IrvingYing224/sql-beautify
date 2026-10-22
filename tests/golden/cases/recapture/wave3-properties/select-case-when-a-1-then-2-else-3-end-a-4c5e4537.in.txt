@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":80,"dialect":"postgresql","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":123,"unsupportedSyntaxPolicy":"preserve"}}
+SeLeCt case when a=1 then 2 else 3 end as x,  /* fuzz 46 */	$1	as y  from
+t where a=1 and b>2

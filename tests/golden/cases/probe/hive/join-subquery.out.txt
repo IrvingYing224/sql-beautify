@@ -1,0 +1,17 @@
+SELECT
+      a.x
+    , b.y
+FROM (
+    SELECT
+          id
+        , x
+    FROM t1
+) a
+LEFT JOIN (
+    SELECT
+          id
+        , y
+    FROM t2
+    WHERE y > 0
+) b
+    ON a.id = b.id;

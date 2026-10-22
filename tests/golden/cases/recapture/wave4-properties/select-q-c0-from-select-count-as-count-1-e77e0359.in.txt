@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT count(*) AS count_138_0, 'FROM,138_1' AS text_138_1, (2 + 2) AS n138_2, CASE WHEN t.c3 = 5 THEN t.c3 ELSE 0 END AS case_138_3, count(*) AS count_138_4 FROM t138 t) q /* unterminated 138

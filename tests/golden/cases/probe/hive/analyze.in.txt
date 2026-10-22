@@ -1,0 +1,1 @@
+analyze table dw.t partition (dt='2024') compute statistics;

@@ -1,0 +1,2 @@
+-- golden: {"options":{"keywordCase":"lower","unsupportedSyntaxPolicy":"preserve"}}
+DELETE FROM target WHERE id=2

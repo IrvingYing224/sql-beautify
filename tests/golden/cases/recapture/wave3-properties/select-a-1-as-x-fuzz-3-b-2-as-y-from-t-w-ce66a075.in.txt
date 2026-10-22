@@ -1,0 +1,5 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":56,"commaStyle":"trailing","dialect":"mysql","keywordCase":"lower","maxAlignWidth":50}}
+SeLeCt  a+1 as x,
+/* fuzz 3 */  b*2
+as y
+from	t where a=1 and b>2

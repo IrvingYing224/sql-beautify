@@ -1,0 +1,4 @@
+-- golden: {"options":{"caseWhenThenWrapLength":92,"commaStyle":"trailing","dialect":"mysql","keywordCase":"lower","maxAlignWidth":79}}
+SELECT	a+1
+as x,	/* fuzz 115 */  not flag	as y
+FrOm	t where a=1 and b>2

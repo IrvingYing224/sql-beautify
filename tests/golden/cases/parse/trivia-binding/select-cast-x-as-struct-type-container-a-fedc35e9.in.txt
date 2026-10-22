@@ -1,0 +1,1 @@
+SELECT CAST(x AS STRUCT</* type container */a:INT>);

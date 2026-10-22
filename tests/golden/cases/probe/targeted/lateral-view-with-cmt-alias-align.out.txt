@@ -1,0 +1,6 @@
+SELECT
+      id
+    , tag             AS t1
+    , other_long_name AS t2
+FROM t
+LATERAL VIEW explode(tags) tt AS tag

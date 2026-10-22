@@ -1,0 +1,1 @@
+insert overwrite table d partition(ds=1,hr) select a from s

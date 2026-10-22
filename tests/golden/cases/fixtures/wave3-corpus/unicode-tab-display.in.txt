@@ -1,0 +1,2 @@
+-- golden: {"options":{"indentStyle":"tab"}}
+select `名字` as x, abc as y from t

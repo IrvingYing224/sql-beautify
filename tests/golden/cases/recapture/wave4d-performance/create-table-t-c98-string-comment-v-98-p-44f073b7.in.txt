@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE t (c98 STRING COMMENT 'v,98', PRIMARY KEY (c98))

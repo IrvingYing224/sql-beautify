@@ -1,0 +1,3 @@
+SELECT
+      (/*dangling*/a)
+FROM t

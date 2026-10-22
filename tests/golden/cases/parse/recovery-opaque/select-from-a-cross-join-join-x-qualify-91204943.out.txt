@@ -1,0 +1,4 @@
+SELECT
+      *
+FROM a
+CROSS JOIN join(x) qualify(c1)

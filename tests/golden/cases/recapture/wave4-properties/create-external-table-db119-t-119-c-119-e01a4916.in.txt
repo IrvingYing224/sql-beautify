@@ -1,0 +1,3 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE db119.`t(119` (
+`c,119_0` STRUCT<a:STRING,b:ARRAY<BIGINT>);

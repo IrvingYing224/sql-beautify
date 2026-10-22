@@ -1,0 +1,4 @@
+SELECT
+      x
+    , where
+FROM t

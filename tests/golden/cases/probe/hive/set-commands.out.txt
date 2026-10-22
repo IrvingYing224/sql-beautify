@@ -1,0 +1,4 @@
+SET hive.exec.parallel=true;
+SET hive.auto.convert.join = false;
+SET mapred.reduce.tasks=100;
+SELECT 1;

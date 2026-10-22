@@ -1,0 +1,6 @@
+INSERT OVERWRITE TABLE db.t
+PARTITION (dt = '${dt}')
+-- main query
+SELECT
+      a
+FROM s

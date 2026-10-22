@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+insert into t (a) values (1) on duplicate key update a = a + 1

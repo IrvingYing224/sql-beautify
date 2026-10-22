@@ -1,0 +1,5 @@
+-- golden: {"op":"extractDdl"}
+SELECT 'FROM,98_0' AS text_98_0,
+count(*) AS count_98_1,
+t.c2 AS c98_2,
+(3 + 13) AS n98_3 FROM t98 t /* unterminated 98

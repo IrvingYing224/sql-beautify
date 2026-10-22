@@ -1,0 +1,1 @@
+select * from a left join b on a.id=b.id and a.x=b.x join c using(id,x) lateral view explode(c.xs) e as x,y

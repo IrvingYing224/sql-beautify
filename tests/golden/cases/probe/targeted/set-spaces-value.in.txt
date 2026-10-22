@@ -1,0 +1,1 @@
+set mapred.job.name = daily job ${dt};

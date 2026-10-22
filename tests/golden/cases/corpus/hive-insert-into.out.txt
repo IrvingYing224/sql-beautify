@@ -1,0 +1,15 @@
+WITH
+      source_rows AS (
+          SELECT
+                order_id
+              , user_id
+              , ds
+          FROM dwd_order_detail
+          WHERE ds = '${bizdate}'
+      )
+INSERT INTO TABLE ads_daily_orders
+PARTITION (ds = '${bizdate}')
+SELECT
+      order_id
+    , user_id
+FROM source_rows;

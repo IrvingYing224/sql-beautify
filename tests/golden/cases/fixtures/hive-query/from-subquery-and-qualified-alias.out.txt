@@ -1,0 +1,7 @@
+SELECT
+      q.x
+FROM (
+    SELECT
+          x
+    FROM db.t
+) q

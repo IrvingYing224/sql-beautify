@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT * FROM t86

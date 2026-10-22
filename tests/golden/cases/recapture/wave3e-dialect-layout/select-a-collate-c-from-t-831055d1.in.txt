@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql","unsupportedSyntaxPolicy":"bail_out"}}
+select a collate "C" from t

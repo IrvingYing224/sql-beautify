@@ -1,0 +1,4 @@
+select a, -- tail
+/* before b */
+-- line before b
+b from t

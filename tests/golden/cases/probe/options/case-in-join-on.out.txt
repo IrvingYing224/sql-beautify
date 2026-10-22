@@ -1,0 +1,8 @@
+SELECT
+      *
+FROM a
+JOIN b
+    ON a.k = CASE
+        WHEN b.x IS NULL THEN 0
+        ELSE b.x
+    END

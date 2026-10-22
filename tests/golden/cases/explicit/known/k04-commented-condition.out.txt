@@ -1,0 +1,6 @@
+SELECT
+      a
+FROM t
+WHERE a = 1
+-- and b = 2
+    AND c = 3

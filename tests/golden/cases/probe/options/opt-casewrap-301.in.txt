@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":301}}
+select 1

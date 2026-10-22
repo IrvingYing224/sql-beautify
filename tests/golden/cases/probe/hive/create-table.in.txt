@@ -1,0 +1,1 @@
+create table if not exists dw.t (a string comment 'x', b int) partitioned by (dt string) stored as orc;

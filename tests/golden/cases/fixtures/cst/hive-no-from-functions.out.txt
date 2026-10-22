@@ -1,0 +1,4 @@
+SELECT
+      ARRAY('a', 'b')
+    , MAP('x', 1)
+    , NAMED_STRUCT('k', 2)

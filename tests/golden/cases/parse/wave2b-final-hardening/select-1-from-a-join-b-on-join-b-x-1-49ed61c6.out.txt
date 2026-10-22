@@ -1,0 +1,5 @@
+SELECT
+      1
+FROM a
+JOIN b
+    ON join((b.x)) = 1

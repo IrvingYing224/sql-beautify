@@ -1,0 +1,9 @@
+select
+	id,
+	case
+		when score >= 90 then 'A'
+		when score >= 80 then 'B'
+		else 'C'
+	end as grade,
+	case status when 1 then 'on' else 'off' end as st
+from s

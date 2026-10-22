@@ -1,0 +1,2 @@
+WITH c54 AS (SELECT count(*) AS count_54_0,
+CASE WHEN t.c1 = 5 THEN t.c1 ELSE 0 END AS case_54_1 FROM t54 t WHERE (t.c0 >= 10 AND t.c0 IS NOT NULL)) SELECT * FROM c54 /* unterminated 54

@@ -1,0 +1,3 @@
+SELECT 'FROM WHERE GROUP BY', qualify AS c, match_recognize(a) AS v
+FROM t -- ORDER BY fake
+WHERE qualify = 1

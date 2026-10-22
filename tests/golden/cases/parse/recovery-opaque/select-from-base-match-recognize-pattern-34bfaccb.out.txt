@@ -1,0 +1,3 @@
+SELECT
+      *
+FROM base match_recognize(pattern)

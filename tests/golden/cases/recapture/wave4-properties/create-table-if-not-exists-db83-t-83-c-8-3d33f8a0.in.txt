@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db83.`t(83` (
+`c,83_0` ARRAY<STRUCT<x:STRING,n:INT>,
+`c,83_1` STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,83 (1)'
+);

@@ -1,0 +1,2 @@
+-- golden: {"options":{"keywordCase":"lower","unsupportedSyntaxPolicy":"preserve"}}
+SELECT TRANSFORM(payload) USING 'cat' AS (value string) FROM src

@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseLayout":"compactShort"}}
+select case when a = 1 then 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' when a = 2 then 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyy' else 'y' end as k from t

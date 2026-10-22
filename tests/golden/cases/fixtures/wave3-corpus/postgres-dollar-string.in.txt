@@ -1,0 +1,3 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select $tag$line  
+keep$tag$, $1 from t

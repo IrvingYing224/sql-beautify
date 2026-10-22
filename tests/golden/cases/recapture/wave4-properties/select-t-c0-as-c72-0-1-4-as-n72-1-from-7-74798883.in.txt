@@ -1,0 +1,5 @@
+SELECT t.c0 AS c72_0,
+(1 + 4) AS n72_1,
+'FROM,72_2' AS text_72_2,
+(3 + 4) AS n72_3 FROM t72 t -- tail 72
+)

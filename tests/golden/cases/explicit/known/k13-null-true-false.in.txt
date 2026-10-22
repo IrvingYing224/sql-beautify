@@ -1,0 +1,1 @@
+select case when a is null then null when b then true else false end from t

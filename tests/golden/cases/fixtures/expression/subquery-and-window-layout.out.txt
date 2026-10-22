@@ -1,0 +1,6 @@
+SELECT
+      EXISTS (
+          SELECT 'x'
+      )
+    , sum(x) OVER (PARTITION BY coalesce('x', a) ORDER BY y ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+FROM t

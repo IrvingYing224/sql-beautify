@@ -1,0 +1,7 @@
+SET hive.exec.dynamic.partition=true;
+INSERT INTO TABLE warehouse.daily_orders
+PARTITION (ds = '${bizdate}')
+SELECT
+      order_id
+    , city_code
+FROM staging.orders;

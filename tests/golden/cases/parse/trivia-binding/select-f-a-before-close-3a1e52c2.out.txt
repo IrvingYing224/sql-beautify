@@ -1,0 +1,4 @@
+SELECT f(
+    a
+    -- before close
+);

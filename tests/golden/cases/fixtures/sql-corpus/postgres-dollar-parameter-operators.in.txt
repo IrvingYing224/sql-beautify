@@ -1,0 +1,3 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+SELECT $1, $tag$line  
+keep$tag$, payload @> '{"id":1}'::jsonb FROM t WHERE payload ?| ARRAY['id']

@@ -1,0 +1,10 @@
+WITH
+      q AS (
+          SELECT
+                x, /* inner comma */
+                y
+      )
+SELECT
+      z, /* outer comma */
+      w
+FROM q;

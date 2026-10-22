@@ -1,0 +1,5 @@
+SELECT
+      date_add(dt, 1)
+    , current_date - INTERVAL '1' day
+    , cast('2024-01-01' as date) + interval 2 hour
+FROM t;

@@ -1,0 +1,6 @@
+CREATE TABLE db.t
+(
+     id   BIGINT COMMENT 'id'
+    ,name STRING
+)
+STORED AS ORC

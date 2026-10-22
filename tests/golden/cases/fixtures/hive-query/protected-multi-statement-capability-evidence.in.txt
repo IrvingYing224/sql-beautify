@@ -1,0 +1,1 @@
+select /*e:select2*/ 1; /*e:multi*/ select 2;

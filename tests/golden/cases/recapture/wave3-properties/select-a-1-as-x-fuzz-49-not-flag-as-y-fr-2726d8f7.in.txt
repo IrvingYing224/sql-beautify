@@ -1,0 +1,5 @@
+-- golden: {"options":{"caseWhenThenWrapLength":90,"dialect":"generic","indentStyle":"tab","maxAlignWidth":80,"unsupportedSyntaxPolicy":"preserve"}}
+SeLeCt a+1 as x, /* fuzz 49 */  not flag
+as y
+from
+t where a=1 and b>2

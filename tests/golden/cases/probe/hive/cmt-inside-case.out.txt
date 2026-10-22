@@ -1,0 +1,9 @@
+SELECT
+      CASE
+      -- first branch
+          WHEN a = 1 THEN 'x' -- one
+          /* second */
+          WHEN a = 2 THEN 'y'
+          ELSE 'z' -- default
+      END AS c
+FROM t

@@ -1,0 +1,6 @@
+SELECT
+      a
+    , count(1)
+FROM t
+GROUP BY
+      a with rollup

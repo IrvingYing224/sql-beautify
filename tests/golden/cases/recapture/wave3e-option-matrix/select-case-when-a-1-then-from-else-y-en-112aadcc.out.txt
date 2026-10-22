@@ -1,0 +1,7 @@
+select
+    case
+        when a = 1 then 'FROM'
+        else 'y'
+    end as x,
+    b as y
+from t

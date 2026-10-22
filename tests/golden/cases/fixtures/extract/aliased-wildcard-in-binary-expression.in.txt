@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT (t.* + 1) AS x FROM t t

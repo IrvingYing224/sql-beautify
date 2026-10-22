@@ -1,0 +1,5 @@
+SELECT
+      *
+FROM
+      a
+    , lateral(select * from b where b.id = a.id) x

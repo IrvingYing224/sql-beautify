@@ -1,0 +1,4 @@
+SELECT
+	  CASE WHEN a = 1 THEN 'FROM' ELSE 'y' END AS x
+	, b                                        AS y
+FROM t

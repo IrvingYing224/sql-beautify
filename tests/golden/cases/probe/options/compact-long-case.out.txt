@@ -1,0 +1,8 @@
+SELECT
+      CASE
+          WHEN a = 1 THEN
+              'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+          WHEN a = 2 THEN 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
+          ELSE 'y'
+      END AS k
+FROM t

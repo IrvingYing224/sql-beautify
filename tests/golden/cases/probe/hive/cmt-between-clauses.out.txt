@@ -1,0 +1,9 @@
+SELECT
+      a
+-- between select and from
+FROM t
+/* block between from and where */
+WHERE a = 1
+-- before group
+GROUP BY
+      a

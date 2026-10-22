@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic"}}
+SELECT CAST(x AS :type), CAST(x AS ARRAY<:type>)

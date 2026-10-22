@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE EXTERNAL TABLE db50.`t(50` (
+c50_0 MAP<STRING,ARRAY<INT>>
+);

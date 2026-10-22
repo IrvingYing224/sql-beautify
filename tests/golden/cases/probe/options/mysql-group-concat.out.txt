@@ -1,0 +1,3 @@
+SELECT
+      group_concat(DISTINCT a order by b separator ',')
+FROM t

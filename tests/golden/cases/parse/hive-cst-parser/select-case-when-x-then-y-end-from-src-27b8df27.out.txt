@@ -1,0 +1,5 @@
+SELECT
+      CASE
+          WHEN x THEN y
+      END
+FROM src

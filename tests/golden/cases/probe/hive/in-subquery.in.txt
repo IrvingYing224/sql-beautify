@@ -1,0 +1,1 @@
+select * from a where a.id in (select id from b where dt = '2024');

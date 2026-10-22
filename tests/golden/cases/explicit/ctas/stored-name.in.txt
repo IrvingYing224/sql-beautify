@@ -1,0 +1,1 @@
+create table stored as select 1

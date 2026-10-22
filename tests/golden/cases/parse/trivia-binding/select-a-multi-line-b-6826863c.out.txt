@@ -1,0 +1,4 @@
+SELECT
+      a /* multi
+line */
+    , b;

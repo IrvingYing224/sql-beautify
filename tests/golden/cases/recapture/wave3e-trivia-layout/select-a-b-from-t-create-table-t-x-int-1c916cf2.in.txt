@@ -1,0 +1,2 @@
+-- golden: {"newline":"\r\n"}
+select a,b from t;CREATE TABLE t (x INT);

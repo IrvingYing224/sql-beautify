@@ -1,0 +1,2 @@
+WITH c132 AS (SELECT `quoted,132_0` AS quoted_132_0,
+t.c1 AS c132_1 FROM t132 t WHERE (t.c0 >= 0 AND t.c0 IS NOT NULL)) SELECT * FROM c132)

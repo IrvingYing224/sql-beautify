@@ -1,0 +1,6 @@
+select
+      `Mixed Name`   as x, /* fuzz 24 */
+      coalesce(b, 0) as y
+from t
+where a = 1
+    and b > 2

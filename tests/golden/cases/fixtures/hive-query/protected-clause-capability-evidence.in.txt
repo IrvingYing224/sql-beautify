@@ -1,0 +1,1 @@
+select 'x' as s from /*e:from*/ t where /*e:where*/ a=1 group by /*e:group*/ a having /*e:having*/ count(*)>0 window w as (partition /*e:window*/ by a) order by /*e:order*/ a cluster by /*e:cluster*/ a distribute by /*e:distribute*/ a sort by /*e:sort*/ a limit /*e:limit*/ 1

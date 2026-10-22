@@ -1,0 +1,4 @@
+SELECT
+      *
+FROM t
+LATERAL VIEW EXPLODE(xs) e AS x

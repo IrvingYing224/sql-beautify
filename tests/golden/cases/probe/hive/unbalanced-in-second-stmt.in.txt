@@ -1,0 +1,3 @@
+select a from t;
+select (b from u;
+select c from v;

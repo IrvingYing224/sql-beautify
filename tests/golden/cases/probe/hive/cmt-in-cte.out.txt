@@ -1,0 +1,13 @@
+WITH
+      a AS (
+          -- cte a
+          SELECT 1 AS x -- x
+      ), -- after a
+      b AS (
+          SELECT 2 AS y
+      )
+SELECT
+      *
+FROM
+      a
+    , b;

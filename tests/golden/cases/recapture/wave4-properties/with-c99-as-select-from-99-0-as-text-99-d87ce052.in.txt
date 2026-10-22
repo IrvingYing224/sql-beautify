@@ -1,0 +1,1 @@
+WITH c99 AS (SELECT 'FROM,99_0' AS text_99_0, count(*) AS count_99_1, 'FROM,99_2' AS text_99_2, `quoted,99_3` AS quoted_99_3, 'FROM,99_4' AS text_99_4 FROM t99 t WHERE (t.c0 >= 0 AND t.c0 IS NOT NULL) ORDER BY t.c0 DESC LIMIT 25) SELECT * FROM c99)

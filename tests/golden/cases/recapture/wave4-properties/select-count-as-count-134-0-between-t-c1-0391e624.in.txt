@@ -1,0 +1,2 @@
+SELECT count(*) AS count_134_0, /* between */ t.c1 AS c134_1, /* between */ count(*) AS count_134_2 FROM t134 t -- tail 134
+ /* unterminated 134

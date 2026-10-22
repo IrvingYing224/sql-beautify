@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+CREATE TABLE t (a STRING)

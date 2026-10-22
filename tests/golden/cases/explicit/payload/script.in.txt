@@ -1,0 +1,3 @@
+add jar /tmp/my-udf.jar;
+create temporary function f as 'com.x.F';
+select f(a) from t;

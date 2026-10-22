@@ -1,0 +1,6 @@
+SELECT
+      a
+FROM t; -- trailing comment
+SELECT
+      b
+FROM u; /* block */

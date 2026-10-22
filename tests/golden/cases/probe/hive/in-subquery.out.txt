@@ -1,0 +1,9 @@
+SELECT
+      *
+FROM a
+WHERE a.id IN (
+    SELECT
+          id
+    FROM b
+    WHERE dt = '2024'
+);

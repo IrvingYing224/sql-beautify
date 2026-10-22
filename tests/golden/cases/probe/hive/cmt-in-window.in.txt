@@ -1,0 +1,2 @@
+select row_number() over (partition by a -- part
+ order by b) as rn from t

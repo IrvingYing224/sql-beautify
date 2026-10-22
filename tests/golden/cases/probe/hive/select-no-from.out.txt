@@ -1,0 +1,4 @@
+SELECT
+      1
+    , 'a'
+    , current_timestamp();

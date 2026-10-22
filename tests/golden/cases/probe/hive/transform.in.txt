@@ -1,0 +1,1 @@
+select transform(a, b) using 'python x.py' as (c, d) from t;

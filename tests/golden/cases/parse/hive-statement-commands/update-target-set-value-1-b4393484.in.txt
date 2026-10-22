@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+UPDATE target SET value=1

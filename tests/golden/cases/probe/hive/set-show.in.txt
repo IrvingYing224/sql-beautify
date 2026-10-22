@@ -1,0 +1,3 @@
+set;
+set -v;
+set hive.exec.parallel;

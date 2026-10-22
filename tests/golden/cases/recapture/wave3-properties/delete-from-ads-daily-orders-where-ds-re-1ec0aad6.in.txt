@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":80,"keywordCase":"lower","unsupportedSyntaxPolicy":"preserve"}}
+DELETE FROM ads_daily_orders WHERE ds<'${retention_date}';

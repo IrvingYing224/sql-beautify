@@ -1,0 +1,8 @@
+SELECT
+      *
+FROM a
+LEFT JOIN b
+    ON a.k1 = b.k1
+        AND a.k2 = b.k2
+        AND a.k3 = b.k3
+        OR a.k4 = b.k4

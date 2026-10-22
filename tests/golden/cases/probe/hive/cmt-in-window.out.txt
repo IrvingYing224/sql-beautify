@@ -1,0 +1,6 @@
+SELECT
+      row_number() OVER (
+          PARTITION BY a -- part
+          ORDER BY b
+      ) AS rn
+FROM t

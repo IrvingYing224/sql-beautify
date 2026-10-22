@@ -1,0 +1,9 @@
+SET hive.exec.parallel=true;
+
+SELECT
+      a
+    , b -- c
+FROM t
+WHERE x = 1;
+
+SELECT 2;

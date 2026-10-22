@@ -1,0 +1,9 @@
+SELECT
+      *
+FROM t
+WHERE a IN (1, 2, 3)
+    AND b NOT IN ('x', 'y')
+    AND c BETWEEN 1 AND 10
+    AND d NOT BETWEEN 5 AND 6
+    AND e IS NOT NULL
+    AND f IS NULL;

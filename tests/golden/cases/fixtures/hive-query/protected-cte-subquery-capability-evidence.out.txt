@@ -1,0 +1,12 @@
+WITH
+      a(/*e:with*/c) AS (
+          /*e:subquery*/
+          SELECT
+          /*e:select*/
+          1
+      )
+SELECT
+      c
+FROM
+    /*e:from2*/
+    a

@@ -1,0 +1,7 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db40.`t(40` (
+`c,40_0` STRING,
+c40_1 ARRAY<STRUCT<x:STRING,n:INT>>,
+c40_2 STRING COMMENT 'FROM,40 (2)',
+c40_3 DECIMAL(14,0)
+;

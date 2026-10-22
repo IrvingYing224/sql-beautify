@@ -1,0 +1,10 @@
+select
+      x.a
+    , e.v
+from t x
+lateral view explode(x.arr) e as v
+union all
+select
+      a
+    , b
+from t2

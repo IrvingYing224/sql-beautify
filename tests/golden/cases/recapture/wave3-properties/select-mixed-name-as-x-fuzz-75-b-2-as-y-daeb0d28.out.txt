@@ -1,0 +1,8 @@
+select
+	  `Mixed Name` as x
+	,
+	/* fuzz 75 */
+	b * 2 as y
+from t
+where a = 1
+	and b > 2

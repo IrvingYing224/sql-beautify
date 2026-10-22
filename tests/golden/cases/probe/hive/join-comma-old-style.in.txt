@@ -1,0 +1,1 @@
+select a.x, b.y from a, b where a.id = b.id;

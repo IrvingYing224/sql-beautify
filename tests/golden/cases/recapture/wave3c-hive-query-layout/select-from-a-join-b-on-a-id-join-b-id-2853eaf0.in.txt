@@ -1,0 +1,2 @@
+select * from a join b on a.id -- join
+ = b.id

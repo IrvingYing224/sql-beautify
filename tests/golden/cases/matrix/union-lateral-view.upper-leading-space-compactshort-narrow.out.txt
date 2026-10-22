@@ -1,0 +1,10 @@
+SELECT
+      x.a
+    , e.v
+FROM t x
+LATERAL VIEW explode(x.arr) e AS v
+UNION ALL
+SELECT
+      a
+    , b
+FROM t2

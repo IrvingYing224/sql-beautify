@@ -1,0 +1,9 @@
+SELECT
+      sum(CASE
+          WHEN a = 1 THEN b
+          ELSE 0
+      END) AS s
+    , c
+FROM t
+GROUP BY
+      c

@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":94,"dialect":"mysql","indentStyle":"tab","maxAlignWidth":127}}
+select  case when a=1 then 2 else 3 end  as x, /* fuzz 47 */	@value	as y  FrOm t where a=1 and b>2

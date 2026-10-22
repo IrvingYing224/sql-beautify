@@ -1,0 +1,2 @@
+select a from t window w as (partition -- member
+ by a)

@@ -1,0 +1,1 @@
+SELECT sum(x) OVER (PARTITION BY k ORDER BY ts)

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+set @x = 1; select @x, @@session.sql_mode, @y := 2 from t

@@ -1,0 +1,9 @@
+INSERT OVERWRITE TABLE dw.t
+PARTITION (dt, hr)
+SELECT
+      a
+    , b
+    , dt
+    , hr
+FROM src
+WHERE dt >= '2024-01-01';

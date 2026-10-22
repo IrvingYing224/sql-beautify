@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":32,"commaStyle":"trailing","dialect":"postgresql","maxAlignWidth":88}}
+SELECT  "Mixed Name"	as x,	/* fuzz 122 */ not flag as y
+FROM	t where a=1 and b>2

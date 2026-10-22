@@ -1,0 +1,8 @@
+SELECT
+      *
+FROM t
+WHERE a = 1 -- a
+    AND b = 2 -- b
+-- c disabled
+-- and c = 3
+    AND d = 4

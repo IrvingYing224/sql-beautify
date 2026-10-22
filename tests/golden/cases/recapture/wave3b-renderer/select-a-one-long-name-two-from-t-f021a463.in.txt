@@ -1,0 +1,4 @@
+-- golden: {"options":{"indentStyle":"tab"},"tabSize":2}
+select a --one
+, long_name --two
+from t

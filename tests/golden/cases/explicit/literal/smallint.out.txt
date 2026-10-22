@@ -1,0 +1,3 @@
+SELECT
+      5S
+FROM t

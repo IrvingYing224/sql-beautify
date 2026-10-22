@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+insert into t (a, b) values (1, 2) on conflict (a) do update set b = excluded.b returning *

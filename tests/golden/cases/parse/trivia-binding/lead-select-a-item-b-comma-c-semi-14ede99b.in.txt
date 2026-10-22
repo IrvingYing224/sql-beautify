@@ -1,0 +1,4 @@
+-- lead
+SELECT a -- item
+, b, -- comma
+ c; -- semi

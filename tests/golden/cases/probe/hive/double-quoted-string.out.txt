@@ -1,0 +1,4 @@
+SELECT
+      "abc" AS x
+FROM t
+WHERE y = "z";

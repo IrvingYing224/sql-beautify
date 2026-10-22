@@ -1,0 +1,1 @@
+select a, concat('p_', case when x = 1 then 'a' else 'b' end) as k from t

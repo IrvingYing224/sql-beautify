@@ -1,0 +1,6 @@
+select
+	  'FROM  x' as x, -- fuzz 55
+	  not flag  as y
+from t
+where a = 1
+	and b > 2

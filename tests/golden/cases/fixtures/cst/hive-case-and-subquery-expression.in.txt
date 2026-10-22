@@ -1,0 +1,1 @@
+SELECT CASE WHEN id IN (SELECT id FROM dim) THEN 'y' ELSE 'n' END AS flag FROM src

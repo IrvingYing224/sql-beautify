@@ -1,0 +1,9 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE EXTERNAL TABLE db75.`t(75` (
+c75_0 DECIMAL(13,3),
+c75_1 STRUCT<a:STRING,b:ARRAY<BIGINT>> COMMENT 'FROM,75 (1)',
+c75_2 STRING,
+c75_3 DECIMAL(13,3),
+c75_4 STRUCT<a:STRING,b:ARRAY<BIGINT>>
+);

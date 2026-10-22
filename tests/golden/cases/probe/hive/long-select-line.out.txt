@@ -1,0 +1,42 @@
+SELECT
+      column_name_number_0
+    , column_name_number_1
+    , column_name_number_2
+    , column_name_number_3
+    , column_name_number_4
+    , column_name_number_5
+    , column_name_number_6
+    , column_name_number_7
+    , column_name_number_8
+    , column_name_number_9
+    , column_name_number_10
+    , column_name_number_11
+    , column_name_number_12
+    , column_name_number_13
+    , column_name_number_14
+    , column_name_number_15
+    , column_name_number_16
+    , column_name_number_17
+    , column_name_number_18
+    , column_name_number_19
+    , column_name_number_20
+    , column_name_number_21
+    , column_name_number_22
+    , column_name_number_23
+    , column_name_number_24
+    , column_name_number_25
+    , column_name_number_26
+    , column_name_number_27
+    , column_name_number_28
+    , column_name_number_29
+    , column_name_number_30
+    , column_name_number_31
+    , column_name_number_32
+    , column_name_number_33
+    , column_name_number_34
+    , column_name_number_35
+    , column_name_number_36
+    , column_name_number_37
+    , column_name_number_38
+    , column_name_number_39
+FROM t;

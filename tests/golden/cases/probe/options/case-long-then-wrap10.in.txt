@@ -1,0 +1,2 @@
+-- golden: {"options":{"caseWhenThenWrapLength":10}}
+select case when a = 1 then concat(first_name, ' ', last_name) else 'n/a' end as full_name from t

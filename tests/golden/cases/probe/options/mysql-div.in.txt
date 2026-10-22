@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"mysql"}}
+select a div 2, a mod 3 from t

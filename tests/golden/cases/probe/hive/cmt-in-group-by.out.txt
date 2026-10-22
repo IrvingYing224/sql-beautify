@@ -1,0 +1,8 @@
+SELECT
+      a
+    , b
+    , count(*)
+FROM t
+GROUP BY
+      a, -- first
+      b -- second

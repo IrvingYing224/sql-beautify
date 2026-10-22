@@ -1,0 +1,4 @@
+SELECT
+      x
+FROM t
+WHERE where = 1

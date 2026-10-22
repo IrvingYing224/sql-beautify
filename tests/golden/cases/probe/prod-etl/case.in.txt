@@ -1,0 +1,63 @@
+-- =============================================
+-- 任务名称: dws_user_order_daily
+-- 负责人: data-team
+-- =============================================
+use dw;
+set hive.exec.dynamic.partition=true;
+set hive.exec.dynamic.partition.mode=nonstrict;
+set mapreduce.map.memory.mb=4096;
+add jar hdfs:///user/lib/udf-1.0.jar;
+create temporary function parse_ua as 'com.x.ParseUA';
+
+drop table if exists tmp.tmp_user_order_${hivevar:dt};
+create table tmp.tmp_user_order_${hivevar:dt} as
+select user_id, order_id, amount from ods.orders where dt = '${hivevar:dt}';
+
+with orders as (
+    select o.user_id,
+           o.order_id,
+           o.amount, -- 订单金额
+           o.status,
+           -- o.coupon_id,
+           o.create_time
+    from ods.orders o
+    where o.dt = '${hivevar:dt}'
+      and o.status in (1, 2, 3)
+      -- and o.is_test = 0
+),
+users as (
+    select /*+ MAPJOIN(c) */ u.user_id, u.city, c.city_level
+    from dim.users u
+    left join dim.city c on u.city = c.city_name
+),
+agg as (
+    select user_id,
+           count(distinct order_id) as order_cnt,
+           sum(amount) as total_amount,
+           sum(case when status = 1 then amount else 0 end) as paid_amount,
+           max(create_time) as last_order_time,
+           row_number() over (partition by user_id order by sum(amount) desc) as rn
+    from orders
+    group by user_id
+)
+insert overwrite table dws.user_order_daily partition (dt = '${hivevar:dt}')
+select a.user_id
+     , a.order_cnt
+     , a.total_amount
+     , a.paid_amount
+     , case
+         when a.total_amount >= 10000 then 'S'
+         when a.total_amount >= 1000 then 'A'
+         else 'B'
+       end as user_level -- 用户等级
+     , u.city
+     , nvl(u.city_level, -1) as city_level
+     , tag
+from agg a
+left join users u on a.user_id = u.user_id
+lateral view explode(split(nvl(u.city, ''), ',')) t as tag
+where a.rn = 1
+distribute by a.user_id
+sort by a.total_amount desc;
+
+msck repair table dws.user_order_daily;

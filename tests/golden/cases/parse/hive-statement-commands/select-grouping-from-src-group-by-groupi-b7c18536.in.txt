@@ -1,0 +1,1 @@
+SELECT grouping FROM src GROUP BY grouping

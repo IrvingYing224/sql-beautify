@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+-- unsupported SQL comment
+CREATE TABLE IF NOT EXISTS db94.`t(94` (
+c94_0 ARRAY<STRUCT<x:STRING,n:INT>>
+);

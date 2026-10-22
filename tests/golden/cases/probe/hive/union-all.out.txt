@@ -1,0 +1,16 @@
+SELECT
+      a
+    , b
+FROM t1
+WHERE x = 1
+UNION ALL
+SELECT
+      a
+    , b
+FROM t2
+WHERE y = 2
+UNION ALL
+SELECT
+      a
+    , b
+FROM t3;

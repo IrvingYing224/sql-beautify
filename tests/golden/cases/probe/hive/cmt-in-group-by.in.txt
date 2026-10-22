@@ -1,0 +1,2 @@
+select a, b, count(*) from t group by a, -- first
+ b -- second

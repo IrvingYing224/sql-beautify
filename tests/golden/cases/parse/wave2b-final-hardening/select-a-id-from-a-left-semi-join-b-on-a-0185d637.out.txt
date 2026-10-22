@@ -1,0 +1,9 @@
+SELECT
+      a.id
+FROM a
+LEFT SEMI JOIN b
+    ON a.id = b.id
+LEFT ANTI JOIN c
+    ON a.id = c.id
+FULL OUTER JOIN d
+    ON a.id = d.id

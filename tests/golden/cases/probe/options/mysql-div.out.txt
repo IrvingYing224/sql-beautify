@@ -1,0 +1,4 @@
+SELECT
+      a div 2
+    , a mod 3
+FROM t

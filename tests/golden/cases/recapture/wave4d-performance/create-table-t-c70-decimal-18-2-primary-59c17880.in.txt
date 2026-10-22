@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE t (c70 DECIMAL(18,2), PRIMARY KEY (c70))

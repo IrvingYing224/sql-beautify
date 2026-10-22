@@ -1,0 +1,7 @@
+WITH
+      a(/*x*/c, d) AS (
+          SELECT 1
+      )
+SELECT
+      c
+FROM a

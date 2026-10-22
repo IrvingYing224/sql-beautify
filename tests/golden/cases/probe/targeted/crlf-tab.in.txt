@@ -1,0 +1,4 @@
+-- golden: {"options":{"indentStyle":"tab"}}
+select a,
+	b
+from t

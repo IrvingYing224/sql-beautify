@@ -1,0 +1,24 @@
+WITH
+	  x AS (
+		  SELECT
+			    a
+			  , b
+		  FROM (
+			  SELECT
+				    a
+				  , b
+			  FROM t
+		  ) y
+		  WHERE a IN (
+			  SELECT
+				    a
+			  FROM z
+		  )
+	  )
+SELECT
+	  CASE
+		  WHEN a = 1 THEN b
+		  ELSE c
+	  END AS k
+	, a
+FROM x

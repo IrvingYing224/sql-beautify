@@ -1,0 +1,3 @@
+SELECT
+      all.value
+FROM src

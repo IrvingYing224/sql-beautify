@@ -1,0 +1,4 @@
+SELECT
+      'a;b' AS x
+FROM t;
+SELECT 2;

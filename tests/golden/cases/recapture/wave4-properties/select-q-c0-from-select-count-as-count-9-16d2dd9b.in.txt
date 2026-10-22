@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT count(*) AS count_95_0 FROM t95 t) q)

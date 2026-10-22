@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":54,"indentStyle":"tab","maxAlignWidth":100}}
+SELECT
+'FROM  x'	as x,	/* fuzz 84 */ coalesce(b,0) as y	FrOm	t where a=1 and b>2

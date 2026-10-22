@@ -1,0 +1,1 @@
+with a as (select x from t), b(c,d) as (select y from u) select * from a

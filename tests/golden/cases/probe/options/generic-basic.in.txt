@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic"}}
+select a, b from t where x = 1 order by a limit 10 offset 5

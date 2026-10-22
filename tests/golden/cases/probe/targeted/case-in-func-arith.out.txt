@@ -1,0 +1,7 @@
+SELECT
+      a
+    , sum(CASE
+        WHEN x = 1 THEN amt
+        ELSE 0
+    END) / sum(amt) AS ratio
+FROM t

@@ -1,0 +1,3 @@
+-- golden: {"options":{"caseWhenThenWrapLength":31,"commaStyle":"trailing","dialect":"mysql","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":141,"unsupportedSyntaxPolicy":"preserve"}}
+SELECT  a+1 as x,	/* fuzz 19 */  coalesce(b,0)
+as y  FrOm t where a=1 and b>2

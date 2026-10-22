@@ -1,0 +1,1 @@
+select a from t group by a having sum(b) > 10 and count(*) < 5;

@@ -1,0 +1,4 @@
+SELECT
+      a @ b
+    , c + 1
+FROM t

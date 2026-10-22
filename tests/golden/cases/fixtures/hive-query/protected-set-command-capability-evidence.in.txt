@@ -1,0 +1,1 @@
+set /*e:set-command*/ hive.exec.flag=select MiXeD /*raw*/ x=y

@@ -1,0 +1,10 @@
+CREATE TABLE t
+(
+     a STRING
+)
+PARTITIONED BY
+(
+     ds     STRING
+    ,region STRING
+)
+STORED AS ORC;

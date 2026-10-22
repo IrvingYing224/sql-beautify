@@ -1,0 +1,1 @@
+insert overwrite table dw.t partition (dt, hr) select a, b, dt, hr from src where dt >= '2024-01-01';

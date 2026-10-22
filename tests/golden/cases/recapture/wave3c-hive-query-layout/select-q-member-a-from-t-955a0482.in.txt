@@ -1,0 +1,2 @@
+select q -- member
+ . a from t

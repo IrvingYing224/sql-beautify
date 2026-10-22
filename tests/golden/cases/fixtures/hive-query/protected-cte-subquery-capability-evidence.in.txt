@@ -1,0 +1,1 @@
+with a(/*e:with*/c) as (/*e:subquery*/ select /*e:select*/ 1) select c from /*e:from2*/ a

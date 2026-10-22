@@ -1,0 +1,6 @@
+SELECT
+      id
+    , pos
+    , val
+FROM t
+LATERAL VIEW OUTER posexplode(split(vals, ',')) v AS pos, val;

@@ -1,0 +1,4 @@
+SELECT
+      if(a, 1, 0)
+    , `if`(b)
+FROM t

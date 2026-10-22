@@ -1,0 +1,6 @@
+SELECT
+      x
+FROM t
+GROUP BY
+      x
+HAVING having = 1

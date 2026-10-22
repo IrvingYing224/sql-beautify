@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT CASE WHEN t.c0 = 1 THEN t.c0 ELSE 0 END AS case_36_0, /* between */ (1 + 2) AS n36_1, /* between */ CASE WHEN t.c2 = 1 THEN t.c2 ELSE 0 END AS case_36_2, /* between */ count(*) AS count_36_3, /* between */ 'FROM,36_4' AS text_36_4 FROM t36 t WHERE (t.c0 >= 3 AND t.c0 IS NOT NULL) /* unterminated 36

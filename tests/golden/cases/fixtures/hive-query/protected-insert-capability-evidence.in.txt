@@ -1,0 +1,1 @@
+insert overwrite table d partition(/*e:insert*/ds=1,hr) select 'x' from s

@@ -1,0 +1,1 @@
+SELECT CASE WHEN t.c0 = 3 THEN t.c0 ELSE 0 END AS case_38_0 FROM t38 t WHERE (t.c0 >= 5 AND t.c0 IS NOT NULL))

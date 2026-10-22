@@ -1,0 +1,7 @@
+SELECT
+      CASE status
+          WHEN 1 THEN
+              CAST(value AS ARRAY<MAP<STRING, DECIMAL(18, 2)>>)
+          ELSE CAST(0 AS BIGINT)
+      END AS amount
+FROM t

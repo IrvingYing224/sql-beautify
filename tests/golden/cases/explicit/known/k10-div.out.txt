@@ -1,0 +1,3 @@
+SELECT
+      a div 2
+FROM t

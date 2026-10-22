@@ -1,0 +1,5 @@
+SELECT
+      aa   AS x, -- 1
+      bbbb AS y, -- 2
+      cc   AS z  -- 3
+FROM t

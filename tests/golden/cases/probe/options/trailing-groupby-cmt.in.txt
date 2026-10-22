@@ -1,0 +1,3 @@
+-- golden: {"options":{"commaStyle":"trailing"}}
+select a, b from t group by a -- x
+, b -- y

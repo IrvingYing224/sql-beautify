@@ -1,0 +1,6 @@
+SELECT
+      CASE
+          WHEN a = 1 THEN concat('FROM', b)
+          ELSE 'x'
+      END AS c
+FROM t

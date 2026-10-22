@@ -1,0 +1,6 @@
+INSERT OVERWRITE TABLE t
+PARTITION (dt = '${dt}' -- dt
+)
+SELECT
+      a
+FROM s;

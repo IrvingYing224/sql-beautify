@@ -1,0 +1,2 @@
+-- golden: {"options":{"commaStyle":"trailing"}}
+select a, b from (select a, b, c from t) x

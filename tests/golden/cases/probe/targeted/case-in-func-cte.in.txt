@@ -1,0 +1,1 @@
+with q as (select a, count(distinct case when x = 1 then u end) as k from t group by a) select * from q

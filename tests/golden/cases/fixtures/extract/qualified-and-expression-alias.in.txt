@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+SELECT t.user_id, count(*) AS total FROM t

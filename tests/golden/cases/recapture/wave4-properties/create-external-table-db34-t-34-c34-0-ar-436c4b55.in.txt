@@ -1,0 +1,5 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE EXTERNAL TABLE db34.`t(34` (
+c34_0 ARRAY<STRUCT<x:STRING,n:INT>,
+c34_1 MAP<STRING,ARRAY<INT>>
+);

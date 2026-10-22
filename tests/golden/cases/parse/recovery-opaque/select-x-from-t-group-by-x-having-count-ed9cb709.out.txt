@@ -1,0 +1,6 @@
+SELECT
+      x
+FROM t
+GROUP BY
+      x
+HAVING (count(*) > 1)

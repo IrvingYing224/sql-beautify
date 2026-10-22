@@ -1,0 +1,5 @@
+SELECT
+      *
+FROM t
+LATERAL VIEW explode(arr) x AS y -- explode
+WHERE y > 0

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+INSERT INTO dst SELECT id FROM src

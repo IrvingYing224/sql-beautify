@@ -1,0 +1,11 @@
+WITH
+      x AS (
+          SELECT
+                a
+              , row_number() OVER (PARTITION BY user_id, device_id, app_version ORDER BY event_time DESC, seq_no DESC) AS rn
+          FROM t
+      )
+SELECT
+      *
+FROM x
+WHERE rn = 1

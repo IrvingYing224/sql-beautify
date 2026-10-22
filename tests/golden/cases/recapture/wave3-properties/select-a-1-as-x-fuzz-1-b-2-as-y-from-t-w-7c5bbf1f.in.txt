@@ -1,0 +1,4 @@
+-- golden: {"options":{"caseWhenThenWrapLength":46,"dialect":"generic","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":46,"unsupportedSyntaxPolicy":"bail_out"}}
+select	a+1	as x,	/* fuzz 1 */  b*2
+as y
+FrOm t where a=1 and b>2

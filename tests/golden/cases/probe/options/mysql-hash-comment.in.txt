@@ -1,0 +1,3 @@
+-- golden: {"options":{"dialect":"mysql"}}
+# a comment
+select 1

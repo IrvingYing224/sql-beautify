@@ -1,0 +1,1 @@
+WITH c94 AS (SELECT `quoted,94_0` AS quoted_94_0, t.c1 AS c94_1, `quoted,94_2` AS quoted_94_2, CASE WHEN t.c3 = 3 THEN t.c3 ELSE 0 END AS case_94_3 FROM t94 t WHERE (t.c0 >= 6 AND t.c0 IS NOT NULL)) SELECT * FROM c94)

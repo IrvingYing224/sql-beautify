@@ -1,0 +1,1 @@
+select a, b, c, d, e, f, g, count(*) as cnt, sum(x) as sx from t group by a, b, c, d, e, f, g having count(*) > 1 order by cnt desc, a limit 100;

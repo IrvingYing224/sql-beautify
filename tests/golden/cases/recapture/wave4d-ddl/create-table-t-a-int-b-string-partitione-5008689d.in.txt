@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl","options":{"commaStyle":"trailing","indentStyle":"tab","keywordCase":"lower"}}
+create table t (a int,b string) partitioned by (ds string,rn int) stored as orc;

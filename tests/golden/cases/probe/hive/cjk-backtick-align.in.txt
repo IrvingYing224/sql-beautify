@@ -1,0 +1,1 @@
+select `中文字段` as c1, b as c2, `长长的中文字段名` as c3 from t

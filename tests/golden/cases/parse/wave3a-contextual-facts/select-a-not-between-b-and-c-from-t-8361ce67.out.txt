@@ -1,0 +1,3 @@
+SELECT
+      a NOT BETWEEN b AND c
+FROM t

@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"generic","unsupportedSyntaxPolicy":"preserve"}}
+select a from t match_recognize(pattern (A))

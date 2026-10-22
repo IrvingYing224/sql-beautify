@@ -1,0 +1,5 @@
+SELECT
+    aaaaaaaaaa AS x -- c1
+    , b        AS y -- c2
+    , cc       AS z -- c3
+FROM t

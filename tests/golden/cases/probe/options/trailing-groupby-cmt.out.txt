@@ -1,0 +1,7 @@
+SELECT
+    a,
+    b
+FROM t
+GROUP BY
+    a   -- x
+    , b -- y

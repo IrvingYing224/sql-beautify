@@ -1,0 +1,5 @@
+SELECT
+      a
+FROM t
+ORDER BY
+      a desc nulls last

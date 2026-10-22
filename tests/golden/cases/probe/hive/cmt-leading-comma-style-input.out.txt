@@ -1,0 +1,5 @@
+SELECT
+      a         -- first
+    , bb  AS x  -- second
+    , ccc AS yy -- third
+FROM t

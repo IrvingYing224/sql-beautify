@@ -1,0 +1,6 @@
+SELECT
+      CAST(a AS BIGINT)
+    , CAST(b AS DECIMAL(10, 2)) AS d
+    , CAST(c AS STRING)
+    , CAST(m AS MAP<STRING, INT>)
+FROM t;

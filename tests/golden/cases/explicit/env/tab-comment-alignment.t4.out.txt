@@ -1,0 +1,5 @@
+SELECT
+      a,    -- first
+      bbbb, -- second
+      c     -- third
+FROM t

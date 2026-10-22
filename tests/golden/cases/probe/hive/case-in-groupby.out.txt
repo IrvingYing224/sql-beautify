@@ -1,0 +1,12 @@
+SELECT
+      CASE
+          WHEN a > 1 THEN 'x'
+          ELSE 'y'
+      END AS k
+    , count(*)
+FROM t
+GROUP BY
+      CASE
+          WHEN a > 1 THEN 'x'
+          ELSE 'y'
+      END;

@@ -1,0 +1,6 @@
+INSERT INTO TABLE dw.t
+PARTITION (dt = '2024-01-01')
+SELECT
+      a
+    , b
+FROM src;

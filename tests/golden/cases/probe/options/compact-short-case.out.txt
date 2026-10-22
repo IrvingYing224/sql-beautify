@@ -1,0 +1,3 @@
+SELECT
+      CASE WHEN a = 1 THEN 'x' ELSE 'y' END AS k
+FROM t

@@ -1,0 +1,5 @@
+-- golden: {"variants":{"t2":{"tabSize":2},"t4":{"tabSize":4},"t8":{"tabSize":8}}}
+select	a,	-- first
+	bbbb,	-- second
+	c	-- third
+from t

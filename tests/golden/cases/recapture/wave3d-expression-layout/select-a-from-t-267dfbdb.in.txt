@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select ! ! a from t

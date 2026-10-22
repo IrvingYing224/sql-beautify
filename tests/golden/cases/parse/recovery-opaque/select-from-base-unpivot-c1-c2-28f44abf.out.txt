@@ -1,0 +1,3 @@
+SELECT
+      *
+FROM base unpivot(c1, c2)

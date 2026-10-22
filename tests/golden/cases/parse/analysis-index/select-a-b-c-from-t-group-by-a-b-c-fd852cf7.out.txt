@@ -1,0 +1,9 @@
+SELECT
+      a
+    , b
+    , c
+FROM t
+GROUP BY
+      a
+    , b
+    , c

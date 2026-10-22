@@ -1,0 +1,4 @@
+SELECT
+      $$it's a string$$
+    , $tag$x$tag$
+FROM t

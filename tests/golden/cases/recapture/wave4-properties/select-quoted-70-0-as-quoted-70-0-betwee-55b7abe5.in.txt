@@ -1,0 +1,1 @@
+SELECT `quoted,70_0` AS quoted_70_0, /* between */ t.c1 AS c70_1, /* between */ count(*) AS count_70_2, /* between */ CASE WHEN t.c3 = 0 THEN t.c3 ELSE 0 END AS case_70_3, /* between */ `quoted,70_4` AS quoted_70_4 FROM t70 t)

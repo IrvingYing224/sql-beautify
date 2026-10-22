@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE db1.`t(1` (
+c1_0 STRUCT<a:STRING,b:ARRAY<BIGINT>>
+, CONSTRAINT x PRIMARY KEY (c0));

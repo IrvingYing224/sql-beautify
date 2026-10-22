@@ -1,0 +1,2 @@
+-- golden: {"options":{"indentStyle":"tab"}}
+with x as (select a, b from (select a, b from t) y where a in (select a from z)) select case when a = 1 then b else c end as k, a from x

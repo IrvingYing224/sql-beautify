@@ -1,0 +1,5 @@
+SELECT
+      user_id   AS uid,  -- 用户编号
+      user_name AS name, -- 用户名称
+      a         AS b     -- 普通
+FROM t

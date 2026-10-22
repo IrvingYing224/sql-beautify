@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select array[1,2,3], a[1:2], any(arr) from t where x = any(array[1,2])

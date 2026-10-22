@@ -1,0 +1,6 @@
+-- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":87,"indentStyle":"tab","maxAlignWidth":50}}
+SeLeCt
+case when a=1 then 2 else 3 end	as x,	/* fuzz 28 */
+coalesce(b,0) as y
+from
+t where a=1 and b>2

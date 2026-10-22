@@ -1,0 +1,5 @@
+CREATE TABLE t
+(
+     `中`  STRING
+    ,ascii STRING
+)

@@ -1,0 +1,2 @@
+﻿-- 每日任务
+select a as `用户`, bb as x from t;

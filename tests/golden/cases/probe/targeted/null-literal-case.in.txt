@@ -1,0 +1,1 @@
+select null as a, true as b, false as c, case when x is null then null end as d from t

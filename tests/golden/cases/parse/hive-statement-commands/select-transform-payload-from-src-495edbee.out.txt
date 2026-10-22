@@ -1,0 +1,3 @@
+SELECT
+      transform(payload)
+FROM src

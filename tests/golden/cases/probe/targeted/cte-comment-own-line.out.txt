@@ -1,0 +1,13 @@
+WITH
+      a AS (
+          SELECT 1 AS x
+      )
+    -- , b as (select 2)
+    , c AS (
+          SELECT 3 AS z
+      )
+SELECT
+      *
+FROM
+      a
+    , c

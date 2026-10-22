@@ -1,0 +1,7 @@
+INSERT OVERWRITE TABLE db.t
+PARTITION (dt = '${dt}', hr = '${hr}', type)
+SELECT
+      a
+    , b
+    , type
+FROM s

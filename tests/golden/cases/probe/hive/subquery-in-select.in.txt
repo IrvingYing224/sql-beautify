@@ -1,0 +1,1 @@
+select a, (select max(b) from u where u.id = t.id) as mb from t;

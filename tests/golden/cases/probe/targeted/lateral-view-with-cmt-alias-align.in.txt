@@ -1,0 +1,1 @@
+select id, tag as t1, other_long_name as t2 from t lateral view explode(tags) tt as tag

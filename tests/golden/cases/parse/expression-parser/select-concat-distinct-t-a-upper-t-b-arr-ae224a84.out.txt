@@ -1,0 +1,6 @@
+SELECT
+      concat(DISTINCT t.a, upper(t.b))
+    , ARRAY[1, 2]
+    , map('x', 1)
+    , t.*
+FROM db.t t

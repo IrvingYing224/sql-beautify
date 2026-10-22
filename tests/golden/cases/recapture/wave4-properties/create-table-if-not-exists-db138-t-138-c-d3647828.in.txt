@@ -1,0 +1,4 @@
+-- golden: {"op":"formatHiveDdl"}
+CREATE TABLE IF NOT EXISTS db138.`t(138` (
+c138_0 STRING
+, CONSTRAINT x PRIMARY KEY (c0));

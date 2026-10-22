@@ -1,0 +1,5 @@
+-- golden: {"op":"extractDdl"}
+SELECT q.c0 FROM (SELECT CASE WHEN t.c0 = 3 THEN t.c0 ELSE 0 END AS case_10_0,
+(1 + 10) AS n10_1,
+'FROM,10_2' AS text_10_2,
+`quoted,10_3` AS quoted_10_3 FROM t10 t ORDER BY t.c0 DESC LIMIT 11) q /* unterminated 10

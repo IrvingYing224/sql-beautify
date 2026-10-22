@@ -1,0 +1,1 @@
+select exists(select 'x'),sum(x) over(partition by coalesce('x',a) order by y rows between 1 preceding and current row) from t

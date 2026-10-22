@@ -1,0 +1,6 @@
+SELECT
+      'it\'s'
+    , "double \" quote"
+    , 'a\nb'
+    , '\u0041'
+FROM t;

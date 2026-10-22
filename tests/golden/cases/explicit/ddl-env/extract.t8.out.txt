@@ -1,0 +1,3 @@
+     a  __TYPE_REQUIRED__
+    ,bb __TYPE_REQUIRED__
+    ,c  __TYPE_REQUIRED__

@@ -1,0 +1,12 @@
+SELECT
+      a
+    , b
+FROM source_table
+WHERE enabled = true;
+SET hive.exec.dynamic.partition=true;
+INSERT INTO TABLE target
+PARTITION (ds = ${hiveconf:run_date})
+SELECT
+      a
+    , b
+FROM source_table;

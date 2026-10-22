@@ -1,0 +1,2 @@
+-- golden: {"op":"extractDdl"}
+WITH c41 AS (SELECT CASE WHEN t.c0 = 6 THEN t.c0 ELSE 0 END AS case_41_0 FROM t41 t WHERE (t.c0 >= 8 AND t.c0 IS NOT NULL)) SELECT * FROM c41

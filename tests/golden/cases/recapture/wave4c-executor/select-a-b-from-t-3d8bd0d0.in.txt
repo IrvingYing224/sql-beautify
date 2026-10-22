@@ -1,0 +1,3 @@
+-- golden: {"options":{"unsupportedSyntaxPolicy":"preserve"}}
+select a,b
+from t

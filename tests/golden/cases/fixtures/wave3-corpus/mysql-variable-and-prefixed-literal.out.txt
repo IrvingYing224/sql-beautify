@@ -1,0 +1,5 @@
+SELECT
+      _utf8mb4'abc'
+    , @user_id
+FROM t
+WHERE id = :id

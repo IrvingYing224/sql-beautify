@@ -1,0 +1,12 @@
+SELECT
+      CASE
+          WHEN a = 1 THEN lower(CAST(a AS STRING))
+          ELSE
+              (
+                  SELECT
+                        max(b)
+                  FROM u
+              )
+      END
+    , sum(a) OVER (PARTITION BY a ORDER BY a)
+FROM t

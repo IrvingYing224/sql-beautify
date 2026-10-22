@@ -1,0 +1,5 @@
+-- golden: {"options":{"caseLayout":"compactShort","commaStyle":"trailing","indentStyle":"tab","maxAlignWidth":71,"unsupportedSyntaxPolicy":"preserve"}}
+SeLeCt	a+1
+as x,  /* fuzz 80 */ coalesce(b,0)
+as y
+from t where a=1 and b>2

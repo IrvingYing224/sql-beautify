@@ -1,0 +1,1 @@
+SELECT f(DISTINCT x), a.b, ARRAY[1, 2], (x), DATE '2020-01-01', EXISTS (SELECT 1), y IN (1, 2) FROM t

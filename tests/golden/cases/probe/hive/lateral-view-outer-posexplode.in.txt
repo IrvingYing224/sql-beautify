@@ -1,0 +1,1 @@
+select id, pos, val from t lateral view outer posexplode(split(vals, ',')) v as pos, val;

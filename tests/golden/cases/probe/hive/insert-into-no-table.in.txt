@@ -1,0 +1,1 @@
+insert into dw.t select a, b from src;

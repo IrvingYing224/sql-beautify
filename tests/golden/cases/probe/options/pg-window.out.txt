@@ -1,0 +1,4 @@
+SELECT
+      a
+    , rank() OVER (PARTITION BY b ORDER BY c desc nulls last)
+FROM t

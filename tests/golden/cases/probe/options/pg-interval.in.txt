@@ -1,0 +1,2 @@
+-- golden: {"options":{"dialect":"postgresql"}}
+select now() - interval '1 day', a from t where ts > now() - interval '7 days'

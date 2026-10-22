@@ -1,0 +1,9 @@
+SELECT
+	`from`          AS name,
+	CAST(a AS CHAR) AS value
+FROM t
+WHERE id = ?
+	AND label = 'FROM'
+ORDER BY
+	value
+LIMIT 2

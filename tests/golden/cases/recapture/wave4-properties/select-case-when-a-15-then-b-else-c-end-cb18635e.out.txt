@@ -1,0 +1,6 @@
+SELECT
+      CASE
+          WHEN a = 15 THEN b
+          ELSE c
+      END AS value
+FROM t

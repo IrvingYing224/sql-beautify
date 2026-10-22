@@ -1,0 +1,3 @@
+SELECT
+      match_recognize(a) AS value
+FROM t

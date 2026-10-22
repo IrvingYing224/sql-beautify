@@ -1,0 +1,6 @@
+select
+    a,        -- first
+    bbbbbbbb, -- second
+    c         -- third
+from t -- table
+where x = 1 /* cond */
