@@ -724,7 +724,11 @@ function scanIdentifierOrKeyword(state: ScannerState): boolean {
         const nextCodePoint = codePointAt(state.source, end);
         if (
             nextCodePoint === undefined ||
-            !state.profile.identifierCharacters.isContinue(nextCodePoint)
+            !state.profile.identifierCharacters.isContinue(nextCodePoint) ||
+            // `$` continues a Hive identifier, but `${` always starts a template: `tbl_${dt}`.
+            (nextCodePoint === 0x24 &&
+                state.profile.templateParameters &&
+                charAt(state, end + 1) === "{")
         ) {
             break;
         }

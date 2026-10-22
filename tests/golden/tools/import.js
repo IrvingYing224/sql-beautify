@@ -153,6 +153,8 @@ var DDL_ENV = {
     ['known/k10-with-rollup', 'select a, count(1) from t group by a with rollup'],
     ['known/k10-insert-columns', 'insert into table t (c1, c2) select a, b from s'],
     ['known/k10-templated-names', 'select a from db_${env}.tbl_${dt}'],
+    ['known/k28-template-after-identifier', 'select tbl_${dt}.a from db_${env}.tbl_${dt} where p_${k}=1'],
+    ['known/k29-shift-operators', 'select a >> 1, b<<2 from t'],
     ['known/k11-use', 'use db;'],
     ['known/k11-msck', 'msck repair table t;'],
     ['known/k11-analyze', 'analyze table t compute statistics;'],

@@ -265,6 +265,7 @@ const MYSQL_OPERATORS = [
     "~",
 ] as const;
 
+// HiveLexer has no shift operators: `>>` is two `>` (for example closing `map<string,array<int>>`).
 const HIVE_OPERATORS = [
     "<=>",
     "==",
@@ -272,8 +273,6 @@ const HIVE_OPERATORS = [
     "!=",
     "<=",
     ">=",
-    "<<",
-    ">>",
     "||",
     "&&",
     "->",

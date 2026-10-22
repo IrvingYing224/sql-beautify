@@ -335,9 +335,15 @@ async function main() {
     });
 
     assert.notDeepStrictEqual(
+        syntaxSignature('SELECT a >> b FROM t', 'mysql', false),
+        syntaxSignature('SELECT a > > b FROM t', 'mysql', false),
+        'query shift operator must not use DDL angle normalization'
+    );
+    // HiveLexer has no shift operators (K29): `>>` is two `>` tokens.
+    assert.deepStrictEqual(
         syntaxSignature('SELECT a >> b FROM t', 'hive', false),
         syntaxSignature('SELECT a > > b FROM t', 'hive', false),
-        'query shift operator must not use DDL angle normalization'
+        'Hive lexes >> as two > tokens'
     );
     assert.deepStrictEqual(
         syntaxSignature('CREATE TABLE t (a ARRAY<ARRAY<INT>>)', 'hive', true),

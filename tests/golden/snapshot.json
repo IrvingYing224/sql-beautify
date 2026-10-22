@@ -3066,6 +3066,23 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k28-template-after-identifier": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNMODELED_CONSTRUCT",
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "explicit/known/k29-shift-operators": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
  "explicit/literal/alias-l": {
   "op": "formatSql",
   "status": "formatted",

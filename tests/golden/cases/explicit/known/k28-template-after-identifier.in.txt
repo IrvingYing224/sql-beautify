@@ -1,0 +1,1 @@
+select tbl_${dt}.a from db_${env}.tbl_${dt} where p_${k}=1

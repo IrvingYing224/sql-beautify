@@ -4,11 +4,5 @@
   "waive": [
    "idempotence"
   ]
- },
- "fixtures/ddl/external-complex-types": {
-  "issue": "K29",
-  "waive": [
-   "token"
-  ]
  }
 }

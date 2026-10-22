@@ -1,0 +1,4 @@
+SELECT
+      tbl_${dt}.a
+FROM db_${env}.tbl_${dt}
+WHERE p_${k}=1

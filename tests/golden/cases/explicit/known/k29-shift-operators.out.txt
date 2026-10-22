@@ -1,0 +1,4 @@
+SELECT
+      a >> 1
+    , b<<2
+FROM t
