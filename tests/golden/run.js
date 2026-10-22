@@ -30,10 +30,10 @@ var DIALECTS = ['generic', 'hive', 'postgresql', 'mysql'];
 var WAIVABLE = ['token', 'glue', 'idempotence'];
 var WORD = { keyword: true, identifier: true, number: true, parameter: true };
 var STOP = { ',': true, '(': true, ')': true, ';': true };
-var DDL_SUFFIX_WORDS = {
-    partitioned: true, by: true, stored: true, as: true,
-    avro: true, orc: true, parquet: true, rcfile: true, sequencefile: true, textfile: true,
-};
+var DDL_SUFFIX_WORDS = new Set([
+    'partitioned', 'by', 'stored', 'as',
+    'avro', 'orc', 'parquet', 'rcfile', 'sequencefile', 'textfile',
+]);
 
 function parseArgs(argv) {
     var args = { update: false, filter: null, privateDir: null, fuzz: 0 };
@@ -237,9 +237,17 @@ function sqlCaseAuthorized(source, dialect, mode, a) {
 }
 
 // formatHiveDdl may change the case of its header keywords, the modeled suffix keywords and storage
-// formats, `COMMENT` and builtin type names. Names, strings and comments stay verbatim.
-function ddlCaseAuthorized(a) {
+// formats, `COMMENT` and builtin type names. Names, strings and comments stay verbatim. Only input
+// the DDL formatter models (CREATE TABLE with columns, PARTITIONED BY, STORED AS) gets any: there
+// is no expression in that subset, so `<` and `>` only bracket types.
+function ddlCaseAuthorized(source, env, a) {
     var allowed = new Set();
+    var status = hiveDdl.executeFormatHiveDdl(
+        source, env.options, false, env.tabSize, env.startColumn
+    ).status;
+    if (status !== 'formatted' && status !== 'unchanged') {
+        return allowed;
+    }
     var i = 0;
     function word(index) {
         return (a[index].kind === 'keyword' || a[index].kind === 'identifier') &&
@@ -284,7 +292,7 @@ function ddlCaseAuthorized(a) {
         var name = !listSeen || itemStart || (i + 1 < a.length && a[i + 1].raw === ':');
         itemStart = false;
         if (!name && word(i) && (depth === 0
-            ? DDL_SUFFIX_WORDS[raw]
+            ? DDL_SUFFIX_WORDS.has(raw)
             : raw === 'comment' || contract.isBuiltinTypeName(raw))) {
             allowed.add(i);
         }
@@ -364,7 +372,7 @@ function floorFailures(source, output, spec) {
     var b = codeLeaves(output, dialect);
     var allowed = env.op === 'formatSql'
         ? sqlCaseAuthorized(source, dialect, env.mode, a)
-        : ddlCaseAuthorized(a);
+        : ddlCaseAuthorized(source, env, a);
     var mismatch = tokenMismatch(a, b, allowed);
     if (mismatch !== null) {
         return { token: mismatch };
@@ -411,6 +419,12 @@ function selfTest() {
         ["create table t (a int) comment 'KeepCase'", "create table t (a int) comment 'KEEPCASE'", ddl,
             'token'],
         ['create table t (a int) location x', 'create table t (a int) LOCATION X', ddl, 'token'],
+        ['create table t (a int) location constructor',
+            'create table t (a int) location CONSTRUCTOR', ddl, 'token'],
+        ['create table t (a int, b int, orc int, check (a > b and b > orc))',
+            'create table t (a int, b int, orc int, check (a > b and b > ORC))', ddl, 'token'],
+        ['create table t (a int, string int, check (a = string))',
+            'create table t (a int, string int, check (a = STRING))', ddl, 'token'],
         ['create table t (s struct<Name:string>)', 'CREATE TABLE t (s STRUCT<NAME:STRING>)', ddl,
             'token'],
         ['create external table if not exists Orc (comment map<string,array<int>> comment \'X\') ' +
@@ -618,7 +632,18 @@ async function main() {
     process.exitCode = outcome.failures.length === 0 ? 0 : 1;
 }
 
-main().catch(function(error) {
-    console.error(error && error.stack || error);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    main().catch(function(error) {
+        console.error(error && error.stack || error);
+        process.exitCode = 1;
+    });
+}
+
+// For the P1 one-off checks in tools/.
+module.exports = {
+    codeLeaves: codeLeaves,
+    ddlCaseAuthorized: ddlCaseAuthorized,
+    floorFailures: floorFailures,
+    loadRuns: loadRuns,
+    resolveEnvironment: resolveEnvironment,
+};
