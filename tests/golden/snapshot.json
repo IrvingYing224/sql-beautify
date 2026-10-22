@@ -3083,6 +3083,11 @@
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
+ "explicit/known/k30-comment-before-paren": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/literal/alias-l": {
   "op": "formatSql",
   "status": "formatted",

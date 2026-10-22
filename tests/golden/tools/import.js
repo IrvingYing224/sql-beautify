@@ -155,6 +155,7 @@ var DDL_ENV = {
     ['known/k10-templated-names', 'select a from db_${env}.tbl_${dt}'],
     ['known/k28-template-after-identifier', 'select tbl_${dt}.a from db_${env}.tbl_${dt} where p_${k}=1'],
     ['known/k29-shift-operators', 'select a >> 1, b<<2 from t'],
+    ['known/k30-comment-before-paren', 'select a from t where (b and c /* c */)'],
     ['known/k11-use', 'use db;'],
     ['known/k11-msck', 'msck repair table t;'],
     ['known/k11-analyze', 'analyze table t compute statistics;'],

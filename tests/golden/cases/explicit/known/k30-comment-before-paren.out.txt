@@ -1,0 +1,5 @@
+SELECT
+      a
+FROM t
+WHERE (b
+    AND c /* c */)
