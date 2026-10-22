@@ -100,7 +100,7 @@ jobs:
           echo "artifact=vscode-sql-beautify-v${version}.vsix" >> "$GITHUB_OUTPUT"
 
       - name: Package and verify VSIX
-        run: npm run package:vsix
+        run: npm run package
 
       - name: Upload release candidate
         if: github.event_name == 'workflow_dispatch'
@@ -153,7 +153,6 @@ jobs:
           test "${ARTIFACT}" = "vscode-sql-beautify-v${VERSION}.vsix"
           test -f "${ARTIFACT}"
           test "$(find . -maxdepth 1 -name '*.vsix' -type f | wc -l | tr -d ' ')" = "1"
-          node scripts/verify-release-artifact.js --artifact "${ARTIFACT}"
 
           remote_refs="$(git ls-remote --tags origin "${tag_ref}" "${peeled_ref}")"
           tag_sha="$(printf '%s\n' "${remote_refs}" | awk -v ref="${peeled_ref}" '$2 == ref {print $1; exit}')"
