@@ -19,9 +19,13 @@ var calledOutput = path.join(__dirname, '..', 'seeds', 'called-2026-10.json');
 var plan = require(path.join(root, 'scripts', 'v2-suite-manifest.js')).buildPlan('verify');
 var scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'golden-recapture-'));
 var ENV_FIELDS = ['mode', 'newline', 'tabSize', 'startColumn'];
-// Not migrated as called cases: generated size inputs of the performance tests (resource limits
-// have their own explicit cases), second passes (`unchanged`, covered by the idempotence property)
-// and API misuse (`failed`, moved to unit tests per plan appendix D.3).
+// Not migrated as called cases; the filter is by test name and status, so the labels are approximate:
+// - performance tests: size inputs plus a few small generated and no-throw cases;
+// - `unchanged`: mostly second passes (idempotence property), plus hand-formatted inputs such as
+//   the wave4d-transaction no-edit case (P4a unit);
+// - `failed`: invalid options or environment, and injected parser / analyzer failures (unit tests).
+// recapture-hook.js also skips sources over 4,000 code units, so wide-column and input-limit cases
+// stay with the resource unit tests (plan appendix D.3).
 var UNMIGRATED_TESTS = /performance|perf-baseline/;
 var UNMIGRATED_STATUS = { failed: true, unchanged: true };
 
