@@ -11,6 +11,22 @@ var planApi = require('../../.tmp/v2-core/core/layout/plan.js');
 var policyApi = require('../../.tmp/v2-core/core/layout/policy.js');
 var rendererApi = require('../../.tmp/v2-core/core/renderer/render.js');
 
+// The first query node in source order; the outermost one where queries nest.
+function firstQuery(analysis) {
+    var work = [analysis.root];
+    while (work.length > 0) {
+        var node = work.pop();
+        if (node.kind === 'query') {
+            return node;
+        }
+        var children = analysis.index.childrenOf(node.id);
+        for (var i = children.length - 1; i >= 0; i--) {
+            work.push(children[i]);
+        }
+    }
+    return undefined;
+}
+
 function format(source, extra) {
     return formatApi.formatSql(source, Object.assign({ dialect: 'hive' }, extra));
 }
@@ -256,7 +272,7 @@ function assertStable(id, source, options, expected) {
 
     var builder = planApi.createLayoutPlanBuilder(analysis, resolved.options);
     assert.ok(builder);
-    var query = analysis.index.queries()[0];
+    var query = firstQuery(analysis);
     assert.ok(query);
     assert.strictEqual(builder.replaceGap(
         query.id,

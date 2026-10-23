@@ -229,7 +229,8 @@ function assertOperatorClosure(artifact) {
         return leaf.raw.toUpperCase() === 'AND';
     });
     var andContext = artifact.index.leafContext(andLeaf.id).syntax;
-    var andOccurrence = artifact.index.operatorOccurrenceForLeaf(andLeaf.id);
+    var andOccurrence = artifact.index.operatorOccurrencesOf(andContext.directOwnerNodeId)
+        .find(function(occurrence) { return occurrence.leafIds.indexOf(andLeaf.id) >= 0; });
     assert.strictEqual(andContext.syntaxRole, 'word-operator-keyword');
     assert.strictEqual(andContext.syntaxId, 'operator');
     assert.strictEqual(andContext.keywordCaseEligible, true);

@@ -7,6 +7,22 @@ var optionsApi = require('../../.tmp/v2-core/core/config/resolve-options.js');
 var planApi = require('../../.tmp/v2-core/core/layout/plan.js');
 var policyApi = require('../../.tmp/v2-core/core/layout/policy.js');
 
+// The first query node in source order; the outermost one where queries nest.
+function firstQuery(analysis) {
+    var work = [analysis.root];
+    while (work.length > 0) {
+        var node = work.pop();
+        if (node.kind === 'query') {
+            return node;
+        }
+        var children = analysis.index.childrenOf(node.id);
+        for (var i = children.length - 1; i >= 0; i--) {
+            work.push(children[i]);
+        }
+    }
+    return undefined;
+}
+
 function repeat(value, count) {
     return new Array(count + 1).join(value);
 }
@@ -83,7 +99,7 @@ function assertIdempotent(source, options) {
     assert.strictEqual(simple.status, 'analyzed');
     assert.strictEqual(simpleOptions.ok, true);
     var builder = planApi.createLayoutPlanBuilder(simple, simpleOptions.options);
-    var query = simple.index.queries()[0];
+    var query = firstQuery(simple);
     assert.ok(builder && query);
     assert.strictEqual(builder.replaceGap(query.id, 1, 2, {
         kind: 'soft-line',

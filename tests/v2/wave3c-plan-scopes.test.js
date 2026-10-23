@@ -9,6 +9,22 @@ var policyApi = require('../../.tmp/v2-core/core/layout/policy.js');
 var claimsApi = require('../../.tmp/v2-core/core/layout/verbatim-claims.js');
 var renderApi = require('../../.tmp/v2-core/core/renderer/render.js');
 
+// The first query node in source order; the outermost one where queries nest.
+function firstQuery(analysis) {
+    var work = [analysis.root];
+    while (work.length > 0) {
+        var node = work.pop();
+        if (node.kind === 'query') {
+            return node;
+        }
+        var children = analysis.index.childrenOf(node.id);
+        for (var i = children.length - 1; i >= 0; i--) {
+            work.push(children[i]);
+        }
+    }
+    return undefined;
+}
+
 function analyze(source) {
     var result = analysisApi.analyzeSql(source, {
         dialect: 'hive',
@@ -26,7 +42,7 @@ function options() {
 
 (function testNestedIndentAndAlignScopesCompileCanonically() {
     var analysis = analyze('select 1');
-    var queryId = analysis.index.queries()[0].id;
+    var queryId = firstQuery(analysis).id;
     var builder = planApi.createLayoutPlanBuilder(analysis, options());
     assert.ok(builder);
     assert.strictEqual(builder.setKeywordCase(queryId, 0), true);
@@ -57,7 +73,7 @@ function options() {
 (function testGroupFamilyConflictIsRegistrationOrderIndependent() {
     [false, true].forEach(function(reverse) {
         var analysis = analyze('select 1');
-        var queryId = analysis.index.queries()[0].id;
+        var queryId = firstQuery(analysis).id;
         var builder = planApi.createLayoutPlanBuilder(analysis, options());
         var decisions = [
             { kind: 'group', mode: 'break' },
@@ -77,7 +93,7 @@ function options() {
 (function testCrossingScopesFailAtFinalizationIndependentOfRegistrationOrder() {
     [false, true].forEach(function(reverse) {
         var analysis = analyze('select 1+2');
-        var queryId = analysis.index.queries()[0].id;
+        var queryId = firstQuery(analysis).id;
         var builder = planApi.createLayoutPlanBuilder(analysis, options());
         var actions = [
             function() {
@@ -106,7 +122,7 @@ function options() {
 
 (function testScopeCannotCutAtomicClaimOrHideInsideReplacedGap() {
     var analysis = analyze('select f(a => b)+2');
-    var queryId = analysis.index.queries()[0].id;
+    var queryId = firstQuery(analysis).id;
     var claims = claimsApi.dominatingVerbatimClaims(analysis);
     var claim = claims && claims.claims[0];
     assert.ok(claim);
@@ -122,9 +138,9 @@ function options() {
     assert.strictEqual(cutBuilder.finish().code, 'LAYOUT_PLAN_DOMINATED');
 
     var gapAnalysis = analyze('select \n 1');
-    var gapQueryId = gapAnalysis.index.queries()[0].id;
+    var gapQueryId = firstQuery(gapAnalysis).id;
     var gapBuilder = planApi.createLayoutPlanBuilder(gapAnalysis, options());
-    var itemStart = gapAnalysis.index.queries()[0].children[0].children[0]
+    var itemStart = firstQuery(gapAnalysis).children[0].children[0]
         .children[0].leafRange.start;
     assert.ok(itemStart > 2);
     assert.strictEqual(gapBuilder.wrapRange(
@@ -168,14 +184,14 @@ function options() {
         { kind: 'align', columns: Infinity }
     ].forEach(function(decision) {
         var analysis = analyze('select 1');
-        var queryId = analysis.index.queries()[0].id;
+        var queryId = firstQuery(analysis).id;
         var builder = planApi.createLayoutPlanBuilder(analysis, options());
         assert.strictEqual(builder.wrapRange(queryId, 0, 1, decision), false);
         assert.strictEqual(builder.finish().code, 'LAYOUT_PLAN_SCOPE');
     });
 
     var stable = analyze('select 1');
-    var stableQueryId = stable.index.queries()[0].id;
+    var stableQueryId = firstQuery(stable).id;
     var stableBuilder = planApi.createLayoutPlanBuilder(stable, options());
     var indent = { kind: 'indent', levels: 1 };
     assert.strictEqual(stableBuilder.wrapRange(stableQueryId, 0, 1, indent), true);
@@ -196,7 +212,7 @@ function options() {
 
 (function testCompleteVerbatimClaimCanBeWrappedWithoutDuplicateEmission() {
     var analysis = analyze('select ${hiveconf:value}');
-    var queryId = analysis.index.queries()[0].id;
+    var queryId = firstQuery(analysis).id;
     var functionLeafId = analysis.leaves.find(function(leaf) {
         return leaf.raw === '${hiveconf:value}';
     }).id;
@@ -221,7 +237,7 @@ function options() {
 
 (function testIncompletePolicyCannotExposePreviouslyRegisteredActions() {
     var analysis = analyze('select 1');
-    var queryId = analysis.index.queries()[0].id;
+    var queryId = firstQuery(analysis).id;
     var builder = planApi.createLayoutPlanBuilder(analysis, options());
     assert.ok(builder);
     assert.strictEqual(builder.setKeywordCase(queryId, 0), true,
@@ -239,7 +255,7 @@ function options() {
 
 (function testIndentationScopeRejectsUnownedRawNewlineTrivia() {
     var analysis = analyze('select a\n + b');
-    var queryId = analysis.index.queries()[0].id;
+    var queryId = firstQuery(analysis).id;
     var rejectedBuilder = planApi.createLayoutPlanBuilder(analysis, options());
     assert.strictEqual(rejectedBuilder.wrapRange(
         queryId,
@@ -281,7 +297,7 @@ function options() {
         values.push(String(index));
     }
     var analysis = analyze('select ' + values.join(','));
-    var queryId = analysis.index.queries()[0].id;
+    var queryId = firstQuery(analysis).id;
     var list = analysis.index.lists().find(function(node) {
         return node.listRole === 'select-items';
     });

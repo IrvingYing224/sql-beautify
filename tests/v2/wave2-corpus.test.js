@@ -52,11 +52,6 @@ function validateResult(label, source, dialect, result) {
                 diagnostic.span.start === node.span.start &&
                 diagnostic.span.end === node.span.end;
         }), label + ' opaque node requires exact matching diagnostic');
-        assert.deepStrictEqual(
-            result.index.capabilityForOpaque(node.id),
-            node.capabilityId === null ? null : result.index.capability(node.capabilityId),
-            label + ' opaque capability index'
-        );
     });
 
     var commentCount = result.leaves.filter(function(leaf) {
@@ -66,8 +61,8 @@ function validateResult(label, source, dialect, result) {
         label + ' every comment has one analysis binding');
     result.index.lists().forEach(function(list) {
         list.separatorLeafIds.forEach(function(separatorLeafId) {
-            assert.ok(result.index.separatorOwner(separatorLeafId),
-                label + ' every list separator has one owner');
+            assert.strictEqual(result.index.leafContext(separatorLeafId).syntax.directOwnerNodeId,
+                list.id, label + ' every list separator has one owner');
         });
     });
 
@@ -77,7 +72,7 @@ function validateResult(label, source, dialect, result) {
     assert.deepStrictEqual(second.leaves, result.leaves, label + ' deterministic leaves');
     assert.deepStrictEqual(second.diagnostics, result.diagnostics,
         label + ' deterministic diagnostics');
-    assert.deepStrictEqual(second.index.snapshot(), result.index.snapshot(),
+    assert.deepStrictEqual(second.index.commentBindings(), result.index.commentBindings(),
         label + ' deterministic structural index');
 }
 

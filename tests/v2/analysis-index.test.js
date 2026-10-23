@@ -139,33 +139,22 @@ function directBuild(built, root) {
     assert.strictEqual(statements.length, 2);
     assert.ok(Object.isFrozen(statements));
     index.nodes().forEach(function(node) {
-        var statement = index.statementOfNode(node.id);
-        if (node.kind === 'program') {
-            assert.strictEqual(statement, null);
-        } else {
-            assert.ok(statement && statement.kind === 'statement');
+        if (node.kind !== 'program') {
+            assert.ok(node.kind === 'statement' || index.nearestAncestor(node.id, 'statement'));
         }
     });
 
-    var queries = index.queries();
+    var queries = nodesOfKind(index, 'query');
     assert.ok(queries.length >= 3, 'outer, CTE, and second-statement queries');
-    assert.ok(Object.isFrozen(queries));
     nodesOfKind(index, 'clause').forEach(function(clause) {
         var owner = index.queryOfClause(clause.id);
         assert.ok(owner && owner.kind === 'query');
-        assert.ok(index.clausesOfQuery(owner.id).some(function(value) {
-            return value.id === clause.id;
-        }));
         assert.strictEqual(index.nearestAncestor(clause.id, 'query'), owner);
     });
 
     var caseBranch = nodesOfKind(index, 'case-branch')[0];
     assert.ok(caseBranch, 'CASE branch must be indexed');
     assert.ok(index.nearestAncestor(caseBranch.id, 'expression'));
-    assert.deepStrictEqual(index.spanOf(caseBranch.id), caseBranch.span);
-    assert.deepStrictEqual(index.leafRangeOf(caseBranch.id), caseBranch.leafRange);
-    assert.ok(Object.isFrozen(index.spanOf(caseBranch.id)));
-    assert.ok(Object.isFrozen(index.leafRangeOf(caseBranch.id)));
 }());
 
 (function testListMemberAndSeparatorOwnership() {
@@ -179,15 +168,13 @@ function directBuild(built, root) {
         var members = index.membersOfList(list.id);
         assert.ok(Object.isFrozen(members));
         members.forEach(function(member) {
-            assert.strictEqual(index.listOfMember(member.id), list);
+            assert.strictEqual(index.parentOf(member.id), list);
         });
         list.separatorLeafIds.forEach(function(separatorLeafId, ordinal) {
-            var owner = index.separatorOwner(separatorLeafId);
-            assert.ok(Object.isFrozen(owner));
-            assert.strictEqual(owner.listNodeId, list.id);
-            assert.strictEqual(owner.ordinal, ordinal);
-            assert.strictEqual(owner.leftMemberNodeId, members[ordinal].id);
-            assert.strictEqual(owner.rightMemberNodeId, members[ordinal + 1].id);
+            assert.strictEqual(built.result.leaves[separatorLeafId].raw, ',');
+            assert.ok(members[ordinal].leafRange.end <= separatorLeafId);
+            assert.ok(separatorLeafId < members[ordinal + 1].leafRange.start);
+            assert.strictEqual(index.leafContext(separatorLeafId).syntax.directOwnerNodeId, list.id);
         });
     });
 }());
@@ -205,11 +192,6 @@ function directBuild(built, root) {
         emojiLocation.relativeOffset + 1, 'columns and relative offsets use UTF-16 code units');
 
     var stringLeaf = built.result.leaves[emojiLocation.leafId];
-    var stringPosition = index.leafPosition(stringLeaf.id);
-    assert.deepStrictEqual(stringPosition, { line: 0, column: 7 });
-    assert.deepStrictEqual(index.lineStarts(), [0, source.indexOf('\n') + 1]);
-    assert.ok(Object.isFrozen(index.lineStarts()));
-    assert.ok(Object.isFrozen(stringPosition));
     var lineBreakLeaf = built.result.leaves.find(function(leaf) {
         return leaf.raw.indexOf('\r') !== -1 || leaf.raw.indexOf('\n') !== -1;
     });
@@ -317,7 +299,6 @@ function directBuild(built, root) {
     var built = build('');
     assert.deepStrictEqual(built.index.nodes(), [built.result.root]);
     assert.deepStrictEqual(built.index.statements(), []);
-    assert.deepStrictEqual(built.index.lineStarts(), [0]);
     assert.strictEqual(built.index.offsetToLeaf(0), null);
     assert.throws(function() { built.index.offsetToLeaf(1); }, /offset/i);
 }());
@@ -347,32 +328,19 @@ function directBuild(built, root) {
         state: 'diagnostic'
     });
     assert.strictEqual(built.index.capability('does-not-exist'), null);
-
-    built.result.diagnostics.forEach(function(diagnostic, diagnosticIndex) {
-        if (typeof diagnostic.capabilityId === 'string') {
-            assert.strictEqual(
-                built.index.capabilityForDiagnostic(diagnosticIndex).id,
-                diagnostic.capabilityId
-            );
-        } else {
-            assert.strictEqual(built.index.capabilityForDiagnostic(diagnosticIndex), null);
-        }
-    });
-    nodesOfKind(built.index, 'opaque').forEach(function(node) {
-        if (typeof node.capabilityId === 'string') {
-            assert.strictEqual(built.index.capabilityForOpaque(node.id).id, node.capabilityId);
-        } else {
-            assert.strictEqual(built.index.capabilityForOpaque(node.id), null);
-        }
-    });
 }());
 
 (function testInvalidIdsImmutabilityDeterminismAndFailClosedBuild() {
     var source = 'SELECT a, b FROM t; SELECT c FROM u';
     var first = build(source);
     var second = build(source);
-    assert.deepStrictEqual(first.index.snapshot(), second.index.snapshot());
-    assert.ok(Object.isFrozen(first.index.snapshot()));
+    function projection(index) {
+        return index.nodes().map(function(node) {
+            var parent = index.parentOf(node.id);
+            return [node.id, node.kind, parent === null ? null : parent.id];
+        });
+    }
+    assert.deepStrictEqual(projection(first.index), projection(second.index));
 
     assert.throws(function() { first.index.nodeById(-1); }, /node id/i);
     assert.throws(function() { first.index.nodeById(999999); }, /node id/i);
@@ -380,7 +348,6 @@ function directBuild(built, root) {
     assert.throws(function() { first.index.childrenOf(999999); }, /node id/i);
     assert.throws(function() { first.index.depthBefore(-1); }, /leaf id/i);
     assert.throws(function() { first.index.commentBinding(999999); }, /leaf id/i);
-    assert.throws(function() { first.index.capabilityForDiagnostic(-1); }, /diagnostic/i);
 
     assert.throws(function() {
         first.index.nodes().push(first.result.root);
@@ -540,9 +507,9 @@ function directBuild(built, root) {
     );
     occurrence.leafIds.forEach(function(leafId) {
         assert.strictEqual(
-            positive.operatorOccurrenceForLeaf(leafId),
-            occurrence,
-            'every word of a multi-word operator must resolve to its occurrence'
+            positive.leafContext(leafId).syntax.directOwnerNodeId,
+            expression.id,
+            'every word of a multi-word operator must resolve to its expression'
         );
     });
 

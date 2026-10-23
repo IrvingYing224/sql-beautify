@@ -15,6 +15,22 @@ var policyApi = require('../../.tmp/v2-core/core/layout/policy.js');
 var renderApi = require('../../.tmp/v2-core/core/renderer/render.js');
 var environmentApi = require('../../.tmp/v2-core/core/renderer/environment.js');
 
+// The first query node in source order; the outermost one where queries nest.
+function firstQuery(analysis) {
+    var work = [analysis.root];
+    while (work.length > 0) {
+        var node = work.pop();
+        if (node.kind === 'query') {
+            return node;
+        }
+        var children = analysis.index.childrenOf(node.id);
+        for (var i = children.length - 1; i >= 0; i--) {
+            work.push(children[i]);
+        }
+    }
+    return undefined;
+}
+
 var root = path.join(__dirname, '..', '..');
 
 function options(input) {
@@ -122,7 +138,7 @@ function assertOnlyEol(text, newline) {
         options({ dialect: 'hive' })
     );
     assert.ok(builder);
-    var queryId = artifact.index.queries()[0].id;
+    var queryId = firstQuery(artifact).id;
     assert.strictEqual(builder.replaceGap(queryId, 1, 2, {
         kind: 'space',
         columns: 1
@@ -142,7 +158,7 @@ function assertOnlyEol(text, newline) {
         options({ dialect: 'hive' })
     );
     assert.ok(claimedBuilder);
-    var claimedQueryId = claimedArtifact.index.queries()[0].id;
+    var claimedQueryId = firstQuery(claimedArtifact).id;
     var functionLeafId = claimedArtifact.leaves.find(function(leaf) {
         return leaf.raw === '${hiveconf:value}';
     }).id;
@@ -159,7 +175,7 @@ function assertOnlyEol(text, newline) {
 (function testBoundaryInsertionDeletionAndAuthorityAreCanonical() {
     var adjacent = analyze('select 1+2', 'hive');
     assert.strictEqual(adjacent.status, 'analyzed');
-    var adjacentQueryId = adjacent.index.queries()[0].id;
+    var adjacentQueryId = firstQuery(adjacent).id;
     var adjacentBuilder = planApi.createLayoutPlanBuilder(
         adjacent,
         options({ dialect: 'hive' })
@@ -194,7 +210,7 @@ function assertOnlyEol(text, newline) {
     // `,` stops the template fragment, so the template stays a claim of its own (plan §4).
     var aroundClaim = analyze('select ${hiveconf:value},2', 'hive');
     assert.strictEqual(aroundClaim.status, 'analyzed');
-    var aroundQueryId = aroundClaim.index.queries()[0].id;
+    var aroundQueryId = firstQuery(aroundClaim).id;
     var aroundBuilder = planApi.createLayoutPlanBuilder(
         aroundClaim,
         options({ dialect: 'hive' })
@@ -229,7 +245,7 @@ function assertOnlyEol(text, newline) {
 
     var spaced = analyze('select 1 + 2', 'hive');
     assert.strictEqual(spaced.status, 'analyzed');
-    var spacedQueryId = spaced.index.queries()[0].id;
+    var spacedQueryId = firstQuery(spaced).id;
     var spacedBuilder = planApi.createLayoutPlanBuilder(
         spaced,
         options({ dialect: 'hive' })
@@ -263,7 +279,7 @@ function assertOnlyEol(text, newline) {
 
     var leading = analyze('\nselect 1', 'hive');
     assert.strictEqual(leading.status, 'analyzed');
-    var leadingQueryId = leading.index.queries()[0].id;
+    var leadingQueryId = firstQuery(leading).id;
     var outsideBuilder = planApi.createLayoutPlanBuilder(
         leading,
         options({ dialect: 'hive' })

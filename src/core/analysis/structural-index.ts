@@ -6,7 +6,6 @@ import type { SourceSpan } from "../source/source-span";
 import type { LeafRange } from "../syntax/leaf-range";
 import type { ParseArtifact } from "../syntax/parser";
 import type {
-    ClauseNode,
     ListItemNode,
     ListNode,
     OperatorOccurrence,
@@ -27,14 +26,10 @@ import {
 import type { PreparedTriviaFacts } from "./trivia-binding";
 import type {
     CommentBinding,
-    CapabilityOccurrence,
     ContextualLeafFacts,
     OffsetLeafLocation,
-    SeparatorOwnership,
     SyntaxLeafOccurrence,
-    SourcePosition,
     StructuralIndex,
-    StructuralIndexSnapshot,
 } from "./types";
 
 interface TraversalMeta {
@@ -43,12 +38,9 @@ interface TraversalMeta {
 }
 
 const EMPTY_NODES = EMPTY_FROZEN_ARRAY as readonly SyntaxNode[];
-const EMPTY_CLAUSES = EMPTY_FROZEN_ARRAY as readonly ClauseNode[];
 const EMPTY_BINDINGS = EMPTY_FROZEN_ARRAY as readonly CommentBinding[];
 const EMPTY_BINDING_GROUPS = EMPTY_FROZEN_ARRAY as readonly (readonly CommentBinding[])[];
 const EMPTY_OPERATORS = EMPTY_FROZEN_ARRAY as readonly OperatorOccurrence[];
-const EMPTY_CAPABILITY_OCCURRENCES =
-    EMPTY_FROZEN_ARRAY as readonly CapabilityOccurrence[];
 // Recovery fuzz locks the parser to this linear node budget. Enforce the same
 // bound before any attacker-controlled id can expand a direct-address array.
 const MAX_NODES_PER_LEAF = 16;
@@ -198,14 +190,6 @@ function freezeSparseNullableIds(
     );
 }
 
-function freezeEncodedNullableIds(
-    values: Uint32Array
-): readonly (number | null)[] {
-    return Object.freeze(
-        Array.from(values, (value) => (value === 0 ? null : value - 1))
-    );
-}
-
 function diagnosticIdentityKey(
     capabilityId: string | null,
     code: string,
@@ -244,24 +228,16 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
 
     const recordsById: Array<SyntaxNode | undefined> = new Array(trustedNodeCount);
     const parentNodeIdCodes = new Uint32Array(trustedNodeCount);
-    const statementNodeIdCodes = new Uint32Array(trustedNodeCount);
     const queryNodeIdCodes = new Uint32Array(trustedNodeCount);
-    const listNodeIdCodes = new Uint32Array(trustedNodeCount);
-    const clausesByQueryId = new Map<number, ClauseNode[]>();
     const statements: StatementNode[] = [];
-    const queries: QueryNode[] = [];
     const lists: ListNode[] = [];
     const opaqueNodeIds: number[] = [];
-    const separatorOwnershipByLeaf = new Map<number, SeparatorOwnership>();
+    const separatorLeafIds = new Set<number>();
     const explicitSyntaxByLeaf: Array<SyntaxLeafOccurrence | undefined> = new Array(
-        leafCount
-    );
-    const operatorOccurrenceByLeaf: Array<OperatorOccurrence | undefined> = new Array(
         leafCount
     );
     const operatorOccurrencesByNode: Array<readonly OperatorOccurrence[] | undefined> = [];
     const capabilityByNode: Array<CapabilityEntry | null | undefined> = [];
-    const capabilityOccurrencesByNode: Array<CapabilityOccurrence[] | undefined> = [];
     let visitedNodeCount = 0;
 
     const registerExplicitSyntax = (occurrence: SyntaxLeafOccurrence): void => {
@@ -325,18 +301,14 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
     const workNodes: SyntaxNode[] = [root];
     const workParentNodeIds: number[] = [-1];
     const workDepths: number[] = [0];
-    const workStatementNodeIds: number[] = [-1];
     const workQueryNodeIds: number[] = [-1];
 
     while (workNodes.length > 0) {
         const node = workNodes.pop()!;
         const rawParentNodeId = workParentNodeIds.pop()!;
         const depth = workDepths.pop()!;
-        const rawStatementNodeId = workStatementNodeIds.pop()!;
         const rawQueryNodeId = workQueryNodeIds.pop()!;
         const parentNodeId = rawParentNodeId < 0 ? null : rawParentNodeId;
-        const inheritedStatementNodeId =
-            rawStatementNodeId < 0 ? null : rawStatementNodeId;
         const inheritedQueryNodeId = rawQueryNodeId < 0 ? null : rawQueryNodeId;
         if (node === null || typeof node !== "object") {
             invariantFailure("tree contains a non-object node");
@@ -390,14 +362,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             resolvePreservationCapability(dialect, nodeCapabilityId, `opaque node ${node.id}`);
         }
         capabilityByNode[node.id] = nodeCapability;
-        if (nodeCapabilityId !== null) {
-            capabilityOccurrencesByNode[node.id] = [Object.freeze({
-                ownerNodeId: node.id,
-                capabilityId: nodeCapabilityId,
-                source: "node" as const,
-                operatorId: null,
-            })];
-        }
 
         let previousMarkerLeafId = -1;
         for (const marker of node.syntaxMarkers) {
@@ -543,8 +507,7 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                         leafId <= previousOccurrenceLeafId ||
                         !remainingOperatorLeafIds.delete(leafId) ||
                         leaf === undefined ||
-                        leaf.channel !== "code" ||
-                        operatorOccurrenceByLeaf[leafId] !== undefined
+                        leaf.channel !== "code"
                     ) {
                         invariantFailure(
                             `operator leaf ${leafId} has duplicate or inconsistent ownership`
@@ -566,7 +529,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                     );
                 }
                 for (const leafId of occurrence.leafIds) {
-                    operatorOccurrenceByLeaf[leafId] = occurrence;
                     registerExplicitSyntax(
                         syntaxOccurrence(
                             leafId,
@@ -586,14 +548,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                         occurrence.capabilityId,
                         `operator ${occurrence.operatorId}`
                     );
-                    const projected = capabilityOccurrencesByNode[node.id] ?? [];
-                    projected.push(Object.freeze({
-                        ownerNodeId: node.id,
-                        capabilityId: occurrence.capabilityId,
-                        source: "operator" as const,
-                        operatorId: occurrence.operatorId,
-                    }));
-                    capabilityOccurrencesByNode[node.id] = projected;
                 }
                 occurrences.push(occurrence);
             }
@@ -605,11 +559,8 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             operatorOccurrencesByNode[node.id] = Object.freeze(occurrences);
         }
 
-        const statementNodeId =
-            node.kind === "statement" ? node.id : inheritedStatementNodeId;
         const queryNodeId = node.kind === "query" ? node.id : inheritedQueryNodeId;
         parentNodeIdCodes[node.id] = parentNodeId === null ? 0 : parentNodeId + 1;
-        statementNodeIdCodes[node.id] = statementNodeId === null ? 0 : statementNodeId + 1;
         queryNodeIdCodes[node.id] = queryNodeId === null ? 0 : queryNodeId + 1;
 
         const meta: TraversalMeta = { node, depth };
@@ -648,18 +599,10 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             ) {
                 statementOwnersByEnd[node.leafRange.end] = meta;
             }
-        } else if (node.kind === "query") {
-            queries.push(node);
-            clausesByQueryId.set(node.id, []);
         } else if (node.kind === "clause") {
             if (queryNodeId === null) {
                 invariantFailure(`clause ${node.id} has no containing query`);
             }
-            const clauses = clausesByQueryId.get(queryNodeId);
-            if (clauses === undefined) {
-                invariantFailure(`clause ${node.id} references unknown query ${queryNodeId}`);
-            }
-            clauses.push(node);
             for (const separatorLeafId of node.separatorLeafIds) {
                 const separatorLeaf = leaves[separatorLeafId];
                 if (
@@ -695,19 +638,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                 if (member.kind !== "list-item") {
                     invariantFailure(`list ${node.id} child ${member.id} is not a list-item`);
                 }
-                if (
-                    !Number.isInteger(member.id) ||
-                    member.id < 0 ||
-                    member.id >= trustedNodeCount
-                ) {
-                    invariantFailure(
-                        `list ${node.id} member id exceeds the linear node budget: ${String(member.id)}`
-                    );
-                }
-                if (listNodeIdCodes[member.id] !== 0) {
-                    invariantFailure(`list item ${member.id} has multiple list owners`);
-                }
-                listNodeIdCodes[member.id] = node.id + 1;
             }
             for (let ordinal = 0; ordinal < node.separatorLeafIds.length; ordinal++) {
                 const separatorLeafId = node.separatorLeafIds[ordinal]!;
@@ -730,9 +660,10 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                         `list ${node.id} separator ${separatorLeafId} is not a code comma`
                     );
                 }
-                if (separatorOwnershipByLeaf.has(separatorLeafId)) {
+                if (separatorLeafIds.has(separatorLeafId)) {
                     invariantFailure(`separator leaf ${separatorLeafId} has multiple list owners`);
                 }
+                separatorLeafIds.add(separatorLeafId);
                 registerExplicitSyntax(
                     syntaxOccurrence(
                         separatorLeafId,
@@ -743,19 +674,7 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                         false
                     )
                 );
-                const left = members[ordinal];
-                const right = members[ordinal + 1];
-                if (left === undefined || right === undefined) {
-                    invariantFailure(`list ${node.id} separator ${separatorLeafId} lacks neighbors`);
-                }
-                const ownership: SeparatorOwnership = Object.freeze({
-                    separatorLeafId,
-                    listNodeId: node.id,
-                    ordinal,
-                    leftMemberNodeId: left.id,
-                    rightMemberNodeId: right.id,
-                });
-                separatorOwnershipByLeaf.set(separatorLeafId, ownership);
+                const left = members[ordinal]!;
                 if (hasCommentTrivia) {
                     separatorTrailingOwners[separatorLeafId] = {
                         node: left,
@@ -774,7 +693,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             workNodes.push(child);
             workParentNodeIds.push(node.id);
             workDepths.push(depth + 1);
-            workStatementNodeIds.push(statementNodeId ?? -1);
             workQueryNodeIds.push(queryNodeId ?? -1);
         }
     }
@@ -788,26 +706,13 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
 
     const frozenNodesById = Object.freeze(recordsById) as readonly SyntaxNode[];
     const frozenStatements = Object.freeze(statements);
-    const frozenQueries = Object.freeze(queries);
     const frozenLists = Object.freeze(lists);
-    const frozenClausesByQuery = new Map<number, readonly ClauseNode[]>();
-    for (const [queryNodeId, clauses] of clausesByQueryId) {
-        frozenClausesByQuery.set(queryNodeId, Object.freeze(clauses));
-    }
     const parentNodeIdAt = (nodeId: number): number | null => {
         const code = parentNodeIdCodes[nodeId]!;
         return code === 0 ? null : code - 1;
     };
-    const statementNodeIdAt = (nodeId: number): number | null => {
-        const code = statementNodeIdCodes[nodeId]!;
-        return code === 0 ? null : code - 1;
-    };
     const queryNodeIdAt = (nodeId: number): number | null => {
         const code = queryNodeIdCodes[nodeId]!;
-        return code === 0 ? null : code - 1;
-    };
-    const listNodeIdAt = (nodeId: number): number | null => {
-        const code = listNodeIdCodes[nodeId]!;
         return code === 0 ? null : code - 1;
     };
 
@@ -830,7 +735,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
     );
     const contextualFactsByLeaf: ContextualLeafFacts[] = new Array(leafCount);
     const commentLeafIndexes: number[] = [];
-    const lineStarts: number[] = [0];
     const lineHasContent: boolean[] = [false];
     const pendingComments: number[] = [];
     const activeByDepth: Array<TraversalMeta | undefined> = [];
@@ -998,7 +902,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                 const width =
                     code === 13 && leaf.raw.charCodeAt(relativeOffset + 1) === 10 ? 2 : 1;
                 currentLine += 1;
-                lineStarts.push(leaf.span.start + relativeOffset + width);
                 lineHasContent[currentLine] = false;
                 if (
                     content &&
@@ -1112,7 +1015,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
         }
     }
 
-    const frozenLineStarts = Object.freeze(lineStarts);
     const frozenBindingByCommentLeaf = Object.freeze(bindingByCommentLeaf);
     const frozenBindingsByOwner: readonly (readonly CommentBinding[])[] =
         bindings.length === 0
@@ -1126,12 +1028,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                   })
               );
     const frozenContextualFactsByLeaf = Object.freeze(contextualFactsByLeaf);
-    const frozenOperatorOccurrenceByLeaf = Object.freeze(
-        Array.from(
-            { length: leafCount },
-            (_, leafId) => operatorOccurrenceByLeaf[leafId] ?? null
-        )
-    );
     const frozenOperatorOccurrencesByNode = Object.freeze(
         Array.from(
             { length: nodeCount },
@@ -1143,14 +1039,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             { length: nodeCount },
             (_, nodeId) => capabilityByNode[nodeId] ?? null
         )
-    );
-    const frozenCapabilityOccurrencesByNode = Object.freeze(
-        Array.from({ length: nodeCount }, (_, nodeId) => {
-            const occurrences = capabilityOccurrencesByNode[nodeId];
-            return occurrences === undefined || occurrences.length === 0
-                ? EMPTY_CAPABILITY_OCCURRENCES
-                : Object.freeze(occurrences.slice());
-        })
     );
 
     const diagnosticCapabilityIds = Object.freeze(
@@ -1209,8 +1097,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             );
         }
     }
-
-    let snapshotCache: StructuralIndexSnapshot | null = null;
 
     function assertNodeId(nodeId: number): SyntaxNode {
         if (!Number.isInteger(nodeId) || nodeId < 0 || nodeId >= frozenNodesById.length) {
@@ -1275,25 +1161,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
         statements(): readonly StatementNode[] {
             return frozenStatements;
         },
-        statementOfNode(nodeId: number): StatementNode | null {
-            assertNodeId(nodeId);
-            const statementNodeId = statementNodeIdAt(nodeId);
-            if (statementNodeId === null) {
-                return null;
-            }
-            const node = frozenNodesById[statementNodeId]!;
-            if (node.kind !== "statement") {
-                invariantFailure(`statement index points to ${node.kind} node ${node.id}`);
-            }
-            return node;
-        },
-        queries(): readonly QueryNode[] {
-            return frozenQueries;
-        },
-        clausesOfQuery(queryNodeId: number): readonly ClauseNode[] {
-            assertQueryNodeId(queryNodeId);
-            return frozenClausesByQuery.get(queryNodeId) ?? EMPTY_CLAUSES;
-        },
         queryOfClause(clauseNodeId: number): QueryNode {
             const clause = assertNodeId(clauseNodeId);
             if (clause.kind !== "clause") {
@@ -1311,23 +1178,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
         membersOfList(listNodeId: number): readonly ListItemNode[] {
             return assertListNodeId(listNodeId).children;
         },
-        listOfMember(memberNodeId: number): ListNode {
-            const member = assertNodeId(memberNodeId);
-            if (member.kind !== "list-item") {
-                throw new Error(
-                    `Expected list-item node id, got ${memberNodeId}:${member.kind}`
-                );
-            }
-            const listNodeId = listNodeIdAt(memberNodeId);
-            if (listNodeId === null) {
-                invariantFailure(`list item ${memberNodeId} has no list owner`);
-            }
-            return assertListNodeId(listNodeId);
-        },
-        separatorOwner(separatorLeafId: number): SeparatorOwnership | null {
-            assertLeafId(separatorLeafId);
-            return separatorOwnershipByLeaf.get(separatorLeafId) ?? null;
-        },
         matchingDelimiter(leafId: number): number | null {
             assertLeafId(leafId);
             return tokenTable.matchingDelimiterIndex(leafId);
@@ -1339,9 +1189,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
         depthAfter(leafId: number): number {
             assertLeafId(leafId);
             return tokenTable.depthAfter(leafId);
-        },
-        lineStarts(): readonly number[] {
-            return frozenLineStarts;
         },
         blankLineCountBetween(
             startLeafBoundary: number,
@@ -1369,14 +1216,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             }
             return frozenBlankLinePrefix[endLine]! -
                 frozenBlankLinePrefix[startLine + 1]!;
-        },
-        leafPosition(leafId: number): SourcePosition {
-            const leaf = assertLeafId(leafId);
-            const line = frozenStartLineByLeaf[leafId]!;
-            return Object.freeze({
-                line,
-                column: leaf.span.start - frozenLineStarts[line]!,
-            });
         },
         leafContainsLineBreak(leafId: number): boolean {
             assertLeafId(leafId);
@@ -1480,12 +1319,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             }
             invariantFailure(`offset ${offset} is not covered by the canonical leaf partition`);
         },
-        spanOf(nodeId: number): SourceSpan {
-            return assertNodeId(nodeId).span;
-        },
-        leafRangeOf(nodeId: number): LeafRange {
-            return assertNodeId(nodeId).leafRange;
-        },
         commentBindings(): readonly CommentBinding[] {
             return bindings;
         },
@@ -1505,11 +1338,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             assertNodeId(nodeId);
             return frozenCapabilityByNode[nodeId] ?? null;
         },
-        capabilityOccurrencesOf(nodeId: number): readonly CapabilityOccurrence[] {
-            assertNodeId(nodeId);
-            return frozenCapabilityOccurrencesByNode[nodeId] ??
-                EMPTY_CAPABILITY_OCCURRENCES;
-        },
         operatorOccurrencesOf(expressionNodeId: number): readonly OperatorOccurrence[] {
             const node = assertNodeId(expressionNodeId);
             if (node.kind !== "expression") {
@@ -1519,64 +1347,11 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             }
             return frozenOperatorOccurrencesByNode[expressionNodeId] ?? EMPTY_OPERATORS;
         },
-        operatorOccurrenceForLeaf(leafId: number): OperatorOccurrence | null {
-            assertLeafId(leafId);
-            return frozenOperatorOccurrenceByLeaf[leafId] ?? null;
-        },
         capability(capabilityId: string): CapabilityEntry | null {
             if (typeof capabilityId !== "string" || capabilityId.length === 0) {
                 throw new Error("Capability id must be a non-empty string");
             }
             return dialect.getCapability(capabilityId);
-        },
-        capabilityForOpaque(opaqueNodeId: number): CapabilityEntry | null {
-            const node = assertNodeId(opaqueNodeId);
-            if (node.kind !== "opaque") {
-                throw new Error(
-                    `Expected opaque node id, got ${opaqueNodeId}:${node.kind}`
-                );
-            }
-            return resolvePreservationCapability(
-                dialect,
-                capabilityIdOf(node, `opaque node ${opaqueNodeId}`),
-                `opaque node ${opaqueNodeId}`
-            );
-        },
-        capabilityForDiagnostic(diagnosticIndex: number): CapabilityEntry | null {
-            if (
-                !Number.isInteger(diagnosticIndex) ||
-                diagnosticIndex < 0 ||
-                diagnosticIndex >= diagnosticCapabilityIds.length
-            ) {
-                throw new Error(
-                    `Diagnostic index out of range: ${String(diagnosticIndex)}`
-                );
-            }
-            return resolvePreservationCapability(
-                dialect,
-                diagnosticCapabilityIds[diagnosticIndex] ?? null,
-                `diagnostic ${diagnosticIndex}`
-            );
-        },
-        snapshot(): StructuralIndexSnapshot {
-            if (snapshotCache === null) {
-                snapshotCache = Object.freeze({
-                    nodeIds: Object.freeze(frozenNodesById.map((node) => node.id)),
-                    parentNodeIds: freezeEncodedNullableIds(parentNodeIdCodes),
-                    statementNodeIds: freezeEncodedNullableIds(statementNodeIdCodes),
-                    queryNodeIds: freezeEncodedNullableIds(queryNodeIdCodes),
-                    listNodeIds: freezeEncodedNullableIds(listNodeIdCodes),
-                    separatorOwnerships: Object.freeze(
-                        Array.from(separatorOwnershipByLeaf.values()).sort(
-                            (left, right) =>
-                                left.separatorLeafId - right.separatorLeafId
-                        )
-                    ),
-                    commentBindings: bindings,
-                    lineStarts: frozenLineStarts,
-                });
-            }
-            return snapshotCache;
         },
     });
 
