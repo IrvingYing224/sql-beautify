@@ -3253,6 +3253,11 @@
   "status": "extracted",
   "codes": []
  },
+ "explicit/resource/large-comment-250000": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/resource/nested-case-40": {
   "op": "formatSql",
   "status": "formatted",
