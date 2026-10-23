@@ -44,229 +44,244 @@ function isCurrent(context: CommandContext): boolean {
         context.document.getText() === context.source;
 }
 
+/** What the commands share. */
+interface Host {
+    readonly executor: EditExecutor;
+    readonly diagnostics: Diagnostics;
+    readonly messages: VscodeMessages;
+    readonly extensionVersion: string;
+}
+
+function show(host: Host, kind: "info" | "warning" | "error", key: VscodeMessageKey, values?: Parameters<VscodeMessages["text"]>[1]): void {
+    const text = host.messages.text(key, values);
+    void (kind === "info"
+        ? vscode.window.showInformationMessage(text)
+        : kind === "warning" ? vscode.window.showWarningMessage(text) : vscode.window.showErrorMessage(text));
+}
+
+function commandContext(host: Host): CommandContext | null {
+    const editor = vscode.window.activeTextEditor;
+    if (editor === undefined || !isSupported(editor.document)) {
+        show(host, "warning", "activeSqlEditor");
+        return null;
+    }
+    const document = editor.document;
+    const configuration = readConfiguration(document);
+    if (!configuration.ok) {
+        show(host, "error", "configurationInvalid", { optionKey: configuration.optionKey });
+        return null;
+    }
+    const source = document.getText();
+    return {
+        editor,
+        document,
+        source,
+        version: document.version,
+        options: configuration.options,
+        debug: configuration.debug,
+        ...selectionTargets(editor),
+        newline: documentNewline(document, source),
+        tabSize: renderTabSize(editor.options.tabSize),
+    };
+}
+
+function request(context: CommandContext): Omit<ComputeRequest, "op" | "options"> {
+    return {
+        source: context.source,
+        targets: context.targets,
+        selections: context.selections,
+        newline: context.newline,
+        tabSize: context.tabSize,
+        debug: context.debug,
+    };
+}
+
+/** Applies a ready result in one `editor.edit`, unless the document changed. */
+async function apply(
+    host: Host,
+    context: CommandContext,
+    result: ComputeResult,
+    policy: UnsupportedSyntaxPolicy
+): Promise<ComputeResult> {
+    if (!isCurrent(context)) {
+        return hostRejection("ADAPTER_STALE_DOCUMENT", "warning");
+    }
+    const { editor, document } = context;
+    host.diagnostics.stage(document, applyEdits(context.source, result.edits), result.diagnostics, policy);
+    let applied: boolean;
+    try {
+        applied = await editor.edit((builder) => {
+            for (const edit of result.edits) {
+                builder.replace(new vscode.Range(document.positionAt(edit.start), document.positionAt(edit.end)), edit.text);
+            }
+        });
+    } catch {
+        applied = false;
+    }
+    if (!applied) {
+        host.diagnostics.drop(document);
+        return hostRejection("ADAPTER_EDIT_REJECTED", "error");
+    }
+    if (result.selections.length > 0) {
+        // The edit is applied, so the document positions are in output coordinates.
+        editor.selections = result.selections.map((selection) =>
+            new vscode.Selection(document.positionAt(selection.anchor), document.positionAt(selection.active))
+        );
+    }
+    host.diagnostics.confirm(document);
+    return result;
+}
+
+async function run(
+    host: Host,
+    context: CommandContext,
+    computeRequest: ComputeRequest,
+    policy: UnsupportedSyntaxPolicy,
+    phase: string,
+    token: vscode.CancellationToken
+): Promise<ComputeResult> {
+    host.diagnostics.drop(context.document);
+    const computed = withSafeMessages(await host.executor.run(computeRequest, token));
+    // Cancellation during computation wins over any result.
+    const result = token.isCancellationRequested
+        ? CANCELLED_RESULT
+        : computed.status === "ready" ? await apply(host, context, computed, policy) : computed;
+    logDebug(context.debug, phase, context.document, context.version, result);
+    if (result.status !== "ready" && isCurrent(context)) {
+        host.diagnostics.publish(context.document, result.diagnostics, policy);
+    }
+    return result;
+}
+
+function reportFormat(host: Host, result: ComputeResult, policy: UnsupportedSyntaxPolicy): void {
+    if (policy === "preserve" && (result.status === "unchanged" || result.status === "rejected")) {
+        const preserved = diagnosticsForEditor(result.diagnostics.filter((item) => item.capabilityId !== null));
+        if (preserved.length > 0) {
+            show(host, "info", preserved.some((item) => item.capabilityId === "hive-ddl") ? "preservedHiveDdl" : "unmodeledRegions",
+                { count: preserved.length });
+            return;
+        }
+    }
+    if (result.status === "cancelled") {
+        show(host, "info", "formatCancelled");
+    } else if (result.status === "rejected") {
+        const codes = result.diagnostics.map((item) => item.code);
+        if (codes.includes("ADAPTER_STALE_DOCUMENT")) {
+            show(host, "info", "documentChanged");
+        } else if (codes.some((code) => RANGE_CODES.has(code))) {
+            show(host, "warning", "rangeRejected");
+        } else if (codes.includes("ADAPTER_INPUT_LIMIT")) {
+            show(host, "warning", "inputLimitRejected");
+        } else if (codes.includes("ADAPTER_WORKER_CRASH")) {
+            show(host, "warning", "workerRejected");
+        } else if (codes.includes("ADAPTER_EDIT_REJECTED")) {
+            show(host, "warning", "editRejected");
+        } else {
+            show(host, "warning", "formatRejected");
+        }
+    }
+}
+
+function reportDdl(host: Host, result: ComputeResult): void {
+    if (result.status === "cancelled") {
+        show(host, "info", "formatCancelled");
+    } else if (result.status === "rejected") {
+        const codes = result.diagnostics.map((item) => item.code);
+        if (codes.includes("ADAPTER_STALE_DOCUMENT")) {
+            show(host, "info", "documentChanged");
+        } else if (codes.includes("ADAPTER_EDIT_REJECTED")) {
+            show(host, "warning", "editRejected");
+        } else {
+            show(host, "warning", "ddlRejected");
+        }
+    }
+}
+
+async function formatSql(host: Host, explicit: unknown, token: vscode.CancellationToken): Promise<ComputeResult | null> {
+    const context = commandContext(host);
+    if (context === null) {
+        return null;
+    }
+    const resolved = commandOptions(context.options, explicit);
+    if (!resolved.ok) {
+        show(host, "error", "commandOptionsInvalid", { optionKey: resolved.optionKey });
+        return null;
+    }
+    const policy = resolved.options.unsupportedSyntaxPolicy;
+    const computeRequest: ComputeRequest = { ...request(context), op: "format", options: resolved.options };
+    const result = await run(host, context, computeRequest, policy, "command-format", token);
+    reportFormat(host, result, policy);
+    return result;
+}
+
+async function ddlCommand(host: Host, op: "hive-ddl" | "extract", token: vscode.CancellationToken): Promise<ComputeResult | null> {
+    const context = commandContext(host);
+    if (context === null) {
+        return null;
+    }
+    const { keywordCase, commaStyle, indentStyle, maxAlignWidth } = context.options;
+    const computeRequest: ComputeRequest = op === "hive-ddl"
+        ? { ...request(context), op, options: { keywordCase, commaStyle, indentStyle, maxAlignWidth } }
+        : { ...request(context), op, options: undefined };
+    const phase = op === "hive-ddl" ? "hive-ddl" : "extract-hive-ddl";
+    const result = await run(host, context, computeRequest, context.options.unsupportedSyntaxPolicy, phase, token);
+    reportDdl(host, result);
+    return result;
+}
+
+/** Copies the codes and counts of a format of the selection; never any SQL (D3 removes this in P4b). */
+async function copySafeDiagnosticReport(host: Host, token: vscode.CancellationToken): Promise<boolean> {
+    const context = commandContext(host);
+    if (context === null) {
+        return false;
+    }
+    const result = await host.executor.run({ ...request(context), op: "format", options: context.options }, token);
+    if (token.isCancellationRequested) {
+        show(host, "info", "safeReportCancelled");
+        return false;
+    }
+    if (vscode.window.activeTextEditor !== context.editor || !isCurrent(context)) {
+        show(host, "info", "safeReportStale");
+        return false;
+    }
+    const report = renderSafeDiagnosticReport({
+        extensionVersion: host.extensionVersion,
+        dialect: context.options.dialect,
+        sourceCodeUnits: context.targets.reduce((total, target) => total + target.end - target.start, 0),
+        resultStatus: result.status,
+        diagnostics: result.diagnostics,
+    });
+    try {
+        await vscode.env.clipboard.writeText(report);
+    } catch {
+        show(host, "error", "safeReportCopyFailed");
+        return false;
+    }
+    show(host, "info", "safeReportCopied");
+    return true;
+}
+
 export function registerCommands(
     executor: EditExecutor,
     diagnostics: Diagnostics,
     messages: VscodeMessages,
     extensionVersion: string
 ): vscode.Disposable[] {
-    function show(kind: "info" | "warning" | "error", key: VscodeMessageKey, values?: Parameters<VscodeMessages["text"]>[1]): void {
-        const text = messages.text(key, values);
-        void (kind === "info"
-            ? vscode.window.showInformationMessage(text)
-            : kind === "warning" ? vscode.window.showWarningMessage(text) : vscode.window.showErrorMessage(text));
-    }
-
-    function commandContext(): CommandContext | null {
-        const editor = vscode.window.activeTextEditor;
-        if (editor === undefined || !isSupported(editor.document)) {
-            show("warning", "activeSqlEditor");
-            return null;
-        }
-        const document = editor.document;
-        const configuration = readConfiguration(document);
-        if (!configuration.ok) {
-            show("error", "configurationInvalid", { optionKey: configuration.optionKey });
-            return null;
-        }
-        const source = document.getText();
-        return {
-            editor,
-            document,
-            source,
-            version: document.version,
-            options: configuration.options,
-            debug: configuration.debug,
-            ...selectionTargets(editor),
-            newline: documentNewline(document, source),
-            tabSize: renderTabSize(editor.options.tabSize),
-        };
-    }
-
-    function request(context: CommandContext): Omit<ComputeRequest, "op" | "options"> {
-        return {
-            source: context.source,
-            targets: context.targets,
-            selections: context.selections,
-            newline: context.newline,
-            tabSize: context.tabSize,
-            debug: context.debug,
-        };
-    }
-
-    /** Applies a ready result in one `editor.edit`, unless the document changed. */
-    async function apply(context: CommandContext, result: ComputeResult, policy: UnsupportedSyntaxPolicy): Promise<ComputeResult> {
-        if (!isCurrent(context)) {
-            return hostRejection("ADAPTER_STALE_DOCUMENT", "warning");
-        }
-        const { editor, document } = context;
-        diagnostics.stage(document, applyEdits(context.source, result.edits), result.diagnostics, policy);
-        let applied: boolean;
-        try {
-            applied = await editor.edit((builder) => {
-                for (const edit of result.edits) {
-                    builder.replace(new vscode.Range(document.positionAt(edit.start), document.positionAt(edit.end)), edit.text);
-                }
-            });
-        } catch {
-            applied = false;
-        }
-        if (!applied) {
-            diagnostics.drop(document);
-            return hostRejection("ADAPTER_EDIT_REJECTED", "error");
-        }
-        if (result.selections.length > 0) {
-            // The edit is applied, so the document positions are in output coordinates.
-            editor.selections = result.selections.map((selection) =>
-                new vscode.Selection(document.positionAt(selection.anchor), document.positionAt(selection.active))
-            );
-        }
-        diagnostics.confirm(document);
-        return result;
-    }
-
-    async function run(
-        context: CommandContext,
-        computeRequest: ComputeRequest,
-        policy: UnsupportedSyntaxPolicy,
-        phase: string,
-        token: vscode.CancellationToken
-    ): Promise<ComputeResult> {
-        diagnostics.drop(context.document);
-        const computed = withSafeMessages(await executor.run(computeRequest, token));
-        // Cancellation during computation wins over any result.
-        const result = token.isCancellationRequested
-            ? CANCELLED_RESULT
-            : computed.status === "ready" ? await apply(context, computed, policy) : computed;
-        logDebug(context.debug, phase, context.document, context.version, result);
-        if (result.status !== "ready" && isCurrent(context)) {
-            diagnostics.publish(context.document, result.diagnostics, policy);
-        }
-        return result;
-    }
-
-    function reportFormat(result: ComputeResult, policy: UnsupportedSyntaxPolicy): void {
-        if (policy === "preserve" && (result.status === "unchanged" || result.status === "rejected")) {
-            const preserved = diagnosticsForEditor(result.diagnostics.filter((item) => item.capabilityId !== null));
-            if (preserved.length > 0) {
-                show("info", preserved.some((item) => item.capabilityId === "hive-ddl") ? "preservedHiveDdl" : "unmodeledRegions",
-                    { count: preserved.length });
-                return;
-            }
-        }
-        if (result.status === "cancelled") {
-            show("info", "formatCancelled");
-        } else if (result.status === "rejected") {
-            const codes = result.diagnostics.map((item) => item.code);
-            if (codes.includes("ADAPTER_STALE_DOCUMENT")) {
-                show("info", "documentChanged");
-            } else if (codes.some((code) => RANGE_CODES.has(code))) {
-                show("warning", "rangeRejected");
-            } else if (codes.includes("ADAPTER_INPUT_LIMIT")) {
-                show("warning", "inputLimitRejected");
-            } else if (codes.includes("ADAPTER_WORKER_CRASH")) {
-                show("warning", "workerRejected");
-            } else if (codes.includes("ADAPTER_EDIT_REJECTED")) {
-                show("warning", "editRejected");
-            } else {
-                show("warning", "formatRejected");
-            }
-        }
-    }
-
-    function reportDdl(result: ComputeResult): void {
-        if (result.status === "cancelled") {
-            show("info", "formatCancelled");
-        } else if (result.status === "rejected") {
-            const codes = result.diagnostics.map((item) => item.code);
-            if (codes.includes("ADAPTER_STALE_DOCUMENT")) {
-                show("info", "documentChanged");
-            } else if (codes.includes("ADAPTER_EDIT_REJECTED")) {
-                show("warning", "editRejected");
-            } else {
-                show("warning", "ddlRejected");
-            }
-        }
-    }
-
-    async function formatSql(explicit: unknown, token: vscode.CancellationToken): Promise<ComputeResult | null> {
-        const context = commandContext();
-        if (context === null) {
-            return null;
-        }
-        const resolved = commandOptions(context.options, explicit);
-        if (!resolved.ok) {
-            show("error", "commandOptionsInvalid", { optionKey: resolved.optionKey });
-            return null;
-        }
-        const policy = resolved.options.unsupportedSyntaxPolicy;
-        const result = await run(context, { ...request(context), op: "format", options: resolved.options }, policy, "command-format", token);
-        reportFormat(result, policy);
-        return result;
-    }
-
-    async function ddlCommand(op: "hive-ddl" | "extract", token: vscode.CancellationToken): Promise<ComputeResult | null> {
-        const context = commandContext();
-        if (context === null) {
-            return null;
-        }
-        const { keywordCase, commaStyle, indentStyle, maxAlignWidth } = context.options;
-        const computeRequest: ComputeRequest = op === "hive-ddl"
-            ? { ...request(context), op, options: { keywordCase, commaStyle, indentStyle, maxAlignWidth } }
-            : { ...request(context), op, options: undefined };
-        const phase = op === "hive-ddl" ? "hive-ddl" : "extract-hive-ddl";
-        const result = await run(context, computeRequest, context.options.unsupportedSyntaxPolicy, phase, token);
-        reportDdl(result);
-        return result;
-    }
-
-    /** Copies the codes and counts of a format of the selection; never any SQL (D3 removes this in P4b). */
-    async function copySafeDiagnosticReport(token: vscode.CancellationToken): Promise<boolean> {
-        const context = commandContext();
-        if (context === null) {
-            return false;
-        }
-        const result = await executor.run({ ...request(context), op: "format", options: context.options }, token);
-        if (token.isCancellationRequested) {
-            show("info", "safeReportCancelled");
-            return false;
-        }
-        if (vscode.window.activeTextEditor !== context.editor || !isCurrent(context)) {
-            show("info", "safeReportStale");
-            return false;
-        }
-        const report = renderSafeDiagnosticReport({
-            extensionVersion,
-            dialect: context.options.dialect,
-            sourceCodeUnits: context.targets.reduce((total, target) => total + target.end - target.start, 0),
-            resultStatus: result.status,
-            diagnostics: result.diagnostics,
-        });
-        try {
-            await vscode.env.clipboard.writeText(report);
-        } catch {
-            show("error", "safeReportCopyFailed");
-            return false;
-        }
-        show("info", "safeReportCopied");
-        return true;
-    }
-
+    const host: Host = { executor, diagnostics, messages, extensionVersion };
     function withProgress<T>(title: VscodeMessageKey, task: (token: vscode.CancellationToken) => Promise<T>): Thenable<T> {
         return vscode.window.withProgress(
             { location: vscode.ProgressLocation.Notification, title: messages.text(title), cancellable: true },
             (_progress, token) => task(token)
         );
     }
-
     return [
         vscode.commands.registerCommand("sqlBeautify.formatSql", (explicit?: unknown) =>
-            withProgress("formattingSql", (token) => formatSql(explicit, token))),
+            withProgress("formattingSql", (token) => formatSql(host, explicit, token))),
         vscode.commands.registerCommand("sqlBeautify.formatHiveDdl", () =>
-            withProgress("formattingHiveDdl", (token) => ddlCommand("hive-ddl", token))),
+            withProgress("formattingHiveDdl", (token) => ddlCommand(host, "hive-ddl", token))),
         vscode.commands.registerCommand("sqlBeautify.extractHiveDdl", () =>
-            withProgress("extractingHiveDdl", (token) => ddlCommand("extract", token))),
+            withProgress("extractingHiveDdl", (token) => ddlCommand(host, "extract", token))),
         vscode.commands.registerCommand("sqlBeautify.copySafeDiagnosticReport", () =>
-            withProgress("preparingSafeReport", copySafeDiagnosticReport)),
+            withProgress("preparingSafeReport", (token) => copySafeDiagnosticReport(host, token))),
     ];
 }
