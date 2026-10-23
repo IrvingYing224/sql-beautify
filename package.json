@@ -182,7 +182,7 @@
 	"icon": "images/icon.png",
 	"devDependencies": {
 		"@types/vscode": "1.90.0",
-		"@vscode/test-electron": "2.5.2",
+		"@vscode/test-electron": "3.1.0",
 		"@vscode/vsce": "4.0.0",
 		"esbuild": "0.28.1",
 		"typescript": "6.0.3"
