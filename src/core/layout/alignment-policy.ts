@@ -1,5 +1,4 @@
 import type { AnalyzedArtifact, CommentBinding } from "../analysis/types";
-import type { CanonicalFormatOptions } from "../config/options";
 import type {
     ListItemNode,
     ListNode,
@@ -53,43 +52,15 @@ interface TrailingComments {
     readonly byItem: ReadonlyMap<number, readonly CommentBinding[]>;
 }
 
-interface CanonicalAlignmentProof {
-    readonly analysis: AnalyzedArtifact;
-    readonly options: CanonicalFormatOptions;
-}
-
-const CANONICAL_ALIGNMENT_PLANS =
-    new WeakMap<object, CanonicalAlignmentProof>();
-
-function canonicalPlan(
-    analysis: AnalyzedArtifact,
-    options: CanonicalFormatOptions,
+function alignmentPlan(
     values: readonly LayoutAlignmentTarget[]
 ): LayoutAlignmentPlan {
-    const targets = Object.freeze(values.map((value) => Object.freeze({
-        leafId: value.leafId,
-        targetColumn: value.targetColumn,
-    })));
-    const plan = Object.freeze({ targets });
-    CANONICAL_ALIGNMENT_PLANS.set(
-        plan,
-        Object.freeze({ analysis, options })
-    );
-    return plan;
-}
-
-export function isCanonicalLayoutAlignmentPlan(
-    value: unknown,
-    analysisValue?: unknown,
-    optionsValue?: unknown
-): value is LayoutAlignmentPlan {
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-    const proof = CANONICAL_ALIGNMENT_PLANS.get(value);
-    return proof !== undefined &&
-        (analysisValue === undefined || proof.analysis === analysisValue) &&
-        (optionsValue === undefined || proof.options === optionsValue);
+    return Object.freeze({
+        targets: Object.freeze(values.map((value) => Object.freeze({
+            leafId: value.leafId,
+            targetColumn: value.targetColumn,
+        }))),
+    });
 }
 
 function firstSourceMapEntryAfter(
@@ -503,7 +474,7 @@ export function deriveLayoutAlignmentPlan(
             artifact.budget.maxGeneratedColumnsPerLine
         );
         if (maximumTargetColumn <= 0) {
-            return canonicalPlan(analysis, options, []);
+            return alignmentPlan([]);
         }
         const lists = analysis.index.lists();
         const comments = trailingCommentsByItem(analysis);
@@ -512,7 +483,7 @@ export function deriveLayoutAlignmentPlan(
         }
         const scope = candidateScope(lists, comments.byItem);
         if (scope.itemIds.size === 0) {
-            return canonicalPlan(analysis, options, []);
+            return alignmentPlan([]);
         }
         const outputStarts = sourceLeafOutputStarts(
             analysis,
@@ -641,7 +612,7 @@ export function deriveLayoutAlignmentPlan(
                 leftLeafId - rightLeafId
             )
             .map(([leafId, targetColumn]) => ({ leafId, targetColumn }));
-        return canonicalPlan(analysis, options, values);
+        return alignmentPlan(values);
     } catch {
         return null;
     }

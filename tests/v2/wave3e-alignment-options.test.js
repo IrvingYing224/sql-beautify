@@ -220,14 +220,6 @@ function assertStable(id, source, options, expected) {
         rendered
     );
     assert.ok(alignment);
-    assert.strictEqual(
-        alignmentApi.isCanonicalLayoutAlignmentPlan(
-            alignment,
-            analysis,
-            resolved.options
-        ),
-        true
-    );
     assert.ok(Object.isFrozen(alignment) && Object.isFrozen(alignment.targets));
     assert.ok(alignment.targets.length > 0);
     var aligned = policyApi.buildLayoutPlan(
@@ -250,50 +242,6 @@ function assertStable(id, source, options, expected) {
         alignedRendered.text
     );
 
-    var forged = policyApi.buildLayoutPlan(
-        analysis,
-        resolved.options,
-        Object.freeze({ targets: Object.freeze([]) })
-    );
-    assert.strictEqual(forged.ok, false);
-    assert.strictEqual(forged.code, 'LAYOUT_PLAN_PROVENANCE');
-
-    var equivalentOptions = optionsApi.resolveFormatOptions({ dialect: 'hive' });
-    assert.strictEqual(equivalentOptions.ok, true);
-    assert.notStrictEqual(equivalentOptions.options, resolved.options);
-    assert.strictEqual(
-        alignmentApi.isCanonicalLayoutAlignmentPlan(
-            alignment,
-            analysis,
-            equivalentOptions.options
-        ),
-        false,
-        'canonical plans must bind the exact canonical options identity'
-    );
-    assert.strictEqual(
-        policyApi.buildLayoutPlan(
-            analysis,
-            equivalentOptions.options,
-            alignment
-        ).ok,
-        false,
-        'cross-options canonical alignment plan must fail closed'
-    );
-
-    var otherAnalysis = analysisApi.analyzeSql(
-        'select short as x, much_longer as y from u',
-        { dialect: 'hive', mode: 'document' }
-    );
-    assert.strictEqual(otherAnalysis.status, 'analyzed');
-    assert.strictEqual(
-        policyApi.buildLayoutPlan(
-            otherAnalysis,
-            resolved.options,
-            alignment
-        ).ok,
-        false,
-        'cross-source canonical alignment plan must fail closed'
-    );
 
     assertStable(
         'verbatim-row-group-termination',

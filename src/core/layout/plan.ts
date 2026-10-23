@@ -125,8 +125,6 @@ export interface LayoutPlanBuilder {
     finish(commaFallback?: boolean): LayoutPlanResult;
 }
 
-const CANONICAL_LAYOUT_PLANS = new WeakSet<object>();
-
 function resultFailure(
     code: LayoutPlanFailureCode,
     message: string
@@ -794,19 +792,8 @@ export function createLayoutPlanBuilder(
                 scopeActionCount: scopeActions.length,
                 commaFallback,
             });
-            CANONICAL_LAYOUT_PLANS.add(plan);
             return Object.freeze({ ok: true, plan });
         },
     });
     return builder;
-}
-
-/** Exact identity proof for immutable plans emitted by the canonical builder. */
-export function isCanonicalLayoutPlan(value: unknown): value is LayoutPlan {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        Object.isFrozen(value) &&
-        CANONICAL_LAYOUT_PLANS.has(value)
-    );
 }

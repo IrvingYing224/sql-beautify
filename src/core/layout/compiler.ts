@@ -3,10 +3,8 @@ import { createLayoutArtifact } from "./artifact";
 import type { LayoutDoc } from "./doc";
 import { createLayoutDocFactory } from "./doc-factory";
 import type { LayoutPlan, LayoutScopeAction } from "./plan";
-import { isCanonicalLayoutPlan } from "./plan";
 
 export type LayoutCompileFailureCode =
-    | "LAYOUT_COMPILE_PLAN_PROVENANCE"
     | "LAYOUT_COMPILE_ACTION"
     | "LAYOUT_COMPILE_DOC"
     | "LAYOUT_COMPILE_ARTIFACT"
@@ -38,7 +36,8 @@ function failure(
     return Object.freeze({ ok: false, code, message });
 }
 
-function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
+/** One source-order gap cursor; invalid plans never expose partial artifacts. */
+export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
     const factory = createLayoutDocFactory(plan.analysis);
     if (factory === null) {
         return failure(
@@ -246,15 +245,4 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
             "Layout compiler inspection failed"
         );
     }
-}
-
-/** One source-order gap cursor; invalid plans never expose partial artifacts. */
-export function compileLayoutPlan(value: unknown): LayoutCompileResult {
-    if (!isCanonicalLayoutPlan(value)) {
-        return failure(
-            "LAYOUT_COMPILE_PLAN_PROVENANCE",
-            "Layout compiler requires an exact canonical plan"
-        );
-    }
-    return compileCanonicalPlan(value);
 }

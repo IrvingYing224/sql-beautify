@@ -97,7 +97,6 @@ function assertOnlyEol(text, newline) {
             options({ dialect: testCase.dialect })
         );
         assert.strictEqual(built.ok, true, testCase.id + ' identity plan');
-        assert.strictEqual(planApi.isCanonicalLayoutPlan(built.plan), true);
         var compiled = compilerApi.compileLayoutPlan(built.plan);
         assert.strictEqual(compiled.ok, true, testCase.id + ' identity compile');
         var rendered = renderApi.renderLayoutArtifact(compiled.artifact);
@@ -563,19 +562,6 @@ function assertOnlyEol(text, newline) {
         }), [['LAYOUT_COMPILE_RESOURCE', 'warning', 'preserve-target']],
             'depth ' + depth + ' must be a typed resource downgrade');
     });
-})();
-
-(function testCanonicalPlanCannotBeClonedIntoCompiler() {
-    var artifact = analyze('SELECT 1', 'hive');
-    assert.strictEqual(artifact.status, 'analyzed');
-    var built = policyApi.buildIdentityLayoutPlan(
-        artifact,
-        options({ dialect: 'hive' })
-    );
-    assert.strictEqual(built.ok, true);
-    var rejected = compilerApi.compileLayoutPlan(Object.assign({}, built.plan));
-    assert.strictEqual(rejected.ok, false);
-    assert.strictEqual(rejected.artifact, undefined);
 })();
 
 console.log('v2 Wave 3B format kernel tests passed');

@@ -7,9 +7,6 @@ import type {
     LayoutPlanBuilder,
     LayoutScopeDecision,
 } from "./plan";
-import {
-    isCanonicalLayoutAlignmentPlan,
-} from "./alignment-policy";
 import type { LayoutAlignmentPlan } from "./alignment-policy";
 import type { DominatingVerbatimClaims } from "./verbatim-claims";
 
@@ -160,13 +157,6 @@ export function createQueryLayoutContext(
     const alignmentTargetByLeaf = new Int32Array(leaves.length);
     alignmentTargetByLeaf.fill(-1);
     if (alignmentPlan !== null) {
-        if (!isCanonicalLayoutAlignmentPlan(
-            alignmentPlan,
-            artifact,
-            builder.options
-        )) {
-            return null;
-        }
         for (const target of alignmentPlan.targets) {
             if (
                 !Number.isSafeInteger(target.leafId) ||

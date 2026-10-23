@@ -107,7 +107,6 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
         "LAYOUT_PLAN_SCOPE",
         "LAYOUT_PLAN_RESOURCE",
         "LAYOUT_PLAN_INTERNAL",
-        "LAYOUT_COMPILE_PLAN_PROVENANCE",
         "LAYOUT_COMPILE_ACTION",
         "LAYOUT_COMPILE_DOC",
         "LAYOUT_COMPILE_ARTIFACT",
