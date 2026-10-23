@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// `npm test`: the golden runner, then the old tests in tests/v2 until P3 and P4a delete them.
+// `npm test`: the golden runner, the unit tests, then the old tests in tests/v2 until P4a deletes them.
 // The old tests load tsc output from .tmp/v2-core: several inject faults by assigning module
 // exports, which esbuild's getter-only exports reject. Expects dist/ from `npm run build`.
 
@@ -32,6 +32,11 @@ function step(label, args, showOutput) {
 }
 
 step('tests/golden/run.js', ['tests/golden/run.js'], true);
+fs.readdirSync(path.join(root, 'tests', 'unit')).filter(function(name) {
+    return name.endsWith('.test.js');
+}).sort().forEach(function(name) {
+    step('tests/unit/' + name, [path.join('tests', 'unit', name)]);
+});
 fs.rmSync(path.join(root, '.tmp', 'v2-core'), { recursive: true, force: true });
 if (step('tsc -> .tmp/v2-core', [require.resolve('typescript/bin/tsc'), '-p', 'tests/v2/tsconfig.core.json'])) {
     fs.readdirSync(path.join(root, 'tests', 'v2')).filter(function(name) {
