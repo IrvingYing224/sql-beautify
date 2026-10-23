@@ -428,8 +428,7 @@ test('commands need an active SQL editor; messages follow the display language',
             assert.deepStrictEqual(h.lastMessage(), { kind: 'warning', text: MESSAGES.activeSqlEditor });
         }
         assert.deepStrictEqual(Object.keys(h.commands).sort(), [
-            'sqlBeautify.copySafeDiagnosticReport', 'sqlBeautify.extractHiveDdl',
-            'sqlBeautify.formatHiveDdl', 'sqlBeautify.formatSql'
+            'sqlBeautify.extractHiveDdl', 'sqlBeautify.formatHiveDdl', 'sqlBeautify.formatSql'
         ]);
     }).then(function() {
         return host({ language: 'zh-cn' }, async function(h) {
@@ -563,22 +562,5 @@ test('DDL commands: cancellation, stale document and refused edits apply nothing
         assert.deepStrictEqual(codes(result), ['ADAPTER_EDIT_REJECTED']);
         assert.deepStrictEqual(h.lastMessage(), { kind: 'warning', text: MESSAGES.editRejected });
         assert.strictEqual(editor.document.text, source);
-    });
-});
-
-test('copySafeDiagnosticReport copies codes and counts but no SQL', function() {
-    return host(async function(h) {
-        h.open(WITH_DDL);
-        assert.strictEqual(await h.run('copySafeDiagnosticReport'), true);
-        assert.strictEqual(h.clipboard, [
-            '# SQL Beautify Safe Diagnostic Report', '',
-            '- Extension version: ' + require('../../package.json').version,
-            '- Dialect: hive',
-            '- Source code units: ' + WITH_DDL.length,
-            '- Result status: ready',
-            '- Diagnostics: info=0, warning=1, error=0',
-            '- Diagnostic codes: SYN_UNSUPPORTED_STATEMENT:1', ''
-        ].join('\n'));
-        assert.deepStrictEqual(h.lastMessage(), { kind: 'info', text: 'SQL Beautify safe diagnostic report copied.' });
     });
 });

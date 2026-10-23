@@ -54,11 +54,6 @@
 				"command": "sqlBeautify.extractHiveDdl",
 				"title": "SQL Beautify: Extract Hive DDL (Experimental)",
 				"enablement": "editorLangId == sql || editorLangId == hive-sql"
-			},
-			{
-				"command": "sqlBeautify.copySafeDiagnosticReport",
-				"title": "SQL Beautify: Copy Safe Diagnostic Report",
-				"enablement": "editorLangId == sql || editorLangId == hive-sql"
 			}
 		],
 		"keybindings": [

@@ -141,7 +141,6 @@ function createHost(options) {
         diagnostics: new Map(),
         diagnosticWrites: 0,
         messages: [],
-        clipboard: '',
         progressToken: null,
         configuration: Object.assign({}, options.configuration),
         configurationScopes: [],
@@ -183,8 +182,7 @@ function createHost(options) {
             replace: function(range, newText) { return { range: range, newText: newText }; }
         },
         env: {
-            language: options.language || 'en',
-            clipboard: { writeText: function(value) { host.clipboard = value; return Promise.resolve(); } }
+            language: options.language || 'en'
         },
         workspace: {
             getConfiguration: function(section, scope) {
@@ -355,10 +353,7 @@ async function load(host) {
     delete require.cache[entry];
     current = host;
     var extension = require(entry);
-    await extension.activate({
-        subscriptions: host.subscriptions,
-        extension: { packageJSON: require(path.join(root, 'package.json')) }
-    });
+    await extension.activate({ subscriptions: host.subscriptions });
     host.extension = extension;
     return host;
 }

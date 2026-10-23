@@ -35,8 +35,7 @@ export function activate(context: vscode.ExtensionContext): void {
             currentExecutor,
             currentDiagnostics,
             log,
-            createVscodeMessages(vscode.env.language),
-            context.extension.packageJSON.version as string
+            createVscodeMessages(vscode.env.language)
         )
     );
 }

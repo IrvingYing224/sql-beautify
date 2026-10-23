@@ -5,7 +5,6 @@ export type VscodeMessageKey =
     | "formattingSql"
     | "formattingHiveDdl"
     | "extractingHiveDdl"
-    | "preparingSafeReport"
     | "preservedHiveDdl"
     | "unmodeledRegions"
     | "formatCancelled"
@@ -15,11 +14,7 @@ export type VscodeMessageKey =
     | "workerRejected"
     | "formatRejected"
     | "ddlRejected"
-    | "editRejected"
-    | "safeReportCancelled"
-    | "safeReportStale"
-    | "safeReportCopied"
-    | "safeReportCopyFailed";
+    | "editRejected";
 
 export interface VscodeMessageValues {
     readonly count?: number;
@@ -45,7 +40,6 @@ const EN: MessageCatalog = Object.freeze({
     formattingSql: () => "Formatting SQL",
     formattingHiveDdl: () => "Formatting Hive DDL",
     extractingHiveDdl: () => "Extracting Hive DDL",
-    preparingSafeReport: () => "Preparing safe diagnostic report",
     preservedHiveDdl: () =>
         "SQL Beautify preserved Hive DDL. Use the dedicated Format Hive DDL command for the supported experimental subset.",
     unmodeledRegions: ({ count }) =>
@@ -58,19 +52,13 @@ const EN: MessageCatalog = Object.freeze({
     inputLimitRejected: () =>
         "SQL Beautify did not modify the document because the selected SQL exceeds the 512 Ki code-unit limit.",
     workerRejected: () =>
-        "SQL Beautify could not complete formatting in the worker. Run the command again; if it repeats, copy a safe diagnostic report.",
+        "SQL Beautify could not complete formatting in the worker. Run the command again.",
     formatRejected: () =>
         "SQL Beautify did not modify the document because formatting was not safe.",
     ddlRejected: () =>
         "SQL Beautify did not modify the document because the selected DDL is outside the supported experimental subset.",
     editRejected: () =>
         "SQL Beautify did not change the document because the editor did not accept the edits. It may be read-only, closed or hidden.",
-    safeReportCancelled: () => "SQL Beautify safe diagnostic report was cancelled.",
-    safeReportStale: () =>
-        "SQL Beautify did not copy the report because the document changed.",
-    safeReportCopied: () => "SQL Beautify safe diagnostic report copied.",
-    safeReportCopyFailed: () =>
-        "SQL Beautify could not copy the safe diagnostic report.",
 });
 
 const ZH_CN: MessageCatalog = Object.freeze({
@@ -84,7 +72,6 @@ const ZH_CN: MessageCatalog = Object.freeze({
     formattingSql: () => "正在格式化 SQL",
     formattingHiveDdl: () => "正在格式化 Hive DDL",
     extractingHiveDdl: () => "正在提取 Hive DDL",
-    preparingSafeReport: () => "正在生成安全诊断报告",
     preservedHiveDdl: () =>
         "SQL Beautify 已保留 Hive DDL 原文。可对受支持的实验子集使用“Format Hive DDL”命令。",
     unmodeledRegions: ({ count }) =>
@@ -97,16 +84,12 @@ const ZH_CN: MessageCatalog = Object.freeze({
     inputLimitRejected: () =>
         "所选 SQL 超过 512 Ki UTF-16 code-unit 限制，SQL Beautify 未修改文档。",
     workerRejected: () =>
-        "SQL Beautify 的 worker 未能完成格式化。请重试；如问题重复出现，请复制安全诊断报告。",
+        "SQL Beautify 的 worker 未能完成格式化，请重试。",
     formatRejected: () => "格式化结果无法证明安全，SQL Beautify 未修改文档。",
     ddlRejected: () =>
         "所选 DDL 不属于受支持的实验子集，SQL Beautify 未修改文档。",
     editRejected: () =>
         "编辑器没有接受编辑，SQL Beautify 未修改文档。编辑器可能是只读、已关闭或不可见。",
-    safeReportCancelled: () => "SQL Beautify 安全诊断报告已取消。",
-    safeReportStale: () => "文档已发生变化，SQL Beautify 未复制诊断报告。",
-    safeReportCopied: () => "SQL Beautify 安全诊断报告已复制。",
-    safeReportCopyFailed: () => "SQL Beautify 无法复制安全诊断报告。",
 });
 
 export function createVscodeMessages(language: unknown): VscodeMessages {

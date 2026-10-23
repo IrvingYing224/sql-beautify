@@ -21,7 +21,7 @@ var MESSAGES = {
     optionsInvalid: 'SQL Beautify command options are invalid.',
     changed: 'SQL Beautify did not apply edits because the document changed. Run formatting again.',
     range: 'SQL Beautify did not modify the selection. Select complete SQL lines, clauses, or contiguous statements.',
-    worker: 'SQL Beautify could not complete formatting in the worker. Run the command again; if it repeats, copy a safe diagnostic report.',
+    worker: 'SQL Beautify could not complete formatting in the worker. Run the command again.',
     cancelled: 'SQL Beautify formatting was cancelled.',
     ddl: 'SQL Beautify did not modify the document because the selected DDL is outside the supported experimental subset.'
 };

@@ -8,7 +8,6 @@ import type { ComputeRequest, ComputeResult, EditSelection, EditTarget } from ".
 import { commandOptions, documentNewline, isSupported, readConfiguration, renderTabSize } from "./config";
 import { diagnosticsForEditor, hostDiagnostic, logResult, type Diagnostics } from "./diagnostics";
 import type { VscodeMessageKey, VscodeMessages } from "./messages";
-import { renderSafeDiagnosticReport } from "./safe-report";
 import { selectionTargets } from "./selections";
 
 /** What every command reads from the active editor before computing. */
@@ -53,7 +52,6 @@ interface Host {
     readonly diagnostics: Diagnostics;
     readonly log: vscode.LogOutputChannel;
     readonly messages: VscodeMessages;
-    readonly extensionVersion: string;
 }
 
 function show(host: Host, kind: "info" | "warning" | "error", key: VscodeMessageKey, values?: Parameters<VscodeMessages["text"]>[1]): void {
@@ -236,46 +234,13 @@ async function ddlCommand(host: Host, op: "hive-ddl" | "extract", token: vscode.
     return result;
 }
 
-/** Copies the codes and counts of a format of the selection; never any SQL (D3 removes this in P4b). */
-async function copySafeDiagnosticReport(host: Host, token: vscode.CancellationToken): Promise<boolean> {
-    const context = commandContext(host);
-    if (context === null) {
-        return false;
-    }
-    const result = await host.executor.run({ ...request(context), op: "format", options: context.options }, token);
-    if (token.isCancellationRequested) {
-        show(host, "info", "safeReportCancelled");
-        return false;
-    }
-    if (vscode.window.activeTextEditor !== context.editor || !isCurrent(context)) {
-        show(host, "info", "safeReportStale");
-        return false;
-    }
-    const report = renderSafeDiagnosticReport({
-        extensionVersion: host.extensionVersion,
-        dialect: context.options.dialect,
-        sourceCodeUnits: context.targets.reduce((total, target) => total + target.end - target.start, 0),
-        resultStatus: result.status,
-        diagnostics: result.diagnostics,
-    });
-    try {
-        await vscode.env.clipboard.writeText(report);
-    } catch {
-        show(host, "error", "safeReportCopyFailed");
-        return false;
-    }
-    show(host, "info", "safeReportCopied");
-    return true;
-}
-
 export function registerCommands(
     executor: EditExecutor,
     diagnostics: Diagnostics,
     log: vscode.LogOutputChannel,
-    messages: VscodeMessages,
-    extensionVersion: string
+    messages: VscodeMessages
 ): vscode.Disposable[] {
-    const host: Host = { executor, diagnostics, log, messages, extensionVersion };
+    const host: Host = { executor, diagnostics, log, messages };
     function withProgress<T>(title: VscodeMessageKey, task: (token: vscode.CancellationToken) => Promise<T>): Thenable<T> {
         return vscode.window.withProgress(
             { location: vscode.ProgressLocation.Notification, title: messages.text(title), cancellable: true },
@@ -289,7 +254,5 @@ export function registerCommands(
             withProgress("formattingHiveDdl", (token) => ddlCommand(host, "hive-ddl", token))),
         vscode.commands.registerCommand("sqlBeautify.extractHiveDdl", () =>
             withProgress("extractingHiveDdl", (token) => ddlCommand(host, "extract", token))),
-        vscode.commands.registerCommand("sqlBeautify.copySafeDiagnosticReport", () =>
-            withProgress("preparingSafeReport", (token) => copySafeDiagnosticReport(host, token))),
     ];
 }
