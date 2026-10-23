@@ -2,27 +2,33 @@
 
 // Bundles src modules for unit tests with esbuild, the same way tests/golden/run.js does.
 // `bundle({ name: 'core/api/format', ... })` returns the module namespaces keyed by name;
-// `bundle.entry('edits/worker.ts', 'name.cjs')` bundles an entry point and returns its path.
+// `bundle.file(...)` only writes that bundle and returns its path;
+// `bundle.entry('edits/worker.ts', 'name.cjs')` bundles an entry point and returns its path;
+// `bundle.options(options)` adds the defaults, for an async esbuild build with plugins.
 
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..', '..');
 
-function build(options) {
-    require('esbuild').buildSync(Object.assign({
+function options(values) {
+    return Object.assign({
         bundle: true,
         platform: 'node',
         format: 'cjs',
         target: 'node20',
         tsconfig: path.join(root, 'tsconfig.json'),
         logLevel: 'warning'
-    }, options));
-    return options.outfile;
+    }, values);
 }
 
-module.exports = function bundle(modules) {
+function build(values) {
+    require('esbuild').buildSync(options(values));
+    return values.outfile;
+}
+
+function file(modules) {
     var names = Object.keys(modules);
-    return require(build({
+    return build({
         stdin: {
             contents: names.map(function(name) {
                 return 'export * as ' + name + ' from "./' + modules[name] + '";';
@@ -31,8 +37,15 @@ module.exports = function bundle(modules) {
             loader: 'ts'
         },
         outfile: path.join(root, '.tmp', 'tests', 'unit-' + names.join('-') + '.cjs')
-    }));
+    });
+}
+
+module.exports = function bundle(modules) {
+    return require(file(modules));
 };
+
+module.exports.options = options;
+module.exports.file = file;
 
 module.exports.entry = function entry(source, name) {
     return build({

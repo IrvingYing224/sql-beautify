@@ -7,6 +7,17 @@ export interface OffsetEdit {
     readonly text: string;
 }
 
+/** The text after applying edits sorted by start. */
+export function applyEdits(source: string, edits: readonly OffsetEdit[]): string {
+    let output = "";
+    let cursor = 0;
+    for (const edit of edits) {
+        output += source.slice(cursor, edit.start) + edit.text;
+        cursor = edit.end;
+    }
+    return output + source.slice(cursor);
+}
+
 /**
  * Maps a document offset through edits sorted by start, for edits without a source map. An offset
  * inside an edit keeps its distance from the edit start, clamped to the replacement; the edit end
