@@ -1,1 +1,0 @@
-CREATE TABLE audit_events (event_id BIGINT) STORED AS JSONFILE

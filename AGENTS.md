@@ -19,7 +19,7 @@ SQL Beautify 是所有者个人使用的 Hive SQL 格式化 VS Code 扩展，VSI
 ## 命令
 
 - `npm ci`、`npm run typecheck`、`npm run build`
-- `npm test`：golden 加 unit，结果必须确定；P4a 之前 unit 的位置由 `tests/v2` 中存续的旧测试占着
+- `npm test`：golden 加 unit，结果必须确定
 - `npm run golden:update`：重写快照；之后必须逐条审 diff
 - `npm run test:private -- <目录>`：对仓库外的真实 SQL 检查底线和 failed，结果不进仓库（D9）
 - `npm run package`：构建并检查 VSIX
