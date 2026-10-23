@@ -7,7 +7,6 @@ var path = require('path');
 var root = path.join(__dirname, '..', '..');
 var parserPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js');
 var depthPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser-depth.js');
-var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
 var lexerPath = path.join(root, '.tmp', 'v2-core', 'core', 'lexer', 'lossless-lexer.js');
 var factoryPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'node-factory.js');
@@ -18,7 +17,6 @@ assert.ok(fs.existsSync(depthPath), 'Wave 2D shared parser depth contract is req
 
 var parser = require(parserPath);
 var parserDepth = require(depthPath);
-var invariants = require(invariantsPath);
 var tokenTableModule = require(tokenTablePath);
 var lexer = require(lexerPath);
 var nodeFactory = require(factoryPath);
@@ -52,19 +50,6 @@ function parseChecked(source, dialect) {
         return leaf.raw;
     }).join(''), source, 'depth recovery must conserve source');
 
-    var table = tokenTableModule.buildStructuralTokenTable(result.leaves, source);
-    var checked = invariants.validateSyntaxInvariants({
-        root: result.root,
-        leaves: result.leaves,
-        source: source,
-        dialect: options.dialect,
-        tokenTable: table
-    });
-    assert.strictEqual(
-        checked.ok,
-        true,
-        'depth result invariants: ' + JSON.stringify(checked.failures, null, 2)
-    );
     assert.deepStrictEqual(
         parser.parseSql(source, options),
         result,

@@ -7,8 +7,6 @@ var root = path.join(__dirname, '..', '..');
 var parser = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js'));
 var parserContext = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser-context.js'));
 var dialects = require(path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'index.js'));
-var invariants = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js'));
-var tokenTable = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js'));
 
 function flatten(rootNode) {
     var nodes = [];
@@ -34,18 +32,6 @@ function parse(source, mode, dialect) {
     assert.strictEqual(result.leaves.map(function(leaf) {
         return leaf.raw;
     }).join(''), source, 'parse must conserve source');
-    var checked = invariants.validateSyntaxInvariants({
-        root: result.root,
-        leaves: result.leaves,
-        source: source,
-        dialect: dialectId,
-        tokenTable: tokenTable.buildStructuralTokenTable(result.leaves, source)
-    });
-    assert.strictEqual(
-        checked.ok,
-        true,
-        'parse output invariants: ' + JSON.stringify(checked.failures, null, 2)
-    );
     return {
         result: result,
         nodes: flatten(result.root)

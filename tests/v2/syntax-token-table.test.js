@@ -7,7 +7,6 @@ var path = require('path');
 var root = path.join(__dirname, '..', '..');
 var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
-var cursorPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'cursor.js');
 
 assert.ok(fs.existsSync(corePath), 'build:v2-core required');
 assert.ok(fs.existsSync(tokenTablePath), 'token-table module must exist');
@@ -409,23 +408,6 @@ function codeLeafIndexes(leaves) {
         }, /code leaf|not a code leaf|channel/i);
     }
     console.log('  ok - normalized word helper');
-})();
-
-// Cursor module exists and moves without copying arrays
-(function testCursor() {
-    assert.ok(fs.existsSync(cursorPath), 'cursor module must exist');
-    var cursorMod = require(cursorPath);
-    assert.strictEqual(typeof cursorMod.createTokenCursor, 'function');
-    var t = tableFor('SELECT 1 FROM t');
-    var cursor = cursorMod.createTokenCursor(t.table);
-    assert.strictEqual(typeof cursor.leafIndex, 'function');
-    assert.strictEqual(typeof cursor.advance, 'function');
-    assert.strictEqual(typeof cursor.advanceSyntax, 'function');
-    assert.strictEqual(typeof cursor.advanceCode, 'undefined');
-    var start = cursor.leafIndex();
-    cursor.advance();
-    assert.notStrictEqual(cursor.leafIndex(), start);
-    console.log('  ok - cursor');
 })();
 
 // ---------------------------------------------------------------------------

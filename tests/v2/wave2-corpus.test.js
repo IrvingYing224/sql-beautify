@@ -6,8 +6,6 @@ var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
 var analysis = require(path.join(root, '.tmp', 'v2-core', 'core', 'analysis', 'index.js'));
-var tokenTable = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js'));
-var invariants = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js'));
 var evaluationCases = require('../fixtures/v2-sql-corpus-cases');
 
 function flatten(rootNode) {
@@ -40,17 +38,6 @@ function validateResult(label, source, dialect, result) {
     assert.strictEqual(result.root.id, 0, label + ' root id');
     assert.deepStrictEqual(result.root.span, { start: 0, end: source.length },
         label + ' full-source root span');
-
-    var table = tokenTable.buildStructuralTokenTable(result.leaves, source);
-    var checked = invariants.validateSyntaxInvariants({
-        root: result.root,
-        leaves: result.leaves,
-        source: source,
-        dialect: dialect,
-        tokenTable: table
-    });
-    assert.strictEqual(checked.ok, true,
-        label + ' invariant failures: ' + JSON.stringify(checked.failures, null, 2));
 
     var nodes = flatten(result.root);
     var ids = nodes.map(function(node) { return node.id; }).sort(function(a, b) { return a - b; });

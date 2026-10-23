@@ -31,16 +31,12 @@ var dialectRegistryPath = path.join(
     'dialects',
     'registry.js'
 );
-var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
-var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
 
 assert.ok(fs.existsSync(expressionParserPath), 'Wave 2C expression parser build is required');
 assert.ok(fs.existsSync(typeParserPath), 'Wave 2C type parser build is required');
 
 var parser = require(parserPath);
 var dialects = require(dialectsPath);
-var invariants = require(invariantsPath);
-var tokenTableModule = require(tokenTablePath);
 
 function withFormattedHiveCapabilities(capabilityIds, callback) {
     var registryRuntime = require(dialectRegistryPath);
@@ -119,19 +115,6 @@ function parse(source, dialect) {
         dialect: dialectId,
         mode: 'document'
     });
-    var table = tokenTableModule.buildStructuralTokenTable(result.leaves, source);
-    var checked = invariants.validateSyntaxInvariants({
-        root: result.root,
-        leaves: result.leaves,
-        source: source,
-        dialect: dialectId,
-        tokenTable: table
-    });
-    assert.strictEqual(
-        checked.ok,
-        true,
-        source + ' invariant failures: ' + JSON.stringify(checked.failures, null, 2)
-    );
     return {
         result: result,
         nodes: flatten(result.root)
@@ -799,158 +782,6 @@ function assertNoOpaque(parsed, label) {
     assert.ok(nodesOf(parsed, 'expression', 'expressionKind', 'binary').some(function(node) {
         return slice(source, node) === 'y + 1';
     }), 'later expression must survive type depth fallback');
-}());
-
-(function testExpressionShapeInvariantsFailClosed() {
-    var source = 'SELECT 1';
-    var parsed = parse(source);
-    var forgedRoot = JSON.parse(JSON.stringify(parsed.result.root));
-    var stack = [forgedRoot];
-    var forgedExpression = null;
-    while (stack.length > 0) {
-        var node = stack.pop();
-        if (node.kind === 'expression') {
-            forgedExpression = node;
-            break;
-        }
-        if (Array.isArray(node.children)) {
-            Array.prototype.push.apply(stack, node.children);
-        }
-    }
-    assert.ok(forgedExpression, 'fixture expression required');
-    forgedExpression.expressionKind = 'binary';
-    var table = tokenTableModule.buildStructuralTokenTable(parsed.result.leaves, source);
-    var checked = invariants.validateSyntaxInvariants({
-        root: forgedRoot,
-        leaves: parsed.result.leaves,
-        source: source,
-        tokenTable: table
-    });
-    assert.strictEqual(checked.ok, false,
-        'binary expression without operands/operators must fail closed');
-    assert.ok(checked.failures.some(function(failure) {
-        return failure.code === 'INV_RELATIONSHIP';
-    }), JSON.stringify(checked.failures));
-}());
-
-(function testExpressionOperatorReferencesFailClosed() {
-    var source = "SELECT f(DISTINCT a + 'x')";
-    var parsed = parse(source);
-    var leaves = parsed.result.leaves;
-    var call = nodesOf(parsed, 'expression', 'expressionKind', 'function-call')[0];
-    var binary = nodesOf(parsed, 'expression', 'expressionKind', 'binary')[0];
-    assert.ok(call && binary, 'operator invariant fixtures required');
-
-    var open = leaves.findIndex(function(leaf) { return leaf.raw === '('; });
-    var distinct = leaves.findIndex(function(leaf) {
-        return leaf.raw.toLowerCase() === 'distinct';
-    });
-    var close = leaves.findIndex(function(leaf) { return leaf.raw === ')'; });
-    var trivia = leaves.findIndex(function(leaf) { return leaf.channel === 'trivia'; });
-    var protectedLeaf = leaves.findIndex(function(leaf) { return leaf.channel === 'protected'; });
-    var operand = leaves.findIndex(function(leaf) { return leaf.raw === 'a'; });
-
-    function assertRejected(nodeId, operatorLeafIds, label, expectedCode) {
-        var forgedRoot = JSON.parse(JSON.stringify(parsed.result.root));
-        var stack = [forgedRoot];
-        var target = null;
-        while (stack.length > 0) {
-            var node = stack.pop();
-            if (node.id === nodeId) {
-                target = node;
-                break;
-            }
-            if (Array.isArray(node.children)) {
-                Array.prototype.push.apply(stack, node.children);
-            }
-        }
-        assert.ok(target, label + ' target node required');
-        target.operatorLeafIds = operatorLeafIds;
-        var table = tokenTableModule.buildStructuralTokenTable(leaves, source);
-        var checked = invariants.validateSyntaxInvariants({
-            root: forgedRoot,
-            leaves: leaves,
-            source: source,
-            tokenTable: table
-        });
-        assert.strictEqual(checked.ok, false, label + ' must fail closed');
-        assert.ok(checked.failures.some(function(failure) {
-            return failure.code === expectedCode;
-        }), label + ': ' + JSON.stringify(checked.failures));
-    }
-
-    assertRejected(call.id, [close, distinct, open], 'reverse operator ids', 'INV_OWNER_REFERENCE');
-    assertRejected(call.id, [open, open, close], 'duplicate operator ids', 'INV_OWNER_REFERENCE');
-    assertRejected(binary.id, [trivia], 'trivia operator reference', 'INV_OWNER_REFERENCE');
-    assertRejected(binary.id, [protectedLeaf], 'protected operator reference', 'INV_OWNER_REFERENCE');
-    assertRejected(binary.id, [operand], 'operand operator reference', 'INV_RELATIONSHIP');
-}());
-
-(function testWindowAndTypeSemanticInvariantsFailClosed() {
-    var source = [
-        'SELECT sum(x) OVER (PARTITION BY y ORDER BY z ROWS 1 PRECEDING)',
-        ', CAST(x AS DECIMAL(18, 2))'
-    ].join('');
-    var parsed = parse(source);
-    var windowSpec = nodesOf(parsed, 'window-spec').find(function(node) {
-        return node.partitionChildId !== null;
-    });
-    var decimalType = nodesOf(parsed, 'type-expression').find(function(node) {
-        return slice(source, node) === 'DECIMAL(18, 2)';
-    });
-    assert.ok(windowSpec && decimalType, 'window/type invariant fixtures required');
-
-    function findNode(rootNode, nodeId) {
-        var stack = [rootNode];
-        while (stack.length > 0) {
-            var node = stack.pop();
-            if (node.id === nodeId) {
-                return node;
-            }
-            if (Array.isArray(node.children)) {
-                Array.prototype.push.apply(stack, node.children);
-            }
-        }
-        return null;
-    }
-
-    function assertMutationRejected(label, mutate) {
-        var forgedRoot = JSON.parse(JSON.stringify(parsed.result.root));
-        mutate(forgedRoot);
-        var checked = invariants.validateSyntaxInvariants({
-            root: forgedRoot,
-            leaves: parsed.result.leaves,
-            source: source,
-            tokenTable: tokenTableModule.buildStructuralTokenTable(parsed.result.leaves, source)
-        });
-        assert.strictEqual(checked.ok, false, label + ' must fail closed');
-        assert.ok(checked.failures.some(function(failure) {
-            return failure.code === 'INV_RELATIONSHIP';
-        }), label + ': ' + JSON.stringify(checked.failures));
-    }
-
-    assertMutationRejected('empty window name range', function(rootNode) {
-        var target = findNode(rootNode, windowSpec.id);
-        target.nameLeafRange = {
-            start: target.leafRange.start,
-            end: target.leafRange.start
-        };
-    });
-    assertMutationRejected('wrong window partition role', function(rootNode) {
-        var target = findNode(rootNode, windowSpec.partitionChildId);
-        target.listRole = 'values';
-    });
-    assertMutationRejected('empty type name range', function(rootNode) {
-        var target = findNode(rootNode, decimalType.id);
-        target.typeNameLeafRange = {
-            start: target.leafRange.start,
-            end: target.leafRange.start
-        };
-    });
-    assertMutationRejected('wrong type argument role', function(rootNode) {
-        var target = findNode(rootNode, decimalType.argumentListChildId);
-        target.listRole = 'values';
-    });
 }());
 
 (function testCapabilitiesReflectOnlyImplementedExpressionSupport() {

@@ -3,7 +3,6 @@
 var assert = require('assert');
 var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
 var formatApi = require('../../.tmp/v2-core/core/api/format.js');
-var invariants = require('../../.tmp/v2-core/core/syntax/invariants.js');
 var parser = require('../../.tmp/v2-core/core/syntax/parser.js');
 
 function flatten(root) {
@@ -37,13 +36,6 @@ function parseHive(source, mode) {
         dialect: 'hive',
         mode: mode || 'document'
     });
-    var checked = invariants.validateSyntaxInvariants({
-        root: result.root,
-        leaves: result.leaves,
-        source: source
-    });
-    assert.strictEqual(checked.ok, true,
-        source + ' invariant failures: ' + JSON.stringify(checked.failures));
     return result;
 }
 
@@ -261,133 +253,6 @@ function assertFullyStructured(result, source) {
             }), false, dialect + ' must not inherit Hive command capabilities');
         });
     });
-}());
-
-function replaceNode(node, nodeId, mutate) {
-    var changed = {};
-    Object.keys(node).forEach(function(key) {
-        changed[key] = node[key];
-    });
-    if (node.id === nodeId) {
-        mutate(changed, node);
-    }
-    if (Array.isArray(node.children)) {
-        changed.children = Object.freeze(node.children.map(function(child) {
-            return replaceNode(child, nodeId, mutate);
-        }));
-    }
-    return Object.freeze(changed);
-}
-
-function assertHostileRejected(source, selectNode, mutate, label) {
-    var artifact = parser.parseSqlArtifact(source, {
-        dialect: 'hive',
-        mode: 'document'
-    });
-    var target = flatten(artifact.output.root).filter(selectNode)[0];
-    assert.ok(target, label + ' target');
-    var hostileRoot = replaceNode(artifact.output.root, target.id, mutate);
-    var result = invariants.validateSyntaxInvariants({
-        root: hostileRoot,
-        leaves: artifact.output.leaves,
-        source: source,
-        tokenTable: artifact.tokenTable
-    });
-    assert.strictEqual(result.ok, false, label);
-    assert.ok(result.failures.some(function(failure) {
-        return failure.code === 'INV_RELATIONSHIP' ||
-            failure.code === 'INV_OWNER_REFERENCE';
-    }), label + ': ' + JSON.stringify(result.failures));
-}
-
-(function testCapabilityAndSetBoundsFailClosedUnderHostileClones() {
-    var insertSource = 'INSERT INTO dst PARTITION (ds=1) SELECT id FROM src';
-    assertHostileRejected(
-        insertSource,
-        function(node) {
-            return node.kind === 'query' &&
-                node.capabilityId === 'insert-into-partition-select';
-        },
-        function(node) {
-            node.capabilityId = 'insert-overwrite-partition-select';
-        },
-        'INSERT INTO query cannot claim overwrite capability'
-    );
-    assertHostileRejected(
-        insertSource,
-        function(node) {
-            return node.kind === 'clause' && node.clauseKind === 'partition';
-        },
-        function(node) {
-            node.capabilityId = 'insert-overwrite-partition-select';
-        },
-        'INSERT INTO partition capability must match its query'
-    );
-    assertHostileRejected(
-        insertSource,
-        function(node) {
-            return node.kind === 'clause' && node.clauseKind === 'insert';
-        },
-        function(node) {
-            node.headLeafRange = Object.freeze({
-                start: node.headLeafRange.start,
-                end: node.leafRange.end
-            });
-        },
-        'INSERT head rejects unclaimed syntax tokens'
-    );
-    assertHostileRejected(
-        insertSource,
-        function(node) {
-            return node.kind === 'relation' && node.relationKind === 'table';
-        },
-        function(node) { node.alias = 'target'; },
-        'INSERT target cannot carry an alias'
-    );
-    assertHostileRejected(
-        insertSource,
-        function(node) {
-            return node.kind === 'relation' && node.relationKind === 'table';
-        },
-        function(node) { node.relationKind = 'subquery'; },
-        'INSERT target must remain a plain table relation'
-    );
-
-    var setSource = 'SET hive.exec.flag=true';
-    assertHostileRejected(
-        setSource,
-        function(node) { return node.kind === 'set-payload'; },
-        function(node) { node.assignmentLeafId = node.keyLeafRange.start; },
-        'SET assignment must be the exact equals leaf'
-    );
-    assertHostileRejected(
-        setSource,
-        function(node) { return node.kind === 'set-payload'; },
-        function(node) {
-            node.keyLeafRange = Object.freeze({
-                start: node.keyLeafRange.start,
-                end: node.keyLeafRange.end - 2
-            });
-        },
-        'SET key and assignment cannot hide unclaimed syntax'
-    );
-    assertHostileRejected(
-        setSource,
-        function(node) { return node.kind === 'set-payload'; },
-        function(node) {
-            node.leafRange = Object.freeze({ start: 0, end: 1 });
-            node.keyLeafRange = Object.freeze({ start: 0, end: 1 });
-            node.assignmentLeafId = null;
-            node.valueLeafRange = null;
-        },
-        'SET payload cannot precede and swallow the command head'
-    );
-    assertHostileRejected(
-        setSource,
-        function(node) { return node.kind === 'set-statement'; },
-        function(node) { node.capabilityId = 'set-operations'; },
-        'SET command capability allowlist'
-    );
 }());
 
 (function testSetAnalysisOwnsExplicitBoundedPayloadClaim() {

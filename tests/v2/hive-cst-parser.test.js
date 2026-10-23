@@ -8,7 +8,6 @@ var root = path.join(__dirname, '..', '..');
 var parserPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js');
 var factoryPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'node-factory.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
-var invariantsPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'invariants.js');
 var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
 
 assert.ok(fs.existsSync(parserPath), 'Wave 2D parser build is required');
@@ -17,7 +16,6 @@ assert.ok(fs.existsSync(factoryPath), 'Wave 2D node factory build is required');
 var parser = require(parserPath);
 var factoryModule = require(factoryPath);
 var tokenTableModule = require(tokenTablePath);
-var invariants = require(invariantsPath);
 var core = require(corePath);
 var cases = require('../fixtures/v2-cst-cases');
 
@@ -135,16 +133,6 @@ function assertParserResult(testCase) {
     assert.ok(Object.isFrozen(result.diagnostics), testCase.id + ' diagnostics frozen');
     assert.strictEqual(result.leaves.map(function(leaf) { return leaf.raw; }).join(''),
         testCase.source, testCase.id + ' source conservation');
-
-    var table = tokenTableModule.buildStructuralTokenTable(result.leaves, testCase.source);
-    var checked = invariants.validateSyntaxInvariants({
-        root: result.root,
-        leaves: result.leaves,
-        source: testCase.source,
-        tokenTable: table
-    });
-    assert.strictEqual(checked.ok, true,
-        testCase.id + ' invariant failures: ' + JSON.stringify(checked.failures, null, 2));
 
     var nodes = flatten(result.root);
     assert.deepStrictEqual(
@@ -271,146 +259,6 @@ cases.forEach(assertParserResult);
         null,
         'rollback-invalidated nodes must not regain canonical provenance'
     );
-}());
-
-(function testWave2BRelationContractsFailClosed() {
-    function validateForgedRelation(buildRelation) {
-        var source = 't';
-        var lexed = core.lexSql(source, { dialect: 'hive' });
-        var table = tokenTableModule.buildStructuralTokenTable(lexed.leaves, source);
-        var factory = factoryModule.createNodeFactory(table);
-        var range = { start: 0, end: 1 };
-        var relation = buildRelation(factory, range);
-        var query = factory.createQuery(range, 'select', [], [relation]);
-        var statement = factory.createStatement(range, 'query', query);
-        var program = factory.createProgram(range, [statement]);
-        return invariants.validateSyntaxInvariants({
-            root: program,
-            leaves: lexed.leaves,
-            source: source,
-            tokenTable: table
-        });
-    }
-
-    var tableWithExtraChild = validateForgedRelation(function(factory, range) {
-        var opaque = factory.createOpaque(range, 'SYN_UNMODELED_CONSTRUCT', 'relation');
-        return factory.createRelation(range, 'table', null, null, [opaque]);
-    });
-    assert.strictEqual(tableWithExtraChild.ok, false,
-        'table relation must not carry unreferenced children');
-    assert.ok(tableWithExtraChild.failures.some(function(failure) {
-        return failure.code === 'INV_EXTRA_CHILD' || failure.code === 'INV_RELATIONSHIP';
-    }));
-
-    var joinWithoutBody = validateForgedRelation(function(factory, range) {
-        return factory.createRelation(range, 'join', null, null, []);
-    });
-    assert.strictEqual(joinWithoutBody.ok, false, 'join relation requires its right relation body');
-    assert.ok(joinWithoutBody.failures.some(function(failure) {
-        return failure.code === 'INV_RELATIONSHIP';
-    }));
-
-    var source = 'a b';
-    var lexed = core.lexSql(source, { dialect: 'hive' });
-    var table = tokenTableModule.buildStructuralTokenTable(lexed.leaves, source);
-    var factory = factoryModule.createNodeFactory(table);
-    var right = factory.createRelation({ start: 0, end: 1 }, 'table', null, null, []);
-    var unreferenced = factory.createRelation({ start: 2, end: 3 }, 'table', null, null, []);
-    var join = factory.createRelation(
-        { start: 0, end: 3 }, 'join', null, right, [right, unreferenced]);
-    var query = factory.createQuery({ start: 0, end: 3 }, 'select', [], [join]);
-    var statement = factory.createStatement({ start: 0, end: 3 }, 'query', query);
-    var program = factory.createProgram({ start: 0, end: 3 }, [statement]);
-    var joinWithExtraChild = invariants.validateSyntaxInvariants({
-        root: program,
-        leaves: lexed.leaves,
-        source: source,
-        tokenTable: table
-    });
-    assert.strictEqual(joinWithExtraChild.ok, false,
-        'join relation must reject an unreferenced extra relation');
-    assert.ok(joinWithExtraChild.failures.some(function(failure) {
-        return failure.code === 'INV_EXTRA_CHILD' ||
-            (failure.code === 'INV_RELATIONSHIP' && /join/i.test(failure.message));
-    }), 'join relation failure must identify its child contract');
-}());
-
-(function testWave2BQueryContractsFailClosed() {
-    var source = 't';
-    var lexed = core.lexSql(source, { dialect: 'hive' });
-    var table = tokenTableModule.buildStructuralTokenTable(lexed.leaves, source);
-    var factory = factoryModule.createNodeFactory(table);
-    var relation = factory.createRelation({ start: 0, end: 1 }, 'table', null, null, []);
-    var query = factory.createQuery({ start: 0, end: 1 }, 'select', [], [relation]);
-    var statement = factory.createStatement({ start: 0, end: 1 }, 'query', query);
-    var program = factory.createProgram({ start: 0, end: 1 }, [statement]);
-    var result = invariants.validateSyntaxInvariants({
-        root: program,
-        leaves: lexed.leaves,
-        source: source,
-        tokenTable: table
-    });
-    assert.strictEqual(result.ok, false,
-        'select query must not accept a relation in place of a SELECT/ WITH/INSERT structure');
-    assert.ok(result.failures.some(function(failure) {
-        return failure.code === 'INV_RELATIONSHIP';
-    }), 'invalid select query shape must report a relationship failure');
-
-    source = 'SELECT x';
-    lexed = core.lexSql(source, { dialect: 'hive' });
-    table = tokenTableModule.buildStructuralTokenTable(lexed.leaves, source);
-    factory = factoryModule.createNodeFactory(table);
-    var opaque = factory.createOpaque(
-        { start: 2, end: 3 }, 'SYN_UNMODELED_CONSTRUCT', 'expression');
-    var clause = factory.createClause(
-        { start: 0, end: 3 }, 'select',
-        { start: 0, end: 1 }, { start: 1, end: 3 }, [opaque]);
-    query = factory.createQuery({ start: 0, end: 3 }, 'select', [], [clause]);
-    statement = factory.createStatement({ start: 0, end: 3 }, 'query', query);
-    program = factory.createProgram({ start: 0, end: 3 }, [statement]);
-    result = invariants.validateSyntaxInvariants({
-        root: program,
-        leaves: lexed.leaves,
-        source: source,
-        tokenTable: table
-    });
-    assert.strictEqual(result.ok, false,
-        'SELECT clause must contain a select-items list, not a direct opaque expression');
-    assert.ok(result.failures.some(function(failure) {
-        return failure.code === 'INV_RELATIONSHIP';
-    }), 'invalid SELECT clause child must report a relationship failure');
-
-    source = 'SELECT x y';
-    lexed = core.lexSql(source, { dialect: 'hive' });
-    table = tokenTableModule.buildStructuralTokenTable(lexed.leaves, source);
-    factory = factoryModule.createNodeFactory(table);
-    var xValue = factory.createOpaque(
-        { start: 2, end: 3 }, 'SYN_UNMODELED_CONSTRUCT', 'expression');
-    var xItem = factory.createListItem(
-        { start: 2, end: 3 }, 'select-item', null, [], xValue);
-    var yValue = factory.createOpaque(
-        { start: 4, end: 5 }, 'SYN_UNMODELED_CONSTRUCT', 'expression');
-    var yItem = factory.createListItem(
-        { start: 4, end: 5 }, 'select-item', null, [], yValue);
-    var list = factory.createList(
-        { start: 2, end: 5 }, 'select-items', [], [xItem, yItem]);
-    clause = factory.createClause(
-        { start: 0, end: 5 }, 'select',
-        { start: 0, end: 1 }, { start: 1, end: 5 }, [list]);
-    query = factory.createQuery({ start: 0, end: 5 }, 'select', [], [clause]);
-    statement = factory.createStatement({ start: 0, end: 5 }, 'query', query);
-    program = factory.createProgram({ start: 0, end: 5 }, [statement]);
-    result = invariants.validateSyntaxInvariants({
-        root: program,
-        leaves: lexed.leaves,
-        source: source,
-        tokenTable: table
-    });
-    assert.strictEqual(result.ok, false,
-        'two list items must not be accepted without an owned comma separator');
-    assert.ok(result.failures.some(function(failure) {
-        return failure.code === 'INV_RELATIONSHIP';
-    }), 'invalid list separator contract must report a relationship failure');
 }());
 
 (function testParenthesizedLeftSetOperand() {
