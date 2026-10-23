@@ -148,10 +148,14 @@ function computeFormat(request: FormatRequest, debugEvents: DebugEvent[] | undef
     }
     const validation = validateFormatTargets(source, targets, request.options.dialect);
     if (!validation.ok) {
-        return rejected([targetDiagnostic(
-            validation.target,
+        // A range that cannot be formatted alone is no problem in the SQL, for example half a
+        // statement that formatOnPaste passes to the range provider (K26).
+        return rejected([adapterDiagnostic(
             validation.code,
-            "The selected range is not a complete safe SQL range"
+            "The selected range is not a complete safe SQL range",
+            validation.target,
+            validation.target.id,
+            "info"
         )]);
     }
     const environment = renderEnvironmentForNewline(request.newline, request.tabSize);

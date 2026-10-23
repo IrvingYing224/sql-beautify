@@ -94,7 +94,8 @@ test('U6 U7 U8 U11 U12: overlap, one preserved target, all unchanged, empty and 
     assert.strictEqual(format('abc', [fragment('empty', 1, 1)]).status, 'unchanged');
 
     result = format('select a from t\n', [fragment('partial', 1, 15)]);
-    assert.deepStrictEqual(diagnostics(result), [['ADAPTER_RANGE_LINE', 'error', 1, 15, 'partial']]);
+    // K26: a range rejection is information about the request, not an error in the SQL.
+    assert.deepStrictEqual(diagnostics(result), [['ADAPTER_RANGE_LINE', 'info', 1, 15, 'partial']]);
 });
 
 test('U10: diagnostics of a ready result are in output coordinates, widened over layout gaps', function() {

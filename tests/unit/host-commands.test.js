@@ -174,7 +174,7 @@ test('H6: a document change before the commit, a partial range and a worker cras
         result = await h.run('formatSql');
         assert.deepStrictEqual(codes(result), ['ADAPTER_RANGE_LINE']);
         assert.deepStrictEqual(published(h, editor.document),
-            [['ADAPTER_RANGE_LINE', 0, 10, 18, 'The selected range must cover complete safe lines']]);
+            [['ADAPTER_RANGE_LINE', 2, 10, 18, 'The selected range must cover complete safe lines']]);
         assert.deepStrictEqual(h.lastMessage(), { kind: 'warning', text: MESSAGES.range });
 
         editor = h.open(SQL);
@@ -238,7 +238,7 @@ test('H8: the single-range API and overlapping ranges', function() {
         }), [[20, 38, 'SELECT\n      c\n    , d\nFROM u;']]);
         await h.formatRanges(document, [[0, 18], [20, 28]]);
         assert.deepStrictEqual(published(h, document),
-            [['ADAPTER_RANGE_LINE', 0, 20, 28, 'The selected range must cover complete safe lines']]);
+            [['ADAPTER_RANGE_LINE', 2, 20, 28, 'The selected range must cover complete safe lines']]);
         await h.formatRanges(document, [[0, 18], [0, 18]]);
         assert.deepStrictEqual(published(h, document),
             [['ADAPTER_TRANSACTION_TARGET', 0, 0, 38, 'The formatting targets are invalid or overlapping']]);

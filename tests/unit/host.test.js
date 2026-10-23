@@ -148,6 +148,8 @@ test('range provider formats complete lines; one partial range rejects every ran
         edits = await h.formatRanges(editor.document, [[0, 18], [20, 28]]);
         assert.deepStrictEqual(edits, []);
         assert.deepStrictEqual(h.diagnosticCodes(editor.document), ['ADAPTER_RANGE_LINE']);
+        // K26: half a statement, as formatOnPaste passes it, is shown as information.
+        assert.strictEqual(h.diagnostics.get('untitled:test.sql')[0].severity, h.vscode.DiagnosticSeverity.Information);
         assert.deepStrictEqual(await h.formatRanges(editor.document, [[0, 18], [0, 18]]), [], 'overlapping ranges');
         assert.deepStrictEqual(await h.formatRanges(editor.document, []), []);
         assert.strictEqual(editor.editCalls, 0, 'providers only return edits');
