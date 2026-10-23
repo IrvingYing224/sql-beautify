@@ -73,6 +73,8 @@ jobs:
           version="$(node -p "require('./package.json').version")"
           tag="v${version}"
           grep -Eq "^### ${version}( |$)" CHANGELOG.md || { echo "CHANGELOG.md has no ${version} entry" >&2; exit 1; }
-          test -z "$(git ls-remote --tags origin "refs/tags/${tag}")" || { echo "${tag} already exists" >&2; exit 1; }
+          # A separate assignment, so that a failed query stops the job under set -e.
+          tag_refs="$(git ls-remote --tags origin "refs/tags/${tag}")"
+          test -z "${tag_refs}" || { echo "${tag} already exists" >&2; exit 1; }
           gh release create "${tag}" "vscode-sql-beautify-v${version}.vsix" \
             --target "${GITHUB_SHA}" --title "${tag}" --generate-notes
