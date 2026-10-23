@@ -82,6 +82,16 @@ function rejected(diagnostics: readonly EditDiagnostic[], debugEvents: readonly 
     return { status: "rejected", edits: [], selections: [], diagnostics: sortDiagnostics(diagnostics), debugEvents };
 }
 
+/** A rejection of the whole request, with one error diagnostic over the document. */
+export function rejectedDocument(
+    source: string,
+    code: string,
+    message: string,
+    debugEvents: readonly DebugEvent[] = []
+): ComputeResult {
+    return rejected([documentDiagnostic(source, code, message)], debugEvents);
+}
+
 /** Targets in document order, or null when two of them overlap. */
 function sortedTargets(values: readonly EditTarget[]): readonly EditTarget[] | null {
     const targets = values.slice().sort((left, right) =>
@@ -309,10 +319,6 @@ export function computeEdits(request: ComputeRequest): ComputeResult {
             : computeDdl(request, debugEvents);
     } catch (error) {
         debugEvents?.push(createDebugEvent("executor", "ADAPTER_EXECUTOR_FAILED", error));
-        return rejected([documentDiagnostic(
-            request.source,
-            "ADAPTER_EXECUTOR_FAILED",
-            "The formatter failed safely"
-        )], debugEvents);
+        return rejectedDocument(request.source, "ADAPTER_EXECUTOR_FAILED", "The formatter failed safely", debugEvents);
     }
 }
