@@ -36,17 +36,6 @@ export function finalizeLayoutPolicyApplication(
         : partial;
 }
 
-/** Identity policy used to prove the compiler and renderer conservation path. */
-export function buildIdentityLayoutPlan(
-    analysis: AnalyzedArtifact,
-    options: CanonicalFormatOptions
-): LayoutPlanResult {
-    const builder = createLayoutPlanBuilder(analysis, options);
-    return builder === null
-        ? failure("Identity layout requires canonical analysis and options")
-        : builder.finish();
-}
-
 /**
  * Wave 3 policy dispatch. Registry state and dominating claims gate the proven
  * subset for each dialect before the shared typed policy can register actions.

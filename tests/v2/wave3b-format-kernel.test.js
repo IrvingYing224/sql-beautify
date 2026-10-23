@@ -108,10 +108,10 @@ function assertOnlyEol(text, newline) {
         if (artifact.status !== 'analyzed') {
             return;
         }
-        var built = policyApi.buildIdentityLayoutPlan(
+        var built = planApi.createLayoutPlanBuilder(
             artifact,
             options({ dialect: testCase.dialect })
-        );
+        ).finish();
         assert.strictEqual(built.ok, true, testCase.id + ' identity plan');
         var compiled = compilerApi.compileLayoutPlan(built.plan);
         assert.strictEqual(compiled.ok, true, testCase.id + ' identity compile');

@@ -1,12 +1,7 @@
 import type { StructuralIndex } from "../analysis/types";
-import type { CanonicalFormatOptions } from "../config/options";
 import type { SourceLeaf } from "../lexer/token";
 import type { ProgramNode, SyntaxNode } from "../syntax/node";
-import type {
-    LayoutGapDecision,
-    LayoutPlanBuilder,
-    LayoutScopeDecision,
-} from "./plan";
+import type { LayoutPlanBuilder, LayoutScopeDecision } from "./plan";
 import type { DominatingVerbatimClaims } from "./verbatim-claims";
 
 /** Facts the policies record while registering actions. */
@@ -25,22 +20,11 @@ export interface LayoutAnalysisView {
     leafChannel(leafId: number): SourceLeaf["channel"] | null;
 }
 
-export interface QueryPlanRegistration {
-    readonly options: CanonicalFormatOptions;
-    setKeywordCase(authorityNodeId: number, leafId: number): boolean;
-    replaceGap(
-        authorityNodeId: number,
-        startLeafId: number,
-        endLeafId: number,
-        decision: LayoutGapDecision
-    ): boolean;
-    wrapRange(
-        authorityNodeId: number,
-        startLeafId: number,
-        endLeafId: number,
-        decision: LayoutScopeDecision
-    ): boolean;
-}
+/** The registration surface policies use; finishing the plan stays with the caller. */
+export type QueryPlanRegistration = Pick<
+    LayoutPlanBuilder,
+    "options" | "setKeywordCase" | "replaceGap" | "wrapRange"
+>;
 
 export interface QueryLayoutContext {
     readonly analysis: LayoutAnalysisView;
@@ -166,38 +150,9 @@ export function createQueryLayoutContext(
                 : null;
         },
     });
-    const plan: QueryPlanRegistration = Object.freeze({
-        options: builder.options,
-        setKeywordCase: (
-            authorityNodeId: number,
-            leafId: number
-        ): boolean => builder.setKeywordCase(authorityNodeId, leafId),
-        replaceGap: (
-            authorityNodeId: number,
-            startLeafId: number,
-            endLeafId: number,
-            decision: LayoutGapDecision
-        ): boolean => builder.replaceGap(
-            authorityNodeId,
-            startLeafId,
-            endLeafId,
-            decision
-        ),
-        wrapRange: (
-            authorityNodeId: number,
-            startLeafId: number,
-            endLeafId: number,
-            decision: LayoutScopeDecision
-        ): boolean => builder.wrapRange(
-            authorityNodeId,
-            startLeafId,
-            endLeafId,
-            decision
-        ),
-    });
     return Object.freeze({
         analysis,
-        plan,
+        plan: builder,
         claims,
         authorityByNodeId,
         canonicalGapEnds: new Int32Array(leaves.length + 1).fill(-1),
