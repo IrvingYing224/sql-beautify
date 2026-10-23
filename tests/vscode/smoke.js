@@ -94,6 +94,14 @@ async function runSmoke() {
     assert.strictEqual(editor.document.getText(), formatSql(source, { keywordCase: 'lower' }).text);
     assert.strictEqual(editor.document.offsetAt(editor.selection.active), 14, 'the cursor follows its token');
 
+    // K24: editor.edit resolves true without editing a read-only editor; the command reports it.
+    editor = await open('readonly.sql', source);
+    await vscode.commands.executeCommand('workbench.action.files.setActiveEditorReadonlyInSession');
+    result = await vscode.commands.executeCommand('sqlBeautify.formatSql');
+    assert.deepStrictEqual([result.status, result.diagnostics.map(function(item) { return item.code; })],
+        ['rejected', ['ADAPTER_EDIT_REJECTED']]);
+    assert.strictEqual(editor.document.getText(), source);
+
     // A DDL cursor inside the statement moves to its start (K20), so it no longer lands between CR and LF (K34).
     editor = await open('ddl.sql', 'create table t (a int)\r\n');
     editor.selection = new vscode.Selection(0, 15, 0, 15);

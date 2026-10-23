@@ -19,7 +19,7 @@ var MESSAGES = {
     inputLimit: 'SQL Beautify did not modify the document because the selected SQL exceeds the 512 Ki code-unit limit.',
     notSafe: 'SQL Beautify did not modify the document because formatting was not safe.',
     ddl: 'SQL Beautify did not modify the document because the selected DDL is outside the supported experimental subset.',
-    editRejected: 'SQL Beautify could not apply the edits. Check whether the editor is read-only and run the command again.',
+    editRejected: 'SQL Beautify did not change the document because the editor did not accept the edits. It may be read-only, closed or hidden.',
     preservedDdl: 'SQL Beautify preserved Hive DDL. Use the dedicated Format Hive DDL command for the supported experimental subset.'
 };
 
@@ -279,7 +279,9 @@ test('preserve policy hides capability warnings and explains the preserved regio
 
 test('a host that refuses or throws on editor.edit leaves the document unchanged', function() {
     return host(async function(h) {
-        for (var refusal of [false, function() { return Promise.reject(new Error('read-only')); }]) {
+        // K24: false for a hidden editor, a throw for a closed one, true without an edit when read-only.
+        var refusals = [false, function() { return Promise.reject(new Error('closed')); }, function() { return Promise.resolve(true); }];
+        for (var refusal of refusals) {
             var editor = h.open(SQL);
             editor.editResult = refusal;
             var result = await h.run('formatSql');
@@ -290,6 +292,16 @@ test('a host that refuses or throws on editor.edit leaves the document unchanged
             h.replace(editor.document, [{ start: 0, end: SQL.length, text: SQL_OUT }]);
             assert.deepStrictEqual(h.diagnosticCodes(editor.document), [], 'the rejected output is not published later');
         }
+        // false because the document changed meanwhile reports the change, not a refusal.
+        editor = h.open(SQL);
+        editor.editResult = function() {
+            h.replace(editor.document, [{ start: 0, end: 0, text: '-- x\n' }]);
+            return Promise.resolve(false);
+        };
+        result = await h.run('formatSql');
+        assert.deepStrictEqual([result.status, codes(result)], ['rejected', ['ADAPTER_STALE_DOCUMENT']]);
+        assert.deepStrictEqual(h.lastMessage(), { kind: 'info', text: MESSAGES.changed });
+        assert.deepStrictEqual(h.diagnosticCodes(editor.document), []);
     });
 });
 

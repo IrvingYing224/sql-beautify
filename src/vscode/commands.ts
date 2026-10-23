@@ -107,7 +107,8 @@ async function apply(
         return hostRejection("ADAPTER_STALE_DOCUMENT", "warning");
     }
     const { editor, document } = context;
-    host.diagnostics.stage(document, applyEdits(context.source, result.edits), result.diagnostics, policy);
+    const output = applyEdits(context.source, result.edits);
+    host.diagnostics.stage(document, output, result.diagnostics, policy);
     let applied: boolean;
     try {
         applied = await editor.edit((builder) => {
@@ -118,9 +119,13 @@ async function apply(
     } catch {
         applied = false;
     }
-    if (!applied) {
+    // editor.edit resolves false when the document changed meanwhile or the editor is hidden, throws
+    // when it is closed, and resolves true without editing a read-only editor (K24).
+    if (!applied || document.getText() !== output) {
         host.diagnostics.drop(document);
-        return hostRejection("ADAPTER_EDIT_REJECTED", "error");
+        return isCurrent(context)
+            ? hostRejection("ADAPTER_EDIT_REJECTED", "error")
+            : hostRejection("ADAPTER_STALE_DOCUMENT", "warning");
     }
     if (result.selections.length > 0) {
         // The edit is applied, so the document positions are in output coordinates.

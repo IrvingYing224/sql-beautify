@@ -64,7 +64,7 @@ const EN: MessageCatalog = Object.freeze({
     ddlRejected: () =>
         "SQL Beautify did not modify the document because the selected DDL is outside the supported experimental subset.",
     editRejected: () =>
-        "SQL Beautify could not apply the edits. Check whether the editor is read-only and run the command again.",
+        "SQL Beautify did not change the document because the editor did not accept the edits. It may be read-only, closed or hidden.",
     safeReportCancelled: () => "SQL Beautify safe diagnostic report was cancelled.",
     safeReportStale: () =>
         "SQL Beautify did not copy the report because the document changed.",
@@ -102,7 +102,7 @@ const ZH_CN: MessageCatalog = Object.freeze({
     ddlRejected: () =>
         "所选 DDL 不属于受支持的实验子集，SQL Beautify 未修改文档。",
     editRejected: () =>
-        "SQL Beautify 无法应用编辑。请检查编辑器是否为只读，然后重新运行命令。",
+        "编辑器没有接受编辑，SQL Beautify 未修改文档。编辑器可能是只读、已关闭或不可见。",
     safeReportCancelled: () => "SQL Beautify 安全诊断报告已取消。",
     safeReportStale: () => "文档已发生变化，SQL Beautify 未复制诊断报告。",
     safeReportCopied: () => "SQL Beautify 安全诊断报告已复制。",
