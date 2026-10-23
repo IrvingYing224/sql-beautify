@@ -4,11 +4,7 @@ import type {
     LineSuffixSpacing,
 } from "../layout/doc";
 import type { SourceSpan } from "../source/source-span";
-import {
-    canonicalSourceMapSnapshot,
-    type SourceMap,
-    type SourceMapEntry,
-} from "../source/source-map";
+import type { SourceMap, SourceMapEntry } from "../source/source-map";
 import { measureDisplayText } from "./display-width";
 import {
     inferRenderEnvironment,
@@ -129,29 +125,14 @@ function frozenSpan(start: number, end: number): SourceSpan {
     return Object.freeze({ start, end });
 }
 
-function freezeSourceMap(
-    values: readonly MutableSourceMapEntry[],
-    sourceLength: number,
-    outputLength: number
-): SourceMap {
+function freezeSourceMap(values: readonly MutableSourceMapEntry[]): SourceMap {
     const entries: SourceMapEntry[] = values.map((value) =>
         Object.freeze({
             source: frozenSpan(value.sourceStart, value.sourceEnd),
             output: frozenSpan(value.outputStart, value.outputEnd),
         })
     );
-    const sourceMap = canonicalSourceMapSnapshot(
-        { entries },
-        sourceLength,
-        outputLength
-    );
-    if (sourceMap === null) {
-        throw new RenderAbort(
-            "RENDER_ARTIFACT_PROVENANCE",
-            "Rendered source map failed its canonical proof"
-        );
-    }
-    return sourceMap;
+    return Object.freeze({ entries: Object.freeze(entries) });
 }
 
 function renderCanonical(
@@ -598,12 +579,7 @@ function renderCanonical(
                 "Rendered text changed the target newline boundary contract"
             );
         }
-        const sourceMap = freezeSourceMap(
-            mapEntries,
-            artifact.analysis.source.length,
-            outputCodeUnits
-        );
-        return Object.freeze({ ok: true, text, sourceMap });
+        return Object.freeze({ ok: true, text, sourceMap: freezeSourceMap(mapEntries) });
     } catch (error) {
         if (error instanceof RenderAbort) {
             return failure(error.code, error.message);

@@ -37,7 +37,6 @@ export interface LayoutMetricsSuccess {
 export type LayoutMetricsResult = LayoutMetricsSuccess | LayoutMetricsFailure;
 
 export type RenderFailureCode =
-    | "RENDER_ARTIFACT_PROVENANCE"
     | "RENDER_METRICS"
     | "RENDER_KEYWORD_TRANSFORM"
     | "RENDER_RESOURCE_BUDGET"

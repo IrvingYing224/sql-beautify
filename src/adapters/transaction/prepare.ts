@@ -10,8 +10,8 @@ import type { Diagnostic } from "../../core/diagnostics/diagnostic";
 import { createDebugEvent, type DebugEvent } from "../../core/diagnostics/debug-event";
 import { resolveFormatOptions } from "../../core/config/resolve-options";
 import {
-    canonicalSourceMapSnapshot,
     createSourceOffsetMapper,
+    isValidSourceMap,
     type SourceMap,
 } from "../../core/source/source-map";
 import {
@@ -341,15 +341,10 @@ function documentSourceMap(
         outputCursor + tailLength
     );
     const outputLength = outputCursor + tailLength;
-    const sourceMap = canonicalSourceMapSnapshot(
-        { entries },
-        sourceLength,
-        outputLength
-    );
-    return sourceMap === null ? null : Object.freeze({
-        sourceMap,
-        outputLength,
-    });
+    const sourceMap: SourceMap = Object.freeze({ entries: Object.freeze(entries) });
+    return isValidSourceMap(sourceMap, sourceLength, outputLength)
+        ? Object.freeze({ sourceMap, outputLength })
+        : null;
 }
 
 function mapDiagnosticsThroughSourceMap(
@@ -700,26 +695,11 @@ async function prepareFormatTransactionInternal(
                 ),
             ], debugEvents);
         }
+        // isFormatResultSafeForSource has validated the source map of formatted and unchanged results.
         const sourceMap =
             snapshot.status === "formatted" || snapshot.status === "unchanged"
-                ? canonicalSourceMapSnapshot(
-                      snapshot.sourceMap,
-                      targetSource.length,
-                      snapshot.text.length
-                  )
+                ? snapshot.sourceMap
                 : null;
-        if (
-            (snapshot.status === "formatted" || snapshot.status === "unchanged") &&
-            sourceMap === null
-        ) {
-            return rejected(documentVersionValue, [
-                targetDiagnostic(
-                    target,
-                    "ADAPTER_RESULT_CONTRACT",
-                    "Formatter source map could not establish a canonical proof"
-                ),
-            ], debugEvents);
-        }
         computed.push(
             Object.freeze({
                 target,

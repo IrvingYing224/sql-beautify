@@ -19,14 +19,6 @@ export interface SourceOffsetMapper {
     ) => number | null;
 }
 
-interface CanonicalSourceMapProof {
-    readonly sourceLength: number;
-    readonly outputLength: number;
-    readonly mapper: SourceOffsetMapper;
-}
-
-const CANONICAL_SOURCE_MAPS = new WeakMap<object, CanonicalSourceMapProof>();
-
 function validLength(value: number): boolean {
     return Number.isSafeInteger(value) && value >= 0;
 }
@@ -39,67 +31,31 @@ function validSpanValues(start: number, end: number, maximum: number): boolean {
         end <= maximum;
 }
 
-function snapshotSourceMap(
-    sourceMap: unknown,
+/** Entries are non-empty, length-preserving, in bounds and monotonic on both sides. */
+export function isValidSourceMap(
+    sourceMap: SourceMap,
     sourceLength: number,
     outputLength: number
-): SourceMap | null {
-    try {
-        if (
-            !validLength(sourceLength) ||
-            !validLength(outputLength) ||
-            typeof sourceMap !== "object" ||
-            sourceMap === null
-        ) {
-            return null;
-        }
-        const rawEntries = (sourceMap as SourceMap).entries;
-        if (!Array.isArray(rawEntries)) {
-            return null;
-        }
-        const stableEntries = Array.from(rawEntries);
-        const entries: SourceMapEntry[] = [];
-        let previousSourceEnd = 0;
-        let previousOutputEnd = 0;
-        for (const entry of stableEntries) {
-            if (
-                typeof entry !== "object" ||
-                entry === null
-            ) {
-                return null;
-            }
-            const source = entry.source;
-            const output = entry.output;
-            const sourceStart = source.start;
-            const sourceEnd = source.end;
-            const outputStart = output.start;
-            const outputEnd = output.end;
-            if (
-                !validSpanValues(sourceStart, sourceEnd, sourceLength) ||
-                !validSpanValues(outputStart, outputEnd, outputLength) ||
-                sourceEnd - sourceStart !== outputEnd - outputStart ||
-                sourceStart < previousSourceEnd ||
-                outputStart < previousOutputEnd
-            ) {
-                return null;
-            }
-            entries.push(Object.freeze({
-                source: Object.freeze({
-                    start: sourceStart,
-                    end: sourceEnd,
-                }),
-                output: Object.freeze({
-                    start: outputStart,
-                    end: outputEnd,
-                }),
-            }));
-            previousSourceEnd = sourceEnd;
-            previousOutputEnd = outputEnd;
-        }
-        return Object.freeze({ entries: Object.freeze(entries) });
-    } catch {
-        return null;
+): boolean {
+    if (!validLength(sourceLength) || !validLength(outputLength)) {
+        return false;
     }
+    let previousSourceEnd = 0;
+    let previousOutputEnd = 0;
+    for (const { source, output } of sourceMap.entries) {
+        if (
+            !validSpanValues(source.start, source.end, sourceLength) ||
+            !validSpanValues(output.start, output.end, outputLength) ||
+            source.end - source.start !== output.end - output.start ||
+            source.start < previousSourceEnd ||
+            output.start < previousOutputEnd
+        ) {
+            return false;
+        }
+        previousSourceEnd = source.end;
+        previousOutputEnd = output.end;
+    }
+    return true;
 }
 
 function firstEntryEndingAtOrAfter(
@@ -119,7 +75,7 @@ function firstEntryEndingAtOrAfter(
     return low;
 }
 
-function mapStableOffset(
+function mapOffset(
     entries: readonly SourceMapEntry[],
     sourceOffset: number,
     sourceLength: number,
@@ -194,18 +150,22 @@ function mapStableOffset(
     return null;
 }
 
-function mapperForStableMap(
+/** Creates one mapper for a cursor/selection operation; invalid maps return null. */
+export function createSourceOffsetMapper(
     sourceMap: SourceMap,
     sourceLength: number,
     outputLength: number
-): SourceOffsetMapper {
+): SourceOffsetMapper | null {
+    if (!isValidSourceMap(sourceMap, sourceLength, outputLength)) {
+        return null;
+    }
     const entries = sourceMap.entries;
     return Object.freeze({
         map(
             sourceOffset: number,
             affinity: SourceMapAffinity = "exact"
         ): number | null {
-            return mapStableOffset(
+            return mapOffset(
                 entries,
                 sourceOffset,
                 sourceLength,
@@ -214,81 +174,6 @@ function mapperForStableMap(
             );
         },
     });
-}
-
-/**
- * Copies, validates and marks an internally owned source map. Only exact maps
- * returned by this function receive the cached binary-search proof.
- */
-export function canonicalSourceMapSnapshot(
-    sourceMap: unknown,
-    sourceLength: number,
-    outputLength: number
-): SourceMap | null {
-    if (typeof sourceMap === "object" && sourceMap !== null) {
-        const existing = CANONICAL_SOURCE_MAPS.get(sourceMap);
-        if (
-            existing?.sourceLength === sourceLength &&
-            existing.outputLength === outputLength
-        ) {
-            return sourceMap as SourceMap;
-        }
-    }
-    const stableMap = snapshotSourceMap(sourceMap, sourceLength, outputLength);
-    if (stableMap === null) {
-        return null;
-    }
-    const mapper = mapperForStableMap(stableMap, sourceLength, outputLength);
-    CANONICAL_SOURCE_MAPS.set(stableMap, Object.freeze({
-        sourceLength,
-        outputLength,
-        mapper,
-    }));
-    return stableMap;
-}
-
-export function isValidSourceMap(
-    sourceMap: unknown,
-    sourceLength: number,
-    outputLength: number
-): sourceMap is SourceMap {
-    if (typeof sourceMap === "object" && sourceMap !== null) {
-        const proof = CANONICAL_SOURCE_MAPS.get(sourceMap);
-        if (
-            proof?.sourceLength === sourceLength &&
-            proof.outputLength === outputLength
-        ) {
-            return true;
-        }
-    }
-    return snapshotSourceMap(sourceMap, sourceLength, outputLength) !== null;
-}
-
-/**
- * Creates one stable mapper for a cursor/selection operation. Untrusted maps
- * are fully snapshotted once; canonical internal maps reuse their proof.
- */
-export function createSourceOffsetMapper(
-    sourceMap: unknown,
-    sourceLength: number,
-    outputLength: number
-): SourceOffsetMapper | null {
-    if (!validLength(sourceLength) || !validLength(outputLength)) {
-        return null;
-    }
-    if (typeof sourceMap === "object" && sourceMap !== null) {
-        const proof = CANONICAL_SOURCE_MAPS.get(sourceMap);
-        if (
-            proof?.sourceLength === sourceLength &&
-            proof.outputLength === outputLength
-        ) {
-            return proof.mapper;
-        }
-    }
-    const stableMap = snapshotSourceMap(sourceMap, sourceLength, outputLength);
-    return stableMap === null
-        ? null
-        : mapperForStableMap(stableMap, sourceLength, outputLength);
 }
 
 /**

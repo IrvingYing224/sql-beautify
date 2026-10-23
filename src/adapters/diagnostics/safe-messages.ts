@@ -114,14 +114,11 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
         "LAYOUT_ALIGNMENT_FACTS",
     ], "Formatter layout failed an internal safety check"),
     ...entries([
-        "METRICS_ARTIFACT_PROVENANCE",
-        "METRICS_DOC_PROVENANCE",
         "METRICS_SOURCE_RANGE",
         "METRICS_OVERFLOW",
         "METRICS_INTERNAL",
     ], "Formatter layout metrics failed an internal safety check"),
     ...entries([
-        "RENDER_ARTIFACT_PROVENANCE",
         "RENDER_METRICS",
         "RENDER_KEYWORD_TRANSFORM",
         "RENDER_RESOURCE_BUDGET",
