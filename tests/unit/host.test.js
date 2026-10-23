@@ -457,11 +457,12 @@ test('formatHiveDdl keeps external tab indentation and CRLF, and uses the editor
 
 test('formatHiveDdl: whole document, already formatted text, and unsupported DDL', function() {
     return host(async function(h) {
-        var editor = h.open('create table t (a int, bb string);\n');
+        // K20: a cursor inside the statement moves to its start; one at the end stays at the end.
+        var editor = h.open('create table t (a int, bb string);\n', {}, [[9, 9], [35, 35]]);
         var result = await h.run('formatHiveDdl');
         assert.strictEqual(result.status, 'ready');
         assert.strictEqual(editor.document.text, 'CREATE TABLE t\n(\n     a  INT\n    ,bb STRING\n);\n');
-        assert.deepStrictEqual(selections(editor), [[0, 0]]);
+        assert.deepStrictEqual(selections(editor), [[0, 0], [47, 47]]);
 
         editor = h.open('CREATE TABLE t\n(\n     a INT\n);\n');
         result = await h.run('formatHiveDdl');

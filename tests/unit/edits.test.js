@@ -213,9 +213,10 @@ test('R8: every range of eight sources classifies as in 2.2.1', function() {
 test('C2: delta mapping for edits without a source map', function() {
     var values = [{ start: 1, end: 4, text: 'A' }, { start: 6, end: 8, text: 'XYZ' }];
     assert.strictEqual(m.offsets.applyEdits('0123456789', values), '0A45XYZ89');
-    assert.deepStrictEqual([0, 1, 3, 4, 10].map(function(offset) {
+    // K20: an offset inside an edit maps to the replacement start, not into the replacement.
+    assert.deepStrictEqual([0, 1, 3, 4, 5, 7, 8, 10].map(function(offset) {
         return m.offsets.mapThroughEdits(values, offset);
-    }), [0, 1, 2, 2, 9]);
+    }), [0, 1, 1, 2, 3, 4, 7, 9]);
 });
 
 test('C3 S1 S2: source-map mapping of cursors, selections and offsets', function() {

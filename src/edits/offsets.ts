@@ -19,24 +19,18 @@ export function applyEdits(source: string, edits: readonly OffsetEdit[]): string
 }
 
 /**
- * Maps a document offset through edits sorted by start, for edits without a source map. An offset
- * inside an edit keeps its distance from the edit start, clamped to the replacement; the edit end
- * maps to the replacement end.
+ * Maps a document offset through edits sorted by start, for edits without a source map. The edit end
+ * maps to the replacement end; any other offset in an edit maps to the replacement start, so it never
+ * lands inside a token (K20).
  */
 export function mapThroughEdits(edits: readonly OffsetEdit[], offset: number): number {
     let delta = 0;
     for (const edit of edits) {
-        const outputStart = edit.start + delta;
         if (offset < edit.start) {
             return offset + delta;
         }
-        if (offset === edit.start && edit.start !== edit.end) {
-            return outputStart;
-        }
         if (offset <= edit.end) {
-            return offset === edit.end
-                ? outputStart + edit.text.length
-                : outputStart + Math.min(offset - edit.start, edit.text.length);
+            return edit.start + delta + (offset === edit.end ? edit.text.length : 0);
         }
         delta += edit.text.length - (edit.end - edit.start);
     }

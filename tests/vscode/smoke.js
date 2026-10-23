@@ -94,12 +94,13 @@ async function runSmoke() {
     assert.strictEqual(editor.document.getText(), formatSql(source, { keywordCase: 'lower' }).text);
     assert.strictEqual(editor.document.offsetAt(editor.selection.active), 14, 'the cursor follows its token');
 
-    // A DDL cursor mapped between CR and LF is placed by the document, not rejected.
+    // A DDL cursor inside the statement moves to its start (K20), so it no longer lands between CR and LF (K34).
     editor = await open('ddl.sql', 'create table t (a int)\r\n');
     editor.selection = new vscode.Selection(0, 15, 0, 15);
     result = await vscode.commands.executeCommand('sqlBeautify.formatHiveDdl');
     assert.strictEqual(result.status, 'ready');
     assert.strictEqual(editor.document.getText(), 'create table t\r\n(\r\n     a int\r\n)\r\n');
+    assert.strictEqual(editor.document.offsetAt(editor.selection.active), 0);
 
     // A real host token against the production worker. The built-in
     // executeFormatDocumentProvider command takes no cancellation token.
