@@ -150,6 +150,8 @@ function createHost(options) {
         entry: options.entry || path.join(root, 'dist', 'extension.cjs'),
         changeListeners: [],
         closeListeners: [],
+        configurationListeners: [],
+        documents: [],
         subscriptions: [],
         activeTextEditor: undefined
     };
@@ -201,8 +203,12 @@ function createHost(options) {
                 host.closeListeners.push(listener);
                 return { dispose: function() { remove(host.closeListeners, listener); } };
             },
-            onDidChangeConfiguration: function() {
-                return { dispose: function() {} };
+            onDidChangeConfiguration: function(listener) {
+                host.configurationListeners.push(listener);
+                return { dispose: function() { remove(host.configurationListeners, listener); } };
+            },
+            get textDocuments() {
+                return host.documents.filter(function(document) { return !document.isClosed; });
             }
         },
         window: {
@@ -228,6 +234,7 @@ function createHost(options) {
                         host.diagnosticWrites += 1;
                         host.diagnostics.delete(uri.toString());
                     },
+                    get: function(uri) { return host.diagnostics.get(uri.toString()); },
                     clear: function() { host.diagnostics.clear(); },
                     dispose: function() { host.diagnostics.clear(); }
                 };
@@ -253,6 +260,7 @@ function createHost(options) {
 
     host.open = function(text, documentOptions, selections) {
         var document = new Document(text, documentOptions);
+        host.documents.push(document);
         var editor = new Editor(host, document);
         if (selections !== undefined) {
             editor.selections = selections.map(function(value) {
@@ -277,6 +285,18 @@ function createHost(options) {
     host.fireChange = function(document, contentChanges) {
         host.changeListeners.slice().forEach(function(listener) {
             listener({ document: document, contentChanges: contentChanges });
+        });
+    };
+
+    // Sets `values` and fires the change event for the sections their keys start with.
+    host.changeConfiguration = function(values) {
+        Object.assign(host.configuration, values);
+        host.configurationListeners.slice().forEach(function(listener) {
+            listener({
+                affectsConfiguration: function(section) {
+                    return Object.keys(values).some(function(key) { return key === section || key.startsWith(section + '.'); });
+                }
+            });
         });
     };
 

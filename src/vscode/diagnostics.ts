@@ -120,6 +120,11 @@ export class Diagnostics {
         this.pending.delete(document.uri.toString());
     }
 
+    /** The codes shown for the document. */
+    codes(document: vscode.TextDocument): string[] {
+        return (this.collection.get(document.uri) ?? []).map((item) => String(item.code));
+    }
+
     clear(document: vscode.TextDocument): void {
         this.pending.delete(document.uri.toString());
         this.collection.delete(document.uri);

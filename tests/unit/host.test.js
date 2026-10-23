@@ -178,10 +178,24 @@ test('provider returns nothing when cancelled, stale, unsupported or misconfigur
         editor = h.open(SQL, { languageId: 'python' });
         assert.deepStrictEqual(await h.formatDocument(editor.document), []);
 
+        var other = h.open(WITH_DDL, { uri: 'untitled:other.sql' });
+        h.applyEdits(other.document, await h.formatDocument(other.document));
+        assert.deepStrictEqual(h.diagnosticCodes(other.document), ['SYN_UNSUPPORTED_STATEMENT']);
         h.configuration['sqlBeautify.commaStyle'] = 'middle';
         editor = h.open(SQL);
         assert.deepStrictEqual(await h.formatDocument(editor.document), []);
         assert.deepStrictEqual(h.diagnosticCodes(editor.document), ['CFG_OPTION_VALUE']);
+
+        // K25: the settings error follows a settings change without waiting for an edit; other
+        // diagnostics stay until the next edit or format.
+        h.changeConfiguration({ 'editor.tabSize': 2 });
+        assert.deepStrictEqual(h.diagnosticCodes(editor.document), ['CFG_OPTION_VALUE']);
+        h.changeConfiguration({ 'sqlBeautify.commaStyle': 'trailing', 'sqlBeautify.keywordCase': 'bogus' });
+        assert.deepStrictEqual(h.diagnostics.get('untitled:test.sql').map(function(item) { return item.message; }),
+            ['Formatter options are invalid (option: keywordCase)']);
+        h.changeConfiguration({ 'sqlBeautify.keywordCase': 'upper' });
+        assert.deepStrictEqual(h.diagnosticCodes(editor.document), []);
+        assert.deepStrictEqual(h.diagnosticCodes(other.document), ['SYN_UNSUPPORTED_STATEMENT']);
     });
 });
 

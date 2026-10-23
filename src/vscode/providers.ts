@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import type { EditExecutor } from "../edits/executor";
 import { applyEdits } from "../edits/offsets";
 import type { EditTarget } from "../edits/types";
-import { documentNewline, isSupported, readConfiguration, renderTabSize, SUPPORTED_LANGUAGES } from "./config";
+import { documentNewline, isSupported, readConfiguration, renderTabSize, SUPPORTED_LANGUAGES, type Configuration } from "./config";
 import { hostDiagnostic, logDebug, withSafeMessages, type Diagnostics } from "./diagnostics";
 
 /**
@@ -11,6 +11,27 @@ import { hostDiagnostic, logDebug, withSafeMessages, type Diagnostics } from "./
  * diagnostics are published once the document text equals the output.
  */
 export function registerProviders(executor: EditExecutor, diagnostics: Diagnostics): vscode.Disposable[] {
+    function publishConfiguration(document: vscode.TextDocument, configuration: Extract<Configuration, { readonly ok: false }>): void {
+        diagnostics.publish(document, [hostDiagnostic(configuration.code, "error", configuration.optionKey)], "warn");
+    }
+
+    /** After a settings change, each settings error shown follows the settings without waiting for an edit (K25). */
+    function refreshConfiguration(event: vscode.ConfigurationChangeEvent): void {
+        if (!event.affectsConfiguration("sqlBeautify")) {
+            return;
+        }
+        for (const document of vscode.workspace.textDocuments) {
+            if (isSupported(document) && diagnostics.codes(document).some((code) => code.startsWith("CFG_"))) {
+                const configuration = readConfiguration(document);
+                if (configuration.ok) {
+                    diagnostics.clear(document);
+                } else {
+                    publishConfiguration(document, configuration);
+                }
+            }
+        }
+    }
+
     async function provide(
         document: vscode.TextDocument,
         ranges: readonly vscode.Range[] | null,
@@ -24,7 +45,7 @@ export function registerProviders(executor: EditExecutor, diagnostics: Diagnosti
         const version = document.version;
         const configuration = readConfiguration(document);
         if (!configuration.ok) {
-            diagnostics.publish(document, [hostDiagnostic(configuration.code, "error", configuration.optionKey)], "warn");
+            publishConfiguration(document, configuration);
             return [];
         }
         // All ranges share one snapshot and one request: one invalid range rejects them all.
@@ -65,6 +86,7 @@ export function registerProviders(executor: EditExecutor, diagnostics: Diagnosti
     }
 
     return [
+        vscode.workspace.onDidChangeConfiguration(refreshConfiguration),
         vscode.languages.registerDocumentFormattingEditProvider(SUPPORTED_LANGUAGES, {
             provideDocumentFormattingEdits: (document, formatting, token) => provide(document, null, formatting, token),
         }),
