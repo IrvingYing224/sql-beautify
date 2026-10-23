@@ -1,3 +1,4 @@
+import type { AnalyzedArtifact } from "../analysis/types";
 import type { CanonicalFormatOptions } from "../config/options";
 import type {
     LayoutPlanBuilder,
@@ -38,10 +39,10 @@ export function finalizeLayoutPolicyApplication(
 
 /** Identity policy used to prove the compiler and renderer conservation path. */
 export function buildIdentityLayoutPlan(
-    analysisValue: unknown,
+    analysis: AnalyzedArtifact,
     options: CanonicalFormatOptions
 ): LayoutPlanResult {
-    const builder = createLayoutPlanBuilder(analysisValue, options);
+    const builder = createLayoutPlanBuilder(analysis, options);
     return builder === null
         ? failure("Identity layout requires canonical analysis and options")
         : builder.finish();
@@ -52,15 +53,14 @@ export function buildIdentityLayoutPlan(
  * subset for each dialect before the shared typed policy can register actions.
  */
 export function buildLayoutPlan(
-    analysisValue: unknown,
+    analysis: AnalyzedArtifact,
     options: CanonicalFormatOptions,
     alignmentPlan: LayoutAlignmentPlan | null = null
 ): LayoutPlanResult {
-    const builder = createLayoutPlanBuilder(analysisValue, options);
+    const builder = createLayoutPlanBuilder(analysis, options);
     if (builder === null) {
         return failure("Layout policy requires canonical analysis and options");
     }
-    const analysis = builder.analysis;
     const claims = dominatingVerbatimClaims(analysis);
     if (claims === null) {
         return failure("Layout policy could not derive dominating ranges");

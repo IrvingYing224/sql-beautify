@@ -1,6 +1,4 @@
-import {
-    isCanonicalAnalyzedArtifact,
-} from "../analysis/artifact";
+import type { AnalyzedArtifact } from "../analysis/types";
 import type { LeafRange } from "../syntax/leaf-range";
 import type { VerbatimTrigger } from "./doc";
 
@@ -76,16 +74,12 @@ export function verbatimTriggersEqual(
  * owner. An unformatted ancestor dominates all nested claims.
  */
 export function dominatingVerbatimClaims(
-    analysisValue: unknown
+    analysis: AnalyzedArtifact
 ): DominatingVerbatimClaims | null {
-    if (!isCanonicalAnalyzedArtifact(analysisValue)) {
-        return null;
-    }
-    const cached = CLAIMS_BY_ANALYSIS.get(analysisValue);
+    const cached = CLAIMS_BY_ANALYSIS.get(analysis);
     if (cached !== undefined) {
         return cached;
     }
-    const analysis = analysisValue;
     try {
         const nodes = analysis.index.nodes();
         const depthByNodeId = new Int32Array(nodes.length);

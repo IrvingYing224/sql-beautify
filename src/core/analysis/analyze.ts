@@ -11,8 +11,8 @@ import {
 import type { ParseArtifact } from "../syntax/parser";
 import { isCanonicalStructuralTokenTableForLeaves } from "../syntax/token-table";
 import { buildStructuralIndex } from "./structural-index";
-import { createAnalysisArtifact } from "./artifact";
 import type {
+    AnalysisArtifact,
     AnalysisOutput,
     AnalysisStatus,
     StructuralIndex,
@@ -41,16 +41,34 @@ function buildIndex(artifact: ParseArtifact): StructuralIndex {
     );
 }
 
+function analysisArtifact(
+    artifact: ParseArtifact,
+    status: AnalysisStatus,
+    index: StructuralIndex | null
+): AnalysisArtifact {
+    const output = artifact.output;
+    return Object.freeze({
+        status,
+        source: artifact.source,
+        dialect: artifact.dialect,
+        mode: artifact.mode,
+        root: output.root,
+        leaves: output.leaves,
+        diagnostics: output.diagnostics,
+        index,
+    }) as AnalysisArtifact;
+}
+
 function outputWithIndex(
     status: Extract<AnalysisStatus, "analyzed" | "preserved">,
     artifact: ParseArtifact,
     index: StructuralIndex
 ): AnalysisOutput {
-    return createAnalysisArtifact(artifact, status, index);
+    return analysisArtifact(artifact, status, index);
 }
 
 function failedOutput(artifact: ParseArtifact): AnalysisOutput {
-    return createAnalysisArtifact(artifact, "failed", null);
+    return analysisArtifact(artifact, "failed", null);
 }
 
 function artifactPreservesTarget(artifact: ParseArtifact): boolean {

@@ -1,6 +1,3 @@
-import {
-    isCanonicalAnalyzedArtifact,
-} from "../analysis/artifact";
 import type { AnalyzedArtifact, CommentBinding } from "../analysis/types";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type {
@@ -119,11 +116,8 @@ function lineSuffixSpacing(
  * artifact. Invalid input or an exhausted node budget returns null.
  */
 export function createLayoutDocFactory(
-    analysis: unknown
+    analysis: AnalyzedArtifact
 ): LayoutDocFactory | null {
-    if (!isCanonicalAnalyzedArtifact(analysis)) {
-        return null;
-    }
     let syntaxNodeCount: number;
     try {
         syntaxNodeCount = analysis.index.nodes().length;

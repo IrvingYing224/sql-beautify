@@ -96,7 +96,6 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
         "Trailing comma could not be applied without moving a line comment",
 
     ...entries([
-        "LAYOUT_ARTIFACT_ANALYSIS",
         "LAYOUT_ARTIFACT_DIALECT",
         "LAYOUT_ARTIFACT_RESOURCE",
         "LAYOUT_PLAN_PROVENANCE",

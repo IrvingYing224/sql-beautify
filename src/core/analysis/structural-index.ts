@@ -66,20 +66,6 @@ const EMPTY_CAPABILITY_OCCURRENCES =
 // Recovery fuzz locks the parser to this linear node budget. Enforce the same
 // bound before any attacker-controlled id can expand a direct-address array.
 const MAX_NODES_PER_LEAF = 16;
-const CANONICAL_INDEX_PARSE_ARTIFACTS = new WeakMap<object, ParseArtifact>();
-
-/** Internal proof that an index was built from this exact canonical parse artifact. */
-export function isCanonicalStructuralIndexForParseArtifact(
-    value: unknown,
-    artifact: ParseArtifact
-): value is StructuralIndex {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        isCanonicalParseArtifact(artifact) &&
-        CANONICAL_INDEX_PARSE_ARTIFACTS.get(value) === artifact
-    );
-}
 
 function invariantFailure(message: string): never {
     throw new Error(`Structural index invariant failed: ${message}`);
@@ -1832,10 +1818,6 @@ export function buildStructuralIndex(
             return snapshotCache;
         },
     });
-
-    if (trustedParserArtifact) {
-        CANONICAL_INDEX_PARSE_ARTIFACTS.set(index, parseArtifactProof!);
-    }
 
     return index;
 }

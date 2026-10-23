@@ -1,6 +1,3 @@
-import {
-    isCanonicalAnalyzedArtifact,
-} from "../analysis/artifact";
 import type { AnalyzedArtifact } from "../analysis/types";
 import type { CanonicalFormatOptions } from "../config/options";
 import type { Diagnostic } from "../diagnostics/diagnostic";
@@ -18,7 +15,6 @@ export interface LayoutArtifact {
 }
 
 export type LayoutArtifactFailureCode =
-    | "LAYOUT_ARTIFACT_ANALYSIS"
     | "LAYOUT_ARTIFACT_DIALECT"
     | "LAYOUT_ARTIFACT_RESOURCE";
 
@@ -46,32 +42,26 @@ function failure(
 
 /** Binds analysis, doc, options and the checked budget; no partial artifact on failure. */
 export function createLayoutArtifact(
-    analysisValue: unknown,
+    analysis: AnalyzedArtifact,
     root: LayoutDoc,
     options: CanonicalFormatOptions
 ): CreateLayoutArtifactResult {
-    if (!isCanonicalAnalyzedArtifact(analysisValue)) {
-        return failure(
-            "LAYOUT_ARTIFACT_ANALYSIS",
-            "Layout artifact requires an exact canonical analyzed artifact"
-        );
-    }
-    if (options.dialect !== analysisValue.dialect) {
+    if (options.dialect !== analysis.dialect) {
         return failure(
             "LAYOUT_ARTIFACT_DIALECT",
             "Layout options dialect must match analysis dialect"
         );
     }
 
-    const resources = checkLayoutResources(analysisValue, root);
+    const resources = checkLayoutResources(analysis, root);
     if (!resources.ok) {
         return failure("LAYOUT_ARTIFACT_RESOURCE", resources.message);
     }
     const artifact = Object.freeze({
-        analysis: analysisValue,
+        analysis,
         root,
         options,
-        diagnostics: analysisValue.diagnostics,
+        diagnostics: analysis.diagnostics,
         budget: resources.budget,
     });
     return Object.freeze({ ok: true, artifact });

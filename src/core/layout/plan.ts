@@ -1,4 +1,3 @@
-import { isCanonicalAnalyzedArtifact } from "../analysis/artifact";
 import type { AnalyzedArtifact } from "../analysis/types";
 import type { CanonicalFormatOptions } from "../config/options";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
@@ -230,16 +229,12 @@ function scopeDecisionFamily(value: LayoutScopeDecision): string {
  * claims and default identity emissions are installed before policy actions.
  */
 export function createLayoutPlanBuilder(
-    analysisValue: unknown,
+    analysis: AnalyzedArtifact,
     options: CanonicalFormatOptions
 ): LayoutPlanBuilder | null {
-    if (
-        !isCanonicalAnalyzedArtifact(analysisValue) ||
-        analysisValue.dialect !== options.dialect
-    ) {
+    if (analysis.dialect !== options.dialect) {
         return null;
     }
-    const analysis = analysisValue;
     let budget: LayoutResourceBudget;
     let claims: ReturnType<typeof dominatingVerbatimClaims>;
     try {
