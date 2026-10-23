@@ -10,7 +10,7 @@ var core = require('./helpers/src')({ format: 'core/api/format' });
 var SQL = 'select a,b from t;';
 var SQL_OUT = 'SELECT\n      a\n    , b\nFROM t;';
 var WITH_DDL = 'select a,b from t;\n\nCREATE TABLE t (x INT);';
-var EXPECTED_WARNING = 'This SQL statement is not supported and was preserved (capability: hive-ddl)';
+var EXPECTED_WARNING = 'hive hive-ddl statement is preserved verbatim';
 var MESSAGES = {
     activeSqlEditor: 'SQL Beautify requires an active SQL editor.',
     cancelled: 'SQL Beautify formatting was cancelled.',
@@ -137,6 +137,20 @@ test('output newline follows the document text, then the document eol', function
     });
 });
 
+test('K23: the editor shows a core message as it is, cut to 200 characters', function() {
+    return host(async function(h) {
+        var editor = h.open("'" + 'x'.repeat(200000) + "' foo bar;");
+        assert.deepStrictEqual(await h.formatDocument(editor.document), []);
+        var shown = h.diagnostics.get('untitled:test.sql');
+        assert.deepStrictEqual(shown.map(function(item) { return item.code; }), ['SYN_UNSUPPORTED_STATEMENT']);
+        assert.strictEqual(shown[0].message, "hive statement '" + 'x'.repeat(183) + '…');
+        // The cut never splits a surrogate pair.
+        editor = h.open("'" + '😀'.repeat(300) + "' foo bar;");
+        await h.formatDocument(editor.document);
+        assert.strictEqual(h.diagnostics.get('untitled:test.sql')[0].message, "hive statement '" + '😀'.repeat(183) + '…');
+    });
+});
+
 test('range provider formats complete lines; one partial range rejects every range', function() {
     var source = 'select a,b from t;\n\nselect c,d from u;';
     return host(async function(h) {
@@ -194,7 +208,7 @@ test('provider returns nothing when cancelled, stale, unsupported or misconfigur
         assert.deepStrictEqual(h.diagnosticCodes(editor.document), ['CFG_OPTION_VALUE']);
         h.changeConfiguration({ 'sqlBeautify.commaStyle': 'trailing', 'sqlBeautify.keywordCase': 'bogus' });
         assert.deepStrictEqual(h.diagnostics.get('untitled:test.sql').map(function(item) { return item.message; }),
-            ['Formatter options are invalid (option: keywordCase)']);
+            ['Invalid formatter option value for keywordCase']);
         h.changeConfiguration({ 'sqlBeautify.keywordCase': 'upper' });
         assert.deepStrictEqual(h.diagnosticCodes(editor.document), []);
         assert.deepStrictEqual(h.diagnosticCodes(other.document), ['SYN_UNSUPPORTED_STATEMENT']);

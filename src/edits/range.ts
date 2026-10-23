@@ -59,6 +59,15 @@ export type FormatRangeCode =
     | "ADAPTER_RANGE_OPAQUE"
     | "ADAPTER_RANGE_OWNERSHIP";
 
+export const FORMAT_RANGE_MESSAGES: Readonly<Record<FormatRangeCode, string>> = {
+    ADAPTER_RANGE_LINE: "The selected range must cover complete safe lines",
+    ADAPTER_RANGE_PROTECTED: "The selected range crosses protected SQL text",
+    ADAPTER_RANGE_EMPTY: "The selected range contains no SQL",
+    ADAPTER_RANGE_ANALYSIS: "The selected range could not be analyzed safely",
+    ADAPTER_RANGE_OPAQUE: "The selected range crosses an opaque SQL region",
+    ADAPTER_RANGE_OWNERSHIP: "The selected range crosses a syntax ownership boundary",
+};
+
 export type FormatRangeValidation =
     | { readonly ok: true; readonly modes: ReadonlyMap<string, "document" | "fragment"> }
     | { readonly ok: false; readonly code: FormatRangeCode; readonly target: EditTarget };

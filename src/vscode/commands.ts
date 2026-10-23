@@ -6,7 +6,7 @@ import { CANCELLED_RESULT, type EditExecutor } from "../edits/executor";
 import { applyEdits } from "../edits/offsets";
 import type { ComputeRequest, ComputeResult, EditSelection, EditTarget } from "../edits/types";
 import { commandOptions, documentNewline, isSupported, readConfiguration, renderTabSize } from "./config";
-import { diagnosticsForEditor, hostDiagnostic, logDebug, withSafeMessages, type Diagnostics } from "./diagnostics";
+import { diagnosticsForEditor, hostDiagnostic, logDebug, type Diagnostics } from "./diagnostics";
 import type { VscodeMessageKey, VscodeMessages } from "./messages";
 import { renderSafeDiagnosticReport } from "./safe-report";
 import { selectionTargets } from "./selections";
@@ -34,8 +34,12 @@ const RANGE_CODES: ReadonlySet<string> = new Set([
     "ADAPTER_RANGE_OWNERSHIP",
 ]);
 
-function hostRejection(code: string, severity: "warning" | "error"): ComputeResult {
-    return { status: "rejected", edits: [], selections: [], diagnostics: [hostDiagnostic(code, severity)], debugEvents: [] };
+function hostRejection(code: string, severity: "warning" | "error", message: string): ComputeResult {
+    return { status: "rejected", edits: [], selections: [], diagnostics: [hostDiagnostic(code, severity, message)], debugEvents: [] };
+}
+
+function staleDocument(): ComputeResult {
+    return hostRejection("ADAPTER_STALE_DOCUMENT", "warning", "The document changed before edits could be applied");
 }
 
 function isCurrent(context: CommandContext): boolean {
@@ -104,7 +108,7 @@ async function apply(
     policy: UnsupportedSyntaxPolicy
 ): Promise<ComputeResult> {
     if (!isCurrent(context)) {
-        return hostRejection("ADAPTER_STALE_DOCUMENT", "warning");
+        return staleDocument();
     }
     const { editor, document } = context;
     const output = applyEdits(context.source, result.edits);
@@ -124,8 +128,8 @@ async function apply(
     if (!applied || document.getText() !== output) {
         host.diagnostics.drop(document);
         return isCurrent(context)
-            ? hostRejection("ADAPTER_EDIT_REJECTED", "error")
-            : hostRejection("ADAPTER_STALE_DOCUMENT", "warning");
+            ? hostRejection("ADAPTER_EDIT_REJECTED", "error", "The editor rejected the formatting edits")
+            : staleDocument();
     }
     if (result.selections.length > 0) {
         // The edit is applied, so the document positions are in output coordinates.
@@ -146,7 +150,7 @@ async function run(
     token: vscode.CancellationToken
 ): Promise<ComputeResult> {
     host.diagnostics.drop(context.document);
-    const computed = withSafeMessages(await host.executor.run(computeRequest, token));
+    const computed = await host.executor.run(computeRequest, token);
     // Cancellation during computation wins over any result.
     const result = token.isCancellationRequested
         ? CANCELLED_RESULT

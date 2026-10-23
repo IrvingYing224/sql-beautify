@@ -4,7 +4,7 @@ import type { EditExecutor } from "../edits/executor";
 import { applyEdits } from "../edits/offsets";
 import type { EditTarget } from "../edits/types";
 import { documentNewline, isSupported, readConfiguration, renderTabSize, SUPPORTED_LANGUAGES, type Configuration } from "./config";
-import { hostDiagnostic, logDebug, withSafeMessages, type Diagnostics } from "./diagnostics";
+import { hostDiagnostic, logDebug, type Diagnostics } from "./diagnostics";
 
 /**
  * Document and range formatting providers. They only return edits: VS Code applies them, and the
@@ -12,7 +12,7 @@ import { hostDiagnostic, logDebug, withSafeMessages, type Diagnostics } from "./
  */
 export function registerProviders(executor: EditExecutor, diagnostics: Diagnostics): vscode.Disposable[] {
     function publishConfiguration(document: vscode.TextDocument, configuration: Extract<Configuration, { readonly ok: false }>): void {
-        diagnostics.publish(document, [hostDiagnostic(configuration.code, "error", configuration.optionKey)], "warn");
+        diagnostics.publish(document, [hostDiagnostic(configuration.code, "error", configuration.message)], "warn");
     }
 
     /** After a settings change, each settings error shown follows the settings without waiting for an edit (K25). */
@@ -58,7 +58,7 @@ export function registerProviders(executor: EditExecutor, diagnostics: Diagnosti
                 mode: "fragment",
             }));
         diagnostics.drop(document);
-        const result = withSafeMessages(await executor.run({
+        const result = await executor.run({
             op: "format",
             source,
             targets,
@@ -67,7 +67,7 @@ export function registerProviders(executor: EditExecutor, diagnostics: Diagnosti
             newline: documentNewline(document, source),
             tabSize: renderTabSize(formatting.tabSize),
             debug: configuration.debug,
-        }, token));
+        }, token);
         if (token.isCancellationRequested || document.version !== version || document.getText() !== source) {
             diagnostics.clear(document);
             return [];

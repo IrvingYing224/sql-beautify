@@ -24,7 +24,12 @@ export function isSupported(document: vscode.TextDocument): boolean {
 
 export type Configuration =
     | { readonly ok: true; readonly options: CanonicalFormatOptions; readonly debug: boolean }
-    | { readonly ok: false; readonly code: FormatConfigFailureCode; readonly optionKey: FormatOptionKey | null };
+    | {
+        readonly ok: false;
+        readonly code: FormatConfigFailureCode;
+        readonly message: string;
+        readonly optionKey: FormatOptionKey | null;
+    };
 
 /** Reads the sqlBeautify settings at the document's resource and language scope. */
 export function readConfiguration(document: vscode.TextDocument): Configuration {
@@ -42,7 +47,7 @@ export function readConfiguration(document: vscode.TextDocument): Configuration 
     const resolved = resolveFormatOptions(values);
     return resolved.ok
         ? { ok: true, options: resolved.options, debug: configuration.get<unknown>("debugDiagnostics") === true }
-        : { ok: false, code: resolved.code, optionKey: resolved.optionKey };
+        : { ok: false, code: resolved.code, message: resolved.message, optionKey: resolved.optionKey };
 }
 
 /** Explicit `formatSql` command arguments (for example from a keybinding) override the settings. */

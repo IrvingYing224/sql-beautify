@@ -12,7 +12,7 @@ import { caseKeyword, formatHiveDdl } from "../ddl/hive-ddl";
 import { resolveHiveDdlFormatOptions } from "../ddl/options";
 import type { DdlLayout } from "../ddl/types";
 import { mapSelection, mapThroughEdits } from "./offsets";
-import { blankRunEnd, blankRunStart, invalidDdlTarget, validateFormatTargets } from "./range";
+import { blankRunEnd, blankRunStart, FORMAT_RANGE_MESSAGES, invalidDdlTarget, validateFormatTargets } from "./range";
 import type { ComputeRequest, ComputeResult, Edit, EditDiagnostic, EditTarget } from "./types";
 
 type FormatRequest = Extract<ComputeRequest, { readonly op: "format" }>;
@@ -152,7 +152,7 @@ function computeFormat(request: FormatRequest, debugEvents: DebugEvent[] | undef
         // statement that formatOnPaste passes to the range provider (K26).
         return rejected([adapterDiagnostic(
             validation.code,
-            "The selected range is not a complete safe SQL range",
+            FORMAT_RANGE_MESSAGES[validation.code],
             validation.target,
             validation.target.id,
             "info"

@@ -114,7 +114,7 @@ test('H3: settings are read at the document scope; an invalid value stops the pr
             editor = h.open(SQL);
             assert.deepStrictEqual(await h.formatDocument(editor.document), []);
             assert.deepStrictEqual(published(h, editor.document),
-                [['CFG_OPTION_VALUE', 0, 0, 0, 'Formatter options are invalid (option: ' + invalid[0] + ')']]);
+                [['CFG_OPTION_VALUE', 0, 0, 0, 'Invalid formatter option value for ' + invalid[0]]]);
         }
         h.configuration = { 'sqlBeautify.keywordCase': 'bogus' };
         for (var command of ['formatSql', 'formatHiveDdl', 'extractHiveDdl']) {
@@ -241,7 +241,7 @@ test('H8: the single-range API and overlapping ranges', function() {
             [['ADAPTER_RANGE_LINE', 2, 20, 28, 'The selected range must cover complete safe lines']]);
         await h.formatRanges(document, [[0, 18], [0, 18]]);
         assert.deepStrictEqual(published(h, document),
-            [['ADAPTER_TRANSACTION_TARGET', 0, 0, 38, 'The formatting targets are invalid or overlapping']]);
+            [['ADAPTER_TRANSACTION_TARGET', 0, 0, 38, 'Formatting targets overlap']]);
         assert.strictEqual(editor.editCalls, 0);
     });
 });

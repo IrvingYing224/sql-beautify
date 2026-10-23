@@ -4,14 +4,15 @@ import type { UnsupportedSyntaxPolicy } from "../core/config/options";
 import type { DiagnosticSeverity } from "../core/diagnostics/diagnostic";
 import { sortDiagnostics } from "../edits/compute";
 import type { ComputeResult, EditDiagnostic } from "../edits/types";
-import { safeDiagnosticMessage } from "./safe-messages";
+
+const MAX_MESSAGE_CHARACTERS = 200;
 
 /** A diagnostic the host itself reports, at the start of the document. */
-export function hostDiagnostic(code: string, severity: DiagnosticSeverity, optionKey: string | null = null): EditDiagnostic {
+export function hostDiagnostic(code: string, severity: DiagnosticSeverity, message: string): EditDiagnostic {
     return {
         code,
         severity,
-        message: safeDiagnosticMessage(code, null, optionKey),
+        message,
         capabilityId: null,
         span: { start: 0, end: 0 },
         recovery: "preserve-target",
@@ -19,15 +20,12 @@ export function hostDiagnostic(code: string, severity: DiagnosticSeverity, optio
     };
 }
 
-/** Replaces each message with the static safe message for its code; core messages may quote SQL. */
-export function withSafeMessages(result: ComputeResult): ComputeResult {
-    return {
-        ...result,
-        diagnostics: result.diagnostics.map((diagnostic) => ({
-            ...diagnostic,
-            message: safeDiagnosticMessage(diagnostic.code, diagnostic.capabilityId),
-        })),
-    };
+/** The editor shows a message as it is, cut to 200 characters: core messages may quote SQL (K23). */
+function shownMessage(message: string): string {
+    const characters = Array.from(message);
+    return characters.length <= MAX_MESSAGE_CHARACTERS
+        ? message
+        : `${characters.slice(0, MAX_MESSAGE_CHARACTERS - 1).join("")}…`;
 }
 
 /**
@@ -162,7 +160,7 @@ export class Diagnostics {
         this.collection.set(document.uri, visible.map((item) => {
             const diagnostic = new vscode.Diagnostic(
                 new vscode.Range(document.positionAt(item.span.start), document.positionAt(item.span.end)),
-                item.message,
+                shownMessage(item.message),
                 SEVERITIES[item.severity]
             );
             diagnostic.code = item.code;
