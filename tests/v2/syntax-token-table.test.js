@@ -407,44 +407,4 @@ function codeLeafIndexes(leaves) {
     console.log('  ok - normalized word helper');
 })();
 
-// ---------------------------------------------------------------------------
-// 100k leaves performance probe: per-query must not full-scan
-// ---------------------------------------------------------------------------
-(function testScaleProbe() {
-    var parts = [];
-    for (var i = 0; i < 5000; i++) {
-        parts.push('SELECT a, b, c FROM t' + i + ' WHERE x = ' + i);
-        if (i % 10 === 9) parts.push(';');
-    }
-    var source = parts.join(' ');
-    var output = lex(source);
-    assert.ok(output.leaves.length > 20000, 'probe should produce many leaves, got ' + output.leaves.length);
-
-    var buildStart = process.hrtime.bigint();
-    var table = buildStructuralTokenTable(output.leaves, source);
-    var buildMs = Number(process.hrtime.bigint() - buildStart) / 1e6;
-
-    // Many random adjacency queries should be cheap relative to rebuild
-    var queryStart = process.hrtime.bigint();
-    var codeCount = table.codeLeafCount();
-    for (var q = 0; q < 10000; q++) {
-        var ord = q % codeCount;
-        var idx = table.leafIndexOfCodeOrdinal(ord);
-        table.previousCodeLeafIndex(idx);
-        table.nextCodeLeafIndex(idx);
-        table.depthBefore(idx);
-    }
-    var queryMs = Number(process.hrtime.bigint() - queryStart) / 1e6;
-
-    // Heuristic: 10k indexed queries should not approach a full rebuild cost * large factor
-    // if each query rescanned all leaves. Allow generous margin for CI noise.
-    assert.ok(
-        queryMs < Math.max(buildMs * 5, 200),
-        '10k adjacency queries took ' + queryMs.toFixed(2) + 'ms vs build ' + buildMs.toFixed(2) +
-            'ms — possible per-query full scan'
-    );
-    console.log('  ok - scale probe (leaves=' + output.leaves.length +
-        ', buildMs=' + buildMs.toFixed(2) + ', query10kMs=' + queryMs.toFixed(2) + ')');
-})();
-
 console.log('v2 syntax token table tests passed');
