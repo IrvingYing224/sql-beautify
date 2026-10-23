@@ -5,15 +5,14 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
-var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
-var dialectsPath = path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'index.js');
+var dialectsPath = path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'registry.js');
+var capabilityStatePath = path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'capability-state.js');
 var lexicalProfilePath = path.join(root, '.tmp', 'v2-core', 'core', 'lexer', 'lexical-profile.js');
 
-assert.ok(fs.existsSync(corePath), 'build:v2-core must produce root runtime before registry tests');
 assert.ok(fs.existsSync(dialectsPath), 'dialects module must exist after build');
 
-var core = require(corePath);
 var dialects = require(dialectsPath);
+var capabilityState = require(capabilityStatePath);
 var lexicalProfile = require(lexicalProfilePath);
 
 var CANONICAL = ['generic', 'hive', 'mysql', 'postgresql'];
@@ -149,25 +148,13 @@ function collectDialectSources() {
 }
 
 // ---------------------------------------------------------------------------
-// Root runtime must not leak registry API
-// ---------------------------------------------------------------------------
-assert.deepStrictEqual(
-    Object.keys(core).sort(),
-    ['formatSql', 'lexSql'],
-    'Wave 4 root runtime keys must remain limited to formatSql and lexSql'
-);
-assert.strictEqual(typeof core.getDialectCapabilityRegistry, 'undefined');
-assert.strictEqual(typeof core.getDialect, 'undefined');
-assert.strictEqual(typeof core.listDialects, 'undefined');
-
-// ---------------------------------------------------------------------------
 // Public registry API
 // ---------------------------------------------------------------------------
 assert.strictEqual(typeof dialects.getDialectCapabilityRegistry, 'function');
 assert.strictEqual(typeof dialects.listDialects, 'function');
 assert.strictEqual(typeof dialects.getDialect, 'function');
-assert.strictEqual(typeof dialects.isRecognizedCapabilityState, 'function');
-assert.strictEqual(typeof dialects.isParserStructuredCapabilityState, 'function');
+assert.strictEqual(typeof capabilityState.isRecognizedCapabilityState, 'function');
+assert.strictEqual(typeof capabilityState.isParserStructuredCapabilityState, 'function');
 
 [
     ['recognized', true, false],
@@ -179,12 +166,12 @@ assert.strictEqual(typeof dialects.isParserStructuredCapabilityState, 'function'
     [undefined, false, false]
 ].forEach(function(row) {
     assert.strictEqual(
-        dialects.isRecognizedCapabilityState(row[0]),
+        capabilityState.isRecognizedCapabilityState(row[0]),
         row[1],
         String(row[0]) + ' recognized-state classification'
     );
     assert.strictEqual(
-        dialects.isParserStructuredCapabilityState(row[0]),
+        capabilityState.isParserStructuredCapabilityState(row[0]),
         row[2],
         String(row[0]) + ' parser-structured classification'
     );

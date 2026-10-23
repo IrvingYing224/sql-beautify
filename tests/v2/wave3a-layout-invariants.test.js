@@ -2,7 +2,7 @@
 
 var assert = require('assert');
 var childProcess = require('child_process');
-var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
+var analysisApi = require('../../.tmp/v2-core/core/analysis/analyze.js');
 var artifactApi = require('../../.tmp/v2-core/core/layout/artifact.js');
 var factoryApi = require('../../.tmp/v2-core/core/layout/doc-factory.js');
 var invariantApi = require('../../.tmp/v2-core/core/layout/invariants.js');
@@ -276,7 +276,7 @@ function fullCanonicalRoot(factory) {
         "  wrapped.set(id, replacement);",
         "  return replacement;",
         "};",
-        "const analysis = require('./.tmp/v2-core/core/analysis/index.js');",
+        "const analysis = require('./.tmp/v2-core/core/analysis/analyze.js');",
         "const factoryApi = require('./.tmp/v2-core/core/layout/doc-factory.js');",
         "[",
         "  { dialect: 'hive', source: 'SELECT (SELECT 1)', kind: 'expression', subtypeKey: 'expressionKind', subtype: 'subquery', capabilityId: 'subquery-expression' },",
@@ -433,7 +433,7 @@ function fullCanonicalRoot(factory) {
         "  Object.freeze(wrapped);",
         "  return wrapped;",
         "};",
-        "const analysisApi = require('./.tmp/v2-core/core/analysis/index.js');",
+        "const analysisApi = require('./.tmp/v2-core/core/analysis/analyze.js');",
         "const factoryApi = require('./.tmp/v2-core/core/layout/doc-factory.js');",
         "const invariantApi = require('./.tmp/v2-core/core/layout/invariants.js');",
         "const statements = [];",

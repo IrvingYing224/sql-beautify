@@ -1,7 +1,7 @@
 'use strict';
 
 var assert = require('assert');
-var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
+var analysisApi = require('../../.tmp/v2-core/core/analysis/analyze.js');
 var alignmentApi = require('../../.tmp/v2-core/core/layout/alignment-policy.js');
 var compilerApi = require('../../.tmp/v2-core/core/layout/compiler.js');
 var formatApi = require('../../.tmp/v2-core/core/api/format.js');

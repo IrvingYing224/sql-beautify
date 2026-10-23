@@ -5,7 +5,7 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
-var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
+var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'lexer', 'lossless-lexer.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
 
 assert.ok(fs.existsSync(corePath), 'build:v2-core required');
@@ -15,9 +15,6 @@ var core = require(corePath);
 var tokenTableMod = require(tokenTablePath);
 var buildStructuralTokenTable = tokenTableMod.buildStructuralTokenTable;
 assert.strictEqual(typeof buildStructuralTokenTable, 'function');
-
-// Root must not export token table or other internal helpers.
-assert.deepStrictEqual(Object.keys(core).sort(), ['formatSql', 'lexSql']);
 
 function lex(source, dialect) {
     return core.lexSql(source, dialect ? { dialect: dialect } : undefined);

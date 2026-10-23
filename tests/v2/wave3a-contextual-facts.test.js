@@ -1,7 +1,7 @@
 'use strict';
 
 var assert = require('assert');
-var analysis = require('../../.tmp/v2-core/core/analysis/index.js');
+var analysis = require('../../.tmp/v2-core/core/analysis/analyze.js');
 
 function analyze(source, dialect) {
     var artifact = analysis.analyzeSql(source, {

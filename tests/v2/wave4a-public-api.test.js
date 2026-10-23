@@ -1,11 +1,8 @@
 var assert = require('assert');
-var core = require('../../.tmp/v2-core/core/index');
+var core = require('../../.tmp/v2-core/core/api/public-format');
 var targetCore = require('../../.tmp/v2-core/core/api/format');
 var directModule = require('../../.tmp/v2-core/adapters/executor/direct');
 var languageRegistry = require('../../.tmp/v2-core/adapters/vscode/supported-languages');
-
-assert.deepStrictEqual(Object.keys(core).sort(), ['formatSql', 'lexSql'],
-    'Wave 4 core root must expose only the public formatter and lexer values');
 
 var formatted = core.formatSql('select a from t', {
     dialect: 'hive',

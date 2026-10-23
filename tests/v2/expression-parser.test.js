@@ -22,7 +22,7 @@ var typeParserPath = path.join(
     'syntax',
     'type-parser.js'
 );
-var dialectsPath = path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'index.js');
+var dialectsPath = path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'registry.js');
 var dialectRegistryPath = path.join(
     root,
     '.tmp',

@@ -1,7 +1,7 @@
 'use strict';
 
 var assert = require('assert');
-var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
+var analysisApi = require('../../.tmp/v2-core/core/analysis/analyze.js');
 var formatApi = require('../../.tmp/v2-core/core/api/format.js');
 var lexerApi = require('../../.tmp/v2-core/core/lexer/lossless-lexer.js');
 var claimsApi = require('../../.tmp/v2-core/core/layout/verbatim-claims.js');

@@ -6,7 +6,7 @@ var path = require('path');
 var root = path.join(__dirname, '..', '..');
 var parser = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js'));
 var parserContext = require(path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser-context.js'));
-var dialects = require(path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'index.js'));
+var dialects = require(path.join(root, '.tmp', 'v2-core', 'core', 'dialects', 'registry.js'));
 
 function flatten(rootNode) {
     var nodes = [];

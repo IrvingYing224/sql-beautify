@@ -6,7 +6,10 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
-var core = require('../../.tmp/v2-core/core');
+var core = {
+    formatSql: require('../../.tmp/v2-core/core/api/public-format').formatSql,
+    lexSql: require('../../.tmp/v2-core/core/lexer/lossless-lexer').lexSql
+};
 var ddl = require('../../.tmp/v2-core/experimental/ddl');
 var fixtures = require('../fixtures/v2-wave4-ddl');
 var transaction = require('../../.tmp/v2-core/adapters/transaction/prepare');

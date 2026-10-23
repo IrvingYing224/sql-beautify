@@ -8,7 +8,7 @@ var root = path.join(__dirname, '..', '..');
 var parserPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'parser.js');
 var factoryPath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'node-factory.js');
 var tokenTablePath = path.join(root, '.tmp', 'v2-core', 'core', 'syntax', 'token-table.js');
-var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
+var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'lexer', 'lossless-lexer.js');
 
 assert.ok(fs.existsSync(parserPath), 'Wave 2D parser build is required');
 assert.ok(fs.existsSync(factoryPath), 'Wave 2D node factory build is required');

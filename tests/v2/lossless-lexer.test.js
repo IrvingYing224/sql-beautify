@@ -5,7 +5,7 @@ var path = require('path');
 var fs = require('fs');
 
 var root = path.join(__dirname, '..', '..');
-var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'index.js');
+var corePath = path.join(root, '.tmp', 'v2-core', 'core', 'lexer', 'lossless-lexer.js');
 assert.ok(fs.existsSync(corePath), 'build:v2-core must produce .tmp/v2-core before running lexer tests');
 
 var core = require(corePath);
@@ -902,19 +902,6 @@ test('keyword folding is ASCII-only', function() {
         assert.strictEqual(lexSql(raw, { dialect: 'postgresql' }).leaves[0].kind,
             'keyword', 'ASCII keyword fold must preserve ' + raw);
     });
-});
-
-test('root public API only exposes approved value exports', function() {
-    var runtimeKeys = Object.keys(core).sort();
-    assert.deepStrictEqual(
-        runtimeKeys,
-        ['formatSql', 'lexSql'],
-        'compiled core/index.js must only expose public values at runtime, got ' + runtimeKeys.join(',')
-    );
-    assert.strictEqual(typeof core.lexSql, 'function');
-    assert.strictEqual(typeof core.formatSql, 'function');
-    assert.strictEqual(core.getLexicalProfile, undefined);
-    assert.strictEqual(core.listLexicalProfiles, undefined);
 });
 
 // ---------------------------------------------------------------------------

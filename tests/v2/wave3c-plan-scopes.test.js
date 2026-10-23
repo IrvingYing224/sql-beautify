@@ -1,7 +1,7 @@
 'use strict';
 
 var assert = require('assert');
-var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
+var analysisApi = require('../../.tmp/v2-core/core/analysis/analyze.js');
 var compilerApi = require('../../.tmp/v2-core/core/layout/compiler.js');
 var optionsApi = require('../../.tmp/v2-core/core/config/resolve-options.js');
 var planApi = require('../../.tmp/v2-core/core/layout/plan.js');

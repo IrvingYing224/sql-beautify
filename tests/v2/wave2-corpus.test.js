@@ -5,7 +5,7 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..', '..');
-var analysis = require(path.join(root, '.tmp', 'v2-core', 'core', 'analysis', 'index.js'));
+var analysis = require(path.join(root, '.tmp', 'v2-core', 'core', 'analysis', 'analyze.js'));
 var evaluationCases = require('../fixtures/v2-sql-corpus-cases');
 
 function flatten(rootNode) {

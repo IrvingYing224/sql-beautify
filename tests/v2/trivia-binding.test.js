@@ -3,7 +3,7 @@
 var assert = require('assert');
 var parser = require('../../.tmp/v2-core/core/syntax/parser');
 var tokenTable = require('../../.tmp/v2-core/core/syntax/token-table');
-var analysis = require('../../.tmp/v2-core/core/analysis');
+var analysis = require('../../.tmp/v2-core/core/analysis/structural-index');
 
 function buildIndex(source, result, dialect) {
     return analysis.buildStructuralIndex({

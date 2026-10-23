@@ -4,7 +4,7 @@ var assert = require('assert');
 var lexer = require('../../.tmp/v2-core/core/lexer/lossless-lexer.js');
 var parser = require('../../.tmp/v2-core/core/syntax/parser.js');
 var tokenTable = require('../../.tmp/v2-core/core/syntax/token-table.js');
-var analysis = require('../../.tmp/v2-core/core/analysis/index.js');
+var analysis = require('../../.tmp/v2-core/core/analysis/structural-index.js');
 var analyzer = require('../../.tmp/v2-core/core/analysis/analyze.js');
 var dialectRegistry = require('../../.tmp/v2-core/core/dialects/registry.js');
 
@@ -61,7 +61,7 @@ function directBuild(built, root) {
 
 (function testAnalyzeSqlConsumesRetainedParseArtifact() {
     var source = 'SELECT a, b FROM t WHERE a > 0';
-    var output = analysis.analyzeSql(source, { dialect: 'hive', mode: 'document' });
+    var output = analyzer.analyzeSql(source, { dialect: 'hive', mode: 'document' });
     var parsed = parser.parseSql(source, { dialect: 'hive', mode: 'document' });
 
     assert.strictEqual(output.status, 'analyzed');

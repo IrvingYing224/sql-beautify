@@ -1,7 +1,7 @@
 'use strict';
 
 var assert = require('assert');
-var analysisApi = require('../../.tmp/v2-core/core/analysis/index.js');
+var analysisApi = require('../../.tmp/v2-core/core/analysis/analyze.js');
 var artifactApi = require('../../.tmp/v2-core/core/layout/artifact.js');
 var displayApi = require('../../.tmp/v2-core/core/renderer/display-width.js');
 var environmentApi = require('../../.tmp/v2-core/core/renderer/environment.js');
