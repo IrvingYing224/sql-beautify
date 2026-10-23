@@ -3,6 +3,7 @@ import type {
     OriginalTextFormatResult,
     SafeFormatResult,
 } from "./format-result";
+import { floorViolation, type ExpectedLeafText } from "./floor";
 import { MAX_FORMAT_SOURCE_CODE_UNITS } from "./limits";
 import { analyzeSql } from "../analysis/analyze";
 import type { AnalyzedArtifact } from "../analysis/types";
@@ -13,8 +14,6 @@ import {
     type DebugEvent,
 } from "../diagnostics/debug-event";
 import { resolveFormatOptions } from "../config/resolve-options";
-import { lexSql } from "../lexer/lossless-lexer";
-import { isTemplateFragment, type SourceLeaf, type TokenKind } from "../lexer/token";
 import { compileLayoutPlan } from "../layout/compiler";
 import type { LayoutArtifact } from "../layout/artifact";
 import {
@@ -43,21 +42,6 @@ export interface FormatSqlExecution {
     readonly result: FormatResult;
     readonly debugEvents: readonly DebugEvent[];
 }
-
-/** A non-whitespace source leaf, its rendered counterpart, and whether whitespace precedes each. */
-export interface LeafPair {
-    readonly source: SourceLeaf;
-    readonly output: SourceLeaf;
-    readonly sourceGap: boolean;
-    readonly outputGap: boolean;
-}
-
-const WORD_KINDS: ReadonlySet<TokenKind> = new Set([
-    "keyword",
-    "identifier",
-    "number",
-    "parameter",
-]);
 
 function spanForSource(source: string) {
     return Object.freeze({ start: 0, end: source.length });
@@ -171,134 +155,27 @@ function compileAndRender(plan: LayoutPlan, environment: RenderEnvironment): Ren
 }
 
 /**
- * Safety floor 2 (plan §4) glue rules on token-equivalent pairs: adjacent word-like leaves keep
- * whether whitespace separates them, and a template fragment loses none of the whitespace around
- * it. The lexer makes each fragment one protected leaf, so token equivalence already keeps its
- * inside free of new whitespace and case changes.
+ * The text formatSql emits for a source leaf: re-cased only where the layout plan changes keyword
+ * case, which the CST must also allow (a code leaf in a keyword-case role). Exported for the golden
+ * runner's self-test.
  */
-export function glueKept(pairs: readonly LeafPair[]): boolean {
-    for (let index = 0; index < pairs.length; index += 1) {
-        const pair = pairs[index]!;
-        const previous = pairs[index - 1];
-        if (
-            previous !== undefined &&
-            pair.sourceGap !== pair.outputGap &&
-            ((WORD_KINDS.has(previous.source.kind) && WORD_KINDS.has(pair.source.kind)) ||
-                (pair.sourceGap &&
-                    (isTemplateFragment(previous.source) || isTemplateFragment(pair.source))))
-        ) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/**
- * Compares the re-lexed output with the source leaf by leaf: "token" when a token changed, "glue"
- * when only floor-2 glue broke, null when both hold. Exported for the golden runner's self-test.
- */
-export function tokenEquivalent(
+export function plannedLeafText(
     analysis: AnalyzedArtifact,
-    output: string,
-    keywordCase: "upper" | "lower",
-    plan: LayoutPlan
-): "token" | "glue" | null {
-    const lexed = lexSql(output, { dialect: analysis.dialect });
-    if (lexed.diagnostics.some((value) => value.severity === "error")) {
-        return "token";
-    }
-    const pairs: LeafPair[] = [];
-    let sourceIndex = 0;
-    let outputIndex = 0;
-    let glued = false;
-    // Removing whitespace beside a template fragment lets the fragment absorb its neighbours when
-    // the output is lexed again: a glue violation (plan §4 floor 2), not a changed token. The check
-    // then skips the absorbed source leaves and goes on, so a later changed token is still reported.
-    const absorb = (outputLeaf: SourceLeaf): boolean => {
-        if (!isTemplateFragment(outputLeaf)) {
-            return false;
+    plan: LayoutPlan,
+    keywordCase: "upper" | "lower"
+): ExpectedLeafText {
+    return (leaf) => {
+        if (plan.leafEmissions[leaf.id] !== "keyword-case") {
+            return leaf.raw;
         }
-        let text = "";
-        let index = sourceIndex - 1;
-        for (
-            ;
-            index < analysis.leaves.length && text.length < outputLeaf.raw.length;
-            index += 1
-        ) {
-            const leaf = analysis.leaves[index]!;
-            if (leaf.kind !== "whitespace" && leaf.kind !== "newline") {
-                text += plan.leafEmissions[leaf.id] === "keyword-case"
-                    ? applyKeywordCase(leaf.raw, keywordCase) ?? leaf.raw
-                    : leaf.raw;
-            }
-        }
-        if (text !== outputLeaf.raw) {
-            return false;
-        }
-        glued = true;
-        sourceIndex = index;
-        return true;
+        const syntax = analysis.index.leafContext(leaf.id).syntax;
+        return leaf.channel === "code" &&
+            syntax !== null &&
+            syntax.keywordCaseEligible === true &&
+            isKeywordCaseRole(syntax.syntaxRole)
+            ? applyKeywordCase(leaf.raw, keywordCase)
+            : null;
     };
-    while (true) {
-        let sourceLeaf: SourceLeaf | null = null;
-        let sourceGap = pairs.length === 0;
-        while (sourceIndex < analysis.leaves.length) {
-            const candidate = analysis.leaves[sourceIndex++]!;
-            if (candidate.kind !== "whitespace" && candidate.kind !== "newline") {
-                sourceLeaf = candidate;
-                break;
-            }
-            sourceGap = true;
-        }
-        let outputLeaf: SourceLeaf | null = null;
-        let outputGap = pairs.length === 0;
-        while (outputIndex < lexed.leaves.length) {
-            const candidate = lexed.leaves[outputIndex++]!;
-            if (candidate.kind !== "whitespace" && candidate.kind !== "newline") {
-                outputLeaf = candidate;
-                break;
-            }
-            outputGap = true;
-        }
-        if (sourceLeaf === null || outputLeaf === null) {
-            if (sourceLeaf !== null || outputLeaf !== null) {
-                return "token";
-            }
-            return glued || !glueKept(pairs) ? "glue" : null;
-        }
-        if (
-            sourceLeaf.kind !== outputLeaf.kind ||
-            sourceLeaf.channel !== outputLeaf.channel
-        ) {
-            if (!absorb(outputLeaf)) {
-                return "token";
-            }
-            continue;
-        }
-        const plannedTransform =
-            plan.leafEmissions[sourceLeaf.id] === "keyword-case";
-        if (plannedTransform) {
-            const syntax = analysis.index.leafContext(sourceLeaf.id).syntax;
-            if (
-                sourceLeaf.channel !== "code" ||
-                syntax === null ||
-                syntax.keywordCaseEligible !== true ||
-                !isKeywordCaseRole(syntax.syntaxRole)
-            ) {
-                return "token";
-            }
-        }
-        const expected = plannedTransform
-            ? applyKeywordCase(sourceLeaf.raw, keywordCase)
-            : sourceLeaf.raw;
-        if (expected === null || outputLeaf.raw !== expected) {
-            if (!absorb(outputLeaf)) {
-                return "token";
-            }
-            continue;
-        }
-        pairs.push({ source: sourceLeaf, output: outputLeaf, sourceGap, outputGap });
-    }
 }
 
 function validMode(value: unknown): value is ParseMode {
@@ -416,11 +293,11 @@ export function formatSql(
             }
         }
         const rendered = output.rendered;
-        const failure = tokenEquivalent(
-            analysis,
+        const failure = floorViolation(
+            analysis.leaves,
             rendered.text,
-            options.keywordCase,
-            plan
+            analysis.dialect,
+            plannedLeafText(analysis, plan, options.keywordCase)
         );
         if (failure === "token") {
             const value = diagnostic(

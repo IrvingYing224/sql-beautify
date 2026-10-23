@@ -16,6 +16,7 @@ var knownIssuesPath = path.join(__dirname, 'known-issues.json');
 var core = (function() {
     var modules = {
         format: 'core/api/format',
+        floor: 'core/api/floor',
         lexer: 'core/lexer/lossless-lexer',
         analyze: 'core/analysis/analyze',
         resolveOptions: 'core/config/resolve-options',
@@ -48,6 +49,7 @@ var core = (function() {
     return require(outfile);
 })();
 var format = core.format;
+var floor = core.floor;
 var lexer = core.lexer;
 var analyze = core.analyze;
 var resolveOptions = core.resolveOptions;
@@ -469,8 +471,8 @@ function selfTest() {
         var actual = Object.keys(floorFailures(probe[0], probe[1], {})).join();
         var a = codeLeaves(probe[0], 'hive');
         var b = codeLeaves(probe[1], 'hive');
-        // Token-equivalent probes hold for the runtime rule in format.ts as well.
-        var kept = probe[2] === 'token' || format.glueKept(a.map(function(leaf, i) {
+        // Token-equivalent probes hold for the runtime rule in floor.ts as well.
+        var kept = probe[2] === 'token' || floor.glueKept(a.map(function(leaf, i) {
             return { source: leaf, output: b[i], sourceGap: leaf.gap, outputGap: b[i].gap };
         })) === (probe[2] === '');
         if (actual !== probe[2] || !kept) {
@@ -488,7 +490,8 @@ function selfTest() {
         ['SELECT ${v} + 1 FROM CORRUPTED', 'token'],
         ['SELECT ${v}+ 1 FROM CORRUPTED', 'token'],
     ].forEach(function(probe) {
-        var actual = format.tokenEquivalent(analysis, probe[0], options.keywordCase, plan);
+        var actual = floor.floorViolation(analysis.leaves, probe[0], analysis.dialect,
+            format.plannedLeafText(analysis, plan, options.keywordCase));
         if (actual !== probe[1]) {
             throw new Error('template self-test ' + JSON.stringify(probe) + ' reported ' +
                 JSON.stringify(actual));
