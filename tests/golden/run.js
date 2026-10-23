@@ -25,9 +25,9 @@ var core = (function() {
         environment: 'core/renderer/environment',
         parser: 'core/syntax/parser',
         typeCursor: 'core/syntax/type-cursor',
-        hiveDdl: 'experimental/ddl/hive-ddl',
-        extract: 'experimental/ddl/extract',
-        ddlTransaction: 'adapters/transaction/experimental-ddl'
+        hiveDdl: 'ddl/hive-ddl',
+        extract: 'ddl/extract',
+        compute: 'edits/compute'
     };
     var outfile = path.join(root, '.tmp', 'tests', 'golden-core.cjs');
     require('esbuild').buildSync({
@@ -60,7 +60,7 @@ var parser = core.parser;
 var typeCursor = core.typeCursor;
 var hiveDdl = core.hiveDdl;
 var extract = core.extract;
-var ddlTransaction = core.ddlTransaction;
+var compute = core.compute;
 
 var HEADER = '-- golden: ';
 var FIELDS = ['op', 'options', 'mode', 'newline', 'tabSize', 'startColumn'];
@@ -178,41 +178,40 @@ function codesOf(diagnostics) {
     return diagnostics.map(function(value) { return value.code; });
 }
 
-// DDL goes through the adapter transaction so the text is the final, newline-normalized replacement;
-// status and codes are the operation's own. startColumn is modelled as that many spaces before the
-// target on its line. Adapter codes are added only when the adapter drops an editable result.
-async function runDdl(source, env) {
+// The operation as computeEdits runs it on a target: startColumn is modelled as that many spaces
+// before the target on its line.
+function ddlOperation(source, env) {
     var prefix = ' '.repeat(env.startColumn);
-    var document = { identity: {}, source: prefix + source, version: 1 };
-    var execute = env.op === 'formatHiveDdl' ? hiveDdl.executeFormatHiveDdl : extract.executeExtractDdl;
-    var raw = null;
-    var edits = [];
-    var transaction = await ddlTransaction.runExperimentalDdlTransaction({
-        document: document,
-        targets: [{ id: 'golden', start: prefix.length, end: document.source.length }],
+    var target = { id: 'golden', start: prefix.length, end: prefix.length + source.length, mode: 'fragment' };
+    var layout = compute.ddlLayout(prefix + source, target, env.newline, env.tabSize);
+    return env.op === 'formatHiveDdl'
+        ? hiveDdl.formatHiveDdl(source, env.options, layout)
+        : extract.extractDdl(source, env.options, layout);
+}
+
+// DDL goes through computeEdits so the text is the final replacement; status and codes are the
+// operation's own. computeEdits codes are added only when it drops an editable result.
+function runDdl(source, env) {
+    var prefix = ' '.repeat(env.startColumn);
+    var document = prefix + source;
+    var result = compute.computeEdits({
+        op: env.op === 'formatHiveDdl' ? 'hive-ddl' : 'extract',
+        source: document,
+        targets: [{ id: 'golden', start: prefix.length, end: document.length, mode: 'fragment' }],
+        selections: [],
+        options: env.options,
         newline: env.newline,
         tabSize: env.tabSize,
-    }, function(text, context) {
-        raw = execute(text, env.options, false, context.tabSize, context.startColumn);
-        return raw;
-    }, {
-        currentDocument: function() { return document; },
-        apply: function(prepared) {
-            edits = prepared.edits;
-            return Promise.resolve(true);
-        },
+        debug: false,
     });
-    var text = document.source;
-    edits.slice().sort(function(a, b) { return b.start - a.start; }).forEach(function(edit) {
+    var text = document;
+    result.edits.slice().sort(function(a, b) { return b.start - a.start; }).forEach(function(edit) {
         text = text.slice(0, edit.start) + edit.text + text.slice(edit.end);
     });
-    if (raw === null) {
-        // The transaction rejected the target (e.g. a lexical error) before running the operation.
-        raw = execute(source, env.options, false, env.tabSize, env.startColumn);
-    }
+    var raw = ddlOperation(source, env);
     var codes = codesOf(raw.diagnostics);
-    if (transaction.status === 'rejected' && (raw.status === 'formatted' || raw.status === 'extracted')) {
-        codes = codes.concat(codesOf(transaction.diagnostics));
+    if (result.status === 'rejected' && (raw.status === 'formatted' || raw.status === 'extracted')) {
+        codes = codes.concat(codesOf(result.diagnostics));
     }
     return { text: text.slice(prefix.length), status: raw.status, codes: codes };
 }
@@ -282,9 +281,7 @@ function sqlCaseAuthorized(source, options, dialect, mode, a) {
 // with columns, PARTITIONED BY, STORED AS) gets any, read with the parser calls the formatter uses.
 function ddlCaseAuthorized(source, env, a) {
     var allowed = new Set();
-    var status = hiveDdl.executeFormatHiveDdl(
-        source, env.options, false, env.tabSize, env.startColumn
-    ).status;
+    var status = ddlOperation(source, env).status;
     if (status !== 'formatted' && status !== 'unchanged') {
         return allowed;
     }
