@@ -7,7 +7,6 @@ import type {
     LayoutPlanBuilder,
     LayoutScopeDecision,
 } from "./plan";
-import type { LayoutAlignmentPlan } from "./alignment-policy";
 import type { DominatingVerbatimClaims } from "./verbatim-claims";
 
 /** Facts the policies record while registering actions. */
@@ -50,7 +49,6 @@ export interface QueryLayoutContext {
     readonly authorityByNodeId: Int32Array;
     readonly canonicalGapEnds: Int32Array;
     readonly registeredGapEnds: Int32Array;
-    readonly alignmentTargetByLeaf: Int32Array;
     readonly scopeDeltas: Int32Array;
     readonly commentPrefix: Int32Array;
     readonly verbatimPrefix: Int32Array;
@@ -132,8 +130,7 @@ function buildAuthorityProjection(
 
 export function createQueryLayoutContext(
     builder: LayoutPlanBuilder,
-    claims: DominatingVerbatimClaims,
-    alignmentPlan: LayoutAlignmentPlan | null = null
+    claims: DominatingVerbatimClaims
 ): QueryLayoutContext | null {
     const artifact = builder.analysis;
     const leaves = artifact.leaves;
@@ -153,25 +150,6 @@ export function createQueryLayoutContext(
     );
     if (prefixes === null) {
         return null;
-    }
-    const alignmentTargetByLeaf = new Int32Array(leaves.length);
-    alignmentTargetByLeaf.fill(-1);
-    if (alignmentPlan !== null) {
-        for (const target of alignmentPlan.targets) {
-            if (
-                !Number.isSafeInteger(target.leafId) ||
-                target.leafId < 0 ||
-                target.leafId >= leaves.length ||
-                !Number.isSafeInteger(target.targetColumn) ||
-                target.targetColumn <= 0 ||
-                target.targetColumn >= builder.options.maxAlignWidth ||
-                target.targetColumn > builder.budget.maxGeneratedColumnsPerLine ||
-                alignmentTargetByLeaf[target.leafId] !== -1
-            ) {
-                return null;
-            }
-            alignmentTargetByLeaf[target.leafId] = target.targetColumn;
-        }
     }
     const analysis: LayoutAnalysisView = Object.freeze({
         leafCount: leaves.length,
@@ -224,7 +202,6 @@ export function createQueryLayoutContext(
         authorityByNodeId,
         canonicalGapEnds: new Int32Array(leaves.length + 1).fill(-1),
         registeredGapEnds: new Int32Array(leaves.length + 1).fill(-1),
-        alignmentTargetByLeaf,
         scopeDeltas: new Int32Array(leaves.length + 1),
         commentPrefix: prefixes.commentPrefix,
         verbatimPrefix: prefixes.verbatimPrefix,

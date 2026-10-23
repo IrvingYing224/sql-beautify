@@ -7,7 +7,6 @@ import type {
 } from "./plan";
 import { createLayoutPlanBuilder } from "./plan";
 import { applyDialectLayout } from "./dialect-policy";
-import type { LayoutAlignmentPlan } from "./alignment-policy";
 import { createQueryLayoutContext } from "./query-layout-context";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
 
@@ -54,8 +53,7 @@ export function buildIdentityLayoutPlan(
  */
 export function buildLayoutPlan(
     analysis: AnalyzedArtifact,
-    options: CanonicalFormatOptions,
-    alignmentPlan: LayoutAlignmentPlan | null = null
+    options: CanonicalFormatOptions
 ): LayoutPlanResult {
     const builder = createLayoutPlanBuilder(analysis, options);
     if (builder === null) {
@@ -67,11 +65,7 @@ export function buildLayoutPlan(
     }
 
     try {
-        const context = createQueryLayoutContext(
-            builder,
-            claims,
-            alignmentPlan
-        );
+        const context = createQueryLayoutContext(builder, claims);
         if (context === null) {
             return failure("Layout policy could not derive query authority");
         }

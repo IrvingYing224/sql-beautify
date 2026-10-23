@@ -14,6 +14,7 @@ import type { RenderSuccess } from "../renderer/types";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
 import type { DominatingVerbatimClaims } from "./verbatim-claims";
 import type { LayoutArtifact } from "./artifact";
+import type { LayoutGapAction, LayoutPlan } from "./plan";
 
 export interface LayoutAlignmentTarget {
     readonly leafId: number;
@@ -616,4 +617,29 @@ export function deriveLayoutAlignmentPlan(
     } catch {
         return null;
     }
+}
+
+/**
+ * Second alignment pass (plan §5.2): every gap is registered through the trivia policy, which
+ * turns a space gap ending at a target leaf into pad-to-column. Rewriting those gaps in the first
+ * plan gives the plan a full re-run would build; every other field stays the same.
+ */
+export function applyLayoutAlignment(
+    plan: LayoutPlan,
+    alignment: LayoutAlignmentPlan
+): LayoutPlan {
+    const targetByLeaf = new Map<number, number>();
+    for (const target of alignment.targets) {
+        targetByLeaf.set(target.leafId, target.targetColumn);
+    }
+    const gapActions = plan.gapActions.map((gap): LayoutGapAction | null => {
+        const targetColumn = gap === null ? undefined : targetByLeaf.get(gap.endLeafId);
+        return gap === null || targetColumn === undefined || gap.decision.kind !== "space"
+            ? gap
+            : Object.freeze({
+                  ...gap,
+                  decision: Object.freeze({ kind: "pad-to-column", targetColumn }),
+              });
+    });
+    return Object.freeze({ ...plan, gapActions: Object.freeze(gapActions) });
 }

@@ -1,6 +1,6 @@
 # ADR 0003：alignment 第二遍限定到候选 list item
 
-状态：接受
+状态：接受；2026-10-23 修订第二遍的实现方式（见文末“3.0 修订”）
 
 日期：2026-07-26
 
@@ -70,3 +70,33 @@ current-only 回归门：两类稀疏阶段中位数都必须小于密集阶段�
 - source-map wire shape 或 display-width 算法变化时重新运行双 build profile。
 - 若密集 workload 在真实 production corpus 中占主导且回退超过噪声范围，再评估 Map/排序的机械优化；
   不以此为理由放宽 source-map 或关闭第二遍。
+
+## 3.0 修订：第二遍改写 plan，不再重跑 policy
+
+日期：2026-10-23（3.0 重构 P3 第 9 步，方案 §5.2）
+
+target 的推导不变：仍按上文限定到候选 list item，并依赖第一次 render 的真实行列。变化只在拿到
+target 之后：
+
+- 旧实现把 target 交给 `buildLayoutPlan` 完整重跑 policy；重跑时 trivia policy 在注册 gap 的唯一
+  入口 `registerTriviaGap`，把结束于 target leaf 的 `space` gap 换成 `pad-to-column`。
+- 新实现 `applyLayoutAlignment` 直接在第一遍 plan 上改写这些 gap，其余字段（leaf emission、scope、
+  claim、预算、comma fallback）原样沿用；随后 compile 和 render 一次。policy、query layout context
+  与 trivia policy 不再接收 alignment 参数。
+
+两者等价的前提是：所有 gap 都经 `registerTriviaGap` 注册，而 alignment target 只在那里改变 gap
+的决定。新增 gap 注册入口时，必须维持这个前提，或同步修改 `applyLayoutAlignment`。
+
+等价实验（本地脚本，结果不进仓库）在同一输入上同时执行重跑和改写，逐字段比较两个 plan：
+gap 按 authority、起止 leaf 和决定比较，scope 按 id、起止、决定比较，其余字段按值比较，并比较两次
+compile、render 的文本和 source map。
+
+| 输入集 | 运行数 | 产生 target | 改写的 gap | 不一致 |
+| --- | ---: | ---: | ---: | ---: |
+| golden 全部 formatSql 运行加 20,000 个 fuzz | 21,878 | 2,197 | 3,907 | 0 |
+| golden 输入 × 对齐相关选项矩阵（comma、indent、maxAlignWidth、方言、case 布局、tab 宽） | 165,888 | 18,499 | 143,447 | 0 |
+| golden 全部 formatSql 运行加 200,000 个 fuzz | 201,878 | 19,339 | 25,334 | 0 |
+
+上文“等价性证据”中的 `scripts/profile-alignment-candidates.js` 和“性能证据”中的回归门已在 P2
+删除（K27）。性能数据保留作历史记录，不再作为门槛。
+

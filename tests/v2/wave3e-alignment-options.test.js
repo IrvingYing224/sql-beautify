@@ -199,7 +199,7 @@ function assertStable(id, source, options, expected) {
     );
 })();
 
-(function testAlignmentPlanProvenanceAndPadDecisionFailClosed() {
+(function testAlignmentRewritesPlanGapsToPadDecisions() {
     var source = 'select a as x, longer as y from t';
     var analysis = analysisApi.analyzeSql(source, {
         dialect: 'hive',
@@ -222,12 +222,7 @@ function assertStable(id, source, options, expected) {
     assert.ok(alignment);
     assert.ok(Object.isFrozen(alignment) && Object.isFrozen(alignment.targets));
     assert.ok(alignment.targets.length > 0);
-    var aligned = policyApi.buildLayoutPlan(
-        analysis,
-        resolved.options,
-        alignment
-    );
-    assert.strictEqual(aligned.ok, true);
+    var aligned = { plan: alignmentApi.applyLayoutAlignment(base.plan, alignment) };
     assert.ok(aligned.plan.gapActions.some(function(action) {
         return action && action.decision.kind === 'pad-to-column';
     }));

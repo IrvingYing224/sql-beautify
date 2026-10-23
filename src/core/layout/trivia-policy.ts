@@ -87,21 +87,11 @@ function registerTriviaGap(
     if (startLeafId === endLeafId && decision.kind === "empty") {
         return true;
     }
-    const alignmentTarget = context.alignmentTargetByLeaf[endLeafId];
-    const alignedDecision: LayoutGapDecision =
-        decision.kind === "space" &&
-        alignmentTarget !== undefined &&
-        alignmentTarget > 0
-            ? Object.freeze({
-                  kind: "pad-to-column",
-                  targetColumn: alignmentTarget,
-              })
-            : decision;
     const success = context.plan.replaceGap(
         authorityNodeId,
         startLeafId,
         endLeafId,
-        alignedDecision
+        decision
     );
     if (success) {
         context.registeredGapEnds[startLeafId] = endLeafId;

@@ -478,6 +478,22 @@ function selfTest() {
                 JSON.stringify(actual) + ', runtime agrees ' + kept);
         }
     });
+    // After a template swallow judged glue the runtime check goes on, so a later changed token is
+    // still reported as token (P1b-M1). Hive, document mode, default options.
+    var options = resolveOptions.resolveFormatOptions(undefined).options;
+    var analysis = analyze.analyzeSql('select ${v} + 1 from t', { dialect: options.dialect, mode: 'document' });
+    var plan = policy.buildLayoutPlan(analysis, options).plan;
+    [
+        ['SELECT ${v}+ 1 FROM t', 'glue'],
+        ['SELECT ${v} + 1 FROM CORRUPTED', 'token'],
+        ['SELECT ${v}+ 1 FROM CORRUPTED', 'token'],
+    ].forEach(function(probe) {
+        var actual = format.tokenEquivalent(analysis, probe[0], options.keywordCase, plan);
+        if (actual !== probe[1]) {
+            throw new Error('template self-test ' + JSON.stringify(probe) + ' reported ' +
+                JSON.stringify(actual));
+        }
+    });
     var ddl = { op: 'formatHiveDdl' };
     [
         ['select MixedCase from MyTable', 'SELECT MIXEDCASE FROM MYTABLE', {}, 'token'],

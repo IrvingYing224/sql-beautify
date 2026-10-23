@@ -557,12 +557,9 @@ function deterministicMalformedCases(count) {
         );
         assert.ok(alignment && alignment.targets.length > 0,
             'determinism fixture must execute alignment phase');
-        var alignedPlan = policyApi.buildLayoutPlan(
-            analysis,
-            resolved.options,
-            alignment
-        );
-        assert.strictEqual(alignedPlan.ok, true);
+        var alignedPlan = {
+            plan: alignmentApi.applyLayoutAlignment(planned.plan, alignment)
+        };
         var alignedCompiled = compilerApi.compileLayoutPlan(alignedPlan.plan);
         assert.strictEqual(alignedCompiled.ok, true);
         var alignedRendered = rendererApi.renderLayoutArtifact(

@@ -16,7 +16,11 @@ import { resolveFormatOptions } from "../config/resolve-options";
 import { lexSql } from "../lexer/lossless-lexer";
 import { isTemplateFragment, type SourceLeaf, type TokenKind } from "../lexer/token";
 import { compileLayoutPlan } from "../layout/compiler";
-import { deriveLayoutAlignmentPlan } from "../layout/alignment-policy";
+import type { LayoutArtifact } from "../layout/artifact";
+import {
+    applyLayoutAlignment,
+    deriveLayoutAlignmentPlan,
+} from "../layout/alignment-policy";
 import type { LayoutPlan } from "../layout/plan";
 import { buildLayoutPlan } from "../layout/policy";
 import { applyKeywordCase } from "../renderer/keyword-case";
@@ -31,6 +35,7 @@ import {
     type RenderTabSize,
 } from "../renderer/environment";
 import { renderLayoutArtifact } from "../renderer/render";
+import type { RenderSuccess } from "../renderer/types";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type { ParseMode } from "../syntax/parser-backend";
 
@@ -125,18 +130,44 @@ function isLayoutResourceFailure(code: string): boolean {
     );
 }
 
-function resourcePreservedResult(
+interface StageFailure {
+    readonly code: string;
+    readonly message: string;
+}
+
+/** A rejected stage keeps its own code: a resource limit preserves the text, anything else fails. */
+function stageFailure(
     source: string,
     diagnostics: readonly Diagnostic[],
-    code: string,
-    message: string
+    failure: StageFailure
 ): OriginalTextFormatResult {
-    const value = diagnostic(source, code, message, "warning");
+    const resource = isLayoutResourceFailure(failure.code);
+    const value = diagnostic(
+        source,
+        failure.code,
+        failure.message,
+        resource ? "warning" : "error"
+    );
     return originalResult(
-        "preserved",
+        resource ? "preserved" : "failed",
         source,
         frozenDiagnostics(diagnostics, value)
     );
+}
+
+type RenderedPlan =
+    | { readonly ok: true; readonly artifact: LayoutArtifact; readonly rendered: RenderSuccess }
+    | ({ readonly ok: false } & StageFailure);
+
+function compileAndRender(plan: LayoutPlan, environment: RenderEnvironment): RenderedPlan {
+    const compiled = compileLayoutPlan(plan);
+    if (!compiled.ok) {
+        return compiled;
+    }
+    const rendered = renderLayoutArtifact(compiled.artifact, environment);
+    return rendered.ok
+        ? { ok: true, artifact: compiled.artifact, rendered }
+        : rendered;
 }
 
 /**
@@ -162,7 +193,11 @@ export function glueKept(pairs: readonly LeafPair[]): boolean {
     return true;
 }
 
-function tokenEquivalent(
+/**
+ * Compares the re-lexed output with the source leaf by leaf: "token" when a token changed, "glue"
+ * when only floor-2 glue broke, null when both hold. Exported for the golden runner's self-test.
+ */
+export function tokenEquivalent(
     analysis: AnalyzedArtifact,
     output: string,
     keywordCase: "upper" | "lower",
@@ -175,15 +210,18 @@ function tokenEquivalent(
     const pairs: LeafPair[] = [];
     let sourceIndex = 0;
     let outputIndex = 0;
-    // Removing whitespace beside a template fragment lets the fragment absorb its neighbour when
-    // the output is lexed again: a glue violation (plan §4 floor 2), not a changed token.
-    const mismatch = (outputLeaf: SourceLeaf): "token" | "glue" => {
+    let glued = false;
+    // Removing whitespace beside a template fragment lets the fragment absorb its neighbours when
+    // the output is lexed again: a glue violation (plan §4 floor 2), not a changed token. The check
+    // then skips the absorbed source leaves and goes on, so a later changed token is still reported.
+    const absorb = (outputLeaf: SourceLeaf): boolean => {
         if (!isTemplateFragment(outputLeaf)) {
-            return "token";
+            return false;
         }
         let text = "";
+        let index = sourceIndex - 1;
         for (
-            let index = sourceIndex - 1;
+            ;
             index < analysis.leaves.length && text.length < outputLeaf.raw.length;
             index += 1
         ) {
@@ -194,7 +232,12 @@ function tokenEquivalent(
                     : leaf.raw;
             }
         }
-        return text === outputLeaf.raw ? "glue" : "token";
+        if (text !== outputLeaf.raw) {
+            return false;
+        }
+        glued = true;
+        sourceIndex = index;
+        return true;
     };
     while (true) {
         let sourceLeaf: SourceLeaf | null = null;
@@ -221,13 +264,16 @@ function tokenEquivalent(
             if (sourceLeaf !== null || outputLeaf !== null) {
                 return "token";
             }
-            return glueKept(pairs) ? null : "glue";
+            return glued || !glueKept(pairs) ? "glue" : null;
         }
         if (
             sourceLeaf.kind !== outputLeaf.kind ||
             sourceLeaf.channel !== outputLeaf.channel
         ) {
-            return mismatch(outputLeaf);
+            if (!absorb(outputLeaf)) {
+                return "token";
+            }
+            continue;
         }
         const plannedTransform =
             plan.leafEmissions[sourceLeaf.id] === "keyword-case";
@@ -246,7 +292,10 @@ function tokenEquivalent(
             ? applyKeywordCase(sourceLeaf.raw, keywordCase)
             : sourceLeaf.raw;
         if (expected === null || outputLeaf.raw !== expected) {
-            return mismatch(outputLeaf);
+            if (!absorb(outputLeaf)) {
+                return "token";
+            }
+            continue;
         }
         pairs.push({ source: sourceLeaf, output: outputLeaf, sourceGap, outputGap });
     }
@@ -339,156 +388,39 @@ export function formatSql(
                 );
         }
 
-        let planned = buildLayoutPlan(analysis, options);
+        const planned = buildLayoutPlan(analysis, options);
         if (!planned.ok) {
-            if (isLayoutResourceFailure(planned.code)) {
-                return resourcePreservedResult(
-                        source,
-                        analysis.diagnostics,
-                        planned.code,
-                        planned.message
-                    );
-            }
-            const value = diagnostic(source, planned.code, planned.message);
-            return originalResult(
-                    "failed",
-                    source,
-                    frozenDiagnostics(analysis.diagnostics, value)
-                );
+            return stageFailure(source, analysis.diagnostics, planned);
         }
-        let compiled = compileLayoutPlan(planned.plan);
-        if (!compiled.ok) {
-            if (isLayoutResourceFailure(compiled.code)) {
-                return resourcePreservedResult(
-                        source,
-                        analysis.diagnostics,
-                        compiled.code,
-                        compiled.message
-                    );
-            }
-            const value = diagnostic(source, compiled.code, compiled.message);
-            return originalResult(
-                    "failed",
-                    source,
-                    frozenDiagnostics(analysis.diagnostics, value)
-                );
+        let plan = planned.plan;
+        let output = compileAndRender(plan, environment);
+        if (!output.ok) {
+            return stageFailure(source, analysis.diagnostics, output);
         }
-        let rendered = renderLayoutArtifact(compiled.artifact, environment);
-        if (!rendered.ok) {
-            if (isLayoutResourceFailure(rendered.code)) {
-                return resourcePreservedResult(
-                        source,
-                        analysis.diagnostics,
-                        rendered.code,
-                        rendered.message
-                    );
-            }
-            const value = diagnostic(source, rendered.code, rendered.message);
-            return originalResult(
-                    "failed",
-                    source,
-                    frozenDiagnostics(analysis.diagnostics, value)
-                );
+        const alignment = deriveLayoutAlignmentPlan(
+            output.artifact,
+            output.rendered,
+            environment.tabSize
+        );
+        if (alignment === null) {
+            return stageFailure(source, analysis.diagnostics, {
+                code: "LAYOUT_ALIGNMENT_FACTS",
+                message: "Layout alignment measurement failed",
+            });
         }
-        {
-            const alignmentPlan = deriveLayoutAlignmentPlan(
-                compiled.artifact,
-                rendered,
-                environment.tabSize
-            );
-            if (alignmentPlan === null) {
-                const value = diagnostic(
-                    source,
-                    "LAYOUT_ALIGNMENT_FACTS",
-                    "Layout alignment measurement failed"
-                );
-                return originalResult(
-                        "failed",
-                        source,
-                        frozenDiagnostics(analysis.diagnostics, value)
-                    );
-            }
-            if (alignmentPlan.targets.length > 0) {
-                const alignedPlan = buildLayoutPlan(
-                    analysis,
-                    options,
-                    alignmentPlan
-                );
-                if (!alignedPlan.ok) {
-                    if (isLayoutResourceFailure(alignedPlan.code)) {
-                        return resourcePreservedResult(
-                                source,
-                                analysis.diagnostics,
-                                alignedPlan.code,
-                                alignedPlan.message
-                            );
-                    }
-                    const value = diagnostic(
-                        source,
-                        alignedPlan.code,
-                        alignedPlan.message
-                    );
-                    return originalResult(
-                            "failed",
-                            source,
-                            frozenDiagnostics(analysis.diagnostics, value)
-                        );
-                }
-                const alignedCompiled = compileLayoutPlan(alignedPlan.plan);
-                if (!alignedCompiled.ok) {
-                    if (isLayoutResourceFailure(alignedCompiled.code)) {
-                        return resourcePreservedResult(
-                                source,
-                                analysis.diagnostics,
-                                alignedCompiled.code,
-                                alignedCompiled.message
-                            );
-                    }
-                    const value = diagnostic(
-                        source,
-                        alignedCompiled.code,
-                        alignedCompiled.message
-                    );
-                    return originalResult(
-                            "failed",
-                            source,
-                            frozenDiagnostics(analysis.diagnostics, value)
-                        );
-                }
-                const alignedRendered = renderLayoutArtifact(
-                    alignedCompiled.artifact,
-                    environment
-                );
-                if (!alignedRendered.ok) {
-                    if (isLayoutResourceFailure(alignedRendered.code)) {
-                        return resourcePreservedResult(
-                                source,
-                                analysis.diagnostics,
-                                alignedRendered.code,
-                                alignedRendered.message
-                            );
-                    }
-                    const value = diagnostic(
-                        source,
-                        alignedRendered.code,
-                        alignedRendered.message
-                    );
-                    return originalResult(
-                            "failed",
-                            source,
-                            frozenDiagnostics(analysis.diagnostics, value)
-                        );
-                }
-                planned = alignedPlan;
-                compiled = alignedCompiled;
-                rendered = alignedRendered;
+        if (alignment.targets.length > 0) {
+            plan = applyLayoutAlignment(plan, alignment);
+            output = compileAndRender(plan, environment);
+            if (!output.ok) {
+                return stageFailure(source, analysis.diagnostics, output);
             }
         }
+        const rendered = output.rendered;
         const failure = tokenEquivalent(
             analysis,
             rendered.text,
             options.keywordCase,
-            planned.plan
+            plan
         );
         if (failure === "token") {
             const value = diagnostic(
@@ -516,7 +448,7 @@ export function formatSql(
                 );
         }
         const resultDiagnostics =
-            planned.plan.commaFallback
+            plan.commaFallback
                 ? frozenDiagnostics(
                       analysis.diagnostics,
                       diagnostic(
