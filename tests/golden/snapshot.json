@@ -2673,6 +2673,21 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
+ "explicit/casing/cast-struct": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/casing/union-distinct": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/casing/window-frames": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/ctas/defined-name": {
   "op": "formatSql",
   "status": "unchanged",
@@ -2816,7 +2831,22 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/env/fragment-insert": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/env/fragment-select": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/env/fragment-set": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/env/fragment-set-semicolon": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -3277,6 +3307,46 @@
    "LAYOUT_COMPILE_RESOURCE"
   ]
  },
+ "explicit/resource/operator-chain-2001": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/resource/proof-budget-ambiguous-1200": {
+  "op": "formatSql",
+  "status": "unchanged",
+  "codes": [
+   "SYN_PROOF_BUDGET",
+   "SYN_PROOF_BUDGET"
+  ]
+ },
+ "explicit/resource/proof-budget-dense-1600": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/statement/brackets-in-string": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/statement/semicolon-in-block-comment": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/statement/semicolon-in-line-comment": {
+  "op": "formatSql",
+  "status": "unchanged",
+  "codes": []
+ },
+ "explicit/statement/semicolon-in-parens": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
  "explicit/template/d13-list": {
   "op": "formatSql",
   "status": "formatted",
@@ -3293,6 +3363,11 @@
   "codes": []
  },
  "explicit/template/rhs-operator": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/width/graphemes": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []

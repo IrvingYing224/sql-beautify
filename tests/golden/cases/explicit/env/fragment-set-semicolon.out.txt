@@ -1,0 +1,1 @@
+SET hive.exec.flag=true;

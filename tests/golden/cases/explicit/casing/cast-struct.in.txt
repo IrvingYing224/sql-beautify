@@ -1,0 +1,1 @@
+select cast(x as struct<a:int,b:array<string>>)

@@ -1,0 +1,1 @@
+with q as (select 1) select 1 union distinct select 2

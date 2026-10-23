@@ -1,0 +1,2 @@
+-- golden: {"mode":"fragment"}
+set hive.exec.flag=true

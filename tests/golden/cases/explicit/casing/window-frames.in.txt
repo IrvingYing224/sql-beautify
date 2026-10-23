@@ -1,0 +1,1 @@
+select sum(x) over (partition by k order by ts rows between unbounded preceding and current row), sum(y) over (order by z range 1 following), sum(q) over (order by z groups between 2 preceding and 3 following) from t

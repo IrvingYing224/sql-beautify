@@ -1,0 +1,1 @@
+select `👨‍👩‍👧‍👦` as a1, `🇨🇳` as a2, `1️⃣` as a3, `👍🏽` as a4, `각` as a5, `क्क` as a6, `x​y` as a7, `界Ａ` as a8, `é` as a9, `❤` as a10, `❤️` as a11, wide_column_name as z from t
