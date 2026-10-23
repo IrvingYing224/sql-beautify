@@ -14,7 +14,6 @@ import type {
     StatementNode,
     SyntaxNode,
 } from "../syntax/node";
-import type { StructuralTokenTable } from "../syntax/token-table";
 import type { ParseMode } from "../syntax/parser-backend";
 
 export type TriviaPlacement = "leading" | "trailing" | "dangling";
@@ -85,20 +84,6 @@ export interface StructuralIndexSnapshot {
     readonly separatorOwnerships: readonly SeparatorOwnership[];
     readonly commentBindings: readonly CommentBinding[];
     readonly lineStarts: readonly number[];
-}
-
-export interface StructuralIndexInput {
-    readonly root: ProgramNode;
-    readonly leaves: readonly SourceLeaf[];
-    /** The table built by the same parse pipeline; the builder never rebuilds it. */
-    readonly tokenTable: StructuralTokenTable;
-    readonly dialect: Dialect;
-    readonly diagnostics: readonly Diagnostic[];
-    /**
-     * Parser-derived during the canonical lexer-output freeze pass. Internal
-     * builder tests may omit it and pay one bounded comment-presence preflight.
-     */
-    readonly hasCommentTrivia?: boolean;
 }
 
 /**

@@ -176,11 +176,6 @@ cases.forEach(assertParserResult);
         parser.parserBackend.parse(input),
         parser.parseSql(input.source, { dialect: input.dialect, mode: input.mode })
     );
-    assert.ok(
-        factoryModule.canonicalProgramNodeCount(parser.parseSql(
-            input.source, { dialect: input.dialect, mode: input.mode }).root) > 0,
-        'canonical parser roots carry internal node-count provenance'
-    );
 }());
 
 (function testNodeFactoryOwnsIdsAndSpans() {
@@ -202,11 +197,6 @@ cases.forEach(assertParserResult);
         return a - b;
     }), [0, 1, 2, 3, 4, 5, 6]);
     assert.strictEqual(program.id, 0);
-    assert.strictEqual(
-        factoryModule.canonicalProgramNodeCount(program),
-        null,
-        'public node factories must not grant canonical parser provenance'
-    );
     assert.deepStrictEqual(opaque.span, { start: 7, end: 8 });
     assert.strictEqual(opaque.capabilityId, null);
     flatten(program).forEach(function(node) {
@@ -225,40 +215,6 @@ cases.forEach(assertParserResult);
     assert.throws(function() {
         factory.createProgram({ start: 0, end: 3 }, []);
     }, /program/i);
-}());
-
-(function testCanonicalProgramProvenanceRequiresCurrentFactoryOwnedTree() {
-    var source = 'SELECT 1';
-    var lexed = core.lexSql(source, { dialect: 'hive' });
-    var table = tokenTableModule.buildStructuralTokenTable(lexed.leaves, source);
-    var range = { start: 0, end: lexed.leaves.length };
-
-    var foreignFactory = factoryModule.createNodeFactory(table);
-    var foreignBody = foreignFactory.createOpaque(
-        range, 'SYN_UNMODELED_CONSTRUCT', 'statement');
-    var wrappingFactory = factoryModule.createNodeFactory(table);
-    var foreignStatement = wrappingFactory.createStatement(
-        range, 'opaque', foreignBody);
-    var foreignProgram = wrappingFactory.createProgram(range, [foreignStatement]);
-    assert.strictEqual(
-        factoryModule.canonicalProgramNodeCount(foreignProgram),
-        null,
-        'a public factory must not grant canonical provenance to a foreign subtree'
-    );
-
-    var rollbackFactory = factoryModule.createNodeFactory(table);
-    var checkpoint = rollbackFactory.checkpoint();
-    var staleBody = rollbackFactory.createOpaque(
-        range, 'SYN_UNMODELED_CONSTRUCT', 'statement');
-    rollbackFactory.rollback(checkpoint);
-    var staleStatement = rollbackFactory.createStatement(
-        range, 'opaque', staleBody);
-    var staleProgram = rollbackFactory.createProgram(range, [staleStatement]);
-    assert.strictEqual(
-        factoryModule.canonicalProgramNodeCount(staleProgram),
-        null,
-        'rollback-invalidated nodes must not regain canonical provenance'
-    );
 }());
 
 (function testParenthesizedLeftSetOperand() {

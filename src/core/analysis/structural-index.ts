@@ -1,22 +1,10 @@
 import { getDialect } from "../dialects/registry";
 import type { CapabilityEntry, DialectCapabilityView } from "../dialects/types";
-import {
-    canonicalSourceLeafPartitionDialect,
-    isImmutableSourceLeafPartition,
-} from "../lexer/lossless-lexer";
 import type { SourceLeaf } from "../lexer/token";
+import type { Diagnostic } from "../diagnostics/diagnostic";
 import type { SourceSpan } from "../source/source-span";
-import {
-    sourceSpanForLeafRange,
-    type LeafRange,
-} from "../syntax/leaf-range";
-import {
-    canonicalProgramNodeCount,
-    canonicalProgramNodeCountForLeaves,
-} from "../syntax/node-factory";
-import { isCanonicalParseArtifact } from "../syntax/parser";
+import type { LeafRange } from "../syntax/leaf-range";
 import type { ParseArtifact } from "../syntax/parser";
-import { isCanonicalStructuralTokenTableForLeaves } from "../syntax/token-table";
 import type {
     ClauseNode,
     ListItemNode,
@@ -31,7 +19,6 @@ import {
     operatorSemanticsMatchLeaves,
 } from "../syntax/contextual-fact-contract";
 import { EMPTY_FROZEN_ARRAY } from "../util/immutable-array";
-import { isStableFrozenDataArray } from "../util/stable-data";
 import {
     TRIVIA_LEADING_PRIORITY,
     TRIVIA_TRAILING_PRIORITY,
@@ -47,7 +34,6 @@ import type {
     SyntaxLeafOccurrence,
     SourcePosition,
     StructuralIndex,
-    StructuralIndexInput,
     StructuralIndexSnapshot,
 } from "./types";
 
@@ -224,7 +210,7 @@ function diagnosticIdentityKey(
     capabilityId: string | null,
     code: string,
     span: SourceSpan,
-    recovery: StructuralIndexInput["diagnostics"][number]["recovery"]
+    recovery: Diagnostic["recovery"]
 ): string {
     // JSON preserves null as a distinct value and avoids delimiter collisions.
     return JSON.stringify([capabilityId, code, span.start, span.end, recovery]);
@@ -235,60 +221,11 @@ function diagnosticIdentityKey(
  * leaf/source traversal. Construction uses direct-address arrays that are
  * frozen before exposure; no mutable backing collection escapes.
  */
-export function buildStructuralIndex(
-    input: StructuralIndexInput,
-    parseArtifactProof?: ParseArtifact
-): StructuralIndex {
-    if (input === null || typeof input !== "object") {
-        invariantFailure("input must be an object");
-    }
-    const { root, leaves, tokenTable, diagnostics } = input;
-    const trustedParserArtifact =
-        parseArtifactProof !== undefined &&
-        isCanonicalParseArtifact(parseArtifactProof) &&
-        parseArtifactProof.output.root === root &&
-        parseArtifactProof.output.leaves === leaves &&
-        parseArtifactProof.output.diagnostics === diagnostics &&
-        parseArtifactProof.tokenTable === tokenTable &&
-        parseArtifactProof.dialect === input.dialect &&
-        parseArtifactProof.hasCommentTrivia === input.hasCommentTrivia;
-    if (!isImmutableSourceLeafPartition(leaves)) {
-        invariantFailure("leaves must be an immutable canonical lexer partition");
-    }
-    if (canonicalSourceLeafPartitionDialect(leaves) !== input.dialect) {
-        invariantFailure("dialect must match the canonical lexer partition");
-    }
-    if (!trustedParserArtifact && !isStableFrozenDataArray(diagnostics)) {
-        invariantFailure("diagnostics must be a stable frozen data array");
-    }
-    if (!trustedParserArtifact) {
-        for (let diagnosticIndex = 0; diagnosticIndex < diagnostics.length; diagnosticIndex++) {
-            const diagnostic = diagnostics[diagnosticIndex]!;
-            if (!Object.isFrozen(diagnostic) || !Object.isFrozen(diagnostic.span)) {
-                invariantFailure(
-                    `diagnostic ${diagnosticIndex} and its span must be frozen`
-                );
-            }
-        }
-    }
-    if (
-        input.hasCommentTrivia !== undefined &&
-        typeof input.hasCommentTrivia !== "boolean"
-    ) {
-        invariantFailure("hasCommentTrivia must be a boolean when provided");
-    }
-    const hasCommentTrivia = input.hasCommentTrivia ?? leaves.some(isComment);
-    if (root === null || typeof root !== "object" || root.kind !== "program" || root.id !== 0) {
-        invariantFailure("root must be ProgramNode id 0");
-    }
-    if (
-        !isCanonicalStructuralTokenTableForLeaves(tokenTable, leaves) ||
-        typeof tokenTable.leafCount !== "function" ||
-        tokenTable.leafCount() !== leaves.length
-    ) {
-        invariantFailure("token table must describe the same canonical leaf stream");
-    }
-    const dialect = getDialect(input.dialect);
+export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
+    const { root, leaves, diagnostics } = artifact.output;
+    const tokenTable = artifact.tokenTable;
+    const hasCommentTrivia = artifact.hasCommentTrivia;
+    const dialect = getDialect(artifact.dialect);
     const canonicalOperatorById = new Map(
         dialect.listOperatorSemantics().map((semantics) => [semantics.id, semantics])
     );
@@ -296,45 +233,20 @@ export function buildStructuralIndex(
     const canonicalSourceLength =
         leafCount === 0 ? 0 : leaves[leafCount - 1]!.span.end;
     const maxNodeCount = MAX_NODES_PER_LEAF * Math.max(1, leafCount) + 1;
-    const canonicalNodeCount = canonicalProgramNodeCount(root);
-    const exactCanonicalNodeCount = canonicalProgramNodeCountForLeaves(root, leaves);
-    if (canonicalNodeCount !== null && exactCanonicalNodeCount === null) {
-        invariantFailure("canonical ProgramNode belongs to a different leaf partition");
-    }
-    const trustedNodeCount = trustedParserArtifact
-        ? exactCanonicalNodeCount
-        : null;
+    const trustedNodeCount = artifact.nodeCount;
     if (
-        trustedParserArtifact &&
-        (trustedNodeCount === null ||
-            !Number.isInteger(trustedNodeCount) ||
-            trustedNodeCount < 1 ||
-            trustedNodeCount > maxNodeCount)
+        !Number.isInteger(trustedNodeCount) ||
+        trustedNodeCount < 1 ||
+        trustedNodeCount > maxNodeCount
     ) {
-        invariantFailure("canonical parser artifact is missing a valid node-count proof");
-    }
-    if (!trustedParserArtifact) {
-        validateRange(root.leafRange, leafCount, null);
+        invariantFailure("parser node count is outside the linear node budget");
     }
 
-    const recordsById: Array<SyntaxNode | undefined> =
-        trustedNodeCount === null ? [] : new Array(trustedNodeCount);
-    const parentById: Array<number | null | undefined> | null =
-        trustedNodeCount === null ? [] : null;
-    const statementByNodeId: Array<number | null | undefined> | null =
-        trustedNodeCount === null ? [] : null;
-    const queryByNodeId: Array<number | null | undefined> | null =
-        trustedNodeCount === null ? [] : null;
-    const listByMemberNodeId: Array<number | null | undefined> | null =
-        trustedNodeCount === null ? [] : null;
-    const parentNodeIdCodes =
-        trustedNodeCount === null ? null : new Uint32Array(trustedNodeCount);
-    const statementNodeIdCodes =
-        trustedNodeCount === null ? null : new Uint32Array(trustedNodeCount);
-    const queryNodeIdCodes =
-        trustedNodeCount === null ? null : new Uint32Array(trustedNodeCount);
-    const listNodeIdCodes =
-        trustedNodeCount === null ? null : new Uint32Array(trustedNodeCount);
+    const recordsById: Array<SyntaxNode | undefined> = new Array(trustedNodeCount);
+    const parentNodeIdCodes = new Uint32Array(trustedNodeCount);
+    const statementNodeIdCodes = new Uint32Array(trustedNodeCount);
+    const queryNodeIdCodes = new Uint32Array(trustedNodeCount);
+    const listNodeIdCodes = new Uint32Array(trustedNodeCount);
     const clausesByQueryId = new Map<number, ClauseNode[]>();
     const statements: StatementNode[] = [];
     const queries: QueryNode[] = [];
@@ -432,8 +344,7 @@ export function buildStructuralIndex(
         if (
             !Number.isInteger(node.id) ||
             node.id < 0 ||
-            node.id >= maxNodeCount ||
-            (trustedNodeCount !== null && node.id >= trustedNodeCount)
+            node.id >= trustedNodeCount
         ) {
             invariantFailure(
                 `node id must be within the linear budget [0, ${maxNodeCount}), got ${String(node.id)}`
@@ -442,45 +353,7 @@ export function buildStructuralIndex(
         if (recordsById[node.id] !== undefined) {
             invariantFailure(`duplicate node id, shared child, or cycle at ${node.id}`);
         }
-        if (!trustedParserArtifact) {
-            validateRange(node.leafRange, leafCount, node.id);
-            if (node.kind !== "program" && node.leafRange.start === node.leafRange.end) {
-                invariantFailure(`non-program node ${node.id} must own at least one leaf`);
-            }
-            if (
-                !Number.isInteger(node.span.start) ||
-                !Number.isInteger(node.span.end) ||
-                node.span.start < 0 ||
-                node.span.end < node.span.start
-            ) {
-                invariantFailure(`node ${node.id} has invalid source span`);
-            }
-
-            const expectedSpan = sourceSpanForLeafRange(
-                leaves,
-                canonicalSourceLength,
-                node.leafRange
-            )!;
-            if (
-                node.span.start !== expectedSpan.start ||
-                node.span.end !== expectedSpan.end
-            ) {
-                invariantFailure(`node ${node.id} span does not match its leaf range`);
-            }
-        }
-
         const children = nodeChildren(node);
-        if (
-            !trustedParserArtifact &&
-            (!Object.isFrozen(node) ||
-                !Object.isFrozen(node.span) ||
-                !Object.isFrozen(node.leafRange) ||
-                !isStableFrozenDataArray(children))
-        ) {
-            invariantFailure(
-                `node ${node.id}, its range/span, and children must be stable and frozen`
-            );
-        }
         recordsById[node.id] = node;
         visitedNodeCount += 1;
 
@@ -526,9 +399,6 @@ export function buildStructuralIndex(
             })];
         }
 
-        if (!trustedParserArtifact && !isStableFrozenDataArray(node.syntaxMarkers)) {
-            invariantFailure(`node ${node.id} syntaxMarkers must be a stable frozen data array`);
-        }
         let previousMarkerLeafId = -1;
         for (const marker of node.syntaxMarkers) {
             if (
@@ -629,22 +499,6 @@ export function buildStructuralIndex(
         }
 
         if (node.kind === "expression") {
-            if (
-                !trustedParserArtifact &&
-                !isStableFrozenDataArray(node.operatorLeafIds)
-            ) {
-                invariantFailure(
-                    `expression ${node.id} operatorLeafIds must be a stable frozen data array`
-                );
-            }
-            if (
-                !trustedParserArtifact &&
-                !isStableFrozenDataArray(node.operatorOccurrences)
-            ) {
-                invariantFailure(
-                    `expression ${node.id} operatorOccurrences must be a stable frozen data array`
-                );
-            }
             const remainingOperatorLeafIds = new Set<number>();
             let previousOperatorLeafId = -1;
             for (const leafId of node.operatorLeafIds) {
@@ -676,8 +530,6 @@ export function buildStructuralIndex(
                     occurrence.capabilityId !== canonicalSemantics.capabilityId ||
                     occurrence.fixity !== canonicalSemantics.fixity ||
                     occurrence.formatClass !== canonicalSemantics.formatClass ||
-                    (!trustedParserArtifact &&
-                        !isStableFrozenDataArray(occurrence.leafIds)) ||
                     occurrence.leafIds.length === 0
                 ) {
                     invariantFailure(`expression ${node.id} has an invalid operator occurrence`);
@@ -756,22 +608,9 @@ export function buildStructuralIndex(
         const statementNodeId =
             node.kind === "statement" ? node.id : inheritedStatementNodeId;
         const queryNodeId = node.kind === "query" ? node.id : inheritedQueryNodeId;
-        if (
-            parentNodeIdCodes !== null &&
-            statementNodeIdCodes !== null &&
-            queryNodeIdCodes !== null
-        ) {
-            parentNodeIdCodes[node.id] =
-                parentNodeId === null ? 0 : parentNodeId + 1;
-            statementNodeIdCodes[node.id] =
-                statementNodeId === null ? 0 : statementNodeId + 1;
-            queryNodeIdCodes[node.id] =
-                queryNodeId === null ? 0 : queryNodeId + 1;
-        } else {
-            parentById![node.id] = parentNodeId;
-            statementByNodeId![node.id] = statementNodeId;
-            queryByNodeId![node.id] = queryNodeId;
-        }
+        parentNodeIdCodes[node.id] = parentNodeId === null ? 0 : parentNodeId + 1;
+        statementNodeIdCodes[node.id] = statementNodeId === null ? 0 : statementNodeId + 1;
+        queryNodeIdCodes[node.id] = queryNodeId === null ? 0 : queryNodeId + 1;
 
         const meta: TraversalMeta = { node, depth };
         const starting = startEvents[node.leafRange.start];
@@ -859,23 +698,16 @@ export function buildStructuralIndex(
                 if (
                     !Number.isInteger(member.id) ||
                     member.id < 0 ||
-                    member.id >= maxNodeCount
+                    member.id >= trustedNodeCount
                 ) {
                     invariantFailure(
                         `list ${node.id} member id exceeds the linear node budget: ${String(member.id)}`
                     );
                 }
-                if (listNodeIdCodes !== null) {
-                    if (listNodeIdCodes[member.id] !== 0) {
-                        invariantFailure(`list item ${member.id} has multiple list owners`);
-                    }
-                    listNodeIdCodes[member.id] = node.id + 1;
-                } else {
-                    if (listByMemberNodeId![member.id] !== undefined) {
-                        invariantFailure(`list item ${member.id} has multiple list owners`);
-                    }
-                    listByMemberNodeId![member.id] = node.id;
+                if (listNodeIdCodes[member.id] !== 0) {
+                    invariantFailure(`list item ${member.id} has multiple list owners`);
                 }
+                listNodeIdCodes[member.id] = node.id + 1;
             }
             for (let ordinal = 0; ordinal < node.separatorLeafIds.length; ordinal++) {
                 const separatorLeafId = node.separatorLeafIds[ordinal]!;
@@ -939,13 +771,6 @@ export function buildStructuralIndex(
 
         for (let childIndex = children.length - 1; childIndex >= 0; childIndex--) {
             const child = children[childIndex]!;
-            if (
-                !trustedParserArtifact &&
-                (child.leafRange.start < node.leafRange.start ||
-                    child.leafRange.end > node.leafRange.end)
-            ) {
-                invariantFailure(`child ${child.id} is outside parent ${node.id}`);
-            }
             workNodes.push(child);
             workParentNodeIds.push(node.id);
             workDepths.push(depth + 1);
@@ -955,50 +780,13 @@ export function buildStructuralIndex(
     }
 
     const nodeCount = visitedNodeCount;
-    if (
-        recordsById.length !== nodeCount ||
-        (trustedNodeCount !== null && trustedNodeCount !== nodeCount)
-    ) {
+    if (trustedNodeCount !== nodeCount) {
         invariantFailure(
-            `node ids must be contiguous; visited=${nodeCount}, max=${recordsById.length - 1}`
+            `node ids must be contiguous; visited=${nodeCount}, parser count=${trustedNodeCount}`
         );
     }
 
-    for (let nodeId = 0; nodeId < nodeCount; nodeId++) {
-        const node = recordsById[nodeId];
-        if (node === undefined) {
-            invariantFailure(`node ids must be contiguous; missing ${nodeId}`);
-        }
-        if (parentById !== null) {
-            if (parentById[nodeId] === undefined) {
-                invariantFailure(`node ${nodeId} is missing its parent fact`);
-            }
-            if (statementByNodeId![nodeId] === undefined) {
-                invariantFailure(`node ${nodeId} is missing its statement fact`);
-            }
-            if (queryByNodeId![nodeId] === undefined) {
-                invariantFailure(`node ${nodeId} is missing its query fact`);
-            }
-        }
-    }
-
     const frozenNodesById = Object.freeze(recordsById) as readonly SyntaxNode[];
-    const frozenParentById =
-        parentById === null
-            ? null
-            : (Object.freeze(parentById) as readonly (number | null)[]);
-    const frozenStatementByNodeId =
-        statementByNodeId === null
-            ? null
-            : (Object.freeze(statementByNodeId) as readonly (number | null)[]);
-    const frozenQueryByNodeId =
-        queryByNodeId === null
-            ? null
-            : (Object.freeze(queryByNodeId) as readonly (number | null)[]);
-    const frozenListByMemberNodeId =
-        listByMemberNodeId === null
-            ? null
-            : Object.freeze(listByMemberNodeId);
     const frozenStatements = Object.freeze(statements);
     const frozenQueries = Object.freeze(queries);
     const frozenLists = Object.freeze(lists);
@@ -1007,32 +795,20 @@ export function buildStructuralIndex(
         frozenClausesByQuery.set(queryNodeId, Object.freeze(clauses));
     }
     const parentNodeIdAt = (nodeId: number): number | null => {
-        if (parentNodeIdCodes !== null) {
-            const code = parentNodeIdCodes[nodeId]!;
-            return code === 0 ? null : code - 1;
-        }
-        return frozenParentById![nodeId] ?? null;
+        const code = parentNodeIdCodes[nodeId]!;
+        return code === 0 ? null : code - 1;
     };
     const statementNodeIdAt = (nodeId: number): number | null => {
-        if (statementNodeIdCodes !== null) {
-            const code = statementNodeIdCodes[nodeId]!;
-            return code === 0 ? null : code - 1;
-        }
-        return frozenStatementByNodeId![nodeId] ?? null;
+        const code = statementNodeIdCodes[nodeId]!;
+        return code === 0 ? null : code - 1;
     };
     const queryNodeIdAt = (nodeId: number): number | null => {
-        if (queryNodeIdCodes !== null) {
-            const code = queryNodeIdCodes[nodeId]!;
-            return code === 0 ? null : code - 1;
-        }
-        return frozenQueryByNodeId![nodeId] ?? null;
+        const code = queryNodeIdCodes[nodeId]!;
+        return code === 0 ? null : code - 1;
     };
     const listNodeIdAt = (nodeId: number): number | null => {
-        if (listNodeIdCodes !== null) {
-            const code = listNodeIdCodes[nodeId]!;
-            return code === 0 ? null : code - 1;
-        }
-        return frozenListByMemberNodeId![nodeId] ?? null;
+        const code = listNodeIdCodes[nodeId]!;
+        return code === 0 ? null : code - 1;
     };
 
     const startLineByLeaf = new Uint32Array(leafCount);
@@ -1786,25 +1562,10 @@ export function buildStructuralIndex(
             if (snapshotCache === null) {
                 snapshotCache = Object.freeze({
                     nodeIds: Object.freeze(frozenNodesById.map((node) => node.id)),
-                    parentNodeIds:
-                        parentNodeIdCodes === null
-                            ? frozenParentById!
-                            : freezeEncodedNullableIds(parentNodeIdCodes),
-                    statementNodeIds:
-                        statementNodeIdCodes === null
-                            ? frozenStatementByNodeId!
-                            : freezeEncodedNullableIds(statementNodeIdCodes),
-                    queryNodeIds:
-                        queryNodeIdCodes === null
-                            ? frozenQueryByNodeId!
-                            : freezeEncodedNullableIds(queryNodeIdCodes),
-                    listNodeIds:
-                        listNodeIdCodes === null
-                            ? freezeSparseNullableIds(
-                                  frozenListByMemberNodeId!,
-                                  nodeCount
-                              )
-                            : freezeEncodedNullableIds(listNodeIdCodes),
+                    parentNodeIds: freezeEncodedNullableIds(parentNodeIdCodes),
+                    statementNodeIds: freezeEncodedNullableIds(statementNodeIdCodes),
+                    queryNodeIds: freezeEncodedNullableIds(queryNodeIdCodes),
+                    listNodeIds: freezeEncodedNullableIds(listNodeIdCodes),
                     separatorOwnerships: Object.freeze(
                         Array.from(separatorOwnershipByLeaf.values()).sort(
                             (left, right) =>

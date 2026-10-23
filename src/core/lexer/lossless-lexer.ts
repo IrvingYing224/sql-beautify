@@ -56,16 +56,6 @@ const FRAGMENT_STOPS = new Set([",", "(", ")", ";"]);
 const POSTGRES_OPERATOR_CHARACTERS = new Set("~!@#^&|`?+-*/%<>=".split(""));
 const POSTGRES_NONSTANDARD_OPERATOR_CHARACTERS = new Set("~!@#^&|`?%".split(""));
 
-interface ImmutableSourceLeafPartitionProof {
-    readonly source: string;
-    readonly dialect: Dialect;
-}
-
-const IMMUTABLE_SOURCE_LEAF_PARTITIONS = new WeakMap<
-    readonly SourceLeaf[],
-    ImmutableSourceLeafPartitionProof
->();
-
 const CANONICAL_DIALECTS: ReadonlySet<string> = new Set([
     "hive",
     "generic",
@@ -132,50 +122,6 @@ function emitLeaf(
     state.leaves.push(leaf);
     state.nextId += 1;
     state.cursor = end;
-}
-
-function freezeSourceLeafPartition(
-    values: SourceLeaf[],
-    source: string,
-    dialect: Dialect
-): readonly SourceLeaf[] {
-    const partition = Object.freeze(values);
-    IMMUTABLE_SOURCE_LEAF_PARTITIONS.set(
-        partition,
-        Object.freeze({ source, dialect })
-    );
-    return partition;
-}
-
-/** Internal proof that lexer-created leaf records and their partition cannot mutate. */
-export function isImmutableSourceLeafPartition(
-    value: unknown
-): value is readonly SourceLeaf[] {
-    return (
-        Array.isArray(value) &&
-        IMMUTABLE_SOURCE_LEAF_PARTITIONS.has(value)
-    );
-}
-
-/** Internal proof that a canonical immutable leaf partition came from this exact source. */
-export function isImmutableSourceLeafPartitionForSource(
-    value: unknown,
-    source: string
-): boolean {
-    return (
-        Array.isArray(value) &&
-        IMMUTABLE_SOURCE_LEAF_PARTITIONS.get(value)?.source === source
-    );
-}
-
-/** Internal provenance for the dialect that produced a canonical partition. */
-export function canonicalSourceLeafPartitionDialect(
-    value: unknown
-): Dialect | null {
-    if (!Array.isArray(value)) {
-        return null;
-    }
-    return IMMUTABLE_SOURCE_LEAF_PARTITIONS.get(value)?.dialect ?? null;
 }
 
 function emitDiagnostic(
@@ -1036,7 +982,7 @@ export function lexSql(source: string, options?: LexOptions): LexOutput {
 
     if (source.length === 0) {
         return {
-            leaves: freezeSourceLeafPartition([], source, dialect),
+            leaves: Object.freeze([]) as readonly SourceLeaf[],
             diagnostics: [],
         };
     }
@@ -1059,7 +1005,7 @@ export function lexSql(source: string, options?: LexOptions): LexOutput {
         : state.leaves;
 
     return {
-        leaves: freezeSourceLeafPartition(leaves, source, dialect),
+        leaves: Object.freeze(leaves),
         diagnostics: state.diagnostics,
     };
 }

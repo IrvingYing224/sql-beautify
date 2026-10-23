@@ -1,15 +1,9 @@
 import type { ParseOptions } from "../syntax/parser-backend";
 import {
-    canonicalSourceLeafPartitionDialect,
-    isImmutableSourceLeafPartitionForSource,
-} from "../lexer/lossless-lexer";
-import {
-    canonicalParseModeForRoot,
     parseSqlArtifact,
     preserveParseArtifactTarget,
 } from "../syntax/parser";
 import type { ParseArtifact } from "../syntax/parser";
-import { isCanonicalStructuralTokenTableForLeaves } from "../syntax/token-table";
 import { buildStructuralIndex } from "./structural-index";
 import type {
     AnalysisArtifact,
@@ -25,20 +19,6 @@ function internalMessage(error: unknown): string {
     return message.length <= MAX_INTERNAL_MESSAGE_LENGTH
         ? message
         : `${message.slice(0, MAX_INTERNAL_MESSAGE_LENGTH)}…`;
-}
-
-function buildIndex(artifact: ParseArtifact): StructuralIndex {
-    return buildStructuralIndex(
-        {
-            root: artifact.output.root,
-            leaves: artifact.output.leaves,
-            tokenTable: artifact.tokenTable,
-            dialect: artifact.dialect,
-            diagnostics: artifact.output.diagnostics,
-            hasCommentTrivia: artifact.hasCommentTrivia,
-        },
-        artifact
-    );
 }
 
 function analysisArtifact(
@@ -77,30 +57,6 @@ function artifactPreservesTarget(artifact: ParseArtifact): boolean {
     );
 }
 
-function artifactProvenanceIsConsistent(artifact: ParseArtifact): boolean {
-    const leaves = artifact.output.leaves;
-    const canonicalMode = canonicalParseModeForRoot(artifact.output.root);
-    return (
-        isImmutableSourceLeafPartitionForSource(leaves, artifact.source) &&
-        canonicalSourceLeafPartitionDialect(leaves) === artifact.dialect &&
-        (canonicalMode === null || canonicalMode === artifact.mode) &&
-        isCanonicalStructuralTokenTableForLeaves(artifact.tokenTable, leaves)
-    );
-}
-
-function failedProvenanceOutput(artifact: ParseArtifact): AnalysisOutput {
-    try {
-        return failedOutput(
-            preserveParseArtifactTarget(
-                artifact,
-                "Analysis artifact source/dialect/mode provenance mismatch"
-            )
-        );
-    } catch {
-        return failedOutput(artifact);
-    }
-}
-
 /**
  * Internal Wave 2 analysis entry. It consumes the exact token table retained
  * by the parse artifact and never re-lexes, reparses, or rebuilds grammar facts.
@@ -116,13 +72,10 @@ export function analyzeSql(
 /** Internal integration seam used to verify fail-closed artifact handling. */
 export function analyzeParseArtifact(artifact: ParseArtifact): AnalysisOutput {
     try {
-        if (!artifactProvenanceIsConsistent(artifact)) {
-            return failedProvenanceOutput(artifact);
-        }
         return outputWithIndex(
             artifactPreservesTarget(artifact) ? "preserved" : "analyzed",
             artifact,
-            buildIndex(artifact)
+            buildStructuralIndex(artifact)
         );
     } catch (error) {
         let preserved: ParseArtifact;
@@ -135,7 +88,7 @@ export function analyzeParseArtifact(artifact: ParseArtifact): AnalysisOutput {
             return failedOutput(artifact);
         }
         try {
-            return outputWithIndex("preserved", preserved, buildIndex(preserved));
+            return outputWithIndex("preserved", preserved, buildStructuralIndex(preserved));
         } catch (fallbackError) {
             try {
                 const failed = preserveParseArtifactTarget(

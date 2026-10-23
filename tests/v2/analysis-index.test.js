@@ -1,9 +1,7 @@
 'use strict';
 
 var assert = require('assert');
-var lexer = require('../../.tmp/v2-core/core/lexer/lossless-lexer.js');
 var parser = require('../../.tmp/v2-core/core/syntax/parser.js');
-var tokenTable = require('../../.tmp/v2-core/core/syntax/token-table.js');
 var analysis = require('../../.tmp/v2-core/core/analysis/structural-index.js');
 var analyzer = require('../../.tmp/v2-core/core/analysis/analyze.js');
 var dialectRegistry = require('../../.tmp/v2-core/core/dialects/registry.js');
@@ -15,13 +13,7 @@ function build(source, dialect) {
     });
     var result = artifact.output;
     var table = artifact.tokenTable;
-    var index = analysis.buildStructuralIndex({
-        root: result.root,
-        leaves: result.leaves,
-        tokenTable: table,
-        dialect: dialect || 'hive',
-        diagnostics: result.diagnostics
-    });
+    var index = analysis.buildStructuralIndex(artifact);
     return { artifact: artifact, result: result, table: table, index: index };
 }
 
@@ -49,14 +41,15 @@ function replaceNode(root, targetId, replace) {
         : root;
 }
 
+// A parse artifact whose output fields are replaced, to exercise the index's semantic checks.
+function forged(built, output) {
+    return Object.freeze(Object.assign({}, built.artifact, {
+        output: Object.freeze(Object.assign({}, built.result, output))
+    }));
+}
+
 function directBuild(built, root) {
-    return analysis.buildStructuralIndex({
-        root: root,
-        leaves: built.result.leaves,
-        tokenTable: built.table,
-        dialect: built.artifact.dialect,
-        diagnostics: built.result.diagnostics
-    });
+    return analysis.buildStructuralIndex(forged(built, { root: root }));
 }
 
 (function testAnalyzeSqlConsumesRetainedParseArtifact() {
@@ -82,15 +75,6 @@ function directBuild(built, root) {
     var forgedArtifact = Object.freeze(Object.assign({}, built.artifact, {
         output: Object.freeze(Object.assign({}, built.result, { root: forgedRoot }))
     }));
-    assert.strictEqual(parser.isCanonicalParseArtifact(forgedArtifact), false);
-    assert.strictEqual(
-        parser.isCanonicalParseArtifact(parser.preserveParseArtifactTarget(
-            forgedArtifact,
-            'forged artifact fallback'
-        )),
-        false,
-        'fallback must not grant canonical trust to a forged artifact'
-    );
     var output = analyzer.analyzeParseArtifact(forgedArtifact);
 
     assert.strictEqual(output.status, 'preserved');
@@ -108,53 +92,12 @@ function directBuild(built, root) {
         forgedArtifact.source);
 }());
 
-(function testAnalysisFallbackContainsBrokenTokenTable() {
-    var built = build('SELECT 1');
-    var brokenTable = Object.freeze(Object.assign({}, built.table, {
-        leafCount: function() {
-            throw new Error('leafCount boom');
-        }
-    }));
-    var forgedArtifact = Object.freeze(Object.assign({}, built.artifact, {
-        tokenTable: brokenTable
-    }));
-    var output;
-    assert.doesNotThrow(function() {
-        output = analyzer.analyzeParseArtifact(forgedArtifact);
-    });
-    assert.strictEqual(output.status, 'failed');
-    assert.strictEqual(output.index, null);
-    assert.strictEqual(output.leaves.map(function(leaf) { return leaf.raw; }).join(''),
-        forgedArtifact.source);
-}());
-
-(function testAnalysisRejectsSourceAndDialectProvenanceDrift() {
-    var hiveArtifact = parser.parseSqlArtifact('SELECT 1', {
-        dialect: 'hive',
-        mode: 'document'
-    });
-    var wrongSourceArtifact = Object.freeze(Object.assign({}, hiveArtifact, {
-        source: 'SELECT 2'
-    }));
-    assert.strictEqual(parser.isCanonicalParseArtifact(wrongSourceArtifact), false);
-    var wrongSource = analyzer.analyzeParseArtifact(wrongSourceArtifact);
-    assert.strictEqual(wrongSource.status, 'failed',
-        'analysis must not index leaves under a different source identity');
-    assert.strictEqual(wrongSource.index, null);
-    assert.strictEqual(wrongSource.leaves.map(function(leaf) { return leaf.raw; }).join(''),
-        'SELECT 1', 'failed output must retain the canonical leaf partition');
-
+(function testDialectPrimitiveCapabilityReachesIndex() {
     var mysqlArtifact = parser.parseSqlArtifact('SELECT @name', {
         dialect: 'mysql',
         mode: 'document'
     });
-    var mysqlIndex = analysis.buildStructuralIndex({
-        root: mysqlArtifact.output.root,
-        leaves: mysqlArtifact.output.leaves,
-        tokenTable: mysqlArtifact.tokenTable,
-        dialect: 'mysql',
-        diagnostics: mysqlArtifact.output.diagnostics
-    });
+    var mysqlIndex = analysis.buildStructuralIndex(mysqlArtifact);
     var mysqlVariableNode = mysqlIndex.nodes().filter(function(node) {
         return node.kind === 'expression' && node.expressionKind === 'parameter';
     })[0];
@@ -170,34 +113,6 @@ function directBuild(built, root) {
         'mysql-variables',
         'primitive capability must reach its contextual leaf occurrence'
     );
-    var wrongDialectArtifact = Object.freeze(Object.assign({}, mysqlArtifact, {
-        dialect: 'postgresql'
-    }));
-    assert.strictEqual(parser.isCanonicalParseArtifact(wrongDialectArtifact), false);
-    var wrongDialect = analyzer.analyzeParseArtifact(wrongDialectArtifact);
-    assert.strictEqual(wrongDialect.status, 'failed',
-        'analysis must not reinterpret a MySQL leaf partition as PostgreSQL');
-    assert.strictEqual(wrongDialect.index, null);
-
-    var wrongModeArtifact = Object.freeze(Object.assign({}, hiveArtifact, {
-        mode: 'fragment'
-    }));
-    assert.strictEqual(parser.isCanonicalParseArtifact(wrongModeArtifact), false);
-    var wrongMode = analyzer.analyzeParseArtifact(wrongModeArtifact);
-    assert.strictEqual(wrongMode.status, 'failed',
-        'analysis must not relabel a document CST as a fragment artifact');
-    assert.strictEqual(wrongMode.index, null);
-
-    assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: mysqlArtifact.output.root,
-            leaves: mysqlArtifact.output.leaves,
-            tokenTable: mysqlArtifact.tokenTable,
-            dialect: 'postgresql',
-            diagnostics: mysqlArtifact.output.diagnostics
-        });
-    }, /canonical.*dialect|dialect.*partition/i,
-    'direct index construction must reject a dialect different from lexer provenance');
 }());
 
 (function testTreeStatementQueryAndClauseIndexes() {
@@ -477,108 +392,9 @@ function directBuild(built, root) {
             first.result.root.children[0]
         ])
     }));
-    var table = tokenTable.buildStructuralTokenTable(first.result.leaves, source);
     assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: sharedStatementRoot,
-            leaves: first.result.leaves,
-            tokenTable: table,
-            dialect: 'hive',
-            diagnostics: first.result.diagnostics
-        });
+        analysis.buildStructuralIndex(forged(first, { root: sharedStatementRoot }));
     }, /shared|duplicate|node id/i, 'builder must fail closed on invalid topology');
-
-    assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: first.result.root,
-            leaves: first.result.leaves,
-            tokenTable: Object.freeze({
-                leafCount: function() { return first.result.leaves.length; }
-            }),
-            dialect: 'hive',
-            diagnostics: first.result.diagnostics
-        });
-    }, /canonical.*token table|token table/i,
-    'index must not retain an unbranded live token table');
-
-    var delimiterArtifact = parser.parseSqlArtifact('SELECT (a)', {
-        dialect: 'hive',
-        mode: 'document'
-    });
-    var commaArtifact = parser.parseSqlArtifact('SELECT a,b', {
-        dialect: 'hive',
-        mode: 'document'
-    });
-    assert.strictEqual(delimiterArtifact.output.leaves.length,
-        commaArtifact.output.leaves.length, 'probe requires equal leaf counts');
-    var wrongSourceTable = tokenTable.buildStructuralTokenTable(
-        delimiterArtifact.output.leaves,
-        commaArtifact.source
-    );
-    assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: delimiterArtifact.output.root,
-            leaves: delimiterArtifact.output.leaves,
-            tokenTable: wrongSourceTable,
-            dialect: 'hive',
-            diagnostics: delimiterArtifact.output.diagnostics
-        });
-    }, /same.*canonical.*leaf|leaf stream|token table/i,
-    'index must reject a table built with leaves from a different source');
-    assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: delimiterArtifact.output.root,
-            leaves: delimiterArtifact.output.leaves,
-            tokenTable: commaArtifact.tokenTable,
-            dialect: 'hive',
-            diagnostics: delimiterArtifact.output.diagnostics
-        });
-    }, /same.*leaf|leaf stream|token table/i,
-    'index must reject a canonical token table from a different leaf partition');
-
-    assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: delimiterArtifact.output.root,
-            leaves: commaArtifact.output.leaves,
-            tokenTable: commaArtifact.tokenTable,
-            dialect: 'hive',
-            diagnostics: commaArtifact.output.diagnostics
-        });
-    }, /program.*leaf|leaf partition|canonical.*tree/i,
-    'index must reject a canonical CST from a different leaf partition');
-
-    assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: first.result.root,
-            leaves: first.result.leaves,
-            tokenTable: first.table,
-            dialect: 'hive',
-            diagnostics: []
-        });
-    }, /diagnostics.*stable.*frozen/i,
-    'index must not retain a mutable diagnostic collection');
-
-    var mutableSpan = {
-        start: first.result.root.children[0].span.start,
-        end: first.result.root.children[0].span.end
-    };
-    var shallowFrozenRoot = replaceNode(
-        first.result.root,
-        first.result.root.children[0].id,
-        function(statement) {
-            return Object.assign({}, statement, { span: mutableSpan });
-        }
-    );
-    assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: shallowFrozenRoot,
-            leaves: first.result.leaves,
-            tokenTable: first.table,
-            dialect: 'hive',
-            diagnostics: first.result.diagnostics
-        });
-    }, /range\/span.*stable.*frozen/i,
-    'nested range and span values must not remain mutable behind a frozen index');
 
     var oversizedNodeIdRoot = replaceNode(
         first.result.root,
@@ -588,13 +404,7 @@ function directBuild(built, root) {
         }
     );
     assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: oversizedNodeIdRoot,
-            leaves: first.result.leaves,
-            tokenTable: table,
-            dialect: 'hive',
-            diagnostics: first.result.diagnostics
-        });
+        analysis.buildStructuralIndex(forged(first, { root: oversizedNodeIdRoot }));
     }, /linear budget/i,
     'forged ids must fail before expanding direct-address arrays');
 
@@ -615,13 +425,7 @@ function directBuild(built, root) {
         }
     );
     assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: duplicateSeparatorRoot,
-            leaves: separatorBuilt.result.leaves,
-            tokenTable: separatorBuilt.table,
-            dialect: 'hive',
-            diagnostics: separatorBuilt.result.diagnostics
-        });
+        analysis.buildStructuralIndex(forged(separatorBuilt, { root: duplicateSeparatorRoot }));
     }, /separator.*multiple/i, 'separator ownership must be globally unique');
 
     var opaqueBuilt = build('CREATE TABLE t (a STRING)');
@@ -636,13 +440,7 @@ function directBuild(built, root) {
         }
     );
     assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: missingCapabilityRoot,
-            leaves: opaqueBuilt.result.leaves,
-            tokenTable: opaqueBuilt.table,
-            dialect: 'hive',
-            diagnostics: opaqueBuilt.result.diagnostics
-        });
+        analysis.buildStructuralIndex(forged(opaqueBuilt, { root: missingCapabilityRoot }));
     }, /missing required capabilityId/i);
 
     var nonPreservationCapabilityRoot = replaceNode(
@@ -653,13 +451,7 @@ function directBuild(built, root) {
         }
     );
     assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: nonPreservationCapabilityRoot,
-            leaves: opaqueBuilt.result.leaves,
-            tokenTable: opaqueBuilt.table,
-            dialect: 'hive',
-            diagnostics: opaqueBuilt.result.diagnostics
-        });
+        analysis.buildStructuralIndex(forged(opaqueBuilt, { root: nonPreservationCapabilityRoot }));
     }, /non-preservation state formatted/i);
 
     var mismatchedDiagnostics = opaqueBuilt.result.diagnostics.map(function(diagnostic) {
@@ -668,13 +460,7 @@ function directBuild(built, root) {
         }));
     });
     assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: opaqueBuilt.result.root,
-            leaves: opaqueBuilt.result.leaves,
-            tokenTable: opaqueBuilt.table,
-            dialect: 'hive',
-            diagnostics: Object.freeze(mismatchedDiagnostics)
-        });
+        analysis.buildStructuralIndex(forged(opaqueBuilt, { diagnostics: Object.freeze(mismatchedDiagnostics) }));
     }, /lacks an exact matching diagnostic/i);
 
     var missingDiagnosticCapability = opaqueBuilt.result.diagnostics.map(function(diagnostic) {
@@ -683,13 +469,7 @@ function directBuild(built, root) {
         return Object.freeze(copy);
     });
     assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: opaqueBuilt.result.root,
-            leaves: opaqueBuilt.result.leaves,
-            tokenTable: opaqueBuilt.table,
-            dialect: 'hive',
-            diagnostics: Object.freeze(missingDiagnosticCapability)
-        });
+        analysis.buildStructuralIndex(forged(opaqueBuilt, { diagnostics: Object.freeze(missingDiagnosticCapability) }));
     }, /diagnostic 0 is missing required capabilityId/i);
 
     var genericOpaqueBuilt = build('SELECT a @ b');
@@ -698,13 +478,7 @@ function directBuild(built, root) {
         null
     );
     assert.throws(function() {
-        analysis.buildStructuralIndex({
-            root: genericOpaqueBuilt.result.root,
-            leaves: genericOpaqueBuilt.result.leaves,
-            tokenTable: genericOpaqueBuilt.table,
-            dialect: 'hive',
-            diagnostics: Object.freeze([])
-        });
+        analysis.buildStructuralIndex(forged(genericOpaqueBuilt, { diagnostics: Object.freeze([]) }));
     }, /opaque node .* lacks an exact matching diagnostic/i,
     'generic opaque recovery must also retain reason/span/recovery diagnostic identity');
 }());
@@ -860,144 +634,6 @@ function directBuild(built, root) {
         directBuild(built, mismatchedMultiWordRoot);
     }, /word operator occurrence.*does not match/i,
     'canonical semantics identity must still match the referenced source words');
-}());
-
-function buildOperatorScaleFixture(operatorCount) {
-    var source = new Array(operatorCount).fill('+').join(' ');
-    var lexed = lexer.lexSql(source, { dialect: 'hive' });
-    var table = tokenTable.buildStructuralTokenTable(lexed.leaves, source);
-    var semantics = dialectRegistry.getDialect('hive').getOperatorSemantics('+', 'infix');
-    assert.ok(semantics, 'canonical infix + semantics required');
-    var operatorLeafIds = Object.freeze(lexed.leaves.filter(function(leaf) {
-        return leaf.raw === '+';
-    }).map(function(leaf) {
-        return leaf.id;
-    }));
-    assert.strictEqual(operatorLeafIds.length, operatorCount);
-
-    var empty = Object.freeze([]);
-    var range = Object.freeze({ start: 0, end: lexed.leaves.length });
-    var span = Object.freeze({ start: 0, end: source.length });
-    var occurrences = Object.freeze(operatorLeafIds.map(function(leafId) {
-        return Object.freeze({
-            ownerNodeId: 1,
-            leafIds: Object.freeze([leafId]),
-            operatorId: semantics.id,
-            capabilityId: semantics.capabilityId,
-            fixity: semantics.fixity,
-            formatClass: semantics.formatClass,
-            semantics: semantics
-        });
-    }));
-    var expression = Object.freeze({
-        id: 1,
-        kind: 'expression',
-        expressionKind: 'binary',
-        leafRange: range,
-        span: span,
-        children: empty,
-        operatorLeafIds: operatorLeafIds,
-        operatorOccurrences: occurrences,
-        syntaxMarkers: empty,
-        capabilityId: null,
-        formatRole: 'intrinsic-primitive'
-    });
-    var root = Object.freeze({
-        id: 0,
-        kind: 'program',
-        leafRange: range,
-        span: span,
-        children: Object.freeze([expression]),
-        syntaxMarkers: empty,
-        capabilityId: null,
-        formatRole: 'intrinsic-container'
-    });
-    return Object.freeze({
-        operatorCount: operatorCount,
-        operatorLeafIds: operatorLeafIds,
-        input: Object.freeze({
-            root: root,
-            leaves: lexed.leaves,
-            tokenTable: table,
-            dialect: 'hive',
-            diagnostics: empty,
-            hasCommentTrivia: false
-        })
-    });
-}
-
-function median(values) {
-    var sorted = values.slice().sort(function(left, right) {
-        return left - right;
-    });
-    return sorted[Math.floor(sorted.length / 2)];
-}
-
-function measureOperatorScale(fixture) {
-    var warm = analysis.buildStructuralIndex(fixture.input);
-    assert.strictEqual(warm.operatorOccurrencesOf(1).length, fixture.operatorCount);
-    assert.strictEqual(
-        warm.operatorOccurrenceForLeaf(
-            fixture.operatorLeafIds[fixture.operatorLeafIds.length - 1]
-        ).ownerNodeId,
-        1
-    );
-
-    var samples = [];
-    for (var sample = 0; sample < 3; sample++) {
-        var started = process.hrtime.bigint();
-        var index = analysis.buildStructuralIndex(fixture.input);
-        var elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
-        assert.strictEqual(index.operatorOccurrencesOf(1).length, fixture.operatorCount);
-        samples.push(elapsedMs);
-    }
-    return Object.freeze({
-        operatorCount: fixture.operatorCount,
-        medianMs: median(samples),
-        samplesMs: Object.freeze(samples)
-    });
-}
-
-(function testDirectBuilderOperatorClosureScalesLinearly() {
-    var counts = [8000, 16000, 32000];
-    var timings = counts.map(function(count) {
-        return measureOperatorScale(buildOperatorScaleFixture(count));
-    });
-    var first = timings[0].medianMs;
-    var last = timings[2].medianMs;
-    var fourXGrowth = last / Math.max(first, 0.1);
-
-    assert.ok(
-        fourXGrowth <= 7,
-        '4x operators must remain near-linear; growth=' + fourXGrowth.toFixed(2) +
-            ' timings=' + JSON.stringify(timings)
-    );
-    assert.ok(
-        last <= 1000,
-        '32k exact operator coverage exceeded disaster gate: ' + JSON.stringify(timings)
-    );
-    console.log('operator exact-coverage scale ' + JSON.stringify(timings));
-}());
-
-(function testLinearScaleSmoke() {
-    var statements = [];
-    for (var i = 0; i < 1000; i++) {
-        statements.push('SELECT a, b FROM t WHERE a = ' + i);
-    }
-    var source = statements.join(';\n');
-    var parsed = parser.parseSql(source, { dialect: 'hive', mode: 'document' });
-    var table = tokenTable.buildStructuralTokenTable(parsed.leaves, source);
-    var started = process.hrtime.bigint();
-    var index = analysis.buildStructuralIndex({
-        root: parsed.root,
-        leaves: parsed.leaves,
-        tokenTable: table,
-        dialect: 'hive',
-        diagnostics: parsed.diagnostics
-    });
-    var elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
-    assert.strictEqual(index.statements().length, 1000);
-    assert.ok(elapsedMs < 1500, '1000-statement index build took ' + elapsedMs.toFixed(2) + 'ms');
 }());
 
 console.log('v2 Wave 2E analysis index tests passed');

@@ -4,10 +4,7 @@ import { lexSql } from "../lexer/lossless-lexer";
 import type { LexOutput } from "../lexer/lossless-lexer";
 import { getDialect } from "../dialects/registry";
 import { freezeImmutableArray } from "../util/immutable-array";
-import {
-    canonicalProgramCoversSource,
-    createParserNodeFactory,
-} from "./node-factory";
+import { createNodeFactory } from "./node-factory";
 import type { ProgramNode, StatementNode, SyntaxNode } from "./node";
 import type { LeafRange } from "./leaf-range";
 import { createOpaqueWithDiagnostic } from "./recovery";
@@ -38,8 +35,6 @@ import {
 
 const BACKEND_ID = "sql-beautify-v2";
 const BACKEND_VERSION = "2e";
-const CANONICAL_PARSE_ARTIFACTS = new WeakSet<object>();
-const CANONICAL_PARSE_MODE_BY_ROOT = new WeakMap<object, ParseMode>();
 
 /**
  * Internal parse product retained for Wave 2 analysis. The public parse result
@@ -52,26 +47,16 @@ export interface ParseArtifact {
     readonly dialect: Dialect;
     readonly mode: ParseMode;
     readonly output: ParseOutput;
+    /** Node ids of output.root are exactly [0, nodeCount). */
+    readonly nodeCount: number;
     readonly tokenTable: StructuralTokenTable;
     /** Derived while freezing lexer output; avoids a second analysis pre-scan. */
     readonly hasCommentTrivia: boolean;
 }
 
-/** Internal provenance check for exact immutable artifacts created by this parser. */
-export function isCanonicalParseArtifact(value: unknown): value is ParseArtifact {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        CANONICAL_PARSE_ARTIFACTS.has(value)
-    );
-}
-
-/** Internal provenance for the parse mode that produced a canonical root. */
-export function canonicalParseModeForRoot(value: unknown): ParseMode | null {
-    if (typeof value !== "object" || value === null) {
-        return null;
-    }
-    return CANONICAL_PARSE_MODE_BY_ROOT.get(value) ?? null;
+interface ParsedProgram {
+    readonly output: ParseOutput;
+    readonly nodeCount: number;
 }
 
 function createContext(
@@ -86,7 +71,7 @@ function createContext(
         mode: mode ?? "document",
         leaves: lexed.leaves,
         table,
-        factory: createParserNodeFactory(table, dialect),
+        factory: createNodeFactory(table),
         diagnostics,
         trialState: createParserTrialState(table.syntaxLeafCount()),
     });
@@ -156,12 +141,15 @@ function buildTargetPreservingProgram(
     );
 }
 
-function outputOf(context: ParserContext, root: ProgramNode): ParseOutput {
-    return Object.freeze({
-        root,
-        leaves: context.leaves,
-        diagnostics: finalizeDiagnostics(context.diagnostics),
-    });
+function outputOf(context: ParserContext, root: ProgramNode): ParsedProgram {
+    return {
+        output: Object.freeze({
+            root,
+            leaves: context.leaves,
+            diagnostics: finalizeDiagnostics(context.diagnostics),
+        }),
+        nodeCount: context.factory.checkpoint(),
+    };
 }
 
 function targetFallbackOutput(
@@ -171,7 +159,7 @@ function targetFallbackOutput(
     table: StructuralTokenTable,
     code: SyntaxDiagnosticCode,
     message: string
-): ParseOutput {
+): ParsedProgram {
     const context = createContext(dialect, mode, lexed, table);
     const root = buildTargetPreservingProgram(context, code, message);
     return outputOf(context, root);
@@ -188,36 +176,19 @@ function artifactOf(
     source: string,
     dialect: Dialect,
     mode: ParseMode,
-    output: ParseOutput,
+    parsed: ParsedProgram,
     tokenTable: StructuralTokenTable,
-    hasCommentTrivia: boolean,
-    canonical: boolean
+    hasCommentTrivia: boolean
 ): ParseArtifact {
-    const artifact = Object.freeze({
+    return Object.freeze({
         source,
         dialect,
         mode,
-        output,
+        output: parsed.output,
+        nodeCount: parsed.nodeCount,
         tokenTable,
         hasCommentTrivia,
     });
-    if (canonical) {
-        if (
-            !canonicalProgramCoversSource(
-                output.root,
-                output.leaves,
-                dialect,
-                source.length
-            )
-        ) {
-            throw new Error(
-                "Canonical parse artifact root does not cover its exact source partition"
-            );
-        }
-        CANONICAL_PARSE_ARTIFACTS.add(artifact);
-        CANONICAL_PARSE_MODE_BY_ROOT.set(output.root, mode);
-    }
-    return artifact;
 }
 
 export function parseSqlArtifact(
@@ -255,8 +226,7 @@ export function parseSqlArtifact(
                 "Lexical error prevents safe CST construction"
             ),
             table,
-            hasCommentTrivia,
-            true
+            hasCommentTrivia
         );
     }
     if (!table.statementBoundariesReliable()) {
@@ -273,8 +243,7 @@ export function parseSqlArtifact(
                 "Unreliable delimiter structure prevents safe statement parsing"
             ),
             table,
-            hasCommentTrivia,
-            true
+            hasCommentTrivia
         );
     }
     if (mode !== "document" && table.statementRanges().length > 1) {
@@ -291,8 +260,7 @@ export function parseSqlArtifact(
                 `${mode} mode requires exactly one complete target`
             ),
             table,
-            hasCommentTrivia,
-            true
+            hasCommentTrivia
         );
     }
     try {
@@ -312,8 +280,7 @@ export function parseSqlArtifact(
                     "Fragment target could not be fully structured"
                 ),
                 table,
-                hasCommentTrivia,
-                true
+                hasCommentTrivia
             );
         }
         return artifactOf(
@@ -322,8 +289,7 @@ export function parseSqlArtifact(
             mode,
             outputOf(context, root),
             table,
-            hasCommentTrivia,
-            true
+            hasCommentTrivia
         );
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -340,8 +306,7 @@ export function parseSqlArtifact(
                 `Parser internal failure: ${message}`
             ),
             table,
-            hasCommentTrivia,
-            true
+            hasCommentTrivia
         );
     }
 }
@@ -360,9 +325,6 @@ export function parseTypePrefixFromArtifact(
     range: LeafRange,
     nestingDepth: number = 0
 ): ParsedTypePrefix {
-    if (!isCanonicalParseArtifact(artifact)) {
-        throw new TypeError("Type prefix parsing requires a canonical parse artifact");
-    }
     const lexed: LexOutput = Object.freeze({
         leaves: artifact.output.leaves,
         diagnostics: artifact.output.diagnostics,
@@ -387,7 +349,6 @@ export function preserveParseArtifactTarget(
     artifact: ParseArtifact,
     message: string
 ): ParseArtifact {
-    const preserveCanonicalTrust = isCanonicalParseArtifact(artifact);
     const lexed: LexOutput = Object.freeze({
         leaves: artifact.output.leaves,
         diagnostics: artifact.output.diagnostics,
@@ -405,8 +366,7 @@ export function preserveParseArtifactTarget(
             message
         ),
         artifact.tokenTable,
-        artifact.hasCommentTrivia,
-        preserveCanonicalTrust
+        artifact.hasCommentTrivia
     );
 }
 

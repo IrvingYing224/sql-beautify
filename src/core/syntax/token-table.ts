@@ -1,4 +1,3 @@
-import { isImmutableSourceLeafPartitionForSource } from "../lexer/lossless-lexer";
 import type { SourceLeaf } from "../lexer/token";
 import type { SourceSpan } from "../source/source-span";
 import { freezeImmutableArray } from "../util/immutable-array";
@@ -72,58 +71,7 @@ const CLOSERS: Readonly<Record<string, string>> = Object.freeze({
     "]": "[",
 });
 
-interface CanonicalStructuralTokenTableProof {
-    readonly leaves: readonly SourceLeaf[];
-    readonly canonicalSourcePartition: boolean;
-    readonly rangeToSpan: (range: LeafRange) => SourceSpan;
-}
-
-const CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS = new WeakMap<
-    object,
-    CanonicalStructuralTokenTableProof
->();
 const NO_INDEX = -1;
-
-/** Internal proof that the table owns immutable facts from the canonical builder. */
-export function isCanonicalStructuralTokenTable(
-    value: unknown
-): value is StructuralTokenTable {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.has(value)
-    );
-}
-
-/** Internal proof that a canonical table was built over this exact leaf partition. */
-export function isCanonicalStructuralTokenTableForLeaves(
-    value: unknown,
-    leaves: readonly SourceLeaf[]
-): value is StructuralTokenTable {
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-    const proof = CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.get(value);
-    return proof?.leaves === leaves && proof.canonicalSourcePartition;
-}
-
-/** Internal provenance lookup for the exact leaf partition owned by a table. */
-export function canonicalStructuralTokenTableLeaves(
-    value: unknown
-): readonly SourceLeaf[] | null {
-    if (typeof value !== "object" || value === null) {
-        return null;
-    }
-    const proof = CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.get(value);
-    return proof?.canonicalSourcePartition === true ? proof.leaves : null;
-}
-
-/** Internal node-factory seam for ranges already validated by freezeRange(). */
-export function canonicalRangeToSpan(
-    table: StructuralTokenTable
-): ((range: LeafRange) => SourceSpan) | null {
-    return CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.get(table)?.rangeToSpan ?? null;
-}
 
 function isSyntaxLeaf(leaf: SourceLeaf): boolean {
     return leaf.channel === "code" || leaf.channel === "protected";
@@ -137,8 +85,6 @@ export function buildStructuralTokenTable(
     leaves: readonly SourceLeaf[],
     source: string
 ): StructuralTokenTable {
-    const canonicalSourcePartition =
-        isImmutableSourceLeafPartitionForSource(leaves, source);
     const n = leaves.length;
 
     const syntaxIndexStorage = new Uint32Array(n);
@@ -462,14 +408,5 @@ export function buildStructuralTokenTable(
             return leaves[leafIndex]!;
         },
     });
-
-    CANONICAL_STRUCTURAL_TOKEN_TABLE_PROOFS.set(
-        table,
-        Object.freeze({
-            leaves,
-            canonicalSourcePartition,
-            rangeToSpan: rangeToSpanUnchecked,
-        })
-    );
     return table;
 }

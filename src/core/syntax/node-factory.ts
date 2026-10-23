@@ -6,8 +6,7 @@ import {
     EMPTY_FROZEN_ARRAY,
     freezeImmutableArray,
 } from "../util/immutable-array";
-import type { SourceLeaf } from "../lexer/token";
-import type { Dialect } from "../config/options";
+import type { SourceSpan } from "../source/source-span";
 import type { LeafRange } from "./leaf-range";
 import type {
     AliasInfo,
@@ -42,10 +41,6 @@ import type {
     TypeExpressionNode,
     WindowSpecNode,
 } from "./node";
-import {
-    canonicalRangeToSpan,
-    canonicalStructuralTokenTableLeaves,
-} from "./token-table";
 import type { StructuralTokenTable } from "./token-table";
 import {
     isFormatRole,
@@ -158,85 +153,6 @@ export interface NodeFactory {
     ): OpaqueNode;
 }
 
-interface CanonicalProgramProof {
-    readonly nodeCount: number;
-    readonly leaves: readonly SourceLeaf[];
-    readonly dialect: Dialect;
-    readonly validation: CanonicalProgramValidationProof;
-}
-
-export interface CanonicalProgramValidationProof {
-    readonly nodeCount: number;
-    ownsNode(value: unknown): boolean;
-}
-
-const CANONICAL_PROGRAM_PROOFS = new WeakMap<object, CanonicalProgramProof>();
-
-/** Internal provenance for ProgramNodes completed by the canonical factory. */
-export function canonicalProgramNodeCount(value: unknown): number | null {
-    if (typeof value !== "object" || value === null) {
-        return null;
-    }
-    return CANONICAL_PROGRAM_PROOFS.get(value)?.nodeCount ?? null;
-}
-
-/** Internal proof that a canonical ProgramNode belongs to this exact leaf partition. */
-export function canonicalProgramNodeCountForLeaves(
-    value: unknown,
-    leaves: readonly SourceLeaf[]
-): number | null {
-    if (typeof value !== "object" || value === null) {
-        return null;
-    }
-    const proof = CANONICAL_PROGRAM_PROOFS.get(value);
-    return proof?.leaves === leaves ? proof.nodeCount : null;
-}
-
-/** Internal whole-graph identity proof for the parser factory and leaf partition. */
-export function canonicalProgramValidationProofForLeaves(
-    value: unknown,
-    leaves: readonly SourceLeaf[],
-    dialect: Dialect
-): CanonicalProgramValidationProof | null {
-    if (typeof value !== "object" || value === null) {
-        return null;
-    }
-    const proof = CANONICAL_PROGRAM_PROOFS.get(value);
-    return proof?.leaves === leaves && proof.dialect === dialect
-        ? proof.validation
-        : null;
-}
-
-/**
- * O(1) canonical root-coverage proof used before a parser artifact gains
- * provenance. Deeper topology and semantic facts are validated once while the
- * structural index is built.
- */
-export function canonicalProgramCoversSource(
-    value: unknown,
-    leaves: readonly SourceLeaf[],
-    dialect: Dialect,
-    sourceLength: number
-): value is ProgramNode {
-    const proof = canonicalProgramValidationProofForLeaves(
-        value,
-        leaves,
-        dialect
-    );
-    if (proof === null || !proof.ownsNode(value)) {
-        return false;
-    }
-    const root = value as ProgramNode;
-    return (
-        proof.nodeCount >= 1 &&
-        root.kind === "program" &&
-        root.id === 0 &&
-        root.leafRange.start === 0 &&
-        root.leafRange.end === leaves.length &&
-        root.span.start === 0 &&
-        root.span.end === sourceLength
-    );
-}
 
 function freezeRange(range: LeafRange, leafCount: number, allowEmpty: boolean): LeafRange {
     if (
@@ -434,35 +350,8 @@ function freezeOperatorOccurrences(
 }
 
 export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
-    return createNodeFactoryInternal(table, false, null);
-}
-
-/** Parser-only factory; deliberately not re-exported from the syntax facade. */
-export function createParserNodeFactory(
-    table: StructuralTokenTable,
-    dialect: Dialect
-): NodeFactory {
-    return createNodeFactoryInternal(table, true, dialect);
-}
-
-function createNodeFactoryInternal(
-    table: StructuralTokenTable,
-    grantCanonicalProgramProvenance: boolean,
-    canonicalDialect: Dialect | null
-): NodeFactory {
     const leafCount = table.leafCount();
-    const trustedRangeToSpan = canonicalRangeToSpan(table);
-    const canonicalLeaves = grantCanonicalProgramProvenance
-        ? canonicalStructuralTokenTableLeaves(table)
-        : null;
-    if (grantCanonicalProgramProvenance && canonicalLeaves === null) {
-        throw new Error("Parser node factory requires a canonical structural token table");
-    }
-    if (grantCanonicalProgramProvenance && canonicalDialect === null) {
-        throw new Error("Parser node factory requires a canonical dialect");
-    }
-    const spanForRange = trustedRangeToSpan ?? ((range: LeafRange) => table.rangeToSpan(range));
-    const createdNodes: (SyntaxNode | undefined)[] = [];
+    const spanForRange = (range: LeafRange): SourceSpan => table.rangeToSpan(range);
     let nextId = 1;
     let programCreated = false;
 
@@ -486,9 +375,6 @@ function createNodeFactoryInternal(
             ) {
                 throw new Error(`Invalid node factory rollback checkpoint: ${checkpoint}`);
             }
-            if (grantCanonicalProgramProvenance) {
-                createdNodes.length = checkpoint;
-            }
             nextId = checkpoint;
         },
 
@@ -508,32 +394,6 @@ function createNodeFactoryInternal(
                 ...nodeFacts,
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[program.id] = program;
-                const canonicalNodes = Object.freeze(
-                    createdNodes as readonly SyntaxNode[]
-                );
-                const validation: CanonicalProgramValidationProof = Object.freeze({
-                    nodeCount: nextId,
-                    ownsNode(value: unknown): boolean {
-                        return (
-                            typeof value === "object" &&
-                            value !== null &&
-                            Number.isInteger((value as { id?: unknown }).id) &&
-                            canonicalNodes[(value as { id: number }).id] === value
-                        );
-                    },
-                });
-                CANONICAL_PROGRAM_PROOFS.set(
-                    program,
-                    Object.freeze({
-                        nodeCount: nextId,
-                        leaves: canonicalLeaves!,
-                        dialect: canonicalDialect!,
-                        validation,
-                    })
-                );
-            }
             return program;
         },
 
@@ -566,9 +426,6 @@ function createNodeFactoryInternal(
                 bodyChildId: body === null ? null : body.id,
                 children: body === null ? freezeImmutableArray([]) : freezeImmutableArray([body]),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -599,9 +456,6 @@ function createNodeFactoryInternal(
                     ? freezeImmutableArray([]) as readonly SetPayloadNode[]
                     : freezeImmutableArray([payload]),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -660,9 +514,6 @@ function createNodeFactoryInternal(
                 valueLeafRange: frozenValueRange,
                 children: freezeImmutableArray([]) as readonly [],
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -684,9 +535,6 @@ function createNodeFactoryInternal(
                 ),
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -710,9 +558,6 @@ function createNodeFactoryInternal(
                 columnListChildId: columnList === null ? null : columnList.id,
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -736,9 +581,6 @@ function createNodeFactoryInternal(
                 ),
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -774,9 +616,6 @@ function createNodeFactoryInternal(
                 bodyChildId: body === null ? null : body.id,
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -794,9 +633,6 @@ function createNodeFactoryInternal(
                 separatorLeafIds: freezeIds(separatorLeafIds, leafCount, "separator"),
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -816,9 +652,6 @@ function createNodeFactoryInternal(
                 valueChildId: value.id,
                 children: freezeImmutableArray([value]),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -849,9 +682,6 @@ function createNodeFactoryInternal(
                 ),
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -881,9 +711,6 @@ function createNodeFactoryInternal(
                 valueChildId: value.id,
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -923,9 +750,6 @@ function createNodeFactoryInternal(
                 frameChildId: frame === null ? null : frame.id,
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -960,9 +784,6 @@ function createNodeFactoryInternal(
                 memberListChildId: memberList === null ? null : memberList.id,
                 children: freezeImmutableArray(children),
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
 
@@ -988,9 +809,6 @@ function createNodeFactoryInternal(
                 reasonCode,
                 boundary,
             });
-            if (grantCanonicalProgramProvenance) {
-                createdNodes[node.id] = node;
-            }
             return node;
         },
     };
