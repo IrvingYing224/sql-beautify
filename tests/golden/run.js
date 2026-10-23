@@ -559,8 +559,7 @@ async function propertyFailures(source, spec, actual) {
     var second = await execute(actual.text, spec);
     if (second.text !== actual.text) {
         failures.idempotence = 'second pass changes ' + firstDifference(actual.text, second.text);
-    } else if (op === 'formatSql' && second.status !== 'unchanged') {
-        // DDL compares its LF render without the target layout, so it can report formatted here (K35).
+    } else if (second.status !== 'unchanged') {
         failures.idempotence = 'second pass returns ' + second.status + ' ' + JSON.stringify(second.codes);
     }
     return failures;

@@ -468,13 +468,13 @@ test('formatHiveDdl: whole document, already formatted text, and unsupported DDL
         assert.strictEqual(result.status, 'unchanged');
         assert.strictEqual(editor.editCalls, 0);
 
-        // The operation compares its LF rendering with the target, which here lacks the final newline,
-        // so the edit rewrites identical text (K35).
-        editor = h.open('CREATE TABLE t\n(\n     a INT\n);\n', {}, [[0, 30]]);
-        result = await h.run('formatHiveDdl');
-        assert.strictEqual(result.status, 'ready');
-        assert.deepStrictEqual(result.edits.map(function(edit) { return [edit.start, edit.end]; }), [[0, 30]]);
-        assert.strictEqual(editor.document.text, 'CREATE TABLE t\n(\n     a INT\n);\n');
+        // K35: a selection without the final newline, or indented with CRLF, is unchanged too.
+        for (var value of [['CREATE TABLE t\n(\n     a INT\n);\n', 0, 30], ['  CREATE TABLE t\r\n  (\r\n       a INT\r\n  );\r\n', 2, 42]]) {
+            editor = h.open(value[0], {}, [[value[1], value[2]]]);
+            result = await h.run('formatHiveDdl');
+            assert.strictEqual(result.status, 'unchanged');
+            assert.strictEqual(editor.editCalls, 0);
+        }
 
         editor = h.open("create table t (a int) location 'x';\n");
         result = await h.run('formatHiveDdl');

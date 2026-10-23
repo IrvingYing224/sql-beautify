@@ -60,9 +60,17 @@ test('X1 X2: one edit per target; an already formatted target is unchanged', fun
     assert.deepStrictEqual(edits(ddl('create table t (a int);\n')), [['document', 0, 24, 'CREATE TABLE t\n(\n     a INT\n);\n']]);
     var formatted = 'CREATE TABLE t\n(\n     a INT\n)\n';
     assert.deepStrictEqual(ddl(formatted), { status: 'unchanged', edits: [], selections: [], diagnostics: [], debugEvents: [] });
-    // K35: the op compares its LF rendering with the target, so a target without the final line
-    // break rewrites identical text.
-    assert.deepStrictEqual(edits(ddl(formatted, [target('t', 0, 29)])), [['t', 0, 29, formatted.slice(0, 29)]]);
+    // K35: an already formatted target is unchanged in any layout, with or without the final line break.
+    var indented = '    CREATE TABLE t\n    (\n         a INT\n    )\n';
+    var tab = '\tCREATE TABLE t\n\t(\n\t     a INT\n\t)';
+    [
+        ddl(formatted, [target('t', 0, 29)]),
+        ddl(formatted.replace(/\n/g, '\r\n'), undefined, { newline: '\r\n' }),
+        ddl(indented, [target('t', 4, indented.length)]),
+        ddl(tab, [target('t', 1, tab.length)], { tabSize: 2 })
+    ].forEach(function(value) {
+        assert.deepStrictEqual([value.status, value.edits], ['unchanged', []]);
+    });
 });
 
 test('X3: a result that cannot be applied rejects with the op diagnostic and ADAPTER_DDL_RESULT', function() {
@@ -96,8 +104,7 @@ test('X8 X9 X10 X11: batches are atomic, in source order, and must not overlap',
 
     var formatted = 'CREATE TABLE a\n(\n     x INT\n);\n\nCREATE TABLE b\n(\n     y INT\n);\n';
     assert.strictEqual(ddl(formatted, [target('a', 0, 31), target('b', 32, 63)]).status, 'unchanged');
-    assert.deepStrictEqual(edits(ddl(formatted, [target('a', 0, 30), target('b', 32, 63)])),
-        [['a', 0, 30, formatted.slice(0, 30)]]);
+    assert.strictEqual(ddl(formatted, [target('a', 0, 30), target('b', 32, 63)]).status, 'unchanged');
 
     assert.deepStrictEqual(diagnostics(ddl(TWO, [target('left', 0, 23), target('right', 22, 47)])),
         [['ADAPTER_DDL_TARGET', 'error', 0, 47, null]]);

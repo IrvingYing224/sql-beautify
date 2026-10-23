@@ -641,8 +641,8 @@ function result(
 }
 
 /**
- * Formats one Hive CREATE TABLE statement into `layout`. The status compares the unindented output
- * with LF line breaks against the source, so it does not depend on the layout.
+ * Formats one Hive CREATE TABLE statement into `layout`. The status compares the laid-out output
+ * with the source, so an already formatted target is unchanged in any layout (K35).
  */
 export function formatHiveDdl(
     source: string,
@@ -678,9 +678,10 @@ export function formatHiveDdl(
                 source
             ));
         }
-        return rendered === source
+        const text = layoutText(lines, layout, source);
+        return text === source
             ? result("unchanged", source)
-            : result("formatted", layoutText(lines, layout, source), null, renderer.recased);
+            : result("formatted", text, null, renderer.recased);
     } catch (error) {
         if (error instanceof HiveDdlParseError) {
             if (error.debugCause !== null) {
