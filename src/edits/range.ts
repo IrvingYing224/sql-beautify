@@ -213,21 +213,9 @@ export function blankRunEnd(source: string, offset: number): number {
 }
 
 /**
- * Whether only spaces and tabs come after `offset` on its line. An offset at column 0 belongs to
- * the line it starts, so a target ending there needs that whole line blank (K18).
- */
-function blankToLineEnd(source: string, offset: number): boolean {
-    if (source[offset - 1] === "\r" && source[offset] === "\n") {
-        return false;
-    }
-    const index = blankRunEnd(source, offset);
-    return index === source.length || source[index] === "\n" || source[index] === "\r";
-}
-
-/**
- * DDL and Extract targets must be non-empty, have only blanks before them on their first line and
- * after them on their last line (K18: a target ending at column 0 of the next line fails), avoid
- * lexical errors and protected leaves, and contain code. Returns the first invalid target.
+ * DDL and Extract targets must be non-empty, have only blanks between them and a line start and a
+ * line end, avoid lexical errors and protected leaves, and contain code. A target may end at column 0
+ * of the next line, as query targets do (K18). Returns the first invalid target.
  */
 export function invalidDdlTarget(source: string, targets: readonly EditTarget[]): EditTarget | null {
     const lexed = lexSql(source, { dialect: "hive" });
@@ -235,7 +223,7 @@ export function invalidDdlTarget(source: string, targets: readonly EditTarget[])
         if (
             target.start === target.end ||
             !isLineStart(source, blankRunStart(source, target.start)) ||
-            !blankToLineEnd(source, target.end) ||
+            !(isLineEnd(source, target.end) || isLineEnd(source, blankRunEnd(source, target.end))) ||
             lexed.diagnostics.some((diagnostic) =>
                 diagnostic.span.start < target.end && target.start < diagnostic.span.end
             ) ||

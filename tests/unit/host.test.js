@@ -409,17 +409,16 @@ test('formatHiveDdl: an indented selection up to the document end is formatted (
     });
 });
 
-test('formatHiveDdl: a selection ending at column 0 of the next line is rejected (P4a case 2, K18)', function() {
+test('formatHiveDdl: a selection ending at column 0 of the next line is formatted (P4a case 2, K18)', function() {
     return host(async function(h) {
-        var source = 'create table t (a int);\nselect 1;';
-        var editor = h.open(source, {}, [[0, 24]]);
+        var editor = h.open('create table t (a int);\nselect 1;', {}, [[0, 24]]);
         var result = await h.run('formatHiveDdl');
-        assert.strictEqual(result.status, 'rejected');
-        assert.deepStrictEqual(codes(result), ['ADAPTER_DDL_RANGE']);
-        assert.deepStrictEqual(result.edits, []);
-        assert.strictEqual(editor.document.text, source);
-        assert.deepStrictEqual(selections(editor), [[0, 24]]);
-        assert.deepStrictEqual(h.lastMessage(), { kind: 'warning', text: MESSAGES.ddl });
+        assert.strictEqual(result.status, 'ready');
+        assert.deepStrictEqual(result.edits.map(function(edit) { return [edit.start, edit.end, edit.text]; }),
+            [[0, 24, 'CREATE TABLE t\n(\n     a INT\n);\n']]);
+        assert.strictEqual(editor.document.text, 'CREATE TABLE t\n(\n     a INT\n);\nselect 1;');
+        assert.deepStrictEqual(selections(editor), [[0, 31]]);
+        assert.deepStrictEqual(h.messages, []);
     });
 });
 

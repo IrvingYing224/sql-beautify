@@ -1,7 +1,7 @@
 'use strict';
 
 // computeEdits for Format Hive DDL and Extract DDL (plan §5.4, §5.5): target rules, batch atomicity,
-// replacement text and limits. Expected values were measured on 2.2.1 (P4a keeps them).
+// replacement text and limits. Expected values were measured on 2.2.1; P4b changes name their K number.
 
 var assert = require('assert');
 var fs = require('fs');
@@ -107,8 +107,6 @@ test('X12: a target covers whole lines of code and splits no literal, comment or
         ['prefix CREATE TABLE t (a INT); suffix', 7, 30],
         [crlf, 0, 24],
         [crlf, 24, 33],
-        [crlf, 0, 25],
-        ['create table t (a int);\nselect 1;', 0, 24],
         ['create table t (a int); -- note', 0, 23],
         ['/* a */ create table t (a int);', 0, 7],
         ['   ', 0, 3]
@@ -118,6 +116,15 @@ test('X12: a target covers whole lines of code and splits no literal, comment or
     });
     assert.deepStrictEqual(edits(ddl(crlf, [target('x', 0, 23)], { newline: '\r\n' })),
         [['x', 0, 25, 'CREATE TABLE t\r\n(\r\n     a INT\r\n);\r\n']]);
+    // K18: a target may end at column 0 of the next line, whatever that line holds.
+    assert.deepStrictEqual(edits(ddl(crlf, [target('x', 0, 25)], { newline: '\r\n' })),
+        [['x', 0, 25, 'CREATE TABLE t\r\n(\r\n     a INT\r\n);\r\n']]);
+    for (var next of ['select 1;', '  select 1;']) {
+        assert.deepStrictEqual(edits(ddl('create table t (a int);\n' + next, [target('x', 0, 24)])),
+            [['x', 0, 24, 'CREATE TABLE t\n(\n     a INT\n);\n']]);
+    }
+    assert.deepStrictEqual(edits(extract('select a from t;\nselect 1;', [target('x', 0, 17)])),
+        [['x', 0, 17, '     a __TYPE_REQUIRED__\n']]);
     // Plan §6 P4a acceptance cases; the selection maps through the edit.
     var result = ddl('  create table t (a int);', [target('x', 2, 25)], { selections: [{ targetId: 'x', anchor: 2, active: 25 }] });
     assert.deepStrictEqual(edits(result), [['x', 2, 25, 'CREATE TABLE t\n  (\n       a INT\n  );\n']]);
