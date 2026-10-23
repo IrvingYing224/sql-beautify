@@ -680,7 +680,7 @@ export function formatHiveDdl(
         }
         return rendered === source
             ? result("unchanged", source)
-            : result("formatted", layoutText(lines, layout), null, renderer.recased);
+            : result("formatted", layoutText(lines, layout, source), null, renderer.recased);
     } catch (error) {
         if (error instanceof HiveDdlParseError) {
             if (error.debugCause !== null) {

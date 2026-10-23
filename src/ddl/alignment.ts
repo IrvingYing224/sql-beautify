@@ -82,9 +82,13 @@ export function layoutStartColumn(layout: DdlLayout): number {
     return displayWidth(layout.indent, 0, layout.tabSize)!;
 }
 
-/** Joins rendered lines with the layout's indentation and newline; the text ends with a newline. */
-export function layoutText(lines: readonly string[], layout: DdlLayout): string {
-    return lines.map((line, index) =>
-        `${index === 0 ? layout.firstIndent : layout.indent}${line}${layout.newline}`
-    ).join("");
+/**
+ * Joins rendered lines with the layout's indentation and newline. The text ends with a newline
+ * only when `source` ends with a line break (K21).
+ */
+export function layoutText(lines: readonly string[], layout: DdlLayout, source: string): string {
+    const text = lines.map((line, index) =>
+        `${index === 0 ? layout.firstIndent : layout.indent}${line}`
+    ).join(layout.newline);
+    return source.endsWith("\n") || source.endsWith("\r") ? text + layout.newline : text;
 }

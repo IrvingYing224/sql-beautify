@@ -234,22 +234,6 @@ export function ddlLayout(source: string, target: EditTarget, newline: RenderNew
     };
 }
 
-/**
- * The end of the text a DDL edit replaces. The output always ends with a line break, so a target
- * that does not end with one also takes the blanks after it and its line break (K21).
- */
-function replacementEnd(source: string, target: EditTarget): number {
-    const last = source[target.end - 1];
-    if (last === "\n" || last === "\r") {
-        return target.end;
-    }
-    const end = blankRunEnd(source, target.end);
-    if (source[end] === "\r") {
-        return end + (source[end + 1] === "\n" ? 2 : 1);
-    }
-    return source[end] === "\n" ? end + 1 : end;
-}
-
 function computeDdl(request: DdlRequest, debugEvents: DebugEvent[] | undefined): ComputeResult {
     const source = request.source;
     if (source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
@@ -293,7 +277,7 @@ function computeDdl(request: DdlRequest, debugEvents: DebugEvent[] | undefined):
         if (problems.length > 0) {
             diagnostics.push(...problems, targetDiagnostic(target, "ADAPTER_DDL_RESULT", "The DDL result cannot be applied"));
         } else if (result.status === "formatted" || result.status === "extracted") {
-            edits.push({ targetId: target.id, start: target.start, end: replacementEnd(source, target), text: result.text });
+            edits.push({ targetId: target.id, start: target.start, end: target.end, text: result.text });
         }
     }
     const events = debugEvents ?? [];

@@ -268,23 +268,23 @@ test('H10: DDL and Extract use the settings, the editor tabSize and the document
     return host(async function(h) {
         var editor = h.open('create table t(a int, bb string);', {}, [[33, 0]]);
         assert.strictEqual((await h.run('formatHiveDdl')).status, 'ready');
-        assert.strictEqual(editor.document.text, 'CREATE TABLE t\n(\n     a  INT\n    ,bb STRING\n);\n');
-        assert.deepStrictEqual(selections(editor), [[47, 0]]);
+        assert.strictEqual(editor.document.text, 'CREATE TABLE t\n(\n     a  INT\n    ,bb STRING\n);');
+        assert.deepStrictEqual(selections(editor), [[46, 0]]);
 
         h.configuration = { 'sqlBeautify.keywordCase': 'lower', 'sqlBeautify.commaStyle': 'trailing',
             'sqlBeautify.indentStyle': 'tab', 'sqlBeautify.maxAlignWidth': 177 };
         editor = h.open('create table t(a int, bb string);');
         await h.run('formatHiveDdl');
-        assert.strictEqual(editor.document.text, 'create table t\n(\n\ta  int,\n\tbb string\n);\n');
+        assert.strictEqual(editor.document.text, 'create table t\n(\n\ta  int,\n\tbb string\n);');
 
         h.configuration = { 'sqlBeautify.indentStyle': 'tab' };
         var expected = {
-            2: 'CREATE TABLE t\n(\n\t `a\tb` STRING\n\t,ascii STRING\n\t,`中`  STRING\n)\n',
-            8: 'CREATE TABLE t\n(\n\t `a\tb` STRING\n\t,ascii     STRING\n\t,`中`      STRING\n)\n'
+            2: 'CREATE TABLE t\n(\n\t `a\tb` STRING\n\t,ascii STRING\n\t,`中`  STRING\n)',
+            8: 'CREATE TABLE t\n(\n\t `a\tb` STRING\n\t,ascii     STRING\n\t,`中`      STRING\n)'
         };
         var extracted = {
-            2: '       `a\tb` __TYPE_REQUIRED__\n      ,ascii __TYPE_REQUIRED__\n      ,`中`  __TYPE_REQUIRED__\n',
-            8: '       `a\tb` __TYPE_REQUIRED__\n      ,ascii       __TYPE_REQUIRED__\n      ,`中`        __TYPE_REQUIRED__\n'
+            2: '       `a\tb` __TYPE_REQUIRED__\n      ,ascii __TYPE_REQUIRED__\n      ,`中`  __TYPE_REQUIRED__',
+            8: '       `a\tb` __TYPE_REQUIRED__\n      ,ascii       __TYPE_REQUIRED__\n      ,`中`        __TYPE_REQUIRED__'
         };
         for (var tabSize of [2, 8]) {
             editor = h.open(tabDdl);
@@ -305,14 +305,14 @@ test('H10: DDL and Extract use the settings, the editor tabSize and the document
             editor.options.tabSize = invalid;
             await h.run('extractHiveDdl');
             assert.strictEqual(editor.document.text,
-                '       `a\tb` __TYPE_REQUIRED__\n      ,ascii   __TYPE_REQUIRED__\n      ,`中`    __TYPE_REQUIRED__\n');
+                '       `a\tb` __TYPE_REQUIRED__\n      ,ascii   __TYPE_REQUIRED__\n      ,`中`    __TYPE_REQUIRED__');
         }
 
         var query = 'select a, b as bb, cast(c as int) as c from t';
         editor = h.open(query, {}, [[query.length, 0]]);
         await h.run('extractHiveDdl');
-        assert.strictEqual(editor.document.text, '     a  __TYPE_REQUIRED__\n    ,bb __TYPE_REQUIRED__\n    ,c  __TYPE_REQUIRED__\n');
-        assert.deepStrictEqual(selections(editor), [[78, 0]]);
+        assert.strictEqual(editor.document.text, '     a  __TYPE_REQUIRED__\n    ,bb __TYPE_REQUIRED__\n    ,c  __TYPE_REQUIRED__');
+        assert.deepStrictEqual(selections(editor), [[77, 0]]);
 
         var crlf = 'CREATE TABLE t\r\n(\r\n     a  INT\r\n    ,bb STRING\r\n);\r\n';
         editor = h.open('create table t(a int, bb string);\r\n');
@@ -320,7 +320,7 @@ test('H10: DDL and Extract use the settings, the editor tabSize and the document
         assert.strictEqual(editor.document.text, crlf);
         editor = h.open('create table t(a int, bb string);', { eol: 2 });
         await h.run('formatHiveDdl');
-        assert.strictEqual(editor.document.text, crlf);
+        assert.strictEqual(editor.document.text, crlf.slice(0, -2));
     });
 });
 
@@ -351,8 +351,8 @@ test('H10: rejected, stale and two-target DDL commands', function() {
         assert.strictEqual(editor.editCalls, 1);
         assert.strictEqual(editor.document.text,
             'CREATE TABLE a\n(\n     x INT\n);\nCREATE TABLE b\n(\n     y INT\n);\nselect 1;');
-        // Delta mapping can land inside a token (K20, changed in P4b).
-        assert.deepStrictEqual(selections(editor), [[0, 23], [31, 54]]);
+        // Each selection is its target, so it maps to the whole replacement (K21).
+        assert.deepStrictEqual(selections(editor), [[0, 30], [31, 61]]);
 
         editor = h.open(source, {}, [[0, 23], [48, 57]]);
         assert.strictEqual((await h.run('formatHiveDdl')).status, 'rejected');

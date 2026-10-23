@@ -55,11 +55,14 @@ var TWO = 'CREATE TABLE a (x INT);\nCREATE TABLE b (y INT);';
 
 test('X1 X2: one edit per target; an already formatted target is unchanged', function() {
     var result = ddl('create table t (a int);');
-    assert.deepStrictEqual(edits(result), [['document', 0, 23, 'CREATE TABLE t\n(\n     a INT\n);\n']]);
+    // K21: the output ends with a line break only when the target does.
+    assert.deepStrictEqual(edits(result), [['document', 0, 23, 'CREATE TABLE t\n(\n     a INT\n);']]);
+    assert.deepStrictEqual(edits(ddl('create table t (a int);\n')), [['document', 0, 24, 'CREATE TABLE t\n(\n     a INT\n);\n']]);
     var formatted = 'CREATE TABLE t\n(\n     a INT\n)\n';
     assert.deepStrictEqual(ddl(formatted), { status: 'unchanged', edits: [], selections: [], diagnostics: [], debugEvents: [] });
-    // K21: a target that ends before its line break rewrites identical text.
-    assert.deepStrictEqual(edits(ddl(formatted, [target('t', 0, 29)])), [['t', 0, 30, formatted]]);
+    // K35: the op compares its LF rendering with the target, so a target without the final line
+    // break rewrites identical text.
+    assert.deepStrictEqual(edits(ddl(formatted, [target('t', 0, 29)])), [['t', 0, 29, formatted.slice(0, 29)]]);
 });
 
 test('X3: a result that cannot be applied rejects with the op diagnostic and ADAPTER_DDL_RESULT', function() {
@@ -80,10 +83,10 @@ test('X3: a result that cannot be applied rejects with the op diagnostic and ADA
 test('X8 X9 X10 X11: batches are atomic, in source order, and must not overlap', function() {
     var result = ddl(TWO, [target('second', 24, 47), target('first', 0, 23)]);
     assert.deepStrictEqual(edits(result), [
-        ['first', 0, 24, 'CREATE TABLE a\n(\n     x INT\n);\n'],
-        ['second', 24, 47, 'CREATE TABLE b\n(\n     y INT\n);\n']
+        ['first', 0, 23, 'CREATE TABLE a\n(\n     x INT\n);'],
+        ['second', 24, 47, 'CREATE TABLE b\n(\n     y INT\n);']
     ]);
-    assert.strictEqual(applied(TWO, result), 'CREATE TABLE a\n(\n     x INT\n);\nCREATE TABLE b\n(\n     y INT\n);\n');
+    assert.strictEqual(applied(TWO, result), 'CREATE TABLE a\n(\n     x INT\n);\nCREATE TABLE b\n(\n     y INT\n);');
 
     result = ddl('CREATE TABLE a (x INT);\nCREATE TABLE b (y STRING) STORED AS JSONFILE;', [target('first', 0, 23), target('second', 24, 69)]);
     assert.deepStrictEqual([result.status, result.edits], ['rejected', []]);
@@ -94,7 +97,7 @@ test('X8 X9 X10 X11: batches are atomic, in source order, and must not overlap',
     var formatted = 'CREATE TABLE a\n(\n     x INT\n);\n\nCREATE TABLE b\n(\n     y INT\n);\n';
     assert.strictEqual(ddl(formatted, [target('a', 0, 31), target('b', 32, 63)]).status, 'unchanged');
     assert.deepStrictEqual(edits(ddl(formatted, [target('a', 0, 30), target('b', 32, 63)])),
-        [['a', 0, 31, formatted.slice(0, 31)]]);
+        [['a', 0, 30, formatted.slice(0, 30)]]);
 
     assert.deepStrictEqual(diagnostics(ddl(TWO, [target('left', 0, 23), target('right', 22, 47)])),
         [['ADAPTER_DDL_TARGET', 'error', 0, 47, null]]);
@@ -115,7 +118,7 @@ test('X12: a target covers whole lines of code and splits no literal, comment or
         assert.deepStrictEqual(diagnostics(result), [['ADAPTER_DDL_RANGE', 'error', value[1], value[2], 'x']], JSON.stringify(value));
     });
     assert.deepStrictEqual(edits(ddl(crlf, [target('x', 0, 23)], { newline: '\r\n' })),
-        [['x', 0, 25, 'CREATE TABLE t\r\n(\r\n     a INT\r\n);\r\n']]);
+        [['x', 0, 23, 'CREATE TABLE t\r\n(\r\n     a INT\r\n);']]);
     // K18: a target may end at column 0 of the next line, whatever that line holds.
     assert.deepStrictEqual(edits(ddl(crlf, [target('x', 0, 25)], { newline: '\r\n' })),
         [['x', 0, 25, 'CREATE TABLE t\r\n(\r\n     a INT\r\n);\r\n']]);
@@ -127,58 +130,59 @@ test('X12: a target covers whole lines of code and splits no literal, comment or
         [['x', 0, 17, '     a __TYPE_REQUIRED__\n']]);
     // Plan §6 P4a acceptance cases; the selection maps through the edit.
     var result = ddl('  create table t (a int);', [target('x', 2, 25)], { selections: [{ targetId: 'x', anchor: 2, active: 25 }] });
-    assert.deepStrictEqual(edits(result), [['x', 2, 25, 'CREATE TABLE t\n  (\n       a INT\n  );\n']]);
-    assert.deepStrictEqual(result.selections, [{ anchor: 2, active: 39 }]);
+    assert.deepStrictEqual(edits(result), [['x', 2, 25, 'CREATE TABLE t\n  (\n       a INT\n  );']]);
+    assert.deepStrictEqual(result.selections, [{ anchor: 2, active: 38 }]);
 });
 
-test('X13 X14: the edit takes the trailing blanks and line break; later lines repeat the indentation', function() {
+test('X13 X14: the edit is the target (K21); later lines repeat the indentation', function() {
+    // The blanks after a target that ends inside its line stay.
     var source = 'SELECT 1;\n    create table t (a int);   \nSELECT 2;';
     var result = ddl(source, [target('x', 14, 37)]);
-    assert.deepStrictEqual(edits(result), [['x', 14, 41, 'CREATE TABLE t\n    (\n         a INT\n    );\n']]);
-    assert.strictEqual(applied(source, result), 'SELECT 1;\n    CREATE TABLE t\n    (\n         a INT\n    );\nSELECT 2;');
+    assert.deepStrictEqual(edits(result), [['x', 14, 37, 'CREATE TABLE t\n    (\n         a INT\n    );']]);
+    assert.strictEqual(applied(source, result), 'SELECT 1;\n    CREATE TABLE t\n    (\n         a INT\n    );   \nSELECT 2;');
 
     source = 'SELECT 1;\r\n\tcreate table t (a int);\t \r\nSELECT 2;';
-    result = ddl(source, [target('x', 12, 35)], { newline: '\r\n' });
-    assert.deepStrictEqual(edits(result), [['x', 12, 39, 'CREATE TABLE t\r\n\t(\r\n\t     a INT\r\n\t);\r\n']]);
+    result = ddl(source, [target('x', 12, 37)], { newline: '\r\n' });
+    assert.deepStrictEqual(edits(result), [['x', 12, 37, 'CREATE TABLE t\r\n\t(\r\n\t     a INT\r\n\t);']]);
     assert.strictEqual(applied(source, result), 'SELECT 1;\r\n\tCREATE TABLE t\r\n\t(\r\n\t     a INT\r\n\t);\r\nSELECT 2;');
 
-    for (var end of [23, 26]) {
-        assert.deepStrictEqual(edits(ddl('create table t (a int);   \n', [target('x', 0, end)])),
-            [['x', 0, 27, 'CREATE TABLE t\n(\n     a INT\n);\n']]);
-    }
+    assert.deepStrictEqual(edits(ddl('create table t (a int);   \n', [target('x', 0, 23)])),
+        [['x', 0, 23, 'CREATE TABLE t\n(\n     a INT\n);']]);
+    assert.deepStrictEqual(edits(ddl('create table t (a int);   \n', [target('x', 0, 27)])),
+        [['x', 0, 27, 'CREATE TABLE t\n(\n     a INT\n);\n']]);
 
     source = '  CREATE TABLE a (x INT)\n\tCREATE TABLE b (y INT)';
     for (var tabSize of [4, 8]) {
         assert.deepStrictEqual(edits(ddl(source, [target('spaces', 2, 24), target('tab', 26, 48)], { tabSize: tabSize })), [
-            ['spaces', 2, 25, 'CREATE TABLE a\n  (\n       x INT\n  )\n'],
-            ['tab', 26, 48, 'CREATE TABLE b\n\t(\n\t     y INT\n\t)\n']
+            ['spaces', 2, 24, 'CREATE TABLE a\n  (\n       x INT\n  )'],
+            ['tab', 26, 48, 'CREATE TABLE b\n\t(\n\t     y INT\n\t)']
         ]);
     }
     assert.deepStrictEqual(edits(ddl('  \tCREATE TABLE a (x INT)', [target('x', 3, 25)])),
-        [['x', 3, 25, 'CREATE TABLE a\n  \t(\n  \t     x INT\n  \t)\n']]);
+        [['x', 3, 25, 'CREATE TABLE a\n  \t(\n  \t     x INT\n  \t)']]);
 });
 
 test('X16 X17: line breaks inside literals and quoted identifiers are kept as written', function() {
     assert.deepStrictEqual(edits(ddl("CREATE TABLE t (a STRING COMMENT 'x\ny')", undefined, { newline: '\r\n' })),
-        [['document', 0, 39, "CREATE TABLE t\r\n(\r\n     a STRING COMMENT 'x\ny'\r\n)\r\n"]]);
+        [['document', 0, 39, "CREATE TABLE t\r\n(\r\n     a STRING COMMENT 'x\ny'\r\n)"]]);
     assert.deepStrictEqual(edits(ddl("    CREATE TABLE t (a STRING COMMENT 'x\ny')", [target('x', 4, 43)])),
-        [['x', 4, 43, "CREATE TABLE t\n    (\n         a STRING COMMENT 'x\ny'\n    )\n"]]);
+        [['x', 4, 43, "CREATE TABLE t\n    (\n         a STRING COMMENT 'x\ny'\n    )"]]);
     assert.deepStrictEqual(edits(ddl('create table t (`a\nb` int)', undefined, { newline: '\r\n' })),
-        [['document', 0, 26, 'CREATE TABLE t\r\n(\r\n     `a\nb` INT\r\n)\r\n']]);
+        [['document', 0, 26, 'CREATE TABLE t\r\n(\r\n     `a\nb` INT\r\n)']]);
 });
 
 test('U-DDL1: the editor tabSize sets the alignment after a tab', function() {
     var source = 'CREATE TABLE t (`a\tb` STRING, ascii STRING, `中` STRING)';
     var options = { indentStyle: 'tab' };
     assert.deepStrictEqual(edits(ddl(source, undefined, { options: options, tabSize: 4 })),
-        [['document', 0, 55, 'CREATE TABLE t\n(\n\t `a\tb` STRING\n\t,ascii STRING\n\t,`中`  STRING\n)\n']]);
+        [['document', 0, 55, 'CREATE TABLE t\n(\n\t `a\tb` STRING\n\t,ascii STRING\n\t,`中`  STRING\n)']]);
     assert.deepStrictEqual(edits(ddl(source, undefined, { options: options, tabSize: 8 })),
-        [['document', 0, 55, 'CREATE TABLE t\n(\n\t `a\tb` STRING\n\t,ascii     STRING\n\t,`中`      STRING\n)\n']]);
+        [['document', 0, 55, 'CREATE TABLE t\n(\n\t `a\tb` STRING\n\t,ascii     STRING\n\t,`中`      STRING\n)']]);
     source = '  SELECT `a\tb`, ascii, `中` FROM t';
     assert.deepStrictEqual(edits(extract(source, [target('x', 2, 33)], { tabSize: 4 })), [['x', 2, 33,
-        '     `a\tb` __TYPE_REQUIRED__\n      ,ascii   __TYPE_REQUIRED__\n      ,`中`    __TYPE_REQUIRED__\n']]);
+        '     `a\tb` __TYPE_REQUIRED__\n      ,ascii   __TYPE_REQUIRED__\n      ,`中`    __TYPE_REQUIRED__']]);
     assert.deepStrictEqual(edits(extract(source, [target('x', 2, 33)], { tabSize: 8 })), [['x', 2, 33,
-        '     `a\tb` __TYPE_REQUIRED__\n      ,ascii       __TYPE_REQUIRED__\n      ,`中`        __TYPE_REQUIRED__\n']]);
+        '     `a\tb` __TYPE_REQUIRED__\n      ,ascii       __TYPE_REQUIRED__\n      ,`中`        __TYPE_REQUIRED__']]);
 });
 
 test('U-DDL3: an exception inside the op fails with a message that holds no SQL', async function() {
@@ -218,21 +222,21 @@ test('U-RES1: alignment falls back to one space when a column name is too wide',
     var result = ddl(source);
     assert.strictEqual(result.edits.length, 1);
     assert.deepStrictEqual(result.edits[0].text.split('\n'), ['CREATE TABLE t', '(', '     ' + wide + ' STRING']
-        .concat(columns.map(function(name) { return '    ,' + name + ' STRING'; }), [')', '']));
+        .concat(columns.map(function(name) { return '    ,' + name + ' STRING'; }), [')']));
 
     source = 'SELECT ' + [wide].concat(columns).join(',') + ' FROM t';
     assert.strictEqual(source.length, 14906);
     result = extract(source);
     assert.deepStrictEqual(result.edits[0].text.split('\n'), ['     ' + wide + ' __TYPE_REQUIRED__']
-        .concat(columns.map(function(name) { return '    ,' + name + ' __TYPE_REQUIRED__'; }), ['']));
+        .concat(columns.map(function(name) { return '    ,' + name + ' __TYPE_REQUIRED__'; })));
 });
 
 test('U-RES2 X15: 524,288 code units are accepted, one more is rejected before the op', function() {
     var source = 'CREATE TABLE t (a INT)'.padEnd(524288, ' ');
-    assert.deepStrictEqual(edits(ddl(source)), [['document', 0, 524288, 'CREATE TABLE t\n(\n     a INT\n)\n']]);
+    assert.deepStrictEqual(edits(ddl(source)), [['document', 0, 524288, 'CREATE TABLE t\n(\n     a INT\n)']]);
     assert.deepStrictEqual(diagnostics(ddl(source + ' ')), [['ADAPTER_DDL_INPUT_LIMIT', 'warning', 0, 524289, null]]);
     source = 'SELECT a FROM t'.padEnd(524288, ' ');
-    assert.deepStrictEqual(edits(extract(source)), [['document', 0, 524288, '     a __TYPE_REQUIRED__\n']]);
+    assert.deepStrictEqual(edits(extract(source)), [['document', 0, 524288, '     a __TYPE_REQUIRED__']]);
     assert.deepStrictEqual(diagnostics(extract(source + ' ')), [['ADAPTER_DDL_INPUT_LIMIT', 'warning', 0, 524289, null]]);
 });
 

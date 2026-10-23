@@ -497,7 +497,7 @@ export function extractDdl(
                 "Extract DDL output exceeded the safe resource budget"
             );
         }
-        return result("extracted", layoutText(lines, layout));
+        return result("extracted", layoutText(lines, layout, source));
     } catch (error) {
         const projectionError = error instanceof ProjectionError;
         const code = projectionError ? error.code : "EXTRACT_INTERNAL";

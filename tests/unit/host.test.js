@@ -403,9 +403,9 @@ test('formatHiveDdl: an indented selection up to the document end is formatted (
         var result = await h.run('formatHiveDdl');
         assert.strictEqual(result.status, 'ready');
         assert.deepStrictEqual(result.edits.map(function(edit) { return [edit.start, edit.end, edit.text]; }),
-            [[2, 25, 'CREATE TABLE t\n  (\n       a INT\n  );\n']]);
-        assert.strictEqual(editor.document.text, '  CREATE TABLE t\n  (\n       a INT\n  );\n');
-        assert.deepStrictEqual(selections(editor), [[2, 39]]);
+            [[2, 25, 'CREATE TABLE t\n  (\n       a INT\n  );']]);
+        assert.strictEqual(editor.document.text, '  CREATE TABLE t\n  (\n       a INT\n  );');
+        assert.deepStrictEqual(selections(editor), [[2, 38]]);
     });
 });
 
@@ -431,8 +431,8 @@ test('formatHiveDdl commits all selections in one edit, or none of them', functi
         assert.strictEqual(editor.document.text,
             'CREATE TABLE t\n(\n     a INT\n);\nselect 1;\nCREATE TABLE u\n(\n     b  INT\n    ,cc STRING\n);\n');
         assert.strictEqual(editor.editCalls, 1);
-        // DDL selections map through the edit deltas, clamped to the replacement.
-        assert.deepStrictEqual(selections(editor), [[0, 23], [41, 88]]);
+        // Each selection is its target, so it maps to the whole replacement.
+        assert.deepStrictEqual(selections(editor), [[0, 30], [41, 88]]);
 
         editor = h.open(source, {}, [[0, 23], [24, 33]]);
         result = await h.run('formatHiveDdl');
@@ -451,7 +451,7 @@ test('formatHiveDdl keeps external tab indentation and CRLF, and uses the editor
         assert.strictEqual(result.status, 'ready');
         assert.strictEqual(editor.document.text,
             '\tCREATE TABLE t\r\n\t(\r\n\t     a  INT\r\n\t    ,bb STRING\r\n\t);\r\nselect 1;\r\n');
-        assert.deepStrictEqual(selections(editor), [[1, 35]]);
+        assert.deepStrictEqual(selections(editor), [[1, 55]]);
     });
 });
 
@@ -468,12 +468,12 @@ test('formatHiveDdl: whole document, already formatted text, and unsupported DDL
         assert.strictEqual(result.status, 'unchanged');
         assert.strictEqual(editor.editCalls, 0);
 
-        // The operation compares its LF rendering with the target, which here lacks the final newline;
-        // the adapter then widens the replacement to the line break, so the edit rewrites identical text.
+        // The operation compares its LF rendering with the target, which here lacks the final newline,
+        // so the edit rewrites identical text (K35).
         editor = h.open('CREATE TABLE t\n(\n     a INT\n);\n', {}, [[0, 30]]);
         result = await h.run('formatHiveDdl');
         assert.strictEqual(result.status, 'ready');
-        assert.deepStrictEqual(result.edits.map(function(edit) { return [edit.start, edit.end]; }), [[0, 31]]);
+        assert.deepStrictEqual(result.edits.map(function(edit) { return [edit.start, edit.end]; }), [[0, 30]]);
         assert.strictEqual(editor.document.text, 'CREATE TABLE t\n(\n     a INT\n);\n');
 
         editor = h.open("create table t (a int) location 'x';\n");
@@ -492,7 +492,7 @@ test('extractHiveDdl replaces a query with column definitions; a wildcard is rej
         var result = await h.run('extractHiveDdl');
         assert.strictEqual(result.status, 'ready');
         assert.strictEqual(editor.document.text, '     a __TYPE_REQUIRED__\n    ,c __TYPE_REQUIRED__\n');
-        assert.deepStrictEqual(selections(editor), [[0, 24]]);
+        assert.deepStrictEqual(selections(editor), [[0, 49]]);
 
         editor = h.open('select * from t;\n');
         result = await h.run('extractHiveDdl');

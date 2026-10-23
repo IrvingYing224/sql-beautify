@@ -19,7 +19,7 @@ export interface ExtractDdlOptions {
 
 /**
  * Where the output lines go: the first line starts with `firstIndent`, every later line with
- * `indent`, and each ends with `newline`. Alignment counts columns from the width of `indent`.
+ * `indent`, and lines are joined with `newline`. Alignment counts columns from the width of `indent`.
  */
 export interface DdlLayout {
     readonly newline: RenderNewline;
