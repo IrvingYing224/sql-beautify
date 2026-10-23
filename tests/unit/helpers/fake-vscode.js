@@ -152,6 +152,7 @@ function createHost(options) {
         closeListeners: [],
         configurationListeners: [],
         documents: [],
+        logs: [],
         subscriptions: [],
         activeTextEditor: undefined
     };
@@ -216,6 +217,16 @@ function createHost(options) {
             showInformationMessage: message('info'),
             showWarningMessage: message('warning'),
             showErrorMessage: message('error'),
+            createOutputChannel: function(name, channelOptions) {
+                function write(level) {
+                    return function(text) { host.logs.push({ level: level, text: String(text) }); };
+                }
+                host.logName = [name, channelOptions];
+                return {
+                    trace: write('trace'), debug: write('debug'), info: write('info'), warn: write('warn'), error: write('error'),
+                    dispose: function() {}
+                };
+            },
             withProgress: function(_options, task) {
                 var progressToken = host.progressToken || token();
                 host.progressToken = null;

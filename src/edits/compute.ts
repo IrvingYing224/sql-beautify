@@ -133,7 +133,7 @@ function documentSourceMap(
     return { sourceMap: { entries }, outputLength: outputCursor + sourceLength - sourceCursor };
 }
 
-function computeFormat(request: FormatRequest, debugEvents: DebugEvent[] | undefined): ComputeResult {
+function computeFormat(request: FormatRequest, debugEvents: DebugEvent[]): ComputeResult {
     const source = request.source;
     if (source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
         return rejected([documentDiagnostic(
@@ -171,12 +171,11 @@ function computeFormat(request: FormatRequest, debugEvents: DebugEvent[] | undef
     const diagnostics = results.flatMap((result, index) =>
         result.diagnostics.map((diagnostic) => inDocument(diagnostic, targets[index]!))
     );
-    const events = debugEvents ?? [];
     if (
         diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
         results.some((result) => result.status === "failed" || result.status === "preserved")
     ) {
-        return rejected(diagnostics, events);
+        return rejected(diagnostics, debugEvents);
     }
     const edits: Edit[] = [];
     targets.forEach((target, index) => {
@@ -210,7 +209,7 @@ function computeFormat(request: FormatRequest, debugEvents: DebugEvent[] | undef
         return { anchor: outputStart + local.anchor, active: outputStart + local.active };
     });
     if (edits.length === 0) {
-        return { status: "unchanged", edits, selections, diagnostics: sortDiagnostics(diagnostics), debugEvents: events };
+        return { status: "unchanged", edits, selections, diagnostics: sortDiagnostics(diagnostics), debugEvents };
     }
     const outputDiagnostics = diagnostics.map((diagnostic) => {
         const span = mapSelection(
@@ -221,7 +220,7 @@ function computeFormat(request: FormatRequest, debugEvents: DebugEvent[] | undef
         );
         return { ...diagnostic, span: { start: span.anchor, end: span.active } };
     });
-    return { status: "ready", edits, selections, diagnostics: sortDiagnostics(outputDiagnostics), debugEvents: events };
+    return { status: "ready", edits, selections, diagnostics: sortDiagnostics(outputDiagnostics), debugEvents };
 }
 
 /**
@@ -238,7 +237,7 @@ export function ddlLayout(source: string, target: EditTarget, newline: RenderNew
     };
 }
 
-function computeDdl(request: DdlRequest, debugEvents: DebugEvent[] | undefined): ComputeResult {
+function computeDdl(request: DdlRequest, debugEvents: DebugEvent[]): ComputeResult {
     const source = request.source;
     if (source.length > MAX_FORMAT_SOURCE_CODE_UNITS) {
         return rejected([documentDiagnostic(
@@ -284,15 +283,14 @@ function computeDdl(request: DdlRequest, debugEvents: DebugEvent[] | undefined):
             edits.push({ targetId: target.id, start: target.start, end: target.end, text: result.text });
         }
     }
-    const events = debugEvents ?? [];
     if (diagnostics.length > 0) {
-        return rejected(diagnostics, events);
+        return rejected(diagnostics, debugEvents);
     }
     const selections = request.selections.map((selection) => ({
         anchor: mapThroughEdits(edits, selection.anchor),
         active: mapThroughEdits(edits, selection.active),
     }));
-    return { status: edits.length === 0 ? "unchanged" : "ready", edits, selections, diagnostics: [], debugEvents: events };
+    return { status: edits.length === 0 ? "unchanged" : "ready", edits, selections, diagnostics: [], debugEvents };
 }
 
 /**
@@ -300,13 +298,13 @@ function computeDdl(request: DdlRequest, debugEvents: DebugEvent[] | undefined):
  * the worker. An internal error rejects the request with ADAPTER_EXECUTOR_FAILED.
  */
 export function computeEdits(request: ComputeRequest): ComputeResult {
-    const debugEvents: DebugEvent[] | undefined = request.debug ? [] : undefined;
+    const debugEvents: DebugEvent[] = [];
     try {
         return request.op === "format"
             ? computeFormat(request, debugEvents)
             : computeDdl(request, debugEvents);
     } catch (error) {
-        debugEvents?.push(createDebugEvent("executor", "ADAPTER_EXECUTOR_FAILED", error));
+        debugEvents.push(createDebugEvent("executor", "ADAPTER_EXECUTOR_FAILED", error));
         return rejectedDocument(request.source, "ADAPTER_EXECUTOR_FAILED", "The formatter failed safely", debugEvents);
     }
 }

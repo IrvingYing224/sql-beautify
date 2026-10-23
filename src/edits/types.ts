@@ -25,7 +25,6 @@ interface ComputeRequestBase {
     readonly selections: readonly EditSelection[];
     readonly newline: RenderNewline;
     readonly tabSize: RenderTabSize;
-    readonly debug: boolean;
 }
 
 export type ComputeRequest =

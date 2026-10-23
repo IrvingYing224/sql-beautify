@@ -18,8 +18,7 @@ function run(compute, op, source, targets, extra) {
         selections: [],
         options: undefined,
         newline: '\n',
-        tabSize: 4,
-        debug: false
+        tabSize: 4
     }, extra));
 }
 

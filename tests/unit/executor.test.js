@@ -28,8 +28,7 @@ function request(source, extra) {
         selections: [],
         options: options(),
         newline: '\n',
-        tabSize: 4,
-        debug: false
+        tabSize: 4
     }, extra);
 }
 
@@ -129,10 +128,14 @@ test('W1 W2: the worker returns exactly what direct computation returns', async 
     var executor = viaWorker();
     try {
         var results = [];
+        // Stack frames name the bundle they ran in, so debug events compare by code.
+        var comparable = function(result) {
+            return Object.assign({}, result, { debugEvents: result.debugEvents.map(function(event) { return event.code; }) });
+        };
         for (var value of requests) {
             var expected = await direct().run(value);
             var actual = await executor.run(value);
-            assert.deepStrictEqual(actual, expected, value.source);
+            assert.deepStrictEqual(comparable(actual), comparable(expected), value.source);
             results.push(actual);
         }
         assert.strictEqual(results[6].edits[0].text, 'SELECT\n      `a\tb` AS x\n    , `abcdef`     AS y\nFROM t');
@@ -307,7 +310,7 @@ test('W9: dispose settles every pending request as cancelled and stops the worke
 });
 
 test('W10: an internal error rejects the request with no edits, in the worker too', async function() {
-    var value = request('select a from t', { selections: [{ targetId: null, anchor: 999, active: 999 }], debug: true });
+    var value = request('select a from t', { selections: [{ targetId: null, anchor: 999, active: 999 }] });
     var result = m.compute.computeEdits(value);
     assert.strictEqual(result.status, 'rejected');
     assert.deepStrictEqual(result.edits, []);

@@ -45,7 +45,7 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 请在 VS Code 设置中搜索 `sqlBeautify`。
 
-格式化选项支持工作区、文件夹及 `[sql]` / `[hive-sql]` 按语言覆盖，由 VS Code 按当前文档解析；程序调用 `sqlBeautify.formatSql` 时传入的显式选项再覆盖这些设置。`debugDiagnostics` 是窗口级设置。缩进风格以 `sqlBeautify.indentStyle` 为准，空格缩进固定为 4 个空格；编辑器的 `insertSpaces` 不覆盖它，`tabSize` 只决定 tab stop 和显示宽度。数值选项只接受表中范围内的整数。
+格式化选项支持工作区、文件夹及 `[sql]` / `[hive-sql]` 按语言覆盖，由 VS Code 按当前文档解析；程序调用 `sqlBeautify.formatSql` 时传入的显式选项再覆盖这些设置。缩进风格以 `sqlBeautify.indentStyle` 为准，空格缩进固定为 4 个空格；编辑器的 `insertSpaces` 不覆盖它，`tabSize` 只决定 tab stop 和显示宽度。数值选项只接受表中范围内的整数。
 
 | 配置项 | 可选值 | 默认值 | 说明 |
 | --- | --- | --- | --- |
@@ -57,7 +57,6 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 | `sqlBeautify.caseLayout` | `expanded` / `compactShort` | `expanded` | `CASE` 表达式布局；`compactShort` 会在安全且较短时保持单行 |
 | `sqlBeautify.dialect` | `generic` / `hive` / `postgresql` / `mysql` | `hive` | SQL 方言边界处理 |
 | `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `warn` | 未建模语法的处理策略 |
-| `sqlBeautify.debugDiagnostics` | `true` / `false` | `false` | 是否在扩展宿主控制台输出调试诊断 |
 
 顶层 `ORDER BY` 会像 `GROUP BY` 一样拆成多行并对齐逗号；窗口函数里的 `ORDER BY` 仍保持原有行内格式。
 
@@ -96,6 +95,6 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 - parser 遇到未建模语法、局部语法错误或资源预算耗尽时，按可证明边界保留对应区域、整条语句或整个目标，并报告 warning。`warn` / `preserve` 允许继续格式化局部保留区域之外的 SQL；`bail_out` 则保留整个目标。layout 或 renderer 预算耗尽会保留整个目标，不提交部分布局；内部不变量破坏仍作为 hard failure 处理。
 - Hive 的 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、主 formatter 中的 DDL、`UPDATE` 和 `DELETE` 目前明确按 verbatim 保留，不宣称已格式化；完整边界以生成的 support matrix 为准。
 - 选区格式化接受完整文档、完整单句或两个以上连续完整 statement；半条 statement、跨 protected/opaque 边界或结构不完整的片段会被拒绝，而不是猜测性改写。
-- `sqlBeautify.debugDiagnostics=true` 会在本地扩展宿主控制台输出 opt-in 调试事件，可能包含 SQL 片段、错误栈和本地文件路径；只在可以接受这些信息暴露到控制台时启用。编辑器诊断和 `Copy Safe Diagnostic Report` 不包含这些调试事件。
+- 内部错误（含错误栈）写入输出面板的 `SQL Beautify` 日志；每次格式化的状态与诊断 code 摘要按 debug 级别记录，用 `Developer: Set Log Level` 调到 Debug 后可见。编辑器诊断直接显示格式化器的消息，可能引用 SQL 片段，最多 200 个字符。
 
 [Release Notes](https://github.com/IrvingYing224/sql-beautify/blob/main/CHANGELOG.md)

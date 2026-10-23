@@ -23,7 +23,7 @@ export function isSupported(document: vscode.TextDocument): boolean {
 }
 
 export type Configuration =
-    | { readonly ok: true; readonly options: CanonicalFormatOptions; readonly debug: boolean }
+    | { readonly ok: true; readonly options: CanonicalFormatOptions }
     | {
         readonly ok: false;
         readonly code: FormatConfigFailureCode;
@@ -46,7 +46,7 @@ export function readConfiguration(document: vscode.TextDocument): Configuration 
     }
     const resolved = resolveFormatOptions(values);
     return resolved.ok
-        ? { ok: true, options: resolved.options, debug: configuration.get<unknown>("debugDiagnostics") === true }
+        ? { ok: true, options: resolved.options }
         : { ok: false, code: resolved.code, message: resolved.message, optionKey: resolved.optionKey };
 }
 

@@ -119,7 +119,7 @@ async function runSmoke() {
         var request = {
             op: 'format', source: large,
             targets: [{ id: 'document', start: 0, end: large.length, mode: 'document' }],
-            selections: [], options: { dialect: 'hive' }, newline: '\n', tabSize: 2, debug: false
+            selections: [], options: { dialect: 'hive' }, newline: '\n', tabSize: 2
         };
         var pending = executor.run(request, cancellation.token);
         cancellation.cancel();

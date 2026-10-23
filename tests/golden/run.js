@@ -202,7 +202,6 @@ function runDdl(source, env) {
         options: env.options,
         newline: env.newline,
         tabSize: env.tabSize,
-        debug: false,
     });
     var text = document;
     result.edits.slice().sort(function(a, b) { return b.start - a.start; }).forEach(function(edit) {

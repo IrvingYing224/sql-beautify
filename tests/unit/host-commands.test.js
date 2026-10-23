@@ -198,6 +198,39 @@ test('H6: a document change before the commit, a partial range and a worker cras
     });
 });
 
+test('D5: each result is summarized at debug level and its internal errors at error level', function() {
+    var dist = path.join(__dirname, '..', '..', 'dist');
+    var failDir = path.join(__dirname, '..', '..', '.tmp', 'tests', 'failing-host');
+    fs.mkdirSync(failDir, { recursive: true });
+    fs.copyFileSync(path.join(dist, 'extension.cjs'), path.join(failDir, 'extension.cjs'));
+    // A worker whose computeEdits failed internally.
+    fs.writeFileSync(path.join(failDir, 'worker.cjs'), [
+        "var port = require('node:worker_threads').parentPort;",
+        "port.on('message', function(message) {",
+        "    port.postMessage({ id: message.id, result: { status: 'rejected', edits: [], selections: [],",
+        "        diagnostics: [{ code: 'ADAPTER_EXECUTOR_FAILED', severity: 'error', message: 'The formatter failed safely',",
+        "            capabilityId: null, span: { start: 0, end: 0 }, recovery: 'preserve-target', targetId: null }],",
+        "        debugEvents: [{ phase: 'executor', code: 'ADAPTER_EXECUTOR_FAILED', errorName: 'TypeError', message: 'boom',",
+        "            frames: ['at f (<path>/compute.ts:1:2)'] }] } });",
+        "});"
+    ].join('\n') + '\n');
+    return host(async function(h) {
+        assert.deepStrictEqual(h.logName, ['SQL Beautify', { log: true }]);
+        h.open(SQL);
+        await h.run('formatSql');
+        assert.deepStrictEqual(h.logs, [{ level: 'debug', text: 'command-format sql v1: ready' }]);
+    }).then(function() {
+        return host({ entry: path.join(failDir, 'extension.cjs') }, async function(h) {
+            var editor = h.open(large(1000));
+            await h.formatDocument(editor.document);
+            assert.deepStrictEqual(h.logs, [
+                { level: 'debug', text: 'document-format sql v1: rejected' },
+                { level: 'error', text: 'document-format: ADAPTER_EXECUTOR_FAILED (executor) TypeError: boom\n    at f (<path>/compute.ts:1:2)' }
+            ]);
+        });
+    });
+});
+
 test('H7: a change or cancellation during computation drops the result', function() {
     return host(async function(h) {
         var editor = h.open(SQL);

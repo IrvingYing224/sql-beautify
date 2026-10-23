@@ -52,24 +52,18 @@ export function diagnosticsForEditor(values: readonly EditDiagnostic[]): EditDia
     return sortDiagnostics(retained);
 }
 
-/** `sqlBeautify.debugDiagnostics`: a summary and the debug events go to the console (D5 replaces this in P4b). */
-export function logDebug(enabled: boolean, phase: string, document: vscode.TextDocument, version: number, result: ComputeResult): void {
-    if (!enabled) {
-        return;
-    }
+/**
+ * Writes a summary of each result at debug level and its internal errors at error level to the
+ * "SQL Beautify" log (D5); the log level is set with "Developer: Set Log Level".
+ */
+export function logResult(log: vscode.LogOutputChannel, phase: string, document: vscode.TextDocument, version: number, result: ComputeResult): void {
     const counts: Record<string, number> = {};
     for (const diagnostic of result.diagnostics) {
         counts[diagnostic.code] = (counts[diagnostic.code] ?? 0) + 1;
     }
-    console.warn("[SQL Beautify]", {
-        phase,
-        languageId: document.languageId,
-        documentVersion: version,
-        status: result.status,
-        diagnosticCodes: counts,
-    });
+    log.debug(`${phase} ${document.languageId} v${String(version)}: ${result.status}`, counts);
     for (const event of result.debugEvents) {
-        console.warn("[SQL Beautify debug]", event);
+        log.error([`${phase}: ${event.code} (${event.phase}) ${event.errorName}: ${event.message}`, ...event.frames].join("\n    "));
     }
 }
 

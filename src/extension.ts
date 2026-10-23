@@ -14,10 +14,12 @@ let diagnostics: Diagnostics | null = null;
 export function activate(context: vscode.ExtensionContext): void {
     const currentExecutor = new EditExecutor(nodeWorkerFactory(path.join(__dirname, "worker.cjs")));
     const currentDiagnostics = new Diagnostics();
+    const log = vscode.window.createOutputChannel("SQL Beautify", { log: true });
     executor = currentExecutor;
     diagnostics = currentDiagnostics;
     context.subscriptions.push(
         currentDiagnostics,
+        log,
         vscode.workspace.onDidChangeTextDocument((event) => {
             if (isSupported(event.document)) {
                 currentDiagnostics.change(event);
@@ -28,10 +30,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 currentDiagnostics.clear(document);
             }
         }),
-        ...registerProviders(currentExecutor, currentDiagnostics),
+        ...registerProviders(currentExecutor, currentDiagnostics, log),
         ...registerCommands(
             currentExecutor,
             currentDiagnostics,
+            log,
             createVscodeMessages(vscode.env.language),
             context.extension.packageJSON.version as string
         )

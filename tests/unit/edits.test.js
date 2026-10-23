@@ -24,8 +24,7 @@ function format(source, targets, extra) {
         selections: [],
         options: { dialect: 'hive' },
         newline: m.environment.inferRenderNewline(source, '\n'),
-        tabSize: 4,
-        debug: false
+        tabSize: 4
     }, extra));
 }
 

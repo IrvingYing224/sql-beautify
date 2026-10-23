@@ -6,7 +6,7 @@ import { CANCELLED_RESULT, type EditExecutor } from "../edits/executor";
 import { applyEdits } from "../edits/offsets";
 import type { ComputeRequest, ComputeResult, EditSelection, EditTarget } from "../edits/types";
 import { commandOptions, documentNewline, isSupported, readConfiguration, renderTabSize } from "./config";
-import { diagnosticsForEditor, hostDiagnostic, logDebug, type Diagnostics } from "./diagnostics";
+import { diagnosticsForEditor, hostDiagnostic, logResult, type Diagnostics } from "./diagnostics";
 import type { VscodeMessageKey, VscodeMessages } from "./messages";
 import { renderSafeDiagnosticReport } from "./safe-report";
 import { selectionTargets } from "./selections";
@@ -18,7 +18,6 @@ interface CommandContext {
     readonly source: string;
     readonly version: number;
     readonly options: CanonicalFormatOptions;
-    readonly debug: boolean;
     readonly targets: readonly EditTarget[];
     readonly selections: readonly EditSelection[];
     readonly newline: RenderNewline;
@@ -52,6 +51,7 @@ function isCurrent(context: CommandContext): boolean {
 interface Host {
     readonly executor: EditExecutor;
     readonly diagnostics: Diagnostics;
+    readonly log: vscode.LogOutputChannel;
     readonly messages: VscodeMessages;
     readonly extensionVersion: string;
 }
@@ -82,7 +82,6 @@ function commandContext(host: Host): CommandContext | null {
         source,
         version: document.version,
         options: configuration.options,
-        debug: configuration.debug,
         ...selectionTargets(editor),
         newline: documentNewline(document, source),
         tabSize: renderTabSize(editor.options.tabSize),
@@ -96,7 +95,6 @@ function request(context: CommandContext): Omit<ComputeRequest, "op" | "options"
         selections: context.selections,
         newline: context.newline,
         tabSize: context.tabSize,
-        debug: context.debug,
     };
 }
 
@@ -155,7 +153,7 @@ async function run(
     const result = token.isCancellationRequested
         ? CANCELLED_RESULT
         : computed.status === "ready" ? await apply(host, context, computed, policy) : computed;
-    logDebug(context.debug, phase, context.document, context.version, result);
+    logResult(host.log, phase, context.document, context.version, result);
     if (result.status !== "ready" && isCurrent(context)) {
         host.diagnostics.publish(context.document, result.diagnostics, policy);
     }
@@ -273,10 +271,11 @@ async function copySafeDiagnosticReport(host: Host, token: vscode.CancellationTo
 export function registerCommands(
     executor: EditExecutor,
     diagnostics: Diagnostics,
+    log: vscode.LogOutputChannel,
     messages: VscodeMessages,
     extensionVersion: string
 ): vscode.Disposable[] {
-    const host: Host = { executor, diagnostics, messages, extensionVersion };
+    const host: Host = { executor, diagnostics, log, messages, extensionVersion };
     function withProgress<T>(title: VscodeMessageKey, task: (token: vscode.CancellationToken) => Promise<T>): Thenable<T> {
         return vscode.window.withProgress(
             { location: vscode.ProgressLocation.Notification, title: messages.text(title), cancellable: true },

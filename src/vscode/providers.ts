@@ -4,13 +4,13 @@ import type { EditExecutor } from "../edits/executor";
 import { applyEdits } from "../edits/offsets";
 import type { EditTarget } from "../edits/types";
 import { documentNewline, isSupported, readConfiguration, renderTabSize, SUPPORTED_LANGUAGES, type Configuration } from "./config";
-import { hostDiagnostic, logDebug, type Diagnostics } from "./diagnostics";
+import { hostDiagnostic, logResult, type Diagnostics } from "./diagnostics";
 
 /**
  * Document and range formatting providers. They only return edits: VS Code applies them, and the
  * diagnostics are published once the document text equals the output.
  */
-export function registerProviders(executor: EditExecutor, diagnostics: Diagnostics): vscode.Disposable[] {
+export function registerProviders(executor: EditExecutor, diagnostics: Diagnostics, log: vscode.LogOutputChannel): vscode.Disposable[] {
     function publishConfiguration(document: vscode.TextDocument, configuration: Extract<Configuration, { readonly ok: false }>): void {
         diagnostics.publish(document, [hostDiagnostic(configuration.code, "error", configuration.message)], "warn");
     }
@@ -66,13 +66,12 @@ export function registerProviders(executor: EditExecutor, diagnostics: Diagnosti
             options: configuration.options,
             newline: documentNewline(document, source),
             tabSize: renderTabSize(formatting.tabSize),
-            debug: configuration.debug,
         }, token);
         if (token.isCancellationRequested || document.version !== version || document.getText() !== source) {
             diagnostics.clear(document);
             return [];
         }
-        logDebug(configuration.debug, ranges === null ? "document-format" : "range-format", document, version, result);
+        logResult(log, ranges === null ? "document-format" : "range-format", document, version, result);
         const policy = configuration.options.unsupportedSyntaxPolicy;
         if (result.status !== "ready") {
             diagnostics.publish(document, result.diagnostics, policy);
