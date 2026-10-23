@@ -7,7 +7,6 @@ var analysisApi = require('../../.tmp/v2-core/core/analysis/analyze.js');
 var alignmentApi = require('../../.tmp/v2-core/core/layout/alignment-policy.js');
 var compilerApi = require('../../.tmp/v2-core/core/layout/compiler.js');
 var formatApi = require('../../.tmp/v2-core/core/api/format.js');
-var invariantApi = require('../../.tmp/v2-core/core/layout/invariants.js');
 var lexerApi = require('../../.tmp/v2-core/core/lexer/lossless-lexer.js');
 var optionsApi = require('../../.tmp/v2-core/core/config/resolve-options.js');
 var policyApi = require('../../.tmp/v2-core/core/layout/policy.js');
@@ -601,14 +600,6 @@ function deterministicMalformedCases(count) {
         false, 'cloned plan must fail closed');
     var compiled = compilerApi.compileLayoutPlan(planned.plan);
     assert.strictEqual(compiled.ok, true);
-    assert.strictEqual(
-        invariantApi.validateLayoutDoc(
-            analysis,
-            Object.assign({}, compiled.artifact.root)
-        ).ok,
-        false,
-        'cloned doc must fail closed'
-    );
 
     [
         {

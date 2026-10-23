@@ -7,7 +7,7 @@ var displayApi = require('../../.tmp/v2-core/core/renderer/display-width.js');
 var environmentApi = require('../../.tmp/v2-core/core/renderer/environment.js');
 var factoryApi = require('../../.tmp/v2-core/core/layout/doc-factory.js');
 var formatApi = require('../../.tmp/v2-core/core/api/format.js');
-var invariantApi = require('../../.tmp/v2-core/core/layout/invariants.js');
+var limits = require('../../.tmp/v2-core/core/layout/resource-limits.js');
 var metricsApi = require('../../.tmp/v2-core/core/renderer/metrics.js');
 var optionsApi = require('../../.tmp/v2-core/core/config/resolve-options.js');
 var renderApi = require('../../.tmp/v2-core/core/renderer/render.js');
@@ -41,7 +41,7 @@ function artifactFrom(source, optionInput, buildRoot, mode) {
         canonicalOptions(optionInput)
     );
     assert.strictEqual(created.ok, true,
-        created.ok ? '' : JSON.stringify(created.invariantFailures));
+        created.ok ? '' : created.message);
     return created.artifact;
 }
 
@@ -631,12 +631,11 @@ function assertFrozenSourceMap(sourceMap) {
     }
     var checked;
     assert.doesNotThrow(function() {
-        checked = invariantApi.validateLayoutDoc(analysis, root);
+        checked = limits.checkLayoutResources(analysis, root);
     });
     assert.strictEqual(checked.ok, false);
-    assert.ok(checked.failures.some(function(value) {
-        return value.code === 'LAYOUT_RESOURCE_BUDGET';
-    }), 'adversarial deep graph must be bounded by the iterative validator');
+    assert.ok(/nesting budget/.test(checked.message),
+        'adversarial deep graph must be bounded by the iterative resource check');
 })();
 
 console.log('v2 Wave 3B renderer tests passed');

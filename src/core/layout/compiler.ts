@@ -232,20 +232,11 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
             plan.options
         );
         if (!created.ok) {
-            const resourceOnly =
-                created.invariantFailures.length > 0 &&
-                created.invariantFailures.every(
-                    (value) => value.code === "LAYOUT_RESOURCE_BUDGET"
-                );
-            const detail = created.invariantFailures[0];
             return failure(
-                resourceOnly
+                created.code === "LAYOUT_ARTIFACT_RESOURCE"
                     ? "LAYOUT_COMPILE_RESOURCE"
                     : "LAYOUT_COMPILE_ARTIFACT",
-                `${created.code}: ${created.message}` +
-                    (detail === undefined
-                        ? ""
-                        : ` (${detail.code}: ${detail.message})`)
+                `${created.code}: ${created.message}`
             );
         }
         return Object.freeze({ ok: true, artifact: created.artifact });
