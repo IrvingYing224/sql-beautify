@@ -19,7 +19,6 @@ export interface LayoutMetrics {
 }
 
 export type LayoutMetricsFailureCode =
-    | "METRICS_DOC_PROVENANCE"
     | "METRICS_SOURCE_RANGE"
     | "METRICS_OVERFLOW"
     | "METRICS_INTERNAL";

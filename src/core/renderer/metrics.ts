@@ -1,6 +1,5 @@
 import type { LayoutArtifact } from "../layout/artifact";
 import type { LayoutDoc } from "../layout/doc";
-import { canonicalLayoutDocProof } from "../layout/doc-factory";
 import { measureDisplayText } from "./display-width";
 import type {
     FlatLayoutSummary,
@@ -160,13 +159,6 @@ export function measureLayoutArtifact(artifact: LayoutArtifact): LayoutMetricsRe
             const item = work.pop()!;
             const doc = item.doc;
             if (!item.exit) {
-                const proof = canonicalLayoutDocProof(doc);
-                if (proof === null || proof.analysis !== artifact.analysis) {
-                    return failure(
-                        "METRICS_DOC_PROVENANCE",
-                        "Layout metrics encountered a foreign document node"
-                    );
-                }
                 docNodeCount += 1;
                 if (docNodeCount > budget.maxDocNodes) {
                     return failure(

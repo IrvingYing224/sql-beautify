@@ -74,20 +74,6 @@ export interface LayoutDocFactory {
     ): LineSuffixDoc | null;
 }
 
-export interface CanonicalLayoutDocProof {
-    readonly analysis: AnalyzedArtifact;
-    readonly factory: LayoutDocFactory;
-}
-
-const CANONICAL_LAYOUT_DOC_PROOFS =
-    new WeakMap<object, CanonicalLayoutDocProof>();
-const CANONICAL_LAYOUT_FACTORIES = new WeakSet<object>();
-const PARENTED_LAYOUT_DOCS = new WeakSet<object>();
-
-function isObject(value: unknown): value is object {
-    return typeof value === "object" && value !== null;
-}
-
 function isPositiveSafeInteger(value: unknown, maximum: number): value is number {
     return (
         typeof value === "number" &&
@@ -307,24 +293,9 @@ function snapshotDenseDocs(
     }
 }
 
-/** Internal provenance lookup used by the Layout invariant boundary. */
-export function canonicalLayoutDocProof(
-    value: unknown
-): CanonicalLayoutDocProof | null {
-    return isObject(value) ? CANONICAL_LAYOUT_DOC_PROOFS.get(value) ?? null : null;
-}
-
-/** Exact identity proof for analysis-scoped factory objects. */
-export function isCanonicalLayoutDocFactory(
-    value: unknown
-): value is LayoutDocFactory {
-    return isObject(value) && CANONICAL_LAYOUT_FACTORIES.has(value);
-}
-
 /**
- * Creates the sole constructor for immutable LayoutDoc nodes belonging to one
- * exact analyzed artifact. Invalid runtime input returns null and never grants
- * provenance to a partial node.
+ * Creates the constructor for immutable LayoutDoc nodes of one analyzed
+ * artifact. Invalid input or an exhausted node budget returns null.
  */
 export function createLayoutDocFactory(
     analysis: unknown
@@ -352,24 +323,13 @@ export function createLayoutDocFactory(
     }
 
     let createdNodeCount = 0;
-    let factory!: LayoutDocFactory;
 
     const register = <T extends LayoutDoc>(node: T): T | null => {
         if (createdNodeCount >= budget.maxDocNodes) {
             return null;
         }
         createdNodeCount += 1;
-        const frozen = Object.freeze(node);
-        CANONICAL_LAYOUT_DOC_PROOFS.set(
-            frozen,
-            Object.freeze({ analysis, factory })
-        );
-        return frozen;
-    };
-
-    const belongsToFactory = (value: unknown): value is LayoutDoc => {
-        const proof = canonicalLayoutDocProof(value);
-        return proof?.analysis === analysis && proof.factory === factory;
+        return Object.freeze(node);
     };
 
     const commentBindingForLeaf = (leafId: number): CommentBinding | null => {
@@ -398,7 +358,7 @@ export function createLayoutDocFactory(
         return value === 0 ? zero() : positive(value as PositiveColumns);
     };
 
-    factory = {
+    const factory: LayoutDocFactory = {
         analysis,
         budget,
         verbatimClaims: claims.claims,
@@ -477,7 +437,7 @@ export function createLayoutDocFactory(
 
         concat(rawParts): LayoutDoc | null {
             const parts = snapshotDenseDocs(rawParts, budget.maxDocNodes);
-            if (parts === null || parts.some((part) => !belongsToFactory(part))) {
+            if (parts === null) {
                 return null;
             }
             if (parts.length === 0) {
@@ -486,30 +446,11 @@ export function createLayoutDocFactory(
             if (parts.length === 1) {
                 return parts[0]!;
             }
-            const directChildren = new Set<object>();
-            for (const part of parts) {
-                if (
-                    directChildren.has(part) ||
-                    PARENTED_LAYOUT_DOCS.has(part)
-                ) {
-                    return null;
-                }
-                directChildren.add(part);
-            }
-            const parent = register({ kind: "concat", parts });
-            if (parent === null) {
-                return null;
-            }
-            for (const part of parts) {
-                PARENTED_LAYOUT_DOCS.add(part);
-            }
-            return parent;
+            return register({ kind: "concat", parts });
         },
 
         indent(levels, content): LayoutDoc | null {
             if (
-                !belongsToFactory(content) ||
-                PARENTED_LAYOUT_DOCS.has(content) ||
                 !isNonNegativeSafeInteger(
                     levels,
                     budget.maxCumulativeIndentLevels
@@ -520,22 +461,15 @@ export function createLayoutDocFactory(
             if (levels === 0) {
                 return content;
             }
-            const parent = register({
+            return register({
                 kind: "indent",
                 levels: levels as PositiveLevels,
                 content,
             } as IndentDoc);
-            if (parent !== null) {
-                PARENTED_LAYOUT_DOCS.add(content);
-            }
-            return parent;
         },
 
         align(columns, content): LayoutDoc | null {
-            if (!belongsToFactory(content) || PARENTED_LAYOUT_DOCS.has(content)) {
-                return null;
-            }
-            const parent = zeroOrPositiveColumns(
+            return zeroOrPositiveColumns(
                 columns,
                 () => content,
                 (positive) =>
@@ -545,10 +479,6 @@ export function createLayoutDocFactory(
                         content,
                     } as AlignDoc)
             );
-            if (parent !== null && parent !== content) {
-                PARENTED_LAYOUT_DOCS.add(content);
-            }
-            return parent;
         },
 
         padToColumn(targetColumn): LayoutDoc | null {
@@ -565,8 +495,6 @@ export function createLayoutDocFactory(
 
         autoGroup(maxFlatWidth, content): AutoGroupDoc | null {
             if (
-                !belongsToFactory(content) ||
-                PARENTED_LAYOUT_DOCS.has(content) ||
                 !isPositiveSafeInteger(
                     maxFlatWidth,
                     budget.maxGeneratedColumnsPerLine
@@ -574,31 +502,19 @@ export function createLayoutDocFactory(
             ) {
                 return null;
             }
-            const parent = register({
+            return register({
                 kind: "group",
                 mode: "auto",
                 maxFlatWidth: maxFlatWidth as PositiveColumns,
                 content,
             });
-            if (parent !== null) {
-                PARENTED_LAYOUT_DOCS.add(content);
-            }
-            return parent;
         },
 
         group(mode, content): ForcedGroupDoc | null {
-            if (
-                (mode !== "flat" && mode !== "break") ||
-                !belongsToFactory(content) ||
-                PARENTED_LAYOUT_DOCS.has(content)
-            ) {
+            if (mode !== "flat" && mode !== "break") {
                 return null;
             }
-            const parent = register({ kind: "group", mode, content });
-            if (parent !== null) {
-                PARENTED_LAYOUT_DOCS.add(content);
-            }
-            return parent;
+            return register({ kind: "group", mode, content });
         },
 
         lineSuffix(commentLeafId, spacing = null): LineSuffixDoc | null {
@@ -635,8 +551,5 @@ export function createLayoutDocFactory(
             });
         },
     };
-
-    factory = Object.freeze(factory);
-    CANONICAL_LAYOUT_FACTORIES.add(factory);
-    return factory;
+    return Object.freeze(factory);
 }

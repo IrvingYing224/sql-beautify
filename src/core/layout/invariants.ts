@@ -5,11 +5,6 @@ import type { SourceLeaf } from "../lexer/token";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type { LayoutDoc } from "./doc";
 import {
-    canonicalLayoutDocProof,
-    isCanonicalLayoutDocFactory,
-} from "./doc-factory";
-import type { LayoutDocFactory } from "./doc-factory";
-import {
     createLayoutResourceBudget,
 } from "./resource-budget";
 import type { LayoutResourceBudget } from "./resource-budget";
@@ -21,7 +16,6 @@ import type { DominatingVerbatimClaim } from "./verbatim-claims";
 
 export type LayoutInvariantFailureCode =
     | "LAYOUT_ANALYSIS_PROVENANCE"
-    | "LAYOUT_DOC_PROVENANCE"
     | "LAYOUT_DOC_MUTABLE"
     | "LAYOUT_DOC_SHARED"
     | "LAYOUT_DOC_SHAPE"
@@ -170,21 +164,7 @@ export function validateLayoutDoc(
         return failureResult(failures, budget, 0, 0);
     }
 
-    const rootProof = canonicalLayoutDocProof(rootValue);
-    if (
-        rootProof === null ||
-        rootProof.analysis !== analysis ||
-        !isCanonicalLayoutDocFactory(rootProof.factory)
-    ) {
-        pushFailure(
-            failures,
-            "LAYOUT_DOC_PROVENANCE",
-            "Layout root was not created by a factory scoped to this analysis"
-        );
-        return failureResult(failures, budget, 0, 0);
-    }
     const root = rootValue as LayoutDoc;
-    const expectedFactory: LayoutDocFactory = rootProof.factory;
     const work: WorkItem[] = [
         {
             doc: root,
@@ -397,19 +377,6 @@ export function validateLayoutDoc(
                     "LAYOUT_RESOURCE_BUDGET",
                     "Layout graph exceeds the cumulative align-column budget"
                 );
-            }
-            const proof = canonicalLayoutDocProof(doc);
-            if (
-                proof === null ||
-                proof.analysis !== analysis ||
-                proof.factory !== expectedFactory
-            ) {
-                pushFailure(
-                    failures,
-                    "LAYOUT_DOC_PROVENANCE",
-                    "Layout graph contains a cross-analysis or cross-factory node"
-                );
-                continue;
             }
             if (!Object.isFrozen(doc)) {
                 pushFailure(
