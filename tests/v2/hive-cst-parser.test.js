@@ -209,10 +209,6 @@ cases.forEach(assertParserResult);
         factory.createOpaque({ start: -1, end: 1 }, 'X', 'expression');
     }, /range/i);
     assert.throws(function() {
-        factory.createOpaque(
-            { start: 2, end: 3 }, 'X', 'expression', 'QUALIFY');
-    }, /capability identity/i);
-    assert.throws(function() {
         factory.createProgram({ start: 0, end: 3 }, []);
     }, /program/i);
 }());

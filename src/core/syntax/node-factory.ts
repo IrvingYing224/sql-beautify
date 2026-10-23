@@ -1,7 +1,4 @@
-import {
-    isCapabilityIdentity,
-    type CapabilityIdentity,
-} from "../diagnostics/diagnostic";
+import type { CapabilityIdentity } from "../diagnostics/diagnostic";
 import {
     EMPTY_FROZEN_ARRAY,
     freezeImmutableArray,
@@ -42,12 +39,7 @@ import type {
     WindowSpecNode,
 } from "./node";
 import type { StructuralTokenTable } from "./token-table";
-import {
-    isFormatRole,
-    isKeywordCaseRole,
-    isSyntaxLeafRole,
-    isSyntaxMarkerId,
-} from "./contextual-fact-contract";
+import { isKeywordCaseRole } from "./contextual-fact-contract";
 
 export interface NodeFactory {
     checkpoint(): number;
@@ -223,16 +215,12 @@ function fallbackFacts(formatRole: "intrinsic-container" | "intrinsic-primitive"
 function freezeFacts(
     facts: SyntaxNodeFacts | undefined,
     ownerRange: LeafRange,
-    leafCount: number,
     defaultRole: "intrinsic-container" | "intrinsic-primitive"
 ): SyntaxNodeFacts {
     const value = facts ?? fallbackFacts(defaultRole);
     if (
-        !isCapabilityIdentity(value.capabilityId) ||
-        !isFormatRole(value.formatRole) ||
         value.formatRole === "opaque" ||
-        (value.formatRole === "capability") !== (value.capabilityId !== null) ||
-        !Array.isArray(value.syntaxMarkers)
+        (value.formatRole === "capability") !== (value.capabilityId !== null)
     ) {
         throw new Error("Invalid syntax node facts");
     }
@@ -261,30 +249,16 @@ function freezeFacts(
     let previousLeafId = -1;
     for (const marker of value.syntaxMarkers) {
         if (
-            marker === null ||
-            typeof marker !== "object" ||
-            !Number.isInteger(marker.leafId) ||
             marker.leafId < ownerRange.start ||
             marker.leafId >= ownerRange.end ||
-            marker.leafId >= leafCount ||
             marker.leafId <= previousLeafId ||
-            !isSyntaxMarkerId(marker.syntaxId) ||
-            !Number.isInteger(marker.partOrdinal) ||
             marker.partOrdinal < 0 ||
-            !isSyntaxLeafRole(marker.syntaxRole) ||
-            typeof marker.keywordCaseEligible !== "boolean" ||
             (marker.keywordCaseEligible && !isKeywordCaseRole(marker.syntaxRole))
         ) {
             throw new Error("Invalid syntax marker");
         }
         previousLeafId = marker.leafId;
-        markers.push(Object.freeze({
-            leafId: marker.leafId,
-            syntaxId: marker.syntaxId,
-            partOrdinal: marker.partOrdinal,
-            syntaxRole: marker.syntaxRole,
-            keywordCaseEligible: marker.keywordCaseEligible,
-        }));
+        markers.push(Object.freeze({ ...marker }));
     }
     return Object.freeze({
         syntaxMarkers: Object.freeze(markers),
@@ -303,24 +277,14 @@ function freezeOperatorOccurrences(
     if (inputs === undefined || inputs.length === 0) {
         return EMPTY_FROZEN_ARRAY as ExpressionNode["operatorOccurrences"];
     }
-    if (!Array.isArray(inputs)) {
-        throw new Error("Expression operator occurrences must be an array");
-    }
     const operatorIds = new Set(operatorLeafIds);
     const claimedLeaves = new Set<number>();
     const occurrences: ExpressionNode["operatorOccurrences"][number][] = [];
     for (const input of inputs) {
         const semantics = input.semantics;
         const leafIds = freezeIds(input.leafIds, leafCount, "operator occurrence");
-        if (
-            semantics === null ||
-            typeof semantics !== "object" ||
-            !Object.isFrozen(semantics) ||
-            typeof semantics.id !== "string" ||
-            semantics.id.length === 0 ||
-            leafIds.length === 0
-        ) {
-            throw new Error("Invalid operator occurrence semantics");
+        if (leafIds.length === 0) {
+            throw new Error("Operator occurrence has no leaves");
         }
         let previous = -1;
         for (const leafId of leafIds) {
@@ -385,7 +349,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             programCreated = true;
             const leafRange = freezeRange(range, leafCount, true);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const program = Object.freeze({
                 id: 0,
                 kind: "program" as const,
@@ -415,7 +379,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             }
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const node = Object.freeze({
                 id: allocateId(),
                 kind: "statement" as const,
@@ -439,12 +403,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
                 throw new Error("SET payload must belong to its command");
             }
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(
-                facts,
-                leafRange,
-                leafCount,
-                "intrinsic-container"
-            );
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const node = Object.freeze({
                 id: allocateId(),
                 kind: "set-statement" as const,
@@ -497,12 +456,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
                 throw new Error("SET value range must follow assignment through payload end");
             }
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(
-                facts,
-                leafRange,
-                leafCount,
-                "intrinsic-container"
-            );
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const node = Object.freeze({
                 id: allocateId(),
                 kind: "set-payload" as const,
@@ -520,7 +474,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         createQuery(range, queryKind, setOperatorLeafIds, children, facts): QueryNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const node = Object.freeze({
                 id: allocateId(),
                 kind: "query" as const,
@@ -541,7 +495,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         createCte(range, nameLeafRange, columnList, query, facts): CteNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const children: SyntaxNode[] = [];
             if (columnList !== null) {
                 children.push(columnList);
@@ -564,7 +518,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         createClause(range, clauseKind, headLeafRange, bodyLeafRange, children, facts): ClauseNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const node = Object.freeze({
                 id: allocateId(),
                 kind: "clause" as const,
@@ -587,7 +541,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         createRelation(range, relationKind, alias, body, children, facts): RelationNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             if (body !== null) {
                 let occurrences = 0;
                 for (const child of children) {
@@ -622,7 +576,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         createList(range, listRole, separatorLeafIds, children, facts): ListNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const node = Object.freeze({
                 id: allocateId(),
                 kind: "list" as const,
@@ -639,7 +593,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         createListItem(range, itemRole, alias, modifierLeafIds, value, facts): ListItemNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const node = Object.freeze({
                 id: allocateId(),
                 kind: "list-item" as const,
@@ -659,7 +613,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
             const nodeId = allocateId();
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-primitive");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-primitive");
             const frozenOperatorLeafIds = freezeIds(
                 operatorLeafIds,
                 leafCount,
@@ -694,7 +648,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             }
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const children: SyntaxNode[] = [];
             if (condition !== null) {
                 children.push(condition);
@@ -724,7 +678,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         ): WindowSpecNode {
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-container");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-container");
             const children: SyntaxNode[] = [];
             if (partition !== null) {
                 children.push(partition);
@@ -765,7 +719,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             }
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
-            const nodeFacts = freezeFacts(facts, leafRange, leafCount, "intrinsic-primitive");
+            const nodeFacts = freezeFacts(facts, leafRange, "intrinsic-primitive");
             const children: SyntaxNode[] = [];
             if (argumentList !== null) {
                 children.push(argumentList);
@@ -790,11 +744,6 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         createOpaque(range, reasonCode, boundary, capabilityId = null): OpaqueNode {
             if (reasonCode.length === 0) {
                 throw new Error("Opaque reasonCode must be non-empty");
-            }
-            if (!isCapabilityIdentity(capabilityId)) {
-                throw new Error(
-                    `Invalid opaque capability identity: ${String(capabilityId)}`
-                );
             }
             const leafRange = freezeRange(range, leafCount, false);
             const span = spanForRange(leafRange);
