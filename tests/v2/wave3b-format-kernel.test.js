@@ -516,12 +516,6 @@ function assertOnlyEol(text, newline) {
         'preserved'
     );
 
-    var proxy = new Proxy({ dialect: 'hive' }, {});
-    assertSafeOriginal(
-        formatApi.formatSql('select  1', proxy),
-        'select  1',
-        'failed'
-    );
     assertSafeOriginal(
         formatApi.formatSql('select  1', { dialect: 'hive' }, 'invalid-mode'),
         'select  1',

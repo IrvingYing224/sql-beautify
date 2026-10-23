@@ -12,7 +12,6 @@ import {
 import { measureDisplayText } from "./display-width";
 import {
     inferRenderEnvironment,
-    isCanonicalRenderEnvironment,
     type RenderEnvironment,
 } from "./environment";
 import { applyKeywordCase } from "./keyword-case";
@@ -616,18 +615,9 @@ function renderCanonical(
 /** Fail-closed SQL-agnostic renderer for LayoutArtifact objects. */
 export function renderLayoutArtifact(
     value: LayoutArtifact,
-    environmentValue: RenderEnvironment | unknown = undefined
+    environment: RenderEnvironment = inferRenderEnvironment(value.analysis.source)
 ): RenderResult {
     try {
-        const environment = environmentValue === undefined
-            ? inferRenderEnvironment(value.analysis.source)
-            : environmentValue;
-        if (!isCanonicalRenderEnvironment(environment)) {
-            return failure(
-                "RENDER_NEWLINE_CONTRACT",
-                "Renderer requires a canonical render environment"
-            );
-        }
         const measured = measureLayoutArtifact(value);
         if (!measured.ok) {
             return failure("RENDER_METRICS", measured.message);

@@ -223,13 +223,6 @@ function assertFrozenSourceMap(sourceMap) {
     assert.strictEqual(cr.ok, true);
     assert.strictEqual(cr.text, 'SELECT\r1');
 
-    var forgedEnvironment = renderApi.renderLayoutArtifact(
-        grouped('break'),
-        Object.freeze({ newline: '\r\n' })
-    );
-    assert.strictEqual(forgedEnvironment.ok, false);
-    assert.strictEqual(forgedEnvironment.code, 'RENDER_NEWLINE_CONTRACT');
-
     var autoFlat = renderApi.renderLayoutArtifact(grouped('auto', 8));
     var autoBreak = renderApi.renderLayoutArtifact(grouped('auto', 7));
     assert.strictEqual(autoFlat.ok, true);

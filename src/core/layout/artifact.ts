@@ -3,9 +3,6 @@ import {
 } from "../analysis/artifact";
 import type { AnalyzedArtifact } from "../analysis/types";
 import type { CanonicalFormatOptions } from "../config/options";
-import {
-    isCanonicalFormatOptions,
-} from "../config/resolve-options";
 import type { Diagnostic } from "../diagnostics/diagnostic";
 import type { LayoutDoc } from "./doc";
 import type { LayoutResourceBudget } from "./resource-budget";
@@ -22,7 +19,6 @@ export interface LayoutArtifact {
 
 export type LayoutArtifactFailureCode =
     | "LAYOUT_ARTIFACT_ANALYSIS"
-    | "LAYOUT_ARTIFACT_OPTIONS"
     | "LAYOUT_ARTIFACT_DIALECT"
     | "LAYOUT_ARTIFACT_RESOURCE";
 
@@ -51,8 +47,8 @@ function failure(
 /** Binds analysis, doc, options and the checked budget; no partial artifact on failure. */
 export function createLayoutArtifact(
     analysisValue: unknown,
-    rootValue: unknown,
-    optionsValue: unknown
+    root: LayoutDoc,
+    options: CanonicalFormatOptions
 ): CreateLayoutArtifactResult {
     if (!isCanonicalAnalyzedArtifact(analysisValue)) {
         return failure(
@@ -60,20 +56,13 @@ export function createLayoutArtifact(
             "Layout artifact requires an exact canonical analyzed artifact"
         );
     }
-    if (!isCanonicalFormatOptions(optionsValue)) {
-        return failure(
-            "LAYOUT_ARTIFACT_OPTIONS",
-            "Layout artifact requires canonical resolved formatter options"
-        );
-    }
-    if (optionsValue.dialect !== analysisValue.dialect) {
+    if (options.dialect !== analysisValue.dialect) {
         return failure(
             "LAYOUT_ARTIFACT_DIALECT",
             "Layout options dialect must match analysis dialect"
         );
     }
 
-    const root = rootValue as LayoutDoc;
     const resources = checkLayoutResources(analysisValue, root);
     if (!resources.ok) {
         return failure("LAYOUT_ARTIFACT_RESOURCE", resources.message);
@@ -81,7 +70,7 @@ export function createLayoutArtifact(
     const artifact = Object.freeze({
         analysis: analysisValue,
         root,
-        options: optionsValue,
+        options,
         diagnostics: analysisValue.diagnostics,
         budget: resources.budget,
     });

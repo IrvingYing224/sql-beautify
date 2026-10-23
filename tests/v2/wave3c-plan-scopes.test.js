@@ -162,13 +162,8 @@ function options() {
     assert.strictEqual(reverseBuilder.finish().code, 'LAYOUT_PLAN_CONFLICT');
 })();
 
-(function testDecisionSnapshotAndDuplicateTouchingContract() {
+(function testDecisionRangeAndDuplicateTouchingContract() {
     [
-        new Proxy({ kind: 'indent', levels: 1 }, {}),
-        Object.defineProperty({ kind: 'indent' }, 'levels', {
-            enumerable: true,
-            get: function() { return 1; }
-        }),
         { kind: 'indent', levels: 0 },
         { kind: 'align', columns: Infinity }
     ].forEach(function(decision) {

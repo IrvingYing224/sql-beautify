@@ -9,7 +9,6 @@ export interface RenderEnvironment {
     readonly tabSize: RenderTabSize;
 }
 
-const CANONICAL_ENVIRONMENTS = new WeakSet<object>();
 const ENVIRONMENTS = new Map<string, RenderEnvironment>();
 
 export function isRenderNewline(value: unknown): value is RenderNewline {
@@ -36,16 +35,14 @@ export function renderEnvironmentForNewline(
     }
     const environment = Object.freeze({ newline, tabSize });
     ENVIRONMENTS.set(key, environment);
-    CANONICAL_ENVIRONMENTS.add(environment);
     return environment;
 }
 
-export function isCanonicalRenderEnvironment(
-    value: unknown
-): value is RenderEnvironment {
+export function isRenderEnvironment(value: unknown): value is RenderEnvironment {
     return typeof value === "object" &&
         value !== null &&
-        CANONICAL_ENVIRONMENTS.has(value);
+        isRenderNewline((value as RenderEnvironment).newline) &&
+        isRenderTabSize((value as RenderEnvironment).tabSize);
 }
 
 export function inferRenderNewline(

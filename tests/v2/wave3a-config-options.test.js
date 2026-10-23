@@ -21,7 +21,7 @@ function assertFailure(value, code, label, optionKey) {
     assert.strictEqual(Object.isFrozen(result), true, label + ' failure must be frozen');
 }
 
-(function testDefaultsAndCanonicalIdentity() {
+(function testDefaults() {
     var result = resolve();
     assert.strictEqual(result.ok, true);
     assert.deepStrictEqual(result.options, {
@@ -36,12 +36,6 @@ function assertFailure(value, code, label, optionKey) {
     });
     assert.strictEqual(Object.isFrozen(result), true);
     assert.strictEqual(Object.isFrozen(result.options), true);
-    assert.strictEqual(resolver.isCanonicalFormatOptions(result.options), true);
-    assert.strictEqual(
-        resolver.isCanonicalFormatOptions(Object.assign({}, result.options)),
-        false,
-        'plain clone must not inherit canonical identity'
-    );
 })();
 
 (function testCompleteValidOptionsAndNullPrototype() {
@@ -102,51 +96,14 @@ function assertFailure(value, code, label, optionKey) {
     });
 })();
 
-(function testUnknownAndHiddenKeys() {
+(function testUnknownKeys() {
     assertFailure({ keywordcase: 'lower' }, 'CFG_UNKNOWN_OPTION', 'typo key');
-
-    var symbolInput = {};
-    symbolInput[Symbol('hidden')] = true;
-    assertFailure(symbolInput, 'CFG_UNKNOWN_OPTION', 'symbol key');
-
-    var hiddenInput = {};
-    Object.defineProperty(hiddenInput, 'dialect', {
-        value: 'hive',
-        enumerable: false
-    });
-    assertFailure(hiddenInput, 'CFG_UNKNOWN_OPTION', 'non-enumerable key', 'dialect');
-})();
-
-(function testAccessorsAreRejectedWithoutReading() {
-    var reads = 0;
-    var input = {};
-    Object.defineProperty(input, 'dialect', {
-        enumerable: true,
-        get: function() {
-            reads += 1;
-            throw new Error('must not run');
-        }
-    });
-    assertFailure(input, 'CFG_OPTION_ACCESSOR', 'accessor option', 'dialect');
-    assert.strictEqual(reads, 0, 'resolver must inspect descriptor without invoking getter');
-})();
-
-(function testProxyAndRevokedProxyFailClosed() {
-    assertFailure(
-        new Proxy({ dialect: 'hive' }, {}),
-        'CFG_OPTIONS_PROXY',
-        'transparent Proxy'
-    );
-    var revoked = Proxy.revocable({ dialect: 'hive' }, {});
-    revoked.revoke();
-    assertFailure(revoked.proxy, 'CFG_OPTIONS_PROXY', 'revoked Proxy');
 })();
 
 (function testNonPlainValuesFailClosed() {
     assertFailure(null, 'CFG_OPTIONS_TYPE', 'null');
     assertFailure([], 'CFG_OPTIONS_TYPE', 'array');
     assertFailure('hive', 'CFG_OPTIONS_TYPE', 'string');
-    assertFailure(new Date(), 'CFG_OPTIONS_SHAPE', 'exotic prototype');
 })();
 
 (function testManifestMatchesRuntimeDefinitions() {

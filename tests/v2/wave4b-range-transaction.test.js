@@ -156,28 +156,6 @@ assertInvalid(
     'ADAPTER_RANGE_TARGET',
     null
 );
-var dialectReads = 0;
-var dynamicRangeOptions = {};
-Object.defineProperty(dynamicRangeOptions, 'dialect', {
-    enumerable: true,
-    get: function() {
-        dialectReads += 1;
-        return dialectReads == 1 ? 'hive' : 'generic';
-    }
-});
-assertInvalid(
-    range.validateFormatTargetRanges(source, [target('dynamic-options', 0, selectEnd)],
-        dynamicRangeOptions),
-    'ADAPTER_RANGE_ANALYSIS',
-    null
-);
-assert.strictEqual(dialectReads, 0, 'range option accessors must never execute');
-assertInvalid(
-    range.validateFormatTargetRanges(source, [target('proxy-options', 0, selectEnd)],
-        new Proxy({ dialect: 'hive' }, {})),
-    'ADAPTER_RANGE_ANALYSIS',
-    null
-);
 assertInvalid(
     range.validateFormatTargetRanges(source, [target('unknown-options', 0, selectEnd)],
         { unknownOption: true }),

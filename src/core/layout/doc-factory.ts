@@ -1,5 +1,3 @@
-import { isProxy } from "node:util/types";
-
 import {
     isCanonicalAnalyzedArtifact,
 } from "../analysis/artifact";
@@ -95,202 +93,25 @@ function isNonNegativeSafeInteger(
     );
 }
 
-function copyTrigger(value: VerbatimTrigger): VerbatimTrigger | null {
-    try {
-        if (isProxy(value)) {
-            return null;
-        }
-        const kindDescriptor = Object.getOwnPropertyDescriptor(value, "kind");
-        if (kindDescriptor === undefined || !("value" in kindDescriptor)) {
-            return null;
-        }
-        const kind = kindDescriptor.value;
-        const keys = Reflect.ownKeys(value);
-        const expected =
-            kind === "operator-capability"
-                ? ["kind", "capabilityId", "operatorId"]
-                : ["kind", "capabilityId"];
-        if (
-            keys.length !== expected.length ||
-            expected.some((key) => !keys.includes(key))
-        ) {
-            return null;
-        }
-        for (const key of expected) {
-            const descriptor = Object.getOwnPropertyDescriptor(value, key);
-            if (
-                descriptor === undefined ||
-                !("value" in descriptor) ||
-                descriptor.enumerable !== true
-            ) {
-                return null;
-            }
-        }
-        const capabilityDescriptor = Object.getOwnPropertyDescriptor(
-            value,
-            "capabilityId"
-        );
-        if (
-            capabilityDescriptor === undefined ||
-            !("value" in capabilityDescriptor)
-        ) {
-            return null;
-        }
-        const capabilityId = capabilityDescriptor.value;
-        if (kind === "opaque") {
-            if (
-                capabilityId !== null &&
-                (typeof capabilityId !== "string" || capabilityId.length === 0)
-            ) {
-                return null;
-            }
-            return Object.freeze({
-                kind: "opaque",
-                capabilityId,
-            });
-        }
-        if (kind === "node-capability") {
-            if (
-                typeof capabilityId !== "string" ||
-                capabilityId.length === 0
-            ) {
-                return null;
-            }
-            return Object.freeze({
-                kind: "node-capability",
-                capabilityId,
-            });
-        }
-        if (kind === "bounded-payload") {
-            if (capabilityId !== "set-command") {
-                return null;
-            }
-            return Object.freeze({
-                kind: "bounded-payload",
-                capabilityId,
-            });
-        }
-        const operatorDescriptor = Object.getOwnPropertyDescriptor(
-            value,
-            "operatorId"
-        );
-        if (
-            kind !== "operator-capability" ||
-            typeof capabilityId !== "string" ||
-            capabilityId.length === 0 ||
-            operatorDescriptor === undefined ||
-            !("value" in operatorDescriptor) ||
-            typeof operatorDescriptor.value !== "string" ||
-            operatorDescriptor.value.length === 0
-        ) {
-            return null;
-        }
-        return Object.freeze({
-            kind: "operator-capability",
-            capabilityId,
-            operatorId: operatorDescriptor.value,
-        });
-    } catch {
-        return null;
-    }
-}
-
-function copyLineSuffixSpacing(
+function lineSuffixSpacing(
     value: LineSuffixSpacingInput,
     maximum: number
 ): LineSuffixSpacing | undefined {
     if (value === null) {
         return null;
     }
-    try {
-        if (isProxy(value)) {
-            return undefined;
-        }
-        const keys = Reflect.ownKeys(value);
-        const kindDescriptor = Object.getOwnPropertyDescriptor(value, "kind");
-        if (kindDescriptor === undefined || !("value" in kindDescriptor)) {
-            return undefined;
-        }
-        const kind = kindDescriptor.value;
-        const valueKey = kind === "space" ? "columns" : "targetColumn";
-        if (
-            keys.length !== 2 ||
-            !keys.includes("kind") ||
-            !keys.includes(valueKey)
-        ) {
-            return undefined;
-        }
-        const valueDescriptor = Object.getOwnPropertyDescriptor(value, valueKey);
-        if (
-            valueDescriptor === undefined ||
-            !("value" in valueDescriptor) ||
-            !isPositiveSafeInteger(valueDescriptor.value, maximum)
-        ) {
-            return undefined;
-        }
-        if (kind === "space") {
-            return Object.freeze({
-                kind: "space",
-                columns: valueDescriptor.value as PositiveColumns,
-            });
-        }
-        if (kind !== "pad-to-column") {
-            return undefined;
-        }
-        return Object.freeze({
-            kind: "pad-to-column",
-            targetColumn: valueDescriptor.value as PositiveColumns,
-        });
-    } catch {
-        return undefined;
+    if (value.kind === "space") {
+        return isPositiveSafeInteger(value.columns, maximum)
+            ? Object.freeze({ kind: "space", columns: value.columns as PositiveColumns })
+            : undefined;
     }
-}
-
-function snapshotDenseDocs(
-    value: readonly LayoutDoc[],
-    maximumLength: number
-): readonly LayoutDoc[] | null {
-    try {
-        if (isProxy(value) || !Array.isArray(value)) {
-            return null;
-        }
-        const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
-        if (
-            lengthDescriptor === undefined ||
-            !("value" in lengthDescriptor) ||
-            !Number.isSafeInteger(lengthDescriptor.value) ||
-            lengthDescriptor.value < 0
-        ) {
-            return null;
-        }
-        const length = lengthDescriptor.value as number;
-        if (length > maximumLength) {
-            return null;
-        }
-        const copy: LayoutDoc[] = new Array(length);
-        for (let index = 0; index < length; index++) {
-            const descriptor = Object.getOwnPropertyDescriptor(value, index);
-            if (descriptor === undefined || !("value" in descriptor)) {
-                return null;
-            }
-            copy[index] = descriptor.value as LayoutDoc;
-        }
-        if (Reflect.ownKeys(value).some((key) => {
-            if (key === "length") {
-                return false;
-            }
-            if (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(key)) {
-                return true;
-            }
-            const numeric = Number(key);
-            return !Number.isSafeInteger(numeric) || numeric >= length;
-        })) {
-            return null;
-        }
-        return Object.freeze(copy);
-    } catch {
-        return null;
-    }
+    return value.kind === "pad-to-column" &&
+        isPositiveSafeInteger(value.targetColumn, maximum)
+        ? Object.freeze({
+              kind: "pad-to-column",
+              targetColumn: value.targetColumn as PositiveColumns,
+          })
+        : undefined;
 }
 
 /**
@@ -398,20 +219,15 @@ export function createLayoutDocFactory(
             return register({ kind: "leaf", leafId, transform });
         },
 
-        verbatim(ownerNodeId, rawTrigger): VerbatimDoc | null {
+        verbatim(ownerNodeId, trigger): VerbatimDoc | null {
             const claim = claims.claimForOwner(ownerNodeId);
-            const trigger = copyTrigger(rawTrigger);
-            if (
-                claim === null ||
-                trigger === null ||
-                !verbatimTriggersEqual(claim.trigger, trigger)
-            ) {
+            if (claim === null || !verbatimTriggersEqual(claim.trigger, trigger)) {
                 return null;
             }
             return register({
                 kind: "verbatim",
                 ownerNodeId,
-                trigger,
+                trigger: claim.trigger,
                 leafRange: claim.leafRange,
             });
         },
@@ -436,10 +252,10 @@ export function createLayoutDocFactory(
         },
 
         concat(rawParts): LayoutDoc | null {
-            const parts = snapshotDenseDocs(rawParts, budget.maxDocNodes);
-            if (parts === null) {
+            if (rawParts.length > budget.maxDocNodes) {
                 return null;
             }
+            const parts = Object.freeze(rawParts.slice());
             if (parts.length === 0) {
                 return empty();
             }
@@ -537,7 +353,7 @@ export function createLayoutDocFactory(
             ) {
                 return null;
             }
-            const canonicalSpacing = copyLineSuffixSpacing(
+            const canonicalSpacing = lineSuffixSpacing(
                 spacing,
                 budget.maxGeneratedColumnsPerLine
             );

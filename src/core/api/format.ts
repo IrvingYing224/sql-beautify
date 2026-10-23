@@ -23,7 +23,7 @@ import { applyKeywordCase } from "../renderer/keyword-case";
 import {
     DEFAULT_RENDER_TAB_SIZE,
     inferRenderEnvironment,
-    isCanonicalRenderEnvironment,
+    isRenderEnvironment,
     isRenderNewline,
     renderEnvironmentForNewline,
     type RenderEnvironment,
@@ -286,7 +286,7 @@ export function formatSql(
             : isRenderNewline(environmentValue)
                 ? renderEnvironmentForNewline(environmentValue)
                 : environmentValue;
-        if (!isCanonicalRenderEnvironment(environment)) {
+        if (!isRenderEnvironment(environment)) {
             const value = diagnostic(
                 source,
                 "RENDER_NEWLINE_CONTRACT",

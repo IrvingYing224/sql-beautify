@@ -617,13 +617,6 @@ function deterministicMalformedCases(count) {
             status: 'preserved'
         },
         {
-            id: 'proxy-options',
-            source: source,
-            options: new Proxy({ dialect: 'hive' }, {}),
-            mode: 'document',
-            status: 'failed'
-        },
-        {
             id: 'invalid-mode',
             source: source,
             options: { dialect: 'hive' },

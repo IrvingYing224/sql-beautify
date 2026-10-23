@@ -1,9 +1,6 @@
-import { isProxy } from "node:util/types";
-
 import { isCanonicalAnalyzedArtifact } from "../analysis/artifact";
 import type { AnalyzedArtifact } from "../analysis/types";
 import type { CanonicalFormatOptions } from "../config/options";
-import { isCanonicalFormatOptions } from "../config/resolve-options";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type { DominatingVerbatimClaim } from "./verbatim-claims";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
@@ -137,94 +134,24 @@ function resultFailure(
     return Object.freeze({ ok: false, code, message });
 }
 
-function snapshotGapDecision(
-    value: unknown,
+function isColumnCount(value: number, maximum: number): boolean {
+    return Number.isSafeInteger(value) && value > 0 && value <= maximum;
+}
+
+function validGapDecision(
+    value: LayoutGapDecision,
     maximumColumns: number
-): LayoutGapDecision | null {
-    try {
-        if (typeof value !== "object" || value === null || isProxy(value)) {
-            return null;
-        }
-        const kindDescriptor = Object.getOwnPropertyDescriptor(value, "kind");
-        if (kindDescriptor === undefined || !("value" in kindDescriptor)) {
-            return null;
-        }
-        if (
-            kindDescriptor.value === "empty" ||
-            kindDescriptor.value === "hard-line"
-        ) {
-            return Reflect.ownKeys(value).length === 1
-                ? Object.freeze({ kind: kindDescriptor.value })
-                : null;
-        }
-        if (kindDescriptor.value === "soft-line") {
-            const keys = Reflect.ownKeys(value);
-            const flatDescriptor = Object.getOwnPropertyDescriptor(value, "flat");
-            if (
-                keys.length !== 2 ||
-                !keys.includes("kind") ||
-                !keys.includes("flat") ||
-                flatDescriptor === undefined ||
-                !("value" in flatDescriptor) ||
-                (flatDescriptor.value !== "empty" &&
-                    flatDescriptor.value !== "space")
-            ) {
-                return null;
-            }
-            return Object.freeze({
-                kind: "soft-line",
-                flat: flatDescriptor.value,
-            });
-        }
-        if (kindDescriptor.value === "pad-to-column") {
-            const keys = Reflect.ownKeys(value);
-            const targetDescriptor = Object.getOwnPropertyDescriptor(
-                value,
-                "targetColumn"
-            );
-            if (
-                keys.length !== 2 ||
-                !keys.includes("kind") ||
-                !keys.includes("targetColumn") ||
-                targetDescriptor === undefined ||
-                !("value" in targetDescriptor) ||
-                !Number.isSafeInteger(targetDescriptor.value) ||
-                targetDescriptor.value <= 0 ||
-                targetDescriptor.value > maximumColumns
-            ) {
-                return null;
-            }
-            return Object.freeze({
-                kind: "pad-to-column",
-                targetColumn: targetDescriptor.value as number,
-            });
-        }
-        if (kindDescriptor.value !== "space") {
-            return null;
-        }
-        const keys = Reflect.ownKeys(value);
-        const columnsDescriptor = Object.getOwnPropertyDescriptor(
-            value,
-            "columns"
-        );
-        if (
-            keys.length !== 2 ||
-            !keys.includes("kind") ||
-            !keys.includes("columns") ||
-            columnsDescriptor === undefined ||
-            !("value" in columnsDescriptor) ||
-            !Number.isSafeInteger(columnsDescriptor.value) ||
-            columnsDescriptor.value <= 0 ||
-            columnsDescriptor.value > maximumColumns
-        ) {
-            return null;
-        }
-        return Object.freeze({
-            kind: "space",
-            columns: columnsDescriptor.value as number,
-        });
-    } catch {
-        return null;
+): boolean {
+    switch (value.kind) {
+        case "empty":
+        case "hard-line":
+            return true;
+        case "soft-line":
+            return value.flat === "empty" || value.flat === "space";
+        case "space":
+            return isColumnCount(value.columns, maximumColumns);
+        case "pad-to-column":
+            return isColumnCount(value.targetColumn, maximumColumns);
     }
 }
 
@@ -248,75 +175,19 @@ function decisionsEqual(
     return true;
 }
 
-function snapshotScopeDecision(
-    value: unknown,
+function validScopeDecision(
+    value: LayoutScopeDecision,
     budget: LayoutResourceBudget
-): LayoutScopeDecision | null {
-    try {
-        if (typeof value !== "object" || value === null || isProxy(value)) {
-            return null;
-        }
-        const keys = Reflect.ownKeys(value);
-        const kindDescriptor = Object.getOwnPropertyDescriptor(value, "kind");
-        if (kindDescriptor === undefined || !("value" in kindDescriptor)) {
-            return null;
-        }
-        if (kindDescriptor.value === "group") {
-            const modeDescriptor = Object.getOwnPropertyDescriptor(value, "mode");
-            if (
-                keys.length !== 2 ||
-                !keys.includes("kind") ||
-                !keys.includes("mode") ||
-                modeDescriptor === undefined ||
-                !("value" in modeDescriptor) ||
-                (modeDescriptor.value !== "flat" &&
-                    modeDescriptor.value !== "break")
-            ) {
-                return null;
-            }
-            return Object.freeze({
-                kind: "group",
-                mode: modeDescriptor.value,
-            });
-        }
-        const valueKey =
-            kindDescriptor.value === "indent"
-                ? "levels"
-                : kindDescriptor.value === "align"
-                  ? "columns"
-                  : kindDescriptor.value === "auto-group"
-                    ? "maxFlatWidth"
-                    : null;
-        if (valueKey === null) {
-            return null;
-        }
-        const valueDescriptor = Object.getOwnPropertyDescriptor(value, valueKey);
-        const maximum = kindDescriptor.value === "indent"
-            ? budget.maxCumulativeIndentLevels
-            : budget.maxGeneratedColumnsPerLine;
-        if (
-            keys.length !== 2 ||
-            !keys.includes("kind") ||
-            !keys.includes(valueKey) ||
-            valueDescriptor === undefined ||
-            !("value" in valueDescriptor) ||
-            !Number.isSafeInteger(valueDescriptor.value) ||
-            valueDescriptor.value <= 0 ||
-            valueDescriptor.value > maximum
-        ) {
-            return null;
-        }
-        const amount = valueDescriptor.value as number;
-        return kindDescriptor.value === "indent"
-            ? Object.freeze({ kind: "indent", levels: amount })
-            : kindDescriptor.value === "align"
-              ? Object.freeze({ kind: "align", columns: amount })
-              : Object.freeze({
-                    kind: "auto-group",
-                    maxFlatWidth: amount,
-                });
-    } catch {
-        return null;
+): boolean {
+    switch (value.kind) {
+        case "group":
+            return value.mode === "flat" || value.mode === "break";
+        case "indent":
+            return isColumnCount(value.levels, budget.maxCumulativeIndentLevels);
+        case "align":
+            return isColumnCount(value.columns, budget.maxGeneratedColumnsPerLine);
+        case "auto-group":
+            return isColumnCount(value.maxFlatWidth, budget.maxGeneratedColumnsPerLine);
     }
 }
 
@@ -362,17 +233,15 @@ function scopeDecisionFamily(value: LayoutScopeDecision): string {
  */
 export function createLayoutPlanBuilder(
     analysisValue: unknown,
-    optionsValue: unknown
+    options: CanonicalFormatOptions
 ): LayoutPlanBuilder | null {
     if (
         !isCanonicalAnalyzedArtifact(analysisValue) ||
-        !isCanonicalFormatOptions(optionsValue) ||
-        analysisValue.dialect !== optionsValue.dialect
+        analysisValue.dialect !== options.dialect
     ) {
         return null;
     }
     const analysis = analysisValue;
-    const options = optionsValue;
     let budget: LayoutResourceBudget;
     let claims: ReturnType<typeof dominatingVerbatimClaims>;
     try {
@@ -553,7 +422,7 @@ export function createLayoutPlanBuilder(
             authorityNodeId: number,
             startLeafId: number,
             endLeafId: number,
-            rawDecision: LayoutGapDecision
+            decision: LayoutGapDecision
         ): boolean {
             if (finished) {
                 return poison(
@@ -561,12 +430,8 @@ export function createLayoutPlanBuilder(
                     "Layout plan is already finalized"
                 );
             }
-            const decision = snapshotGapDecision(
-                rawDecision,
-                budget.maxGeneratedColumnsPerLine
-            );
             if (
-                decision === null ||
+                !validGapDecision(decision, budget.maxGeneratedColumnsPerLine) ||
                 !Number.isSafeInteger(startLeafId) ||
                 !Number.isSafeInteger(endLeafId) ||
                 startLeafId < 0 ||
@@ -670,7 +535,7 @@ export function createLayoutPlanBuilder(
             authorityNodeId: number,
             startLeafId: number,
             endLeafId: number,
-            rawDecision: LayoutScopeDecision
+            decision: LayoutScopeDecision
         ): boolean {
             if (finished) {
                 return poison(
@@ -678,9 +543,8 @@ export function createLayoutPlanBuilder(
                     "Layout plan is already finalized"
                 );
             }
-            const decision = snapshotScopeDecision(rawDecision, budget);
             if (
-                decision === null ||
+                !validScopeDecision(decision, budget) ||
                 !Number.isSafeInteger(startLeafId) ||
                 !Number.isSafeInteger(endLeafId) ||
                 startLeafId < 0 ||

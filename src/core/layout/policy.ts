@@ -1,3 +1,4 @@
+import type { CanonicalFormatOptions } from "../config/options";
 import type {
     LayoutPlanBuilder,
     LayoutPlanFailure,
@@ -38,9 +39,9 @@ export function finalizeLayoutPolicyApplication(
 /** Identity policy used to prove the compiler and renderer conservation path. */
 export function buildIdentityLayoutPlan(
     analysisValue: unknown,
-    optionsValue: unknown
+    options: CanonicalFormatOptions
 ): LayoutPlanResult {
-    const builder = createLayoutPlanBuilder(analysisValue, optionsValue);
+    const builder = createLayoutPlanBuilder(analysisValue, options);
     return builder === null
         ? failure("Identity layout requires canonical analysis and options")
         : builder.finish();
@@ -52,10 +53,10 @@ export function buildIdentityLayoutPlan(
  */
 export function buildLayoutPlan(
     analysisValue: unknown,
-    optionsValue: unknown,
+    options: CanonicalFormatOptions,
     alignmentPlan: LayoutAlignmentPlan | null = null
 ): LayoutPlanResult {
-    const builder = createLayoutPlanBuilder(analysisValue, optionsValue);
+    const builder = createLayoutPlanBuilder(analysisValue, options);
     if (builder === null) {
         return failure("Layout policy requires canonical analysis and options");
     }

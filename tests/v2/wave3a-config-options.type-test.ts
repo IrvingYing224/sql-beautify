@@ -1,8 +1,5 @@
 import type { FormatOptions } from "../../src/core/config/options";
-import {
-    isCanonicalFormatOptions,
-    resolveFormatOptions,
-} from "../../src/core/config/resolve-options";
+import { resolveFormatOptions } from "../../src/core/config/resolve-options";
 
 const valid: FormatOptions = {
     dialect: "hive",
@@ -43,12 +40,6 @@ if (resolved.ok) {
         | null = resolved.optionKey;
     void code;
     void optionKey;
-}
-
-const unknownIdentity: unknown = valid;
-if (isCanonicalFormatOptions(unknownIdentity)) {
-    const keywordCase: "upper" | "lower" = unknownIdentity.keywordCase;
-    void keywordCase;
 }
 
 void unknown;

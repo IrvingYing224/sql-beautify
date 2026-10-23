@@ -27,9 +27,7 @@ function entries(
 const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     ...entries([
         "CFG_OPTIONS_TYPE",
-        "CFG_OPTIONS_PROXY",
         "CFG_OPTIONS_SHAPE",
-        "CFG_OPTION_ACCESSOR",
         "CFG_OPTION_VALUE",
     ], "Formatter options are invalid"),
     CFG_UNKNOWN_OPTION: "Formatter options contain an unsupported key",
@@ -99,7 +97,6 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
 
     ...entries([
         "LAYOUT_ARTIFACT_ANALYSIS",
-        "LAYOUT_ARTIFACT_OPTIONS",
         "LAYOUT_ARTIFACT_DIALECT",
         "LAYOUT_ARTIFACT_RESOURCE",
         "LAYOUT_PLAN_PROVENANCE",
