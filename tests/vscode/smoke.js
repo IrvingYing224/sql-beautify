@@ -3,7 +3,9 @@
 var assert = require('assert');
 var path = require('path');
 var vscode = require('vscode');
-var runtime = require('../../dist/runtime.cjs');
+// formatSql and the executor, bundled from src by scripts/run-vscode-smoke.js.
+var helpers = require(process.env.SQL_BEAUTIFY_SMOKE_HELPERS);
+var formatSql = helpers.format.formatSql;
 
 async function eventually(predicate, message) {
     var deadline = Date.now() + 10000;
@@ -38,7 +40,7 @@ async function runSmoke() {
     var editor = await open('document.sql', source);
     await vscode.commands.executeCommand('editor.action.formatDocument');
     var output = editor.document.getText();
-    assert.strictEqual(output, runtime.formatSql(source, { keywordCase: 'lower' }).text,
+    assert.strictEqual(output, formatSql(source, { keywordCase: 'lower' }).text,
         'language-level settings must override workspace settings');
     assert.ok(output.includes('\n      a'), 'SQL indentStyle must override insertSpaces');
     var version = editor.document.version;
@@ -76,43 +78,52 @@ async function runSmoke() {
     await vscode.commands.executeCommand('editor.action.formatDocument');
     assert.ok(!/(^|[^\r])\n/.test(editor.document.getText()), 'formatting must preserve CRLF');
 
-    var large = Array.from({ length: 600 }, function(_, index) {
+    // Large enough to run in the worker.
+    var large = Array.from({ length: 1000 }, function(_, index) {
         return 'select col_' + index + ',other from table_' + index + ';';
     }).join('\n');
+    assert.ok(large.length >= helpers.executor.WORKER_MIN_CODE_UNITS);
     editor = await open('worker.sql', large);
     await vscode.commands.executeCommand('editor.action.formatDocument');
-    assert.strictEqual(editor.document.getText(), runtime.formatSql(large, { keywordCase: 'lower' }).text);
+    assert.strictEqual(editor.document.getText(), formatSql(large, { keywordCase: 'lower' }).text);
 
-    // Use a real host token against the production worker transaction. The
-    // built-in executeFormatDocumentProvider command has no cancellation arg.
-    var executor = runtime.createProductionFormatterExecutor({
-        runtimePath: path.resolve(__dirname, '../../dist/runtime.cjs'),
-        workerPath: path.resolve(__dirname, '../../dist/formatter-worker.cjs')
-    });
+    editor = await open('command.sql', source);
+    editor.selection = new vscode.Selection(0, 8, 0, 8);
+    var result = await vscode.commands.executeCommand('sqlBeautify.formatSql');
+    assert.strictEqual(result.status, 'ready');
+    assert.strictEqual(editor.document.getText(), formatSql(source, { keywordCase: 'lower' }).text);
+    assert.strictEqual(editor.document.offsetAt(editor.selection.active), 14, 'the cursor follows its token');
+
+    // A DDL cursor mapped between CR and LF is placed by the document, not rejected.
+    editor = await open('ddl.sql', 'create table t (a int)\r\n');
+    editor.selection = new vscode.Selection(0, 15, 0, 15);
+    result = await vscode.commands.executeCommand('sqlBeautify.formatHiveDdl');
+    assert.strictEqual(result.status, 'ready');
+    assert.strictEqual(editor.document.getText(), 'create table t\r\n(\r\n     a int\r\n)\r\n');
+
+    // A real host token against the production worker. The built-in
+    // executeFormatDocumentProvider command takes no cancellation token.
+    var executor = new helpers.executor.EditExecutor(
+        helpers.executor.nodeWorkerFactory(path.resolve(__dirname, '../../dist/worker.cjs')));
     var cancellation = new vscode.CancellationTokenSource();
     try {
-        var pending = runtime.prepareFormatTransaction({
-            source: large, documentVersion: 1,
+        var request = {
+            op: 'format', source: large,
             targets: [{ id: 'document', start: 0, end: large.length, mode: 'document' }],
-            options: {}, newline: '\n', tabSize: 2,
-            cancellation: {
-                get isCancellationRequested() { return cancellation.token.isCancellationRequested; },
-                onCancellationRequested: function(listener) {
-                    var disposable = cancellation.token.onCancellationRequested(listener);
-                    return function() { disposable.dispose(); };
-                }
-            }
-        }, executor);
+            selections: [], options: { dialect: 'hive' }, newline: '\n', tabSize: 2, debug: false
+        };
+        var pending = executor.run(request, cancellation.token);
         cancellation.cancel();
         var cancelled = await pending;
-        assert.strictEqual(executor.lastRoute(), 'worker');
         assert.strictEqual(cancelled.status, 'cancelled');
-        assert.strictEqual('edits' in cancelled, false, 'cancelled transactions expose no committable edits');
+        assert.deepStrictEqual(cancelled.edits, [], 'cancelled results carry no edits');
+        var formatted = await executor.run(request, new vscode.CancellationTokenSource().token);
+        assert.strictEqual(formatted.edits[0].text, formatSql(large).text, 'the worker restarts after a cancel');
     } finally {
         cancellation.dispose();
-        await executor.dispose();
+        executor.dispose();
     }
-    console.log('VS Code ' + vscode.version + ' host smoke passed: formatting, multi-range atomicity, diagnostics, CRLF, worker cancellation');
+    console.log('VS Code ' + vscode.version + ' host smoke passed: formatting, multi-range atomicity, diagnostics, CRLF, worker, commands, worker cancellation');
 }
 
 module.exports = {

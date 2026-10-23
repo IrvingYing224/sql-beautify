@@ -416,7 +416,7 @@ test('formatHiveDdl: a selection ending at column 0 of the next line is rejected
         var result = await h.run('formatHiveDdl');
         assert.strictEqual(result.status, 'rejected');
         assert.deepStrictEqual(codes(result), ['ADAPTER_DDL_RANGE']);
-        assert.strictEqual(result.edits, undefined);
+        assert.deepStrictEqual(result.edits, []);
         assert.strictEqual(editor.document.text, source);
         assert.deepStrictEqual(selections(editor), [[0, 24]]);
         assert.deepStrictEqual(h.lastMessage(), { kind: 'warning', text: MESSAGES.ddl });

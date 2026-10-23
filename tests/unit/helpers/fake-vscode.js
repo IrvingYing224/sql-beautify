@@ -144,6 +144,10 @@ function createHost(options) {
         clipboard: '',
         progressToken: null,
         configuration: Object.assign({}, options.configuration),
+        configurationScopes: [],
+        selectors: [],
+        collectionNames: [],
+        entry: options.entry || path.join(root, 'dist', 'extension.cjs'),
         changeListeners: [],
         closeListeners: [],
         subscriptions: [],
@@ -180,7 +184,8 @@ function createHost(options) {
             clipboard: { writeText: function(value) { host.clipboard = value; return Promise.resolve(); } }
         },
         workspace: {
-            getConfiguration: function(section) {
+            getConfiguration: function(section, scope) {
+                host.configurationScopes.push([section, scope.languageId, scope.uri.toString()]);
                 return {
                     get: function(key) {
                         var value = host.configuration[section + '.' + key];
@@ -212,7 +217,8 @@ function createHost(options) {
             }
         },
         languages: {
-            createDiagnosticCollection: function() {
+            createDiagnosticCollection: function(name) {
+                host.collectionNames.push(name);
                 return {
                     set: function(uri, values) {
                         host.diagnosticWrites += 1;
@@ -226,11 +232,13 @@ function createHost(options) {
                     dispose: function() { host.diagnostics.clear(); }
                 };
             },
-            registerDocumentFormattingEditProvider: function(_selector, provider) {
+            registerDocumentFormattingEditProvider: function(selector, provider) {
+                host.selectors.push(selector);
                 host.documentProvider = provider;
                 return { dispose: function() { host.documentProvider = null; } };
             },
-            registerDocumentRangeFormattingEditProvider: function(_selector, provider) {
+            registerDocumentRangeFormattingEditProvider: function(selector, provider) {
+                host.selectors.push(selector);
                 host.rangeProvider = provider;
                 return { dispose: function() { host.rangeProvider = null; } };
             }
@@ -310,9 +318,9 @@ function createHost(options) {
     return host;
 }
 
-// Loads a fresh copy of dist/extension.cjs bound to `host` and activates it.
+// Loads a fresh copy of dist/extension.cjs (or `options.entry`) bound to `host` and activates it.
 async function load(host) {
-    var entry = require.resolve(path.join(root, 'dist', 'extension.cjs'));
+    var entry = require.resolve(host.entry);
     delete require.cache[entry];
     current = host;
     var extension = require(entry);

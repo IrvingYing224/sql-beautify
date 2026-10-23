@@ -1,78 +1,46 @@
+import * as path from "node:path";
 import * as vscode from "vscode";
 
-import type { FormatterExecutor } from "./adapters/transaction/types";
-import {
-    createVscodeExtension,
-    type V2ExtensionRuntime,
-    type VscodeExtensionSession,
-} from "./adapters/vscode/extension";
+import { EditExecutor, nodeWorkerFactory } from "./edits/executor";
+import { registerCommands } from "./vscode/commands";
+import { isSupported } from "./vscode/config";
+import { Diagnostics } from "./vscode/diagnostics";
+import { createVscodeMessages } from "./vscode/messages";
+import { registerProviders } from "./vscode/providers";
 
-interface ProductionRuntime extends V2ExtensionRuntime {
-    createProductionFormatterExecutor(options: Readonly<{
-        runtimePath: string;
-        workerPath: string;
-    }>): FormatterExecutor;
+let executor: EditExecutor | null = null;
+let diagnostics: Diagnostics | null = null;
+
+export function activate(context: vscode.ExtensionContext): void {
+    const currentExecutor = new EditExecutor(nodeWorkerFactory(path.join(__dirname, "worker.cjs")));
+    const currentDiagnostics = new Diagnostics();
+    executor = currentExecutor;
+    diagnostics = currentDiagnostics;
+    context.subscriptions.push(
+        currentDiagnostics,
+        vscode.workspace.onDidChangeTextDocument((event) => {
+            if (isSupported(event.document)) {
+                currentDiagnostics.change(event);
+            }
+        }),
+        vscode.workspace.onDidCloseTextDocument((document) => {
+            if (isSupported(document)) {
+                currentDiagnostics.clear(document);
+            }
+        }),
+        ...registerProviders(currentExecutor, currentDiagnostics),
+        ...registerCommands(
+            currentExecutor,
+            currentDiagnostics,
+            createVscodeMessages(vscode.env.language),
+            context.extension.packageJSON.version as string
+        )
+    );
 }
 
-declare const __dirname: string;
-declare const require: (path: string) => unknown;
-
-const path = require("path") as { join(...parts: string[]): string };
-
-let session: VscodeExtensionSession | null = null;
-
-function loadRuntime(runtimePath: string): ProductionRuntime {
-    const value = require(runtimePath) as Partial<ProductionRuntime>;
-    const requiredFunctions = [
-        "prepareFormatTransaction",
-        "resolveFormatOptions",
-        "runHostTransaction",
-        "runExperimentalDdlTransaction",
-        "executeExtractDdl",
-        "executeFormatHiveDdl",
-        "formatHiveDdl",
-        "extractDdl",
-        "createProductionFormatterExecutor",
-    ] as const;
-    for (const key of requiredFunctions) {
-        if (typeof value[key] !== "function") {
-            throw new Error("SQL Beautify runtime artifact is invalid");
-        }
-    }
-    return value as ProductionRuntime;
-}
-
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    if (session !== null) {
-        return;
-    }
-    let executor: FormatterExecutor | null = null;
-    let pending: VscodeExtensionSession | null = null;
-    try {
-        const runtimePath = path.join(__dirname, "runtime.cjs");
-        const workerPath = path.join(__dirname, "formatter-worker.cjs");
-        const runtime = loadRuntime(runtimePath);
-        executor = runtime.createProductionFormatterExecutor({
-            runtimePath,
-            workerPath,
-        });
-        pending = createVscodeExtension(vscode, runtime, executor, {
-            extensionVersion: context.extension.packageJSON.version as string,
-        });
-        pending.activate(context);
-        session = pending;
-    } catch (error) {
-        if (pending !== null) {
-            await pending.dispose();
-        } else {
-            await executor?.dispose();
-        }
-        throw error;
-    }
-}
-
-export async function deactivate(): Promise<void> {
-    const current = session;
-    session = null;
-    await current?.dispose();
+export function deactivate(): void {
+    executor?.dispose();
+    diagnostics?.dispose();
+    executor = null;
+    diagnostics = null;
 }

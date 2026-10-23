@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Bundles the extension host entry, the formatter runtime it loads and the worker into dist/.
+// Bundles the extension host entry and the worker into dist/; each bundle includes the core.
 
 var esbuild = require('esbuild');
 var fs = require('fs');
@@ -11,8 +11,7 @@ var root = path.join(__dirname, '..');
 var dist = path.join(root, 'dist');
 var entries = {
     'extension.cjs': 'src/extension.ts',
-    'runtime.cjs': 'src/runtime/internal.ts',
-    'formatter-worker.cjs': 'src/adapters/executor/worker-entry.ts'
+    'worker.cjs': 'src/edits/worker.ts'
 };
 
 fs.rmSync(dist, { recursive: true, force: true });

@@ -13,8 +13,7 @@ var EXPECTED = [
     'LICENSE.txt',
     'README.md',
     'dist/extension.cjs',
-    'dist/formatter-worker.cjs',
-    'dist/runtime.cjs',
+    'dist/worker.cjs',
     'images/icon.png',
     'package.json'
 ];

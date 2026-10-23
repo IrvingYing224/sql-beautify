@@ -7,6 +7,8 @@ var test = require('@vscode/test-electron');
 
 async function main() {
     var root = path.resolve(__dirname, '..');
+    // The smoke compares host results with the core, bundled from src like the unit tests.
+    var helpers = require('../tests/unit/helpers/src').file({ format: 'core/api/format', executor: 'edits/executor' });
     var cache = path.join(root, '.tmp', 'vscode-smoke');
     fs.mkdirSync(cache, { recursive: true });
     var session = fs.mkdtempSync(path.join(cache, 'session-'));
@@ -37,7 +39,7 @@ async function main() {
         launchArgs: [workspace, '--disable-extensions', '--disable-gpu',
             '--user-data-dir=' + path.join(session, 'user-data'),
             '--extensions-dir=' + path.join(session, 'extensions')],
-        extensionTestsEnv: { SQL_BEAUTIFY_SMOKE_WORKSPACE: workspace }
+        extensionTestsEnv: { SQL_BEAUTIFY_SMOKE_WORKSPACE: workspace, SQL_BEAUTIFY_SMOKE_HELPERS: helpers }
     });
 }
 

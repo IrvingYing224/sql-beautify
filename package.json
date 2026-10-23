@@ -32,8 +32,7 @@
 	"main": "./dist/extension.cjs",
 	"files": [
 		"dist/extension.cjs",
-		"dist/runtime.cjs",
-		"dist/formatter-worker.cjs",
+		"dist/worker.cjs",
 		"images/icon.png",
 		"README.md",
 		"CHANGELOG.md",

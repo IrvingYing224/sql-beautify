@@ -218,16 +218,6 @@ const SAFE_MESSAGE_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
     EXTRACT_INTERNAL: "DDL extraction failed safely",
 });
 
-const KNOWN_SAFE_CODES = Object.freeze(Object.keys(SAFE_MESSAGE_BY_CODE).sort());
-
-export function hasKnownSafeDiagnosticMessage(code: string): boolean {
-    return Object.prototype.hasOwnProperty.call(SAFE_MESSAGE_BY_CODE, code);
-}
-
-export function knownSafeDiagnosticCodes(): readonly string[] {
-    return KNOWN_SAFE_CODES;
-}
-
 export function safeDiagnosticMessage(
     code: string,
     capabilityId: string | null,

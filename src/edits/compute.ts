@@ -69,7 +69,7 @@ function compareText(left: string, right: string): number {
     return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function sortDiagnostics(values: readonly EditDiagnostic[]): EditDiagnostic[] {
+export function sortDiagnostics(values: readonly EditDiagnostic[]): EditDiagnostic[] {
     return values.slice().sort((left, right) =>
         compareText(left.targetId ?? "", right.targetId ?? "") ||
         left.span.start - right.span.start ||

@@ -1,11 +1,11 @@
-import type { TransactionDiagnostic } from "../transaction/types";
+import type { EditDiagnostic } from "../edits/types";
 
 export interface SafeDiagnosticReportInput {
     readonly extensionVersion: string;
     readonly dialect: unknown;
     readonly sourceCodeUnits: number;
     readonly resultStatus: unknown;
-    readonly diagnostics: readonly TransactionDiagnostic[];
+    readonly diagnostics: readonly EditDiagnostic[];
 }
 
 const DIALECTS: ReadonlySet<string> = new Set([
