@@ -1,7 +1,6 @@
 import type { Dialect } from "../config/options";
 import { getLexicalProfile } from "../lexer/lexical-profile";
 import { EMPTY_FROZEN_ARRAY, freezeImmutableArray } from "../util/immutable-array";
-import { isRecognizedCapabilityState } from "./capability-state";
 import type {
     CapabilityEntry,
     CapabilityState,
@@ -25,16 +24,6 @@ const CANONICAL_DIALECTS: readonly Dialect[] = freezeImmutableArray([
 ]);
 
 const CANONICAL_SET = new Set<string>(CANONICAL_DIALECTS);
-
-const CAPABILITY_STATES: ReadonlySet<CapabilityState> = new Set([
-    "recognized",
-    "structured",
-    "formatted",
-    "verbatim",
-    "diagnostic",
-]);
-
-const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 type OperatorDefinition = Readonly<{
     key: string;
@@ -440,36 +429,12 @@ const SHARED_FORMATTED_CAPABILITIES: readonly string[] = freezeImmutableArray([
     "window-expression",
 ]);
 
-function freezeEntry(id: string, state: CapabilityState, notes?: string): CapabilityEntry {
-    if (!KEBAB_CASE.test(id)) {
-        throw new Error(`Invalid capability id (expected kebab-case): ${id}`);
-    }
-    if (!CAPABILITY_STATES.has(state)) {
-        throw new Error(`Invalid capability state for ${id}: ${state}`);
-    }
-    return notes
-        ? Object.freeze({ id, state, notes })
-        : Object.freeze({ id, state });
-}
-
 function buildCapabilityList(
-    recognized: readonly string[],
-    extra: readonly Readonly<{ id: string; state: CapabilityState; notes?: string }>[] = []
+    entries: readonly Readonly<{ id: string; state: CapabilityState; notes?: string }>[]
 ): readonly CapabilityEntry[] {
-    const map = new Map<string, CapabilityEntry>();
-    for (const id of recognized) {
-        if (map.has(id)) {
-            throw new Error(`Duplicate capability id: ${id}`);
-        }
-        map.set(id, freezeEntry(id, "recognized"));
-    }
-    for (const item of extra) {
-        if (map.has(item.id)) {
-            throw new Error(`Duplicate capability id: ${item.id}`);
-        }
-        map.set(item.id, freezeEntry(item.id, item.state, item.notes));
-    }
-    return freezeImmutableArray(Array.from(map.values()));
+    return freezeImmutableArray(entries.map(({ id, state, notes }) =>
+        notes ? Object.freeze({ id, state, notes }) : Object.freeze({ id, state })
+    ));
 }
 
 function buildOperatorList(dialect: Dialect): readonly OperatorSemantics[] {
@@ -495,18 +460,6 @@ function buildOperatorList(dialect: Dialect): readonly OperatorSemantics[] {
     for (const item of definitions) {
         if (item.form === "symbol" && !lexicalOps.has(item.key)) {
             continue;
-        }
-        for (const word of item.words) {
-            if (
-                !profile.keywords.has(word.toUpperCase()) &&
-                !profile.syntaxOperatorWords.has(word)
-            ) {
-                // Keyword not in profile — skip this word operator for dialect.
-                // BETWEEN/AND/NOT/IN/IS are in COMMON_KEYWORDS for all dialects.
-                throw new Error(
-                    `Word operator "${item.key}" requires keyword "${word}" in lexical profile for ${dialect}`
-                );
-            }
         }
         const identity = `${item.key}\0${item.fixity}`;
         if (identities.has(identity)) {
@@ -571,124 +524,6 @@ function operatorFormatClass(item: OperatorDefinition): OperatorFormatClass {
     return word ? "infix-word" : "infix-symbol";
 }
 
-function validateSyntaxLists(
-    dialect: Dialect,
-    capabilityById: ReadonlyMap<string, CapabilityEntry>,
-    queryClauses: readonly QueryClauseSyntax[],
-    setOperators: readonly SetOperatorSyntax[],
-    joins: readonly JoinSyntax[],
-    unsupported: readonly UnsupportedSyntaxSignature[]
-): void {
-    const clauseIds = new Set<string>();
-    let previousOrder = Number.NEGATIVE_INFINITY;
-    for (const clause of queryClauses) {
-        const capability =
-            clause.capabilityId === null
-                ? null
-                : capabilityById.get(clause.capabilityId);
-        if (
-            clauseIds.has(clause.id) ||
-            !Number.isInteger(clause.order) ||
-            clause.order <= previousOrder ||
-            clause.words.length === 0 ||
-            !clause.words.every(
-                (word) =>
-                    word === word.toLowerCase() &&
-                    /^[a-z_]+$/.test(word)
-            ) ||
-            (clause.id === "select"
-                ? clause.capabilityId !== null
-                : clause.capabilityId === null ||
-                  capability === null ||
-                  capability === undefined ||
-                  !isRecognizedCapabilityState(capability.state))
-        ) {
-            throw new Error(`Invalid query clause syntax for ${dialect}: ${clause.id}`);
-        }
-        clauseIds.add(clause.id);
-        previousOrder = clause.order;
-    }
-    if (!clauseIds.has("select")) {
-        throw new Error(`Dialect ${dialect} query clause syntax must include SELECT`);
-    }
-
-    const setIds = new Set<string>();
-    const setWords = new Set<string>();
-    for (const operator of setOperators) {
-        const capability = capabilityById.get(operator.capabilityId);
-        if (
-            setIds.has(operator.id) ||
-            setWords.has(operator.word) ||
-            operator.word !== operator.word.toLowerCase() ||
-            !/^[a-z_]+$/.test(operator.word) ||
-            !capability ||
-            !isRecognizedCapabilityState(capability.state)
-        ) {
-            throw new Error(`Invalid set operator syntax for ${dialect}: ${operator.id}`);
-        }
-        setIds.add(operator.id);
-        setWords.add(operator.word);
-    }
-
-    const joinIds = new Set<string>();
-    const joinHeads = new Set<string>();
-    for (const join of joins) {
-        const head = join.words.join(" ");
-        const capability = capabilityById.get(join.capabilityId);
-        if (
-            joinIds.has(join.id) ||
-            joinHeads.has(head) ||
-            join.words.length === 0 ||
-            join.words[join.words.length - 1] !== "join" ||
-            !join.words.every(
-                (word) => word === word.toLowerCase() && /^[a-z_]+$/.test(word)
-            ) ||
-            !capability ||
-            !isRecognizedCapabilityState(capability.state)
-        ) {
-            throw new Error(`Invalid JOIN syntax for ${dialect}: ${join.id}`);
-        }
-        joinIds.add(join.id);
-        joinHeads.add(head);
-    }
-
-    const unsupportedKeys = new Set<string>();
-    for (const signature of unsupported) {
-        const capability = capabilityById.get(signature.capabilityId);
-        const key = `${signature.context}\0${signature.words.join("\0")}`;
-        if (
-            unsupportedKeys.has(key) ||
-            signature.words.length === 0 ||
-            !signature.words.every(
-                (word) => word === word.toLowerCase() && /^[a-z_]+$/.test(word)
-            ) ||
-            !capability ||
-            (capability.state !== "verbatim" && capability.state !== "diagnostic") ||
-            (signature.context === "query-clause"
-                ? !Number.isInteger(signature.order)
-                : signature.order !== null) ||
-            (signature.context === "relation-suffix"
-                ? signature.bodyEvidence === null ||
-                    signature.bodyEvidence.length === 0 ||
-                    signature.bodyEvidence.some(
-                        (sequence) =>
-                            sequence.length === 0 ||
-                            !sequence.every(
-                                (token) =>
-                                    token === token.toLowerCase() &&
-                                    /^(?:[a-z_]+|\()$/.test(token)
-                            )
-                    )
-                : signature.bodyEvidence !== null)
-        ) {
-            throw new Error(
-                `Invalid unsupported syntax for ${dialect}: ${signature.capabilityId}`
-            );
-        }
-        unsupportedKeys.add(key);
-    }
-}
-
 function createDialectView(
     dialect: Dialect,
     capabilities: readonly CapabilityEntry[],
@@ -699,57 +534,11 @@ function createDialectView(
     unsupported: readonly UnsupportedSyntaxSignature[]
 ): DialectCapabilityView {
     const capabilityById = new Map(capabilities.map((c) => [c.id, c]));
-    validateSyntaxLists(
-        dialect,
-        capabilityById,
-        queryClauses,
-        setOperators,
-        joins,
-        unsupported
-    );
     const operatorsByKeyFixity = new Map<string, OperatorSemantics>();
     const operatorsByKey = new Map<string, OperatorSemantics[]>();
-    const recognitionSignatures = new Set<string>();
-    const operatorIds = new Set<string>();
 
     for (const op of operators) {
         const mapKey = `${op.key}\0${op.fixity}`;
-        const recognitionSignature =
-            op.form === "symbol"
-                ? `${op.fixity}\0symbol\0${op.key}`
-                : `${op.fixity}\0words\0${op.words.join("\0")}`;
-        if (
-            typeof op.id !== "string" ||
-            op.id.length === 0 ||
-            operatorIds.has(op.id) ||
-            operatorsByKeyFixity.has(mapKey) ||
-            recognitionSignatures.has(recognitionSignature) ||
-            !Number.isInteger(op.precedence) ||
-            op.precedence <= 0 ||
-            (op.associativity !== "left" &&
-                op.associativity !== "right" &&
-                op.associativity !== "none") ||
-            (op.form === "symbol" ? op.words.length !== 0 : op.words.length === 0) ||
-            (op.capabilityId !== null &&
-                (capabilityById.get(op.capabilityId) === undefined ||
-                    !isRecognizedCapabilityState(
-                        capabilityById.get(op.capabilityId)!.state
-                    ))) ||
-            (op.formatClass !== "prefix-word" &&
-                op.formatClass !== "prefix-symbol" &&
-                op.formatClass !== "infix-word" &&
-                op.formatClass !== "infix-word-continuation" &&
-                op.formatClass !== "infix-symbol" &&
-                op.formatClass !== "postfix-word" &&
-                op.formatClass !== "postfix-symbol" &&
-                op.formatClass !== "attached")
-        ) {
-            throw new Error(
-                `Invalid or conflicting operator semantics for ${dialect}: ${op.key} / ${op.fixity}`
-            );
-        }
-        operatorIds.add(op.id);
-        recognitionSignatures.add(recognitionSignature);
         operatorsByKeyFixity.set(mapKey, op);
         const list = operatorsByKey.get(op.key) ?? [];
         list.push(op);
@@ -803,7 +592,6 @@ function buildRegistry(): DialectCapabilityRegistry {
         createDialectView(
             "hive",
             buildCapabilityList(
-                [],
                 freezeImmutableArray([
                     ...HIVE_FORMATTED_CAPABILITIES,
                     ...HIVE_EXPRESSION_FORMATTED.map((id) => Object.freeze({
@@ -846,7 +634,6 @@ function buildRegistry(): DialectCapabilityRegistry {
             createDialectView(
                 dialect,
                 buildCapabilityList(
-                    [],
                     freezeImmutableArray([
                         ...SHARED_FORMATTED_CAPABILITIES.map((id) => Object.freeze({
                             id,
