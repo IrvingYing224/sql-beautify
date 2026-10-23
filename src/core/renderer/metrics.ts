@@ -18,11 +18,6 @@ interface MetricWorkItem {
     readonly exit: boolean;
 }
 
-interface MutableLayoutMetricsStatistics {
-    docVisitCount: number;
-    summaryLookupCount: number;
-}
-
 function failure(
     code: LayoutMetricsFailureCode,
     message: string
@@ -93,8 +88,7 @@ function sourceSummary(
 
 function combineConcat(
     parts: readonly LayoutDoc[],
-    summaries: WeakMap<object, FlatLayoutSummary>,
-    statistics: MutableLayoutMetricsStatistics
+    summaries: WeakMap<object, FlatLayoutSummary>
 ): FlatLayoutSummary | null {
     let flatWidth: number | null = 0;
     let hasSourceEmission = false;
@@ -106,7 +100,6 @@ function combineConcat(
     let containsLineSuffix = false;
 
     for (const part of parts) {
-        statistics.summaryLookupCount += 1;
         const summary = summaries.get(part);
         if (summary === undefined) {
             return null;
@@ -178,15 +171,10 @@ export function measureLayoutArtifact(value: unknown): LayoutMetricsResult {
 
     const summaries = new WeakMap<object, FlatLayoutSummary>();
     const work: MetricWorkItem[] = [{ doc: artifact.root, exit: false }];
-    const statistics: MutableLayoutMetricsStatistics = {
-        docVisitCount: 0,
-        summaryLookupCount: 0,
-    };
     let docNodeCount = 0;
     try {
         while (work.length > 0) {
             const item = work.pop()!;
-            statistics.docVisitCount += 1;
             const doc = item.doc;
             if (!item.exit) {
                 const proof = canonicalLayoutDocProof(doc);
@@ -261,16 +249,14 @@ export function measureLayoutArtifact(value: unknown): LayoutMetricsResult {
                         : noSourceSummary(doc.flat === "space" ? 1 : 0);
                     break;
                 case "concat":
-                    summary = combineConcat(doc.parts, summaries, statistics);
+                    summary = combineConcat(doc.parts, summaries);
                     break;
                 case "indent": {
-                    statistics.summaryLookupCount += 1;
                     const child = summaries.get(doc.content);
                     summary = child ?? null;
                     break;
                 }
                 case "align": {
-                    statistics.summaryLookupCount += 1;
                     const child = summaries.get(doc.content);
                     summary = child === undefined
                         ? null
@@ -288,7 +274,6 @@ export function measureLayoutArtifact(value: unknown): LayoutMetricsResult {
                     });
                     break;
                 case "group": {
-                    statistics.summaryLookupCount += 1;
                     const child = summaries.get(doc.content);
                     summary = child === undefined
                         ? null
@@ -334,8 +319,6 @@ export function measureLayoutArtifact(value: unknown): LayoutMetricsResult {
             "Layout metrics inspection failed"
         );
     }
-
-    statistics.summaryLookupCount += 1;
     const rootSummary = summaries.get(artifact.root);
     if (rootSummary === undefined) {
         return failure("METRICS_INTERNAL", "Layout root summary is missing");
@@ -343,10 +326,6 @@ export function measureLayoutArtifact(value: unknown): LayoutMetricsResult {
     const metrics = Object.freeze({
         summary: rootSummary,
         docNodeCount,
-        statistics: Object.freeze({
-            docVisitCount: statistics.docVisitCount,
-            summaryLookupCount: statistics.summaryLookupCount,
-        }),
         summaryOf(doc: LayoutDoc): FlatLayoutSummary | null {
             return summaries.get(doc) ?? null;
         },

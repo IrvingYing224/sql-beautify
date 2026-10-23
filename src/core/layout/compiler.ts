@@ -13,14 +13,6 @@ export type LayoutCompileFailureCode =
     | "LAYOUT_COMPILE_RESOURCE"
     | "LAYOUT_COMPILE_INTERNAL";
 
-export interface LayoutCompileStatistics {
-    readonly leafVisitCount: number;
-    readonly leafEmissionCount: number;
-    readonly directLookupCount: number;
-    readonly docPartCount: number;
-    readonly scopeActionVisitCount: number;
-}
-
 export interface LayoutCompileFailure {
     readonly ok: false;
     readonly code: LayoutCompileFailureCode;
@@ -30,7 +22,6 @@ export interface LayoutCompileFailure {
 export interface LayoutCompileSuccess {
     readonly ok: true;
     readonly artifact: LayoutArtifact;
-    readonly statistics: LayoutCompileStatistics;
 }
 
 export type LayoutCompileResult = LayoutCompileSuccess | LayoutCompileFailure;
@@ -56,14 +47,11 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
         );
     }
     const frames: CompileFrame[] = [{ action: null, parts: [] }];
-    let leafVisitCount = 0;
-    let leafEmissionCount = 0;
-    let directLookupCount = 0;
     let scopeActionVisitCount = 0;
     let cursor = 0;
     let boundaryPending = true;
     let docPartCount = 0;
-    const hasScopes = plan.statistics.scopeActionCount > 0;
+    const hasScopes = plan.scopeActionCount > 0;
     try {
         const appendDoc = (doc: LayoutDoc): void => {
             frames[frames.length - 1]!.parts.push(doc);
@@ -107,7 +95,6 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
 
         while (cursor <= plan.analysis.leaves.length) {
             if (boundaryPending && hasScopes) {
-                directLookupCount += 2;
                 const endingScopes = plan.scopeEnds[cursor];
                 if (endingScopes !== null && endingScopes !== undefined) {
                     for (const scope of endingScopes) {
@@ -126,7 +113,6 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                     }
                 }
             }
-            directLookupCount += 1;
             const gap = boundaryPending ? plan.gapActions[cursor] : null;
             if (gap !== null && gap !== undefined) {
                 if (
@@ -155,7 +141,6 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                     );
                 }
                 appendDoc(doc);
-                leafVisitCount += gap.endLeafId - cursor;
                 if (gap.endLeafId > cursor) {
                     cursor = gap.endLeafId;
                     boundaryPending = true;
@@ -167,8 +152,6 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
             if (cursor === plan.analysis.leaves.length) {
                 break;
             }
-
-            directLookupCount += 1;
             const mode = plan.leafEmissions[cursor];
             const authorityNodeId = plan.leafAuthorityNodeIds[cursor];
             if (
@@ -197,8 +180,6 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                     );
                 }
                 appendDoc(doc);
-                leafVisitCount += claim.leafRange.end - cursor;
-                leafEmissionCount += 1;
                 cursor = claim.leafRange.end;
                 boundaryPending = true;
                 continue;
@@ -214,14 +195,12 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                 );
             }
             appendDoc(doc);
-            leafVisitCount += 1;
-            leafEmissionCount += 1;
             cursor += 1;
             boundaryPending = true;
         }
         if (
             scopeActionVisitCount !==
-            plan.statistics.scopeActionCount * 2
+            plan.scopeActionCount * 2
         ) {
             return failure(
                 "LAYOUT_COMPILE_ACTION",
@@ -269,18 +248,7 @@ function compileCanonicalPlan(plan: LayoutPlan): LayoutCompileResult {
                         : ` (${detail.code}: ${detail.message})`)
             );
         }
-        const statistics = Object.freeze({
-            leafVisitCount,
-            leafEmissionCount,
-            directLookupCount,
-            docPartCount,
-            scopeActionVisitCount,
-        });
-        return Object.freeze({
-            ok: true,
-            artifact: created.artifact,
-            statistics,
-        });
+        return Object.freeze({ ok: true, artifact: created.artifact });
     } catch {
         return failure(
             "LAYOUT_COMPILE_INTERNAL",

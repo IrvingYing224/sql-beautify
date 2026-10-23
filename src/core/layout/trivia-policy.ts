@@ -62,7 +62,6 @@ function decisionBetweenGapAnchors(
         left?.kind === "block-comment"
     ) {
         try {
-            context.statistics.directLookupCount += 1;
             if (
                 context.analysis.index.rangeContainsLineBreak({
                     start: startLeafId,
@@ -116,7 +115,6 @@ function sourceGapHasBlankLine(
     endLeafId: number
 ): boolean | null {
     try {
-        context.statistics.directLookupCount += 1;
         return context.analysis.index.blankLineCountBetween(
             startLeafId,
             endLeafId
@@ -187,7 +185,6 @@ export function commentGapRequiresHardLine(
     endLeafId: number
 ): boolean | null {
     for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
-        context.statistics.leafVisitCount += 1;
         const kind = context.analysis.leafKind(leafId);
         if (kind === null) {
             return null;
@@ -199,7 +196,6 @@ export function commentGapRequiresHardLine(
             return null;
         }
         const binding = context.analysis.index.commentBinding(leafId);
-        context.statistics.directLookupCount += 1;
         if (binding === null || binding.commentLeafId !== leafId) {
             return null;
         }
@@ -235,7 +231,6 @@ export function replaceStructuralGap(
     };
     const comments: GapComment[] = [];
     for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
-        context.statistics.leafVisitCount += 1;
         const kind = context.analysis.leafKind(leafId);
         if (kind === null) {
             return false;
@@ -247,7 +242,6 @@ export function replaceStructuralGap(
             return false;
         }
         const binding = context.analysis.index.commentBinding(leafId);
-        context.statistics.directLookupCount += 1;
         if (binding === null || binding.commentLeafId !== leafId) {
             return false;
         }
@@ -319,7 +313,7 @@ export function replaceStructuralGap(
  * policy action and verbatim authorities remain untouched.
  */
 export function applyTriviaLayout(context: QueryLayoutContext): boolean {
-    if (context.statistics.scopeRangeCount === 0) {
+    if (!context.state.hasIndentationScope) {
         return true;
     }
     let previousSyntaxEnd = 0;
@@ -328,9 +322,7 @@ export function applyTriviaLayout(context: QueryLayoutContext): boolean {
     let activeScopeCount = 0;
     for (let leafId = 0; leafId < context.analysis.leafCount; leafId++) {
         activeScopeCount += context.scopeDeltas[leafId]!;
-        context.statistics.leafVisitCount += 1;
         const claim = context.claims.claimForLeaf(leafId);
-        context.statistics.directLookupCount += 1;
         if (claim !== null) {
             if (claim.leafRange.start === leafId) {
                 previousSyntaxEnd = claim.leafRange.end;
@@ -344,7 +336,6 @@ export function applyTriviaLayout(context: QueryLayoutContext): boolean {
             return false;
         }
         const facts = context.analysis.index.leafContext(leafId);
-        context.statistics.directLookupCount += 1;
         if (facts.syntax !== null) {
             const authorityNodeId = authorityForNode(
                 context,

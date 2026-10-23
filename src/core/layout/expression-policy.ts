@@ -26,7 +26,6 @@ export function applyExpressionLayout(
     context: QueryLayoutContext
 ): boolean {
     for (const node of context.analysis.index.nodes()) {
-        context.statistics.nodeVisitCount += 1;
         if (node.kind === "expression" && !formatExpression(context, node)) {
             return false;
         }

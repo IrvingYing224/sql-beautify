@@ -2,7 +2,6 @@ import type {
     LayoutPlanBuilder,
     LayoutPlanFailure,
     LayoutPlanResult,
-    LayoutPolicyStatistics,
 } from "./plan";
 import { createLayoutPlanBuilder } from "./plan";
 import { applyDialectLayout } from "./dialect-policy";
@@ -20,14 +19,15 @@ function failure(message: string): LayoutPlanFailure {
 
 /**
  * Commits a complete policy result atomically. A policy that stops after
- * registering only part of its actions must never expose that partial plan.
+ * registering only part of its actions must never expose that partial plan;
+ * `commaFallback` is null when the policy stopped.
  */
 export function finalizeLayoutPolicyApplication(
     builder: LayoutPlanBuilder,
-    applied: LayoutPolicyStatistics | null
+    commaFallback: boolean | null
 ): LayoutPlanResult {
-    if (applied !== null) {
-        return builder.finish(applied);
+    if (commaFallback !== null) {
+        return builder.finish(commaFallback);
     }
     const partial = builder.finish();
     return partial.ok
@@ -74,8 +74,10 @@ export function buildLayoutPlan(
         if (context === null) {
             return failure("Layout policy could not derive query authority");
         }
-        const applied = applyDialectLayout(context);
-        return finalizeLayoutPolicyApplication(builder, applied);
+        return finalizeLayoutPolicyApplication(
+            builder,
+            applyDialectLayout(context) ? context.state.commaFallback : null
+        );
     } catch {
         return failure("Layout policy inspection failed");
     }

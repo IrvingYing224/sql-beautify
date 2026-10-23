@@ -210,14 +210,12 @@ function assertFormatProperties(testCase) {
     var source = testCase.source;
     var options = normalizedOptions(testCase.options);
     var dialect = options.dialect || 'hive';
-    var first = formatApi.formatSqlWithStatistics(source, options);
-    var deterministic = formatApi.formatSqlWithStatistics(source, options);
-    assert.deepStrictEqual(deterministic, first, id + ' deterministic result/map/stats');
-    assert.strictEqual(Object.isFrozen(first), true, id + ' frozen run');
-    assert.strictEqual(Object.isFrozen(first.result), true, id + ' frozen result');
-    assert.strictEqual(Object.isFrozen(first.statistics), true, id + ' frozen statistics');
+    var first = formatApi.formatSql(source, options);
+    var deterministic = formatApi.formatSql(source, options);
+    assert.deepStrictEqual(deterministic, first, id + ' deterministic result/map');
+    assert.strictEqual(Object.isFrozen(first), true, id + ' frozen result');
 
-    var safe = first.result.status === 'formatted' || first.result.status === 'unchanged';
+    var safe = first.status === 'formatted' || first.status === 'unchanged';
     var expectedOutcome = testCase.expectedOutcome || 'safe';
     assert.ok(
         expectedOutcome === 'safe' ||
@@ -239,41 +237,34 @@ function assertFormatProperties(testCase) {
             mode: 'document'
         });
         assert.strictEqual(analysis.status, 'analyzed', id + ' canonical analysis');
-        assertSourceMap(id, source, first.result, analysis);
+        assertSourceMap(id, source, first, analysis);
         assert.deepStrictEqual(
-            protectedRows(first.result.text, dialect),
+            protectedRows(first.text, dialect),
             protectedRows(source, dialect),
             id + ' protected/comment exactness'
         );
-        assertTokenEquivalent(id, source, first.result.text, dialect);
-        assert.strictEqual(
-            first.statistics.equivalenceComparisonCount,
-            lexedRows(source, dialect).length,
-            id + ' token-equivalence must compare every non-trivia source leaf'
-        );
-        assert.strictEqual(first.statistics.equivalenceDiagnosticVisitCount, 0,
-            id + ' rendered output must lex without diagnostics');
+        assertTokenEquivalent(id, source, first.text, dialect);
         opaqueClaimCount = assertOpaqueClaims(
             id,
             source,
-            first.result,
+            first,
             analysis
         );
     } else {
-        assert.strictEqual(first.result.text, source,
+        assert.strictEqual(first.text, source,
             id + ' preserved/failed result must return original text');
-        assert.strictEqual(first.result.sourceMap, undefined,
+        assert.strictEqual(first.sourceMap, undefined,
             id + ' preserved/failed result must not expose a source map');
     }
 
-    var repeated = formatApi.formatSqlWithStatistics(first.result.text, options);
-    assert.strictEqual(repeated.result.text, first.result.text,
+    var repeated = formatApi.formatSql(first.text, options);
+    assert.strictEqual(repeated.text, first.text,
         id + ' strict idempotency');
-    if (first.result.status === 'formatted' || first.result.status === 'unchanged') {
-        assert.strictEqual(repeated.result.status, 'unchanged',
+    if (first.status === 'formatted' || first.status === 'unchanged') {
+        assert.strictEqual(repeated.status, 'unchanged',
             id + ' second safe pass status');
     } else {
-        assert.strictEqual(repeated.result.status, first.result.status,
+        assert.strictEqual(repeated.status, first.status,
             id + ' deterministic original-text status');
     }
     return { safe: safe, opaqueClaimCount: opaqueClaimCount };
@@ -586,7 +577,8 @@ function deterministicMalformedCases(count) {
             gapActions: alignedPlan.plan.gapActions,
             scopeStarts: alignedPlan.plan.scopeStarts,
             scopeEnds: alignedPlan.plan.scopeEnds,
-            planStatistics: alignedPlan.plan.statistics,
+            scopeActionCount: alignedPlan.plan.scopeActionCount,
+            commaFallback: alignedPlan.plan.commaFallback,
             root: alignedCompiled.artifact.root,
             rendered: alignedRendered
         };

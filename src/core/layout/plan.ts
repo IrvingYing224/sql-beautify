@@ -70,24 +70,6 @@ export interface LayoutScopeAction {
     readonly decision: LayoutScopeDecision;
 }
 
-export interface LayoutPlanStatistics {
-    readonly leafVisitCount: number;
-    readonly directLookupCount: number;
-    readonly actionCount: number;
-    readonly scopeActionCount: number;
-    readonly policyNodeVisitCount: number;
-    readonly policyLeafVisitCount: number;
-    readonly policyDirectLookupCount: number;
-    readonly commaFallbackCount: number;
-}
-
-export interface LayoutPolicyStatistics {
-    readonly nodeVisitCount: number;
-    readonly leafVisitCount: number;
-    readonly directLookupCount: number;
-    readonly commaFallbackCount: number;
-}
-
 export interface LayoutPlan {
     readonly analysis: AnalyzedArtifact;
     readonly options: CanonicalFormatOptions;
@@ -98,7 +80,9 @@ export interface LayoutPlan {
     readonly scopeStarts: readonly (readonly LayoutScopeAction[] | null)[];
     readonly scopeEnds: readonly (readonly LayoutScopeAction[] | null)[];
     readonly claimStarts: readonly (DominatingVerbatimClaim | null)[];
-    readonly statistics: LayoutPlanStatistics;
+    readonly scopeActionCount: number;
+    /** Trailing comma style fell back to a leading comma somewhere (LAYOUT_COMMA_FALLBACK). */
+    readonly commaFallback: boolean;
 }
 
 export type LayoutPlanFailureCode =
@@ -141,7 +125,7 @@ export interface LayoutPlanBuilder {
         endLeafId: number,
         decision: LayoutScopeDecision
     ): boolean;
-    finish(policyStatistics?: LayoutPolicyStatistics): LayoutPlanResult;
+    finish(commaFallback?: boolean): LayoutPlanResult;
 }
 
 const CANONICAL_LAYOUT_PLANS = new WeakSet<object>();
@@ -151,64 +135,6 @@ function resultFailure(
     message: string
 ): LayoutPlanFailure {
     return Object.freeze({ ok: false, code, message });
-}
-
-const ZERO_POLICY_STATISTICS: LayoutPolicyStatistics = Object.freeze({
-    nodeVisitCount: 0,
-    leafVisitCount: 0,
-    directLookupCount: 0,
-    commaFallbackCount: 0,
-});
-
-function snapshotPolicyStatistics(
-    value: unknown,
-    maximumCount: number
-): LayoutPolicyStatistics | null {
-    if (value === undefined) {
-        return ZERO_POLICY_STATISTICS;
-    }
-    try {
-        if (typeof value !== "object" || value === null || isProxy(value)) {
-            return null;
-        }
-        const keys = Reflect.ownKeys(value);
-        const expected = [
-            "nodeVisitCount",
-            "leafVisitCount",
-            "directLookupCount",
-            "commaFallbackCount",
-        ] as const;
-        if (
-            keys.length !== expected.length ||
-            expected.some((key) => !keys.includes(key))
-        ) {
-            return null;
-        }
-        const counts = expected.map((key) => {
-            const descriptor = Object.getOwnPropertyDescriptor(value, key);
-            return descriptor !== undefined && "value" in descriptor
-                ? descriptor.value
-                : null;
-        });
-        if (
-            counts.some(
-                (count) =>
-                    !Number.isSafeInteger(count) ||
-                    (count as number) < 0 ||
-                    (count as number) > maximumCount
-            )
-        ) {
-            return null;
-        }
-        return Object.freeze({
-            nodeVisitCount: counts[0] as number,
-            leafVisitCount: counts[1] as number,
-            directLookupCount: counts[2] as number,
-            commaFallbackCount: counts[3] as number,
-        });
-    } catch {
-        return null;
-    }
 }
 
 function snapshotGapDecision(
@@ -478,8 +404,6 @@ export function createLayoutPlanBuilder(
     const claimStarts: Array<DominatingVerbatimClaim | null> = new Array(
         analysis.leaves.length + 1
     ).fill(null);
-    let leafVisitCount = 0;
-    let directLookupCount = 0;
     let actionCount = 0;
     let failure: LayoutPlanFailure | null = null;
     let finished = false;
@@ -524,7 +448,6 @@ export function createLayoutPlanBuilder(
                 leafId < claim.leafRange.end;
                 leafId++
             ) {
-                leafVisitCount += 1;
                 if (leafEmissions[leafId] !== "raw") {
                     return null;
                 }
@@ -532,13 +455,11 @@ export function createLayoutPlanBuilder(
             }
         }
         for (let leafId = 0; leafId < analysis.leaves.length; leafId++) {
-            leafVisitCount += 1;
             if (leafEmissions[leafId] === "verbatim") {
                 continue;
             }
             const leaf = analysis.leaves[leafId]!;
             if (leaf.kind === "line-comment" || leaf.kind === "block-comment") {
-                directLookupCount += 1;
                 const binding = analysis.index.commentBinding(leafId);
                 if (binding?.placement === "trailing") {
                     leafEmissions[leafId] = "line-suffix";
@@ -576,7 +497,6 @@ export function createLayoutPlanBuilder(
                     `Invalid keyword leaf ${String(leafId)}`
                 );
             }
-            directLookupCount += 1;
             const current = leafEmissions[leafId]!;
             if (current === "verbatim") {
                 return poison(
@@ -602,7 +522,6 @@ export function createLayoutPlanBuilder(
                 const authority = formattedAuthority(authorityNodeId);
                 const leaf = analysis.leaves[leafId]!;
                 const syntax = analysis.index.leafContext(leafId).syntax;
-                directLookupCount += 1;
                 if (
                     authority === null ||
                     leafId < authority.leafRange.start ||
@@ -711,8 +630,6 @@ export function createLayoutPlanBuilder(
                 }
             }
             for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
-                leafVisitCount += 1;
-                directLookupCount += 1;
                 const leaf = analysis.leaves[leafId];
                 if (
                     leaf === undefined ||
@@ -842,7 +759,7 @@ export function createLayoutPlanBuilder(
             return true;
         },
 
-        finish(rawPolicyStatistics?: LayoutPolicyStatistics): LayoutPlanResult {
+        finish(commaFallback = false): LayoutPlanResult {
             if (finished) {
                 return failure ?? resultFailure(
                     "LAYOUT_PLAN_CONFLICT",
@@ -852,16 +769,6 @@ export function createLayoutPlanBuilder(
             finished = true;
             if (failure !== null) {
                 return failure;
-            }
-            const policyStatistics = snapshotPolicyStatistics(
-                rawPolicyStatistics,
-                budget.maxPlanActions
-            );
-            if (policyStatistics === null) {
-                return resultFailure(
-                    "LAYOUT_PLAN_RESOURCE",
-                    "Layout policy statistics are invalid or exceed the linear budget"
-                );
             }
             let scopeStarts: LayoutPlan["scopeStarts"];
             let scopeEnds: LayoutPlan["scopeEnds"];
@@ -925,7 +832,6 @@ export function createLayoutPlanBuilder(
                     leafId++
                 ) {
                     activeIndentationScopes += indentationScopeDeltas[leafId]!;
-                    leafVisitCount += 1;
                     if (
                         activeIndentationScopes > 0 &&
                         analysis.leaves[leafId]?.kind === "newline" &&
@@ -969,7 +875,6 @@ export function createLayoutPlanBuilder(
                         boundary < gap.endLeafId;
                         boundary++
                     ) {
-                        leafVisitCount += 1;
                         if (scopeBoundaryCounts[boundary] !== 0) {
                             return resultFailure(
                                 "LAYOUT_PLAN_CONFLICT",
@@ -1010,16 +915,6 @@ export function createLayoutPlanBuilder(
                     })
                 );
             }
-            const statistics = Object.freeze({
-                leafVisitCount,
-                directLookupCount,
-                actionCount,
-                scopeActionCount: scopeActions.length,
-                policyNodeVisitCount: policyStatistics.nodeVisitCount,
-                policyLeafVisitCount: policyStatistics.leafVisitCount,
-                policyDirectLookupCount: policyStatistics.directLookupCount,
-                commaFallbackCount: policyStatistics.commaFallbackCount,
-            });
             const plan = Object.freeze({
                 analysis,
                 options,
@@ -1032,7 +927,8 @@ export function createLayoutPlanBuilder(
                 scopeStarts,
                 scopeEnds,
                 claimStarts: Object.freeze(claimStarts.slice()),
-                statistics,
+                scopeActionCount: scopeActions.length,
+                commaFallback,
             });
             CANONICAL_LAYOUT_PLANS.add(plan);
             return Object.freeze({ ok: true, plan });

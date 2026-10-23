@@ -121,7 +121,6 @@ function normalizeDelimitedInterior(
     let multiline = false;
     if (hasComment) {
         try {
-            context.statistics.directLookupCount += 1;
             multiline = context.analysis.index.rangeContainsLineBreak({
                 start: openLeafId + 1,
                 end: closeLeafId,
@@ -426,7 +425,6 @@ export function formatExpressionListItem(
         return true;
     }
     const value = context.analysis.index.nodeById(node.valueChildId);
-    context.statistics.directLookupCount += 1;
     let leftEnd = value.leafRange.end;
     for (const modifierLeafId of node.modifierLeafIds) {
         if (
@@ -491,7 +489,6 @@ export function formatTypeExpression(
     }
     const openLeafId = opens[0]!.leafId;
     const list = context.analysis.index.nodeById(listChildId);
-    context.statistics.directLookupCount += 1;
     if (list.kind !== "list") {
         return false;
     }

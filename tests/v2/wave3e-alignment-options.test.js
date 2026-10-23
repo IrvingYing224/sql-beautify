@@ -246,66 +246,9 @@ function assertStable(id, source, options, expected) {
         alignedCompiled.artifact
     );
     assert.strictEqual(alignedRendered.ok, true);
-    var pipeline = formatApi.formatSqlWithStatistics(source, {
-        dialect: 'hive'
-    });
-    assert.strictEqual(pipeline.result.text, alignedRendered.text);
     assert.strictEqual(
-        pipeline.statistics.planActionCount,
-        base.plan.statistics.actionCount + aligned.plan.statistics.actionCount
-    );
-    assert.strictEqual(
-        pipeline.statistics.maxPlanActions,
-        base.plan.budget.maxPlanActions + aligned.plan.budget.maxPlanActions
-    );
-    assert.strictEqual(
-        pipeline.statistics.leafEmissionCount,
-        compiled.statistics.leafEmissionCount +
-            alignedCompiled.statistics.leafEmissionCount
-    );
-    assert.strictEqual(
-        pipeline.statistics.scopeActionVisitCount,
-        compiled.statistics.scopeActionVisitCount +
-            alignedCompiled.statistics.scopeActionVisitCount
-    );
-    assert.strictEqual(
-        pipeline.statistics.policyLeafVisitCount,
-        base.plan.statistics.policyLeafVisitCount +
-            aligned.plan.statistics.policyLeafVisitCount
-    );
-    assert.strictEqual(
-        pipeline.statistics.leafVisitCount,
-        base.plan.statistics.leafVisitCount +
-            base.plan.statistics.policyLeafVisitCount +
-            compiled.statistics.leafVisitCount +
-            aligned.plan.statistics.leafVisitCount +
-            aligned.plan.statistics.policyLeafVisitCount +
-            alignedCompiled.statistics.leafVisitCount +
-            pipeline.statistics.equivalenceSourceLeafVisitCount +
-            pipeline.statistics.equivalenceOutputLeafVisitCount
-    );
-    assert.strictEqual(
-        pipeline.statistics.directLookupCount,
-        base.plan.statistics.directLookupCount +
-            base.plan.statistics.policyDirectLookupCount +
-            compiled.statistics.directLookupCount +
-            rendered.statistics.metricsSummaryLookupCount +
-            rendered.statistics.metricsLookupCount +
-            aligned.plan.statistics.directLookupCount +
-            aligned.plan.statistics.policyDirectLookupCount +
-            alignedCompiled.statistics.directLookupCount +
-            alignedRendered.statistics.metricsSummaryLookupCount +
-            alignedRendered.statistics.metricsLookupCount +
-            pipeline.statistics.equivalenceDirectLookupCount
-    );
-    assert.strictEqual(
-        pipeline.statistics.metricsDocVisitCount,
-        rendered.statistics.metricsDocVisitCount +
-            alignedRendered.statistics.metricsDocVisitCount
-    );
-    assert.strictEqual(
-        pipeline.statistics.renderDocVisitCount,
-        rendered.statistics.docVisitCount + alignedRendered.statistics.docVisitCount
+        formatApi.formatSql(source, { dialect: 'hive' }).text,
+        alignedRendered.text
     );
 
     var forged = policyApi.buildLayoutPlan(

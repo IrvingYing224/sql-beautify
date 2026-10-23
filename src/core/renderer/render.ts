@@ -200,8 +200,6 @@ function renderCanonical(
     let displayColumn = 0;
     let needsLinePrefix = false;
     let docVisitCount = 0;
-    let metricsLookupCount = 0;
-    let sourceEmissionCount = 0;
 
     const assertOutputCapacity = (amount: number): void => {
         if (
@@ -346,7 +344,6 @@ function renderCanonical(
         chunks.push(raw);
         outputCodeUnits += raw.length;
         appendMapEntry(span.start, span.end, outputStart, outputCodeUnits);
-        sourceEmissionCount += 1;
         displayColumn = measured.endColumn;
         if (measured.containsLineBreak) {
             generatedColumnsOnLine = 0;
@@ -568,7 +565,6 @@ function renderCanonical(
                     if (frame.mode === "flat") {
                         mode = "flat";
                     } else if (doc.mode === "auto") {
-                        metricsLookupCount += 1;
                         const summary = metrics.summaryOf(doc.content);
                         mode =
                             summary !== null &&
@@ -629,18 +625,7 @@ function renderCanonical(
             artifact.analysis.source.length,
             outputCodeUnits
         );
-        const statistics = Object.freeze({
-            docVisitCount,
-            metricsDocVisitCount: metrics.statistics.docVisitCount,
-            metricsSummaryLookupCount:
-                metrics.statistics.summaryLookupCount,
-            metricsLookupCount,
-            sourceEmissionCount,
-            chunkCount: chunks.length,
-            sourceMapEntryCount: sourceMap.entries.length,
-            generatedWhitespaceCodeUnits,
-        });
-        return Object.freeze({ ok: true, text, sourceMap, statistics });
+        return Object.freeze({ ok: true, text, sourceMap });
     } catch (error) {
         if (error instanceof RenderAbort) {
             return failure(error.code, error.message);

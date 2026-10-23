@@ -5,7 +5,6 @@ import type { ProgramNode, SyntaxNode } from "../syntax/node";
 import type {
     LayoutGapDecision,
     LayoutPlanBuilder,
-    LayoutPolicyStatistics,
     LayoutScopeDecision,
 } from "./plan";
 import {
@@ -14,12 +13,12 @@ import {
 import type { LayoutAlignmentPlan } from "./alignment-policy";
 import type { DominatingVerbatimClaims } from "./verbatim-claims";
 
-export interface MutableQueryPolicyStatistics {
-    nodeVisitCount: number;
-    leafVisitCount: number;
-    directLookupCount: number;
-    scopeRangeCount: number;
-    commaFallbackCount: number;
+/** Facts the policies record while registering actions. */
+export interface QueryPolicyState {
+    /** Whether an indent or align scope was registered; trivia layout needs one. */
+    hasIndentationScope: boolean;
+    /** Whether trailing comma style fell back to a leading comma (LAYOUT_COMMA_FALLBACK). */
+    commaFallback: boolean;
 }
 
 export interface LayoutAnalysisView {
@@ -58,7 +57,7 @@ export interface QueryLayoutContext {
     readonly scopeDeltas: Int32Array;
     readonly commentPrefix: Int32Array;
     readonly verbatimPrefix: Int32Array;
-    readonly statistics: MutableQueryPolicyStatistics;
+    readonly state: QueryPolicyState;
 }
 
 function buildRangePrefixes(
@@ -99,8 +98,7 @@ function buildRangePrefixes(
 function buildAuthorityProjection(
     root: ProgramNode,
     index: StructuralIndex,
-    claims: DominatingVerbatimClaims,
-    statistics: MutableQueryPolicyStatistics
+    claims: DominatingVerbatimClaims
 ): Int32Array | null {
     const nodes = index.nodes();
     const authorityByNodeId = new Int32Array(nodes.length);
@@ -111,16 +109,13 @@ function buildAuthorityProjection(
     let visited = 0;
     while (work.length > 0) {
         const [node, inheritedAuthority, inheritedBlocked] = work.pop()!;
-        statistics.nodeVisitCount += 1;
         let authority = inheritedAuthority;
         const blocked = inheritedBlocked ||
             claims.claimForOwner(node.id) !== null;
-        statistics.directLookupCount += 1;
         if (blocked) {
             authority = -1;
         } else if (node.formatRole === "capability") {
             const capability = index.capabilityForNode(node.id);
-            statistics.directLookupCount += 1;
             if (capability === null) {
                 return null;
             }
@@ -131,7 +126,6 @@ function buildAuthorityProjection(
         authorityByNodeId[node.id] = authority;
         visited += 1;
         const children = index.childrenOf(node.id);
-        statistics.directLookupCount += 1;
         for (let childIndex = children.length - 1; childIndex >= 0; childIndex--) {
             work.push([children[childIndex]!, authority, blocked]);
         }
@@ -146,18 +140,10 @@ export function createQueryLayoutContext(
 ): QueryLayoutContext | null {
     const artifact = builder.analysis;
     const leaves = artifact.leaves;
-    const statistics: MutableQueryPolicyStatistics = {
-        nodeVisitCount: 0,
-        leafVisitCount: 0,
-        directLookupCount: 0,
-        scopeRangeCount: 0,
-        commaFallbackCount: 0,
-    };
     const authorityByNodeId = buildAuthorityProjection(
         artifact.root,
         artifact.index,
-        claims,
-        statistics
+        claims
     );
     if (authorityByNodeId === null) {
         return null;
@@ -168,8 +154,6 @@ export function createQueryLayoutContext(
         bindings.map((binding) => binding.commentLeafId),
         claims
     );
-    statistics.directLookupCount += bindings.length + 1;
-    statistics.leafVisitCount += leaves.length;
     if (prefixes === null) {
         return null;
     }
@@ -198,7 +182,6 @@ export function createQueryLayoutContext(
             }
             alignmentTargetByLeaf[target.leafId] = target.targetColumn;
         }
-        statistics.directLookupCount += alignmentPlan.targets.length;
     }
     const analysis: LayoutAnalysisView = Object.freeze({
         leafCount: leaves.length,
@@ -255,7 +238,7 @@ export function createQueryLayoutContext(
         scopeDeltas: new Int32Array(leaves.length + 1),
         commentPrefix: prefixes.commentPrefix,
         verbatimPrefix: prefixes.verbatimPrefix,
-        statistics,
+        state: { hasIndentationScope: false, commaFallback: false },
     });
 }
 
@@ -281,7 +264,6 @@ export function rangeHasComment(
     startLeafId: number,
     endLeafId: number
 ): boolean | null {
-    context.statistics.directLookupCount += 2;
     const count = rangeCount(context.commentPrefix, startLeafId, endLeafId);
     return count === null ? null : count > 0;
 }
@@ -291,7 +273,6 @@ export function rangeHasVerbatimClaim(
     startLeafId: number,
     endLeafId: number
 ): boolean | null {
-    context.statistics.directLookupCount += 2;
     const count = rangeCount(context.verbatimPrefix, startLeafId, endLeafId);
     return count === null ? null : count > 0;
 }
@@ -300,7 +281,6 @@ export function authorityForNode(
     context: QueryLayoutContext,
     nodeId: number
 ): number | null {
-    context.statistics.directLookupCount += 1;
     const encoded = context.authorityByNodeId[nodeId];
     return encoded === undefined || encoded < 0 ? null : encoded;
 }
@@ -322,22 +302,11 @@ export function wrapLayoutRange(
         success &&
         (decision.kind === "indent" || decision.kind === "align")
     ) {
-        context.statistics.scopeRangeCount += 1;
+        context.state.hasIndentationScope = true;
         context.scopeDeltas[startLeafId] =
             context.scopeDeltas[startLeafId]! + 1;
         context.scopeDeltas[endLeafId] =
             context.scopeDeltas[endLeafId]! - 1;
     }
     return success;
-}
-
-export function queryPolicyStatistics(
-    context: QueryLayoutContext
-): LayoutPolicyStatistics {
-    return Object.freeze({
-        nodeVisitCount: context.statistics.nodeVisitCount,
-        leafVisitCount: context.statistics.leafVisitCount,
-        directLookupCount: context.statistics.directLookupCount,
-        commaFallbackCount: context.statistics.commaFallbackCount,
-    });
 }

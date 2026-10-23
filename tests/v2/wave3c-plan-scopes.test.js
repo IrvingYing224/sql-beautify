@@ -48,8 +48,7 @@ function options() {
     assert.strictEqual(Object.isFrozen(built.plan.scopeEnds), true);
     var compiled = compilerApi.compileLayoutPlan(built.plan);
     assert.strictEqual(compiled.ok, true);
-    assert.strictEqual(built.plan.statistics.scopeActionCount, 2);
-    assert.strictEqual(compiled.statistics.scopeActionVisitCount, 4);
+    assert.strictEqual(built.plan.scopeActionCount, 2);
     var rendered = renderApi.renderLayoutArtifact(compiled.artifact);
     assert.strictEqual(rendered.ok, true);
     assert.strictEqual(rendered.text, 'SELECT\n      1');
@@ -195,10 +194,9 @@ function options() {
     ), true, 'touching sibling scopes are canonical');
     var stablePlan = stableBuilder.finish();
     assert.strictEqual(stablePlan.ok, true);
-    assert.strictEqual(stablePlan.plan.statistics.scopeActionCount, 2);
+    assert.strictEqual(stablePlan.plan.scopeActionCount, 2);
     var stableCompiled = compilerApi.compileLayoutPlan(stablePlan.plan);
     assert.strictEqual(stableCompiled.ok, true);
-    assert.strictEqual(stableCompiled.statistics.scopeActionVisitCount, 4);
 })();
 
 (function testCompleteVerbatimClaimCanBeWrappedWithoutDuplicateEmission() {
@@ -221,68 +219,9 @@ function options() {
     assert.strictEqual(built.ok, true);
     var compiled = compilerApi.compileLayoutPlan(built.plan);
     assert.strictEqual(compiled.ok, true);
-    assert.strictEqual(compiled.statistics.scopeActionVisitCount, 2);
     var rendered = renderApi.renderLayoutArtifact(compiled.artifact);
     assert.strictEqual(rendered.ok, true);
     assert.strictEqual(rendered.text, analysis.source);
-})();
-
-(function testPolicyStatisticsAreSnapshottedAndBudgetedFailClosed() {
-    var analysis = analyze('select 1');
-    var validBuilder = planApi.createLayoutPlanBuilder(analysis, options());
-    var valid = validBuilder.finish({
-        nodeVisitCount: 3,
-        leafVisitCount: 4,
-        directLookupCount: 5,
-        commaFallbackCount: 1
-    });
-    assert.strictEqual(valid.ok, true);
-    assert.strictEqual(valid.plan.statistics.policyNodeVisitCount, 3);
-    assert.strictEqual(valid.plan.statistics.policyLeafVisitCount, 4);
-    assert.strictEqual(valid.plan.statistics.policyDirectLookupCount, 5);
-    assert.strictEqual(valid.plan.statistics.commaFallbackCount, 1);
-    assert.strictEqual(Object.isFrozen(valid.plan.statistics), true);
-
-    [
-        new Proxy({
-            nodeVisitCount: 1,
-            leafVisitCount: 1,
-            directLookupCount: 1,
-            commaFallbackCount: 0
-        }, {}),
-        {
-            nodeVisitCount: -1,
-            leafVisitCount: 0,
-            directLookupCount: 0,
-            commaFallbackCount: 0
-        },
-        {
-            nodeVisitCount: analysis.leaves.length,
-            leafVisitCount: analysis.leaves.length,
-            directLookupCount: Number.MAX_SAFE_INTEGER,
-            commaFallbackCount: 0
-        },
-        {
-            nodeVisitCount: 1,
-            leafVisitCount: 1,
-            directLookupCount: 1,
-            commaFallbackCount: 0,
-            hiddenWork: 1
-        },
-        Object.defineProperty({
-            nodeVisitCount: 1,
-            leafVisitCount: 1,
-            commaFallbackCount: 0
-        }, 'directLookupCount', {
-            enumerable: true,
-            get: function() { return 1; }
-        })
-    ].forEach(function(value) {
-        var builder = planApi.createLayoutPlanBuilder(analysis, options());
-        var rejected = builder.finish(value);
-        assert.strictEqual(rejected.ok, false);
-        assert.strictEqual(rejected.code, 'LAYOUT_PLAN_RESOURCE');
-    });
 })();
 
 (function testIncompletePolicyCannotExposePreviouslyRegisteredActions() {
@@ -363,20 +302,8 @@ function options() {
     });
     var built = builder.finish();
     assert.strictEqual(built.ok, true);
-    assert.strictEqual(
-        built.plan.statistics.scopeActionCount,
-        list.children.length
-    );
-    var compiled = compilerApi.compileLayoutPlan(built.plan);
-    assert.strictEqual(compiled.ok, true);
-    assert.strictEqual(
-        compiled.statistics.scopeActionVisitCount,
-        list.children.length * 2
-    );
-    assert.ok(
-        compiled.statistics.directLookupCount <= analysis.leaves.length * 4 + 8,
-        'scope boundary lookup count must remain linear in leaves'
-    );
+    assert.strictEqual(built.plan.scopeActionCount, list.children.length);
+    assert.strictEqual(compilerApi.compileLayoutPlan(built.plan).ok, true);
 })();
 
 console.log('v2 Wave 3C canonical scope-plan tests passed');

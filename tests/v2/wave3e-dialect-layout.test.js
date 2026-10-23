@@ -364,11 +364,10 @@ function assertStable(dialect, source, options, expected) {
                 assert.deepStrictEqual(result, baseline, testCase.id + ' warn/preserve value parity');
             }
         });
-        var run = formatApi.formatSqlWithStatistics(testCase.source, {
+        var bailed = formatApi.formatSql(testCase.source, {
             dialect: testCase.dialect,
             unsupportedSyntaxPolicy: 'bail_out'
         });
-        var bailed = run.result;
         assert.strictEqual(bailed.status, 'preserved', testCase.id);
         assert.strictEqual(bailed.text, testCase.source, testCase.id + ' exact target');
         assert.strictEqual(Object.prototype.hasOwnProperty.call(bailed, 'sourceMap'), false,
@@ -379,8 +378,6 @@ function assertStable(dialect, source, options, expected) {
         assert.strictEqual(bail.code, 'FMT_UNSUPPORTED_BAIL_OUT', testCase.id);
         assert.strictEqual(bail.recovery, 'preserve-target', testCase.id);
         assert.deepStrictEqual(bail.span, { start: 0, end: testCase.source.length });
-        assert.strictEqual(run.statistics.planActionCount, 0, testCase.id + ' stops before layout');
-        assert.strictEqual(run.statistics.renderDocVisitCount, 0, testCase.id + ' stops before render');
     });
 })();
 

@@ -30,9 +30,7 @@ function formatRelationName(
     }
     let previousLeafId: number | null = null;
     for (let leafId = range.start; leafId < range.end; leafId++) {
-        context.statistics.leafVisitCount += 1;
         const syntax = context.analysis.index.leafContext(leafId).syntax;
-        context.statistics.directLookupCount += 1;
         if (syntax === null) {
             continue;
         }
@@ -69,7 +67,6 @@ export function formatRelation(
         valueEnd = context.analysis.index.nodeById(
             relation.bodyChildId
         ).leafRange.end;
-        context.statistics.directLookupCount += 1;
     }
     if (!formatAlias(context, authorityNodeId, valueEnd, relation.alias)) {
         return false;
@@ -78,10 +75,6 @@ export function formatRelation(
         const right = relation.bodyChildId === null
             ? null
             : context.analysis.index.nodeById(relation.bodyChildId);
-        context.statistics.directLookupCount += relation.bodyChildId === null
-            ? 0
-            : 1;
-        context.statistics.directLookupCount += relation.syntaxMarkers.length;
         if (right === null) {
             return false;
         }
@@ -123,7 +116,6 @@ export function formatRelation(
             return false;
         }
         for (const child of relation.children) {
-            context.statistics.nodeVisitCount += 1;
             if (child.id === right.id) {
                 continue;
             }
@@ -152,14 +144,9 @@ export function formatRelation(
         const tableFunction = relation.bodyChildId === null
             ? null
             : context.analysis.index.nodeById(relation.bodyChildId);
-        context.statistics.directLookupCount += relation.bodyChildId === null
-            ? 0
-            : 1;
-        context.statistics.nodeVisitCount += relation.children.length;
         const output = relation.children.find(
             (child) => child.kind === "list"
         );
-        context.statistics.directLookupCount += relation.syntaxMarkers.length;
         const asMarker = relation.syntaxMarkers.find(
             (marker) => marker.syntaxId === "lateral-view-output-as"
         );

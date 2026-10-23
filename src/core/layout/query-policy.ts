@@ -39,7 +39,6 @@ function formatSetStatement(
     if (authorityNodeId === null) {
         return true;
     }
-    context.statistics.directLookupCount += statement.syntaxMarkers.length;
     const head = statement.syntaxMarkers.find(
         (marker) => marker.syntaxId === "set:head"
     );
@@ -50,7 +49,6 @@ function formatSetStatement(
         return statement.children.length === 0;
     }
     const payload = context.analysis.index.nodeById(statement.payloadChildId);
-    context.statistics.directLookupCount += 1;
     return (
         payload.kind === "set-payload" &&
         replaceStructuralGap(
@@ -76,7 +74,6 @@ function formatClause(
             context,
             authorityNodeId,
             markerSequenceInRange(
-                context,
                 clause.syntaxMarkers,
                 clause.headLeafRange
             )
@@ -178,7 +175,6 @@ function formatCte(
         const columnList = context.analysis.index.nodeById(
             cte.columnListChildId
         );
-        context.statistics.directLookupCount += 1;
         if (columnList.kind !== "list") {
             return false;
         }
@@ -216,12 +212,10 @@ function formatCte(
         }
         leftEnd = delimiters[1] + 1;
     }
-    context.statistics.directLookupCount += cte.syntaxMarkers.length;
     const asMarker = cte.syntaxMarkers.find(
         (marker) => marker.syntaxId === "cte-as"
     );
     const query = context.analysis.index.nodeById(cte.queryChildId);
-    context.statistics.directLookupCount += 1;
     return (
         asMarker !== undefined &&
         replaceStructuralGap(
@@ -247,8 +241,6 @@ function formatParenthesizedQuery(
     authorityNodeId: number
 ): boolean {
     const child = query.children[0];
-    context.statistics.nodeVisitCount += child === undefined ? 0 : 1;
-    context.statistics.directLookupCount += query.syntaxMarkers.length * 2;
     const open = query.syntaxMarkers.find(
         (marker) => marker.syntaxId === "delimiter" && marker.partOrdinal === 0
     );
@@ -299,7 +291,6 @@ function formatQuery(
         );
     }
     for (let index = 1; index < query.children.length; index++) {
-        context.statistics.nodeVisitCount += 2;
         const left = query.children[index - 1]!;
         const right = query.children[index]!;
         if (
@@ -325,12 +316,10 @@ function firstStatementSyntax(
         return null;
     }
     if (statement.bodyChildId !== null) {
-        context.statistics.directLookupCount += 1;
         return context.analysis.index.nodeById(
             statement.bodyChildId
         ).leafRange.start;
     }
-    context.statistics.directLookupCount += statement.syntaxMarkers.length;
     const terminator = statement.syntaxMarkers.find(
         (marker) => marker.syntaxId === "statement-terminator"
     );
@@ -340,18 +329,15 @@ function firstStatementSyntax(
 function formatStatements(context: QueryLayoutContext): boolean {
     const program = context.analysis.root;
     const capability = context.analysis.index.capabilityForNode(program.id);
-    context.statistics.directLookupCount += 1;
     if (capability?.state !== "formatted") {
         return true;
     }
     const statements = program.children;
-    context.statistics.nodeVisitCount += statements.length;
     for (let index = 1; index < statements.length; index++) {
         const left = statements[index - 1]!;
         const rightStart = firstStatementSyntax(context, statements[index]!);
         if (rightStart !== null) {
             const claim = context.claims.claimForLeaf(rightStart);
-            context.statistics.directLookupCount += 1;
             if (claim !== null && claim.leafRange.start === rightStart) {
                 // An opaque statement owns its leading trivia. Its existing
                 // line break already separates the statements; inserting one
@@ -361,10 +347,8 @@ function formatStatements(context: QueryLayoutContext): boolean {
                     prefix < claim.leafRange.end &&
                     context.analysis.leafKind(prefix) === "whitespace"
                 ) {
-                    context.statistics.leafVisitCount += 1;
                     prefix += 1;
                 }
-                context.statistics.leafVisitCount += 1;
                 if (context.analysis.leafKind(prefix) === "newline") {
                     continue;
                 }
@@ -394,7 +378,6 @@ export function applyQueryLayout(
         return false;
     }
     for (const node of context.analysis.index.nodes()) {
-        context.statistics.nodeVisitCount += 1;
         if (node.kind === "query" && !formatQuery(context, node)) {
             return false;
         }

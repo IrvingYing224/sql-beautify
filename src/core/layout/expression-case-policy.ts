@@ -29,7 +29,6 @@ function formatBranch(
 ): boolean {
     const threshold = context.plan.options.caseWhenThenWrapLength;
     const value = context.analysis.index.nodeById(branch.valueChildId);
-    context.statistics.directLookupCount += 1;
     if (branch.branchKind === "when") {
         if (branch.conditionChildId === null) {
             return false;
@@ -37,7 +36,6 @@ function formatBranch(
         const whenLeafId = markerLeaf(branch, "case:when");
         const thenLeafId = markerLeaf(branch, "case:then");
         const condition = context.analysis.index.nodeById(branch.conditionChildId);
-        context.statistics.directLookupCount += 1;
         if (
             whenLeafId === null ||
             thenLeafId === null ||
@@ -117,7 +115,6 @@ export function formatCaseExpression(
     );
     const firstBranch = branches[0];
     const lastBranch = branches[branches.length - 1];
-    context.statistics.nodeVisitCount += node.children.length + branches.length;
     if (
         caseLeafId === null ||
         endLeafId === null ||

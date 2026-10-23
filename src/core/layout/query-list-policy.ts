@@ -29,13 +29,11 @@ const SPACE_LEADING_CONTENT_ALIGN = Object.freeze({
 });
 
 export function markerSequenceInRange(
-    context: QueryLayoutContext,
     markers: readonly SyntaxMarker[],
     range: LeafRange
 ): readonly SyntaxMarker[] {
     const result: SyntaxMarker[] = [];
     for (const marker of markers) {
-        context.statistics.directLookupCount += 1;
         if (marker.leafId >= range.start && marker.leafId < range.end) {
             result.push(marker);
         }
@@ -49,7 +47,6 @@ export function normalizeMarkerSequence(
     markers: readonly SyntaxMarker[]
 ): boolean {
     for (let index = 1; index < markers.length; index++) {
-        context.statistics.directLookupCount += 2;
         const left = markers[index - 1]!;
         const right = markers[index]!;
         if (
@@ -73,7 +70,6 @@ export function matchingDelimitersAround(
     inner: LeafRange
 ): readonly [number, number] | null {
     for (let leafId = inner.start - 1; leafId >= outer.start; leafId--) {
-        context.statistics.leafVisitCount += 1;
         if (
             isLayoutTrivia(context.analysis, leafId) ||
             isCommentLeaf(context.analysis, leafId)
@@ -81,7 +77,6 @@ export function matchingDelimitersAround(
             continue;
         }
         const closeLeafId = context.analysis.index.matchingDelimiter(leafId);
-        context.statistics.directLookupCount += 1;
         if (
             closeLeafId !== null &&
             closeLeafId >= inner.end &&
@@ -136,7 +131,6 @@ export function formatFlatList(
     list: ListNode
 ): boolean {
     const members = list.children;
-    context.statistics.nodeVisitCount += members.length;
     if (list.separatorLeafIds.length !== Math.max(0, members.length - 1)) {
         return false;
     }
@@ -213,14 +207,12 @@ function rangeCommentFacts(
     let hasLineComment = false;
     let hasTrailingComment = false;
     for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
-        context.statistics.leafVisitCount += 1;
         const kind = context.analysis.leafKind(leafId);
         if (kind === "line-comment") {
             hasLineComment = true;
         }
         if (kind === "line-comment" || kind === "block-comment") {
             const binding = context.analysis.index.commentBinding(leafId);
-            context.statistics.directLookupCount += 1;
             if (binding === null || binding.commentLeafId !== leafId) {
                 return null;
             }
@@ -243,7 +235,6 @@ export function formatMultilineSequence(
     ) {
         return false;
     }
-    context.statistics.nodeVisitCount += members.length;
     const first = members[0]!;
     const singleSpaceLeading =
         members.length === 1 &&
@@ -308,7 +299,7 @@ export function formatMultilineSequence(
             useLeadingSeparator &&
             context.plan.options.commaStyle === "trailing"
         ) {
-            context.statistics.commaFallbackCount += 1;
+            context.state.commaFallback = true;
         }
         const beforeSeparator = useLeadingSeparator
             ? HARD_LINE
@@ -360,7 +351,6 @@ export function formatMixedRelationSequence(
     if (members.length === 0) {
         return false;
     }
-    context.statistics.nodeVisitCount += members.length;
     if (
         separatorLeafIds.length > 0 &&
         separatorLeafIds.length === members.length - 1
@@ -534,7 +524,6 @@ export function formatListItemAlias(
         return true;
     }
     const value = context.analysis.index.nodeById(item.valueChildId);
-    context.statistics.directLookupCount += 1;
     return formatAlias(
         context,
         authorityNodeId,
@@ -552,12 +541,10 @@ export function formatQueryList(
         return true;
     }
     const parent = context.analysis.index.parentOf(list.id);
-    context.statistics.directLookupCount += 1;
     if (parent === null || parent.kind !== "clause") {
         return false;
     }
     if (list.listRole === "select-items" && list.children.length === 1) {
-        context.statistics.directLookupCount += 1;
         if (
             context.analysis.index.queryOfClause(parent.id).capabilityId ===
             "select-without-from"

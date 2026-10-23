@@ -117,7 +117,6 @@ function afterDecision(
             // The lexer has already proved that these are separate operators.
             // Keep a boundary before a nested symbol: removing it can create
             // '--', '~~', or a PostgreSQL user-defined operator name.
-            context.statistics.directLookupCount += 1;
             return context.analysis.leafKind(next.start) === "operator"
                 ? SPACE
                 : EMPTY;
@@ -138,14 +137,10 @@ export function formatExpressionOperators(
         return true;
     }
     const occurrences = context.analysis.index.operatorOccurrencesOf(node.id);
-    context.statistics.directLookupCount += 1;
     if (occurrences.length === 0) {
         return true;
     }
     const anchors = directAnchors(node, occurrences);
-    context.statistics.nodeVisitCount += node.children.length;
-    context.statistics.directLookupCount +=
-        node.syntaxMarkers.length + node.operatorLeafIds.length;
     if (anchors === null) {
         return false;
     }

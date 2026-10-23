@@ -4,14 +4,10 @@ import type { QueryLayoutContext } from "./query-layout-context";
 
 export function applyKeywordCaseLayout(context: QueryLayoutContext): boolean {
     for (let leafId = 0; leafId < context.analysis.leafCount; leafId++) {
-        context.statistics.leafVisitCount += 1;
         if (context.claims.claimForLeaf(leafId) !== null) {
-            context.statistics.directLookupCount += 1;
             continue;
         }
-        context.statistics.directLookupCount += 1;
         const syntax = context.analysis.index.leafContext(leafId).syntax;
-        context.statistics.directLookupCount += 1;
         if (
             syntax === null ||
             syntax.keywordCaseEligible !== true ||
