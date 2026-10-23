@@ -1,7 +1,3 @@
-import {
-    canonicalLayoutResourceBudget,
-    isCanonicalLayoutArtifact,
-} from "../layout/artifact";
 import type { LayoutArtifact } from "../layout/artifact";
 import type {
     LayoutDoc,
@@ -56,17 +52,6 @@ class RenderAbort extends Error {
     ) {
         super(message);
     }
-}
-
-const CANONICAL_RENDER_ARTIFACTS = new WeakMap<object, LayoutArtifact>();
-
-/** Exact artifact proof for successful renderer results. */
-export function canonicalLayoutArtifactForRenderSuccess(
-    value: unknown
-): LayoutArtifact | null {
-    return typeof value === "object" && value !== null
-        ? CANONICAL_RENDER_ARTIFACTS.get(value) ?? null
-        : null;
 }
 
 function failure(code: RenderFailureCode, message: string): RenderFailure {
@@ -175,13 +160,7 @@ function renderCanonical(
     metrics: LayoutMetrics,
     environment: RenderEnvironment
 ): RenderResult {
-    const budget = canonicalLayoutResourceBudget(artifact);
-    if (budget === null) {
-        return failure(
-            "RENDER_ARTIFACT_PROVENANCE",
-            "Canonical layout budget proof is missing"
-        );
-    }
+    const budget = artifact.budget;
 
     const chunks: string[] = [];
     const mapEntries: MutableSourceMapEntry[] = [];
@@ -634,18 +613,12 @@ function renderCanonical(
     }
 }
 
-/** Fail-closed SQL-agnostic renderer for exact canonical LayoutArtifact objects. */
+/** Fail-closed SQL-agnostic renderer for LayoutArtifact objects. */
 export function renderLayoutArtifact(
-    value: unknown,
+    value: LayoutArtifact,
     environmentValue: RenderEnvironment | unknown = undefined
 ): RenderResult {
     try {
-        if (!isCanonicalLayoutArtifact(value)) {
-            return failure(
-                "RENDER_ARTIFACT_PROVENANCE",
-                "Renderer requires an exact canonical LayoutArtifact"
-            );
-        }
         const environment = environmentValue === undefined
             ? inferRenderEnvironment(value.analysis.source)
             : environmentValue;
@@ -659,11 +632,7 @@ export function renderLayoutArtifact(
         if (!measured.ok) {
             return failure("RENDER_METRICS", measured.message);
         }
-        const rendered = renderCanonical(value, measured.metrics, environment);
-        if (rendered.ok) {
-            CANONICAL_RENDER_ARTIFACTS.set(rendered, value);
-        }
-        return rendered;
+        return renderCanonical(value, measured.metrics, environment);
     } catch {
         return failure("RENDER_INTERNAL", "Renderer boundary inspection failed");
     }

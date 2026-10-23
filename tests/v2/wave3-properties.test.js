@@ -553,8 +553,7 @@ function deterministicMalformedCases(count) {
         var rendered = rendererApi.renderLayoutArtifact(compiled.artifact);
         assert.strictEqual(rendered.ok, true);
         var alignment = alignmentApi.deriveLayoutAlignmentPlan(
-            analysis,
-            resolved.options,
+            compiled.artifact,
             rendered
         );
         assert.ok(alignment && alignment.targets.length > 0,
@@ -610,14 +609,6 @@ function deterministicMalformedCases(count) {
         false,
         'cloned doc must fail closed'
     );
-    var forgedRender = rendererApi.renderLayoutArtifact(
-        Object.assign({}, compiled.artifact)
-    );
-    assert.strictEqual(forgedRender.ok, false, 'cloned artifact must fail closed');
-    assert.strictEqual(forgedRender.text, undefined,
-        'renderer failure must not expose partial text');
-    assert.strictEqual(forgedRender.sourceMap, undefined,
-        'renderer failure must not expose a partial map');
 
     [
         {

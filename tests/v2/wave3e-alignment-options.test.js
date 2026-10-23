@@ -216,8 +216,7 @@ function assertStable(id, source, options, expected) {
     var rendered = rendererApi.renderLayoutArtifact(compiled.artifact);
     assert.strictEqual(rendered.ok, true);
     var alignment = alignmentApi.deriveLayoutAlignmentPlan(
-        analysis,
-        resolved.options,
+        compiled.artifact,
         rendered
     );
     assert.ok(alignment);
@@ -294,35 +293,6 @@ function assertStable(id, source, options, expected) {
         ).ok,
         false,
         'cross-source canonical alignment plan must fail closed'
-    );
-    var otherBase = policyApi.buildLayoutPlan(
-        otherAnalysis,
-        resolved.options
-    );
-    assert.strictEqual(otherBase.ok, true);
-    var otherCompiled = compilerApi.compileLayoutPlan(otherBase.plan);
-    assert.strictEqual(otherCompiled.ok, true);
-    var otherRendered = rendererApi.renderLayoutArtifact(
-        otherCompiled.artifact
-    );
-    assert.strictEqual(otherRendered.ok, true);
-    assert.strictEqual(
-        alignmentApi.deriveLayoutAlignmentPlan(
-            analysis,
-            resolved.options,
-            otherRendered
-        ),
-        null,
-        'cross-artifact canonical render result must fail closed'
-    );
-    assert.strictEqual(
-        alignmentApi.deriveLayoutAlignmentPlan(
-            analysis,
-            resolved.options,
-            Object.assign({}, rendered)
-        ),
-        null,
-        'render-result clones must not inherit artifact provenance'
     );
 
     assertStable(

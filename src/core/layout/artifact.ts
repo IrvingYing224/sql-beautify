@@ -22,6 +22,8 @@ export interface LayoutArtifact {
     readonly root: LayoutDoc;
     readonly options: CanonicalFormatOptions;
     readonly diagnostics: readonly Diagnostic[];
+    /** The budget accepted by doc validation; render, metrics and alignment read it. */
+    readonly budget: LayoutResourceBudget;
 }
 
 export type LayoutArtifactFailureCode =
@@ -47,16 +49,6 @@ export type CreateLayoutArtifactResult =
     | LayoutArtifactSuccess
     | LayoutArtifactFailure;
 
-interface CanonicalLayoutArtifactProof {
-    readonly analysis: AnalyzedArtifact;
-    readonly root: LayoutDoc;
-    readonly options: CanonicalFormatOptions;
-    readonly budget: LayoutResourceBudget;
-}
-
-const CANONICAL_LAYOUT_ARTIFACT_PROOFS =
-    new WeakMap<object, CanonicalLayoutArtifactProof>();
-const LAYOUT_DOCS_BOUND_TO_ARTIFACTS = new WeakSet<object>();
 const EMPTY_INVARIANT_FAILURES = Object.freeze(
     []
 ) as readonly LayoutInvariantFailure[];
@@ -75,37 +67,7 @@ function failure(
     });
 }
 
-function claimArtifactGraph(root: LayoutDoc): boolean {
-    const work: LayoutDoc[] = [root];
-    const graph: LayoutDoc[] = [];
-    while (work.length > 0) {
-        const doc = work.pop()!;
-        if (LAYOUT_DOCS_BOUND_TO_ARTIFACTS.has(doc)) {
-            return false;
-        }
-        graph.push(doc);
-        if (doc.kind === "concat") {
-            for (const part of doc.parts) {
-                work.push(part);
-            }
-        } else if (
-            doc.kind === "indent" ||
-            doc.kind === "align" ||
-            doc.kind === "group"
-        ) {
-            work.push(doc.content);
-        }
-    }
-    for (const doc of graph) {
-        LAYOUT_DOCS_BOUND_TO_ARTIFACTS.add(doc);
-    }
-    return true;
-}
-
-/**
- * Binds exact analysis, doc, options and diagnostic provenance. No partial
- * artifact is returned when any proof or ownership invariant fails.
- */
+/** Binds analysis, doc, options and the validated budget; no partial artifact on failure. */
 export function createLayoutArtifact(
     analysisValue: unknown,
     rootValue: unknown,
@@ -138,58 +100,12 @@ export function createLayoutArtifact(
             invariant.failures
         );
     }
-    if (!claimArtifactGraph(rootValue as LayoutDoc)) {
-        return failure(
-            "LAYOUT_ARTIFACT_DOC",
-            "Layout document graph is already bound to another artifact"
-        );
-    }
-
     const artifact = Object.freeze({
         analysis: analysisValue,
         root: rootValue as LayoutDoc,
         options: optionsValue,
         diagnostics: analysisValue.diagnostics,
+        budget: invariant.budget,
     });
-    CANONICAL_LAYOUT_ARTIFACT_PROOFS.set(
-        artifact,
-        Object.freeze({
-            analysis: analysisValue,
-            root: rootValue as LayoutDoc,
-            options: optionsValue,
-            budget: invariant.budget,
-        })
-    );
     return Object.freeze({ ok: true, artifact, invariant });
-}
-
-/** Renderer-only access to the exact budget accepted by artifact validation. */
-export function canonicalLayoutResourceBudget(
-    value: unknown
-): LayoutResourceBudget | null {
-    if (typeof value !== "object" || value === null) {
-        return null;
-    }
-    return CANONICAL_LAYOUT_ARTIFACT_PROOFS.get(value)?.budget ?? null;
-}
-
-/** Exact identity proof consumed by the renderer boundary in Wave 3B. */
-export function isCanonicalLayoutArtifact(
-    value: unknown
-): value is LayoutArtifact {
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-    const proof = CANONICAL_LAYOUT_ARTIFACT_PROOFS.get(value);
-    if (proof === undefined) {
-        return false;
-    }
-    const artifact = value as LayoutArtifact;
-    return (
-        Object.isFrozen(artifact) &&
-        artifact.analysis === proof.analysis &&
-        artifact.root === proof.root &&
-        artifact.options === proof.options &&
-        artifact.diagnostics === proof.analysis.diagnostics
-    );
 }

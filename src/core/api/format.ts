@@ -392,8 +392,7 @@ export function formatSql(
         }
         {
             const alignmentPlan = deriveLayoutAlignmentPlan(
-                analysis,
-                options,
+                compiled.artifact,
                 rendered,
                 environment.tabSize
             );

@@ -1,7 +1,5 @@
 import type { AnalyzedArtifact, CommentBinding } from "../analysis/types";
-import { isCanonicalAnalyzedArtifact } from "../analysis/artifact";
 import type { CanonicalFormatOptions } from "../config/options";
-import { isCanonicalFormatOptions } from "../config/resolve-options";
 import type {
     ListItemNode,
     ListNode,
@@ -13,11 +11,10 @@ import {
     isRenderTabSize,
     type RenderTabSize,
 } from "../renderer/environment";
-import { canonicalLayoutArtifactForRenderSuccess } from "../renderer/render";
 import type { RenderSuccess } from "../renderer/types";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
 import type { DominatingVerbatimClaims } from "./verbatim-claims";
-import { canonicalLayoutResourceBudget } from "./artifact";
+import type { LayoutArtifact } from "./artifact";
 
 export interface LayoutAlignmentTarget {
     readonly leafId: number;
@@ -487,37 +484,23 @@ function trailingCommentCandidate(
     });
 }
 
-/** Derives renderer-column targets without inspecting SQL text or source raw. */
+/**
+ * Derives renderer-column targets from `rendered`, the render of `artifact`,
+ * without inspecting SQL text or source raw.
+ */
 export function deriveLayoutAlignmentPlan(
-    analysis: AnalyzedArtifact,
-    options: CanonicalFormatOptions,
+    artifact: LayoutArtifact,
     rendered: RenderSuccess,
     tabSize: RenderTabSize = DEFAULT_RENDER_TAB_SIZE
 ): LayoutAlignmentPlan | null {
     try {
-        if (
-            !isCanonicalAnalyzedArtifact(analysis) ||
-            !isCanonicalFormatOptions(options) ||
-            !isRenderTabSize(tabSize)
-        ) {
+        if (!isRenderTabSize(tabSize)) {
             return null;
         }
-        const renderedArtifact =
-            canonicalLayoutArtifactForRenderSuccess(rendered);
-        if (
-            renderedArtifact === null ||
-            renderedArtifact.analysis !== analysis ||
-            renderedArtifact.options !== options
-        ) {
-            return null;
-        }
-        const budget = canonicalLayoutResourceBudget(renderedArtifact);
-        if (budget === null) {
-            return null;
-        }
+        const { analysis, options } = artifact;
         const maximumTargetColumn = Math.min(
             options.maxAlignWidth - 1,
-            budget.maxGeneratedColumnsPerLine
+            artifact.budget.maxGeneratedColumnsPerLine
         );
         if (maximumTargetColumn <= 0) {
             return canonicalPlan(analysis, options, []);

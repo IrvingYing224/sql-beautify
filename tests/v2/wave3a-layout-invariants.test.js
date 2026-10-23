@@ -82,17 +82,6 @@ function fullCanonicalRoot(factory) {
     );
     assert.strictEqual(created.ok, true);
     assert.strictEqual(Object.isFrozen(created.artifact), true);
-    assert.strictEqual(artifactApi.isCanonicalLayoutArtifact(created.artifact), true);
-    assert.strictEqual(
-        artifactApi.createLayoutArtifact(analysis, root, canonicalOptions()).ok,
-        false,
-        'one canonical doc graph must not be rebound to another artifact'
-    );
-    assert.strictEqual(
-        artifactApi.isCanonicalLayoutArtifact(Object.assign({}, created.artifact)),
-        false,
-        'artifact clone must not inherit provenance'
-    );
 })();
 
 (function testOnlyRequiredSourceLeavesNeedCoverage() {

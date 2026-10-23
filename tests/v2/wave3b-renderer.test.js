@@ -343,16 +343,6 @@ function assertFrozenSourceMap(sourceMap) {
         output: { start: 0, end: 'SELECT 1 --尾'.length }
     }], 'adjacent source/output runs must merge');
 
-    var clone = Object.assign({}, artifact);
-    assert.doesNotThrow(function() {
-        var rejected = renderApi.renderLayoutArtifact(clone);
-        assert.strictEqual(rejected.ok, false);
-        assert.strictEqual(rejected.text, undefined,
-            'renderer failure must not leak partial text');
-        assert.strictEqual(rejected.sourceMap, undefined,
-            'renderer failure must not leak a partial source map');
-    });
-
     var repeated = renderApi.renderLayoutArtifact(artifact);
     assert.strictEqual(repeated.ok, true);
     assert.deepStrictEqual(repeated, rendered,

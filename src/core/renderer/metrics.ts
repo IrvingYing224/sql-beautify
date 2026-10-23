@@ -1,7 +1,3 @@
-import {
-    canonicalLayoutResourceBudget,
-    isCanonicalLayoutArtifact,
-} from "../layout/artifact";
 import type { LayoutArtifact } from "../layout/artifact";
 import type { LayoutDoc } from "../layout/doc";
 import { canonicalLayoutDocProof } from "../layout/doc-factory";
@@ -153,21 +149,8 @@ function childOf(doc: LayoutDoc): LayoutDoc | null {
 }
 
 /** Computes context-independent flat summaries with one iterative post-order pass. */
-export function measureLayoutArtifact(value: unknown): LayoutMetricsResult {
-    if (!isCanonicalLayoutArtifact(value)) {
-        return failure(
-            "METRICS_ARTIFACT_PROVENANCE",
-            "Layout metrics require an exact canonical artifact"
-        );
-    }
-    const artifact = value;
-    const budget = canonicalLayoutResourceBudget(artifact);
-    if (budget === null) {
-        return failure(
-            "METRICS_ARTIFACT_PROVENANCE",
-            "Canonical artifact budget proof is missing"
-        );
-    }
+export function measureLayoutArtifact(artifact: LayoutArtifact): LayoutMetricsResult {
+    const budget = artifact.budget;
 
     const summaries = new WeakMap<object, FlatLayoutSummary>();
     const work: MetricWorkItem[] = [{ doc: artifact.root, exit: false }];
