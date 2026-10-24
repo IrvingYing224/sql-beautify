@@ -1,0 +1,7 @@
+SELECT
+      0l
+    , 10y
+    , 5s
+    , 1d
+    , 1.0bd
+FROM t

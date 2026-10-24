@@ -1,0 +1,1 @@
+select .5D, 1.D, 1e5D, 100BD, -1L, 2Y + 3S from t where a > 0L and b = 1.0BD

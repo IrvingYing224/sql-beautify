@@ -1,5 +1,5 @@
 SELECT
-      0L AS x
+      0L    AS x
     , 1.0BD AS y
     , a
 FROM t

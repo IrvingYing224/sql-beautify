@@ -1,0 +1,10 @@
+SELECT
+      .5D
+    , 1.D
+    , 1e5D
+    , 100BD
+    , -1L
+    , 2Y + 3S
+FROM t
+WHERE a > 0L
+    AND b = 1.0BD

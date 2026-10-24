@@ -315,6 +315,7 @@ function scanNumber(state: ScannerState): boolean {
     }
 
     let end = start;
+    let integral = false;
 
     if (ch === ".") {
         if (!isAsciiDigit(charAt(state, start + 1))) {
@@ -328,7 +329,8 @@ function scanNumber(state: ScannerState): boolean {
         while (end < state.length && isAsciiDigit(charAt(state, end))) {
             end += 1;
         }
-        if (charAt(state, end) === ".") {
+        integral = charAt(state, end) !== ".";
+        if (!integral) {
             end += 1;
             while (end < state.length && isAsciiDigit(charAt(state, end))) {
                 end += 1;
@@ -345,6 +347,7 @@ function scanNumber(state: ScannerState): boolean {
             ((charAt(state, end + 1) === "+" || charAt(state, end + 1) === "-") &&
                 isAsciiDigit(charAt(state, end + 2))))
     ) {
+        integral = false;
         end += 1;
         if (charAt(state, end) === "+" || charAt(state, end) === "-") {
             end += 1;
@@ -355,10 +358,25 @@ function scanNumber(state: ScannerState): boolean {
     }
 
     if (end > start) {
-        emitLeaf(state, "number", start, end);
+        emitLeaf(state, "number", start, end + numericSuffixLength(state, end, integral));
         return true;
     }
     return false;
+}
+
+/**
+ * HiveLexer literal suffixes, case-insensitive: `L`/`S`/`Y` after digits only, `D`/`BD` after any
+ * number. A following identifier character makes the whole run an identifier in Hive (`0Lx`), so
+ * no suffix is taken there and the scanner keeps splitting it as before.
+ */
+function numericSuffixLength(state: ScannerState, end: number, integral: boolean): number {
+    const first = charAt(state, end).toUpperCase();
+    const length = first === "B" && charAt(state, end + 1).toUpperCase() === "D"
+        ? 2
+        : first === "D" || (integral && (first === "L" || first === "S" || first === "Y"))
+          ? 1
+          : 0;
+    return length > 0 && !isIdentifierContinue(charAt(state, end + length)) ? length : 0;
 }
 
 function scanIdentifierOrKeyword(state: ScannerState): boolean {

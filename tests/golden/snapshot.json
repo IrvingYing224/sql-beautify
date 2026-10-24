@@ -3004,37 +3004,56 @@
  "explicit/literal/decimal": {
   "op": "formatSql",
   "status": "formatted",
+  "codes": []
+ },
+ "explicit/literal/digit-identifier": {
+  "op": "formatSql",
+  "status": "formatted",
   "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN",
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
  "explicit/literal/double": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/literal/long": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/literal/smallint": {
   "op": "formatSql",
   "status": "formatted",
+  "codes": []
+ },
+ "explicit/literal/suffix-after-fraction": {
+  "op": "formatSql",
+  "status": "formatted",
   "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN",
    "SYN_UNEXPECTED_TOKEN"
   ]
+ },
+ "explicit/literal/suffix-forms": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/literal/suffix-lowercase": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
  },
  "explicit/literal/tinyint": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/payload/add-file": {
   "op": "formatSql",
@@ -7436,12 +7455,7 @@
  "probe/hive/numbers": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/hive/order-by-nulls": {
   "op": "formatSql",
@@ -8025,10 +8039,7 @@
  "probe/targeted/bigint-literal": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/targeted/block-comment-own-line-leading-input": {
   "op": "formatSql",

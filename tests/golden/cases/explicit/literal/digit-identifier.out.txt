@@ -1,0 +1,6 @@
+SELECT
+      0Lx
+    , 1d_col
+    , 10days
+    , 5s_flag
+FROM t
