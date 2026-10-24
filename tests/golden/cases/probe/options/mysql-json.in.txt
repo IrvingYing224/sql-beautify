@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-select data->'$.a', data->>'$.b' from t

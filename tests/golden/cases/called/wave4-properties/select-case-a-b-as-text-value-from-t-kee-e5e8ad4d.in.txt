@@ -1,3 +1,0 @@
--- golden: {"options":{"dialect":"mysql","unsupportedSyntaxPolicy":"preserve"}}
-select `Case`, 'a,b' as text_value from t # keep
-where a <=> 1

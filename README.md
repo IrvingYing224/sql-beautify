@@ -19,7 +19,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 - 提供实验性的 Hive DDL 格式化
 - 提供实验性的 Hive Extract DDL 草稿提取
 
-主格式化能力优先面向 Hive SQL / HQL。`generic`、`postgresql`、`mysql` 为 best-effort 支持，复杂 SQL 建议格式化后复核结果。
+只支持 Hive SQL / HQL：`SQL` 与 `hive-sql` 两种语言模式都按 Hive 词法处理。PostgreSQL 的 `$$…$$`、`E'…'`、`U&'…'`、双引号标识符，MySQL 的 `#` 注释等写法会被误读，格式化后可能改变语义；请不要用它格式化非 Hive SQL。
 
 ## 怎么用
 
@@ -54,7 +54,6 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 | `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
 | `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | `CASE WHEN` 中 `THEN` / `ELSE` 值的换行阈值 |
 | `sqlBeautify.caseLayout` | `expanded` / `compactShort` | `expanded` | `CASE` 表达式布局；`compactShort` 会在安全且较短时保持单行 |
-| `sqlBeautify.dialect` | `generic` / `hive` / `postgresql` / `mysql` | `hive` | SQL 方言边界处理 |
 | `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `warn` | 未建模语法的处理策略 |
 
 顶层 `ORDER BY` 会像 `GROUP BY` 一样拆成多行并对齐逗号；窗口函数里的 `ORDER BY` 仍保持原有行内格式。
@@ -87,7 +86,7 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 ## 简洁风险提示
 
-- 复杂 SQL、非 Hive 方言、以及未建模语法场景下，请在格式化后复核结果。
+- 复杂 SQL 与未建模语法场景下，请在格式化后复核结果。
 - `unsupportedSyntaxPolicy=warn` 会继续格式化周边 SQL，并在 VS Code 中给出 warning。
 - `unsupportedSyntaxPolicy=preserve` 使用相同的安全输出，但不在编辑器中显示 capability warning；手动执行 `SQL Beautify: Format SQL` 且因未建模区域没有修改时，会显示一次不含 SQL 内容的汇总提示。format provider 与 format-on-save 不弹出该提示。
 - `unsupportedSyntaxPolicy=bail_out` 会在出现任何未建模或解析恢复区域时保留整个格式化目标的原文，包括尚未登记能力名称的语法、局部语法错误和 parser 深度超限；同一目标中其余语句也不会修改。

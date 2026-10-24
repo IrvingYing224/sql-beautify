@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-SELECT a FROM t MINUS SELECT a FROM u

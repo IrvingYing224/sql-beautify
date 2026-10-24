@@ -22,7 +22,7 @@ function format(source, targets, extra) {
         source: source,
         targets: targets || [{ id: 'document', start: 0, end: source.length, mode: 'document' }],
         selections: [],
-        options: { dialect: 'hive' },
+        options: {},
         newline: m.environment.inferRenderNewline(source, '\n'),
         tabSize: 4
     }, extra));

@@ -1,5 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":35,"dialect":"postgresql","maxAlignWidth":128,"unsupportedSyntaxPolicy":"bail_out"}}
-SELECT	case when a=1 then 2 else 3 end
-as x,
-/* fuzz 62 */
-not flag	as y	FrOm  t where a=1 and b>2

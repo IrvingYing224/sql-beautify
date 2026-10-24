@@ -1,4 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":77,"commaStyle":"trailing","dialect":"generic","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":68,"unsupportedSyntaxPolicy":"preserve"}}
-SeLeCt  "Mixed Name"	as x,
--- fuzz 121
-	not flag	as y from	t where a=1 and b>2

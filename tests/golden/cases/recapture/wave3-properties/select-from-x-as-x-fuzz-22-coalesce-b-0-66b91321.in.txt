@@ -1,5 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":26,"dialect":"postgresql","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":155,"unsupportedSyntaxPolicy":"preserve"}}
-select	'FROM  x' as x, -- fuzz 22
-
-coalesce(b,0)	as y
-from t where a=1 and b>2

@@ -1,4 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":44,"dialect":"postgresql","maxAlignWidth":129,"unsupportedSyntaxPolicy":"preserve"}}
-select	case when a=1 then 2 else 3 end
-as x,	/* fuzz 30 */ coalesce(b,0) as y from
-t where a=1 and b>2

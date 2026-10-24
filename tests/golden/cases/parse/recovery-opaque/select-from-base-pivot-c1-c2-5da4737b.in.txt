@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-SELECT * FROM base pivot(c1, c2)

@@ -1,2 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":80,"dialect":"postgresql","unsupportedSyntaxPolicy":"bail_out"}}
-select a collate "C" from t

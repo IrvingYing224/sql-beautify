@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-CREATE TABLE t (id int)

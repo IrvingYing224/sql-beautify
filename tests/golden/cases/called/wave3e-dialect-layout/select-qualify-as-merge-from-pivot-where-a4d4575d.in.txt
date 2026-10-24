@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-select qualify as merge from pivot where unpivot=1

@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-select a from t pivot(sum(v) for k in (1))

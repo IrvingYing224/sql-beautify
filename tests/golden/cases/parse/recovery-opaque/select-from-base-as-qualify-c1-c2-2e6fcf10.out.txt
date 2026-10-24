@@ -1,3 +1,0 @@
-SELECT
-      *
-FROM base AS qualify(c1, c2)

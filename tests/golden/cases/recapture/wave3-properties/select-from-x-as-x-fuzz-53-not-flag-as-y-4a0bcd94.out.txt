@@ -1,6 +1,0 @@
-SELECT
-    'FROM  x' AS x, /* fuzz 53 */
-    NOT flag  AS y
-FROM t
-WHERE a = 1
-    AND b > 2

@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-UPDATE target SET value=1

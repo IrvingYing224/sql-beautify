@@ -1,7 +1,0 @@
-SELECT
-      a
-    , b
-    , count(*)
-FROM t
-GROUP BY
-      rollup(a, b)

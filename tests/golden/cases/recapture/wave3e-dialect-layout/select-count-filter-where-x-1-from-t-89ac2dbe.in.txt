@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql","unsupportedSyntaxPolicy":"preserve"}}
-select count(*) filter (where x>1) from t

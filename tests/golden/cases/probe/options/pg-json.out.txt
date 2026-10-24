@@ -1,7 +1,0 @@
-SELECT
-      data->'a'->>'b'
-    , data#>'{a,b}'
-    , data #>> '{a}'
-    , data @> '{"a":1}'::jsonb
-    , data ? 'k'
-FROM t

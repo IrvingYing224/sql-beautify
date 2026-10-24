@@ -1,5 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":38,"commaStyle":"trailing","dialect":"generic","maxAlignWidth":54,"unsupportedSyntaxPolicy":"bail_out"}}
-select  "Mixed Name"
-as x,
-/* fuzz 9 */
-b*2  as y FROM t where a=1 and b>2

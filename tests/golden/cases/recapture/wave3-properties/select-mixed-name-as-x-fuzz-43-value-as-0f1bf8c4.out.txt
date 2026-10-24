@@ -1,6 +1,0 @@
-select
-      `Mixed Name` as x, /* fuzz 43 */
-      @value as y
-from t
-where a = 1
-    and b > 2

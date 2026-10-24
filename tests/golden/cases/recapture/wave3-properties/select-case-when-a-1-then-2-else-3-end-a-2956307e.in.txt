@@ -1,5 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":41,"dialect":"postgresql","keywordCase":"lower","maxAlignWidth":109,"unsupportedSyntaxPolicy":"preserve"}}
-SeLeCt
-case when a=1 then 2 else 3 end  as x,
-/* fuzz 14 */	b*2
-as y	FROM	t where a=1 and b>2

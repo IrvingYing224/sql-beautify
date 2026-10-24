@@ -1,4 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":22,"dialect":"mysql","indentStyle":"tab","keywordCase":"lower","maxAlignWidth":91}}
-SELECT	`Mixed Name` as x,
-/* fuzz 75 */ b*2	as y
-FrOm t where a=1 and b>2

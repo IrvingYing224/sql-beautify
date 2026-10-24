@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-select a from t order by a limit 10, 20

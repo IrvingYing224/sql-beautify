@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-select a from t order by a offset 5 rows fetch next 10 rows only

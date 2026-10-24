@@ -4,21 +4,6 @@
   "status": "formatted",
   "codes": []
  },
- "called/v2-runtime-boundary/select-a-from-t-32c13a1f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/v2-runtime-boundary/select-a-from-t-618d227f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/v2-runtime-boundary/select-a-from-t-96e09e11": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "called/wave3b-format-kernel/select-a-b-as-x-abcdef-as-y-from-t-cf7108b6": {
   "op": "formatSql",
   "status": "formatted",
@@ -52,18 +37,6 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "called/wave3e-dialect-layout/select-a-as-x-from-t-f8dbff6c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/wave3e-dialect-layout/select-a-collate-c-from-t-f973b2e5": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "called/wave3e-dialect-layout/select-a-div-b-from-t-fb565289": {
   "op": "formatSql",
   "status": "formatted",
@@ -85,59 +58,12 @@
    "SYN_MAX_DEPTH_EXCEEDED"
   ]
  },
- "called/wave3e-dialect-layout/select-a-text-as-x-from-t-577bedb7": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/wave3e-dialect-layout/select-array-1-2-as-x-from-t-07a60785": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/wave3e-dialect-layout/select-count-filter-where-x-1-from-t-ba1ea149": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "called/wave3e-dialect-layout/select-hiveconf-v-from-t-5e9d14bc": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "called/wave3e-dialect-layout/select-payload-x-as-x-from-t-28be1f04": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/wave3e-dialect-layout/select-payload-x-as-x-from-t-3a45e182": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/wave3e-dialect-layout/select-payload-x-as-x-from-t-b4dd5f7b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/wave3e-dialect-layout/select-qualify-as-merge-from-pivot-where-3837a6cf": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "called/wave3e-dialect-layout/select-qualify-as-merge-from-pivot-where-42cfdc8c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/wave3e-dialect-layout/select-qualify-as-merge-from-pivot-where-9089ccd1": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "called/wave3e-dialect-layout/select-qualify-as-merge-from-pivot-where-a4d4575d": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -812,11 +738,6 @@
   "status": "formatted",
   "codes": []
  },
- "called/wave4-properties/select-case-a-b-as-text-value-from-t-kee-e5e8ad4d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "called/wave4-properties/select-case-when-t-c0-0-then-t-c0-else-0-3bf7276b": {
   "op": "extractDdl",
   "status": "extracted",
@@ -1180,11 +1101,6 @@
  "called/wave4-properties/select-from-81-0-as-text-81-0-from-t81-t-34a30adf": {
   "op": "extractDdl",
   "status": "extracted",
-  "codes": []
- },
- "called/wave4-properties/select-from-x-as-body-case-from-t-keep-a5a83846": {
-  "op": "formatSql",
-  "status": "formatted",
   "codes": []
  },
  "called/wave4-properties/select-from-x-as-text-value-case-from-t-966043e1": {
@@ -2511,16 +2427,6 @@
    "EXTRACT_WILDCARD"
   ]
  },
- "corpus/cjk-identifier-generic": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "corpus/cjk-identifier-hive": {
   "op": "formatSql",
   "status": "formatted",
@@ -2530,16 +2436,6 @@
    "SYN_UNMODELED_CONSTRUCT",
    "SYN_UNEXPECTED_TOKEN"
   ]
- },
- "corpus/cjk-identifier-mysql": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "corpus/cjk-identifier-postgresql": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
  },
  "corpus/hive-crlf-bom-comments": {
   "op": "formatSql",
@@ -2645,32 +2541,6 @@
   "status": "formatted",
   "codes": [
    "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "corpus/postgres-json-dollar": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "corpus/postgresql-unicode-width": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "corpus/unsupported-match-recognize": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "corpus/unsupported-pivot-qualify-safety": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
   ]
  },
  "explicit/casing/cast-struct": {
@@ -3854,11 +3724,6 @@
   "status": "formatted",
   "codes": []
  },
- "fixtures/layout/generic-no-from-shared-layout": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "fixtures/layout/hive-eof-line-comment": {
   "op": "formatSql",
   "status": "formatted",
@@ -3899,11 +3764,6 @@
   "status": "formatted",
   "codes": []
  },
- "fixtures/sql-corpus/generic-array-without-from": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": []
- },
  "fixtures/sql-corpus/hive-cluster-distribute-sort": {
   "op": "formatSql",
   "status": "formatted",
@@ -3917,39 +3777,6 @@
   ]
  },
  "fixtures/sql-corpus/hive-cte-window-comments": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "fixtures/sql-corpus/match-recognize-construct": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "fixtures/sql-corpus/match-recognize-function-name": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "fixtures/sql-corpus/mysql-prefixed-literal-variable": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "fixtures/sql-corpus/postgres-dollar-parameter-operators": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "fixtures/sql-corpus/postgres-prefixed-strings": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "fixtures/wave3-corpus/generic-keyword-shaped-identifier": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -3984,22 +3811,7 @@
   "status": "formatted",
   "codes": []
  },
- "fixtures/wave3-corpus/mysql-variable-and-prefixed-literal": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "fixtures/wave3-corpus/nested-case-expression": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "fixtures/wave3-corpus/postgres-dollar-string": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "fixtures/wave3-corpus/postgres-json-opaque-operator": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -4029,14 +3841,6 @@
   "status": "formatted",
   "codes": [
    "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "fixtures/wave3-corpus/unsupported-match-recognize-warning": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
   ]
  },
  "fixtures/wave3-corpus/unsupported-qualify-bailout": {
@@ -5488,11 +5292,6 @@
   "status": "unchanged",
   "codes": []
  },
- "parse/analysis-index/select-name-ac912bc5": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": []
- },
  "parse/analysis-index/with-q-as-select-case-when-a-0-then-a-el-0c3a49a7": {
   "op": "formatSql",
   "status": "formatted",
@@ -5503,32 +5302,12 @@
   "status": "formatted",
   "codes": []
  },
- "parse/expression-parser/insert-overwrite-table-dst-select-id-fro-f8ffd9d1": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/expression-parser/select-1-2-value-1-8090e5bb": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "parse/expression-parser/select-1-window-w-as-partition-by-5fc207cc": {
   "op": "formatSql",
   "status": "formatted",
   "codes": [
    "SYN_INCOMPLETE_CLAUSE"
   ]
- },
- "parse/expression-parser/select-2-3-4-a-b-x-c-a-b-c-d-a-b-c-d-cd16ae67": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
  },
  "parse/expression-parser/select-a-b-as-preserved-good-1-as-struct-2dd8c4a6": {
   "op": "formatSql",
@@ -5546,16 +5325,6 @@
   ]
  },
  "parse/expression-parser/select-a-b-c-as-total-a-b-c-as-delta-fro-5876fb35": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/expression-parser/select-a-b-c-payload-true-payload-id-and-2a6a9cfd": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/expression-parser/select-array-1-2-99479bfb": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -5599,14 +5368,6 @@
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
- "parse/expression-parser/select-cast-x-as-type-cast-x-as-array-ty-2ef325b1": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "parse/expression-parser/select-concat-distinct-t-a-upper-t-b-arr-ae224a84": {
   "op": "formatSql",
   "status": "formatted",
@@ -5627,32 +5388,10 @@
   "status": "formatted",
   "codes": []
  },
- "parse/expression-parser/select-from-generate-series-1-3-g-a104f0f9": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/expression-parser/select-from-generate-series-1-3-g-a375b523": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/expression-parser/select-from-generate-series-1-3-g-d2096c4e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "parse/expression-parser/select-from-t-lateral-view-explode-items-96a7aedb": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "parse/expression-parser/select-from-t-lateral-view-explode-items-d76f5f2c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
  },
  "parse/expression-parser/select-hiveconf-key-a5767401": {
   "op": "formatSql",
@@ -5669,37 +5408,12 @@
   "status": "formatted",
   "codes": []
  },
- "parse/expression-parser/select-max-x-from-t-583d639c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "parse/expression-parser/select-max-x-from-t-ca38e369": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "parse/expression-parser/select-name-session-utf8mb4-abc-json-col-46b54313": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "parse/expression-parser/select-name-value-from-t-35f1309b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/expression-parser/select-not-a-b-not-a-between-1-and-2-39fc3077": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/expression-parser/select-not-a-b-not-a-between-1-and-2-6b83ff6a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/expression-parser/select-not-a-b-not-a-between-1-and-2-d1b39a4f": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -5716,19 +5430,7 @@
    "SYN_MAX_DEPTH_EXCEEDED"
   ]
  },
- "parse/expression-parser/select-payload-name-payload-a-1-jsonb-1-b15881f6": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "parse/expression-parser/select-payload-x-04ca9d0f": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/expression-parser/select-payload-x-2805f4fe": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -6094,20 +5796,6 @@
    "SYN_UNSUPPORTED_STATEMENT"
   ]
  },
- "parse/hive-statement-commands/create-table-t-id-int-29b9da36": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/create-table-t-id-int-36cf6a89": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
  "parse/hive-statement-commands/create-table-t-id-int-6d303139": {
   "op": "formatSql",
   "status": "unchanged",
@@ -6115,56 +5803,7 @@
    "SYN_UNSUPPORTED_STATEMENT"
   ]
  },
- "parse/hive-statement-commands/create-table-t-id-int-c326e6f7": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/delete-from-target-29b79f19": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/delete-from-target-8455466e": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/delete-from-target-9ec66864": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
  "parse/hive-statement-commands/delete-from-target-where-id-2-9489a9f9": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/explain-select-id-from-src-0433f1e4": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/explain-select-id-from-src-6a86e51d": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/explain-select-id-from-src-aefa567f": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -6182,27 +5821,6 @@
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "parse/hive-statement-commands/insert-into-dst-select-id-from-src-28d5c8fd": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/insert-into-dst-select-id-from-src-a11640d8": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/insert-into-dst-select-id-from-src-be941f9e": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
  },
  "parse/hive-statement-commands/insert-into-dst-select-id-from-src-d81086e4": {
   "op": "formatSql",
@@ -6232,52 +5850,10 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/hive-statement-commands/select-region-count-from-sales-group-by-47c0df47": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/hive-statement-commands/select-region-count-from-sales-group-by-986d8edc": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/hive-statement-commands/select-region-count-from-sales-group-by-c3fa39dd": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "parse/hive-statement-commands/select-transform-payload-from-src-495edbee": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "parse/hive-statement-commands/select-transform-payload-using-cat-as-va-097d0cc2": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_INCOMPLETE_CLAUSE"
-  ]
- },
- "parse/hive-statement-commands/select-transform-payload-using-cat-as-va-35f49aae": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_INCOMPLETE_CLAUSE"
-  ]
- },
- "parse/hive-statement-commands/select-transform-payload-using-cat-as-va-45f05c88": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_INCOMPLETE_CLAUSE"
-  ]
  },
  "parse/hive-statement-commands/select-transform-payload-using-cat-as-va-9bdd2194": {
   "op": "formatSql",
@@ -6296,27 +5872,6 @@
   "op": "formatSql",
   "status": "unchanged",
   "codes": []
- },
- "parse/hive-statement-commands/set-hive-exec-dynamic-partition-true-ba5eb948": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/set-hive-exec-dynamic-partition-true-e8847cd4": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/set-hive-exec-dynamic-partition-true-ed839be3": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
  },
  "parse/hive-statement-commands/set-hive-exec-flag-select-mixed-dc6e19d7": {
   "op": "formatSql",
@@ -6342,27 +5897,6 @@
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "parse/hive-statement-commands/update-target-set-value-1-07d07806": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/update-target-set-value-1-492c4340": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/hive-statement-commands/update-target-set-value-1-b4393484": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
  },
  "parse/hive-statement-commands/update-target-set-value-1-where-id-2-79306d6b": {
   "op": "formatSql",
@@ -6477,27 +6011,6 @@
    "SYN_MAX_DEPTH_EXCEEDED"
   ]
  },
- "parse/recovery-opaque/insert-into-dst-values-1-07cf2a42": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/recovery-opaque/insert-into-dst-values-1-2179df7f": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/recovery-opaque/insert-into-dst-values-1-5527f2d6": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
  "parse/recovery-opaque/merge-into-t-using-s-on-t-id-s-id-when-m-60cde326": {
   "op": "formatSql",
   "status": "unchanged",
@@ -6544,28 +6057,7 @@
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
- "parse/recovery-opaque/select-a-from-t-limit-10-offset-2-2e7ffc29": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "parse/recovery-opaque/select-a-from-t-limit-10-offset-2-a027016e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/recovery-opaque/select-a-from-t-limit-10-offset-2-c360e437": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/recovery-opaque/select-a-from-t-limit-10-offset-2-d26ab3fb": {
   "op": "formatSql",
   "status": "formatted",
   "codes": [
@@ -6580,52 +6072,7 @@
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
- "parse/recovery-opaque/select-a-from-t-minus-select-a-from-u-37890f42": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/recovery-opaque/select-a-from-t-minus-select-a-from-u-9835fe0d": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/recovery-opaque/select-a-from-t-minus-select-a-from-u-9ce1bda0": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/recovery-opaque/select-a-from-t-order-by-a-nulls-last-562611eb": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "parse/recovery-opaque/select-a-from-t-order-by-a-nulls-last-98120ef8": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/recovery-opaque/select-a-from-t-order-by-a-nulls-last-a2b4c781": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/recovery-opaque/select-a-from-t-order-by-a-nulls-last-f4372189": {
   "op": "formatSql",
   "status": "formatted",
   "codes": [
@@ -6644,67 +6091,7 @@
   "status": "formatted",
   "codes": []
  },
- "parse/recovery-opaque/select-from-a-cross-join-b-qualify-c1-84fd557e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-cross-join-b-qualify-c1-c439e69b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-cross-join-join-x-qualify-91204943": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-cross-join-join-x-qualify-d072d72e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-a-cross-join-t-q-c-qualify-f-1c29eefc": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-cross-join-t-q-c-qualify-f-ca46bb67": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-cross-join-t-q-c-qualify-f-f8dcdec5": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-cross-join-t-q-c-qualify-f-ffd5bb66": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-join-b-q-on-a-id-b-id-qual-943c7349": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -6720,44 +6107,6 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-a-join-b-q-on-a-id-b-id-qual-d71fe546": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-join-b-q-on-a-id-b-id-qual-f005145b": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-join-b-qualify-c1-on-a-id-233d2eab": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-join-b-qualify-c1-on-a-id-9e7e8466": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-join-b-using-id-qualify-fl-2e124052": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-a-join-b-using-id-qualify-fl-aa25183f": {
   "op": "formatSql",
   "status": "unchanged",
@@ -6766,75 +6115,10 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-a-join-b-using-id-qualify-fl-b52bc4ce": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-join-b-using-id-qualify-fl-f9d9aba7": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-join-b-using-id-tenant-id-52be491a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/recovery-opaque/select-from-a-join-b-using-id-tenant-id-62a64c24": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "parse/recovery-opaque/select-from-a-join-b-using-id-tenant-id-6fd56a45": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "parse/recovery-opaque/select-from-a-join-b-using-id-tenant-id-79f65a03": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/recovery-opaque/select-from-a-join-t-qualify-on-a-id-t-i-a61f4a56": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/recovery-opaque/select-from-a-join-t-qualify-using-id-ba52a23b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/recovery-opaque/select-from-a-t-q-c-qualify-flag-097b116b": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-t-q-c-qualify-flag-3790520d": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-a-t-q-c-qualify-flag-e6545d51": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
  },
  "parse/recovery-opaque/select-from-a-t-q-c-qualify-flag-ee234e8e": {
   "op": "formatSql",
@@ -6844,186 +6128,12 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-base-as-qualify-c1-c2-2e6fcf10": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-as-qualify-c1-c2-bab836c0": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-base-join-t0-qualify-on-qual-3ddc58c6": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "parse/recovery-opaque/select-from-base-match-recognize-c1-c2-c31f6d68": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-match-recognize-c1-c2-c390a62c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-match-recognize-pattern-34bfaccb": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-match-recognize-pattern-c91e4928": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-ordinary-alias-c1-c2-4d19237a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-ordinary-alias-c1-c2-6314d62d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-pivot-c1-c2-34214c1f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-pivot-c1-c2-5da4737b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-qualify-c1-c2-7e818b93": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-qualify-c1-c2-a199a8b9": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-qualify-c1-cross-join-o-9b628f89": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-qualify-c1-cross-join-o-d717e294": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-qualify-c1-other-abd4133a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-qualify-c1-other-d97e41db": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-unpivot-c1-c2-28f44abf": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-base-unpivot-c1-c2-980d5864": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-fn-x-q-c-qualify-flag-3d334133": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-fn-x-q-c-qualify-flag-b6babcd2": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-fn-x-q-c-qualify-flag-b76b9478": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-fn-x-q-c-qualify-flag-cdc78134": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-fn-x-q-qualify-flag-b2dc388c": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-fn-x-q-qualify-flag-b57c5288": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-fn-x-q-qualify-flag-d6c3c64b": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7039,97 +6149,7 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-fn-x-qualify-c1-8705adec": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-fn-x-qualify-c1-c93f848a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-join-x-qualify-c1-4276ef80": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-join-x-qualify-c1-d4affb9a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-on-qualify-flag-1763c51b": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-on-qualify-flag-34cb2f85": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-on-qualify-flag-45d2c00a": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-on-qualify-flag-d67509d9": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-on-qualify-flag-fe4bab5a": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-schema-base-qualify-c1-057e9c97": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-schema-base-qualify-c1-16c42cec": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-select-1-as-c-q-c-qualify-fl-1d1c3ab3": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-select-1-as-c-q-c-qualify-fl-8ac95840": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7145,57 +6165,11 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-select-1-as-c-q-c-qualify-fl-e30edf83": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-select-1-as-flag-q-qualify-f-12259c13": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-select-1-as-flag-q-qualify-f-1dd54572": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-select-1-as-flag-q-qualify-f-6e8435c4": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-select-1-as-flag-q-qualify-f-873ff615": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
    "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-select-1-qualify-c1-19a45bf2": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-select-1-qualify-c1-2a97e956": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
@@ -7228,54 +6202,6 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-t-alias-name-c-qualify-flag-432511ca": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-alias-name-c-qualify-flag-8062d486": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-alias-name-c-qualify-flag-dd6d5b8b": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-as-q-qualify-flag-1262e2ee": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-as-q-qualify-flag-22f5b89a": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-as-q-qualify-flag-29050b4f": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-t-as-q-qualify-flag-dfb1021e": {
   "op": "formatSql",
   "status": "unchanged",
@@ -7284,31 +6210,7 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-t-join-u-on-true-v-q-qualify-04e0b951": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-t-join-u-on-true-v-q-qualify-1d423eb1": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-join-u-on-true-v-q-qualify-5563786f": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-join-u-on-true-v-q-qualify-a3c04687": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7345,20 +6247,6 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-t-q-alias-name-c-qualify-fla-9e62d6b5": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-c-qualify-flag-99f1c77e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-t-q-qualify-flag-0b29972a": {
   "op": "formatSql",
   "status": "unchanged",
@@ -7367,79 +6255,7 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-t-q-qualify-flag-38afb2b5": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-flag-c0e59f1c": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-flag-d6116c08": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-join-flag-b039895a": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-join-flag-d90de58a": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-t-q-qualify-join-flag-e658b9c2": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-join-flag-f1c02e65": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-on-33fe574a": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-on-625fa5da": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-on-8f44c7fe": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7463,55 +6279,7 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-t-q-qualify-using-459296bd": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-using-6736836c": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-q-qualify-using-e605289a": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-flag-01d5a8bd": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-t-qualify-join-flag-4bfb5d04": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-flag-4e19eac8": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-flag-51c73b3d": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7527,78 +6295,7 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-1-1-38aa9bc7": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-1-1-a016fbba": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-1-1-ad6592b2": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-1-4132e57e": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-t-qualify-join-select-1-1-77538102": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-1-acc293fd": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-1-bf7a3e9f": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-is-n-859d77ca": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-is-n-9d127b0c": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-is-n-beb0b815": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7614,47 +6311,7 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-over-941a89a9": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
  "parse/recovery-opaque/select-from-t-qualify-join-select-1-over-ac896d4f": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-over-af9f4081": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-over-e6737627": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-x-1-16cb06f2": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-x-1-3266b5c2": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7670,47 +6327,10 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "parse/recovery-opaque/select-from-t-qualify-join-select-1-x-1-ae01fa09": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-join-u-on-t-id-u-i-b5cdce0b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "parse/recovery-opaque/select-from-t-qualify-lateral-view-explo-ed827bdd": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "parse/recovery-opaque/select-from-t-qualify-on-5ff7f45d": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-on-6d23e9ce": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-on-9000fbbe": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
  },
  "parse/recovery-opaque/select-from-t-qualify-on-b909c17b": {
   "op": "formatSql",
@@ -7726,30 +6346,6 @@
   "codes": []
  },
  "parse/recovery-opaque/select-from-t-qualify-using-189a384f": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-using-2edcea53": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-using-32c6779b": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "parse/recovery-opaque/select-from-t-qualify-using-c7da4460": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7795,36 +6391,6 @@
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "parse/recovery-opaque/select-from-t0-qualify-c0-cross-join-t1-c025305a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
  },
  "parse/recovery-opaque/select-from-t0-qualify-cross-join-t1-qua-35eeb359": {
   "op": "formatSql",
@@ -7872,31 +6438,7 @@
   "status": "formatted",
   "codes": []
  },
- "parse/recovery-opaque/with-s-as-select-1-as-id-merge-into-t-us-5e6e3d20": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/recovery-opaque/with-s-as-select-1-as-id-merge-into-t-us-9f4c4e7d": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
  "parse/recovery-opaque/with-s-as-select-1-as-id-merge-into-t-us-a24e0762": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "parse/recovery-opaque/with-s-as-select-1-as-id-merge-into-t-us-a63c835b": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
@@ -7940,11 +6482,6 @@
   "codes": [
    "SYN_UNEXPECTED_TOKEN"
   ]
- },
- "parse/trivia-binding/select-a-outer-inner-emoji-b-6c710e11": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
  },
  "parse/trivia-binding/select-blank-separated-a-d5741625": {
   "op": "formatSql",
@@ -8175,21 +6712,6 @@
   "status": "formatted",
   "codes": []
  },
- "parse/wave3a-cst-invariants/select-a-b-b77de5f8": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": []
- },
- "parse/wave3a-cst-invariants/select-a-b-c-int-from-schema-t-e87f1143": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "parse/wave3a-cst-invariants/select-a-b-from-t-5ffb8bd1": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "parse/wave3a-cst-invariants/select-a-from-t-5ddcd260": {
   "op": "formatSql",
   "status": "formatted",
@@ -8263,11 +6785,6 @@
  "parse/wave3a-cst-invariants/select-hiveconf-key-49651421": {
   "op": "formatSql",
   "status": "unchanged",
-  "codes": []
- },
- "parse/wave3a-cst-invariants/select-name-utf8mb4-abc-e6e71774": {
-  "op": "formatSql",
-  "status": "formatted",
   "codes": []
  },
  "parse/wave3a-cst-invariants/select-sum-x-over-order-by-ts-rows-betwe-2f542fa7": {
@@ -9244,39 +7761,6 @@
   "status": "formatted",
   "codes": []
  },
- "probe/options/generic-basic": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/generic-dquote-ident": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/generic-fetch": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/generic-insert-select": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "probe/options/generic-values": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
  "probe/options/hive-dollar-param-pg": {
   "op": "formatSql",
   "status": "formatted",
@@ -9396,96 +7880,6 @@
   "status": "formatted",
   "codes": []
  },
- "probe/options/mysql-backtick": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/mysql-div": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/mysql-dquote-string": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/mysql-group-concat": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/mysql-hash-comment": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/mysql-hex-bit": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/mysql-json": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/mysql-limit": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/mysql-limit-offset": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/mysql-on-dup": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "probe/options/mysql-regexp": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/mysql-straight-join": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "probe/options/mysql-vars": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "probe/options/opt-bad-dialect": {
-  "op": "formatSql",
-  "status": "failed",
-  "codes": [
-   "CFG_OPTION_VALUE"
-  ]
- },
  "probe/options/opt-casewrap-301": {
   "op": "formatSql",
   "status": "failed",
@@ -9505,113 +7899,6 @@
   "status": "failed",
   "codes": [
    "CFG_UNKNOWN_OPTION"
-  ]
- },
- "probe/options/pg-array": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/pg-cast": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-cast-func": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-cte-materialized": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_INCOMPLETE_CLAUSE",
-   "SYN_INCOMPLETE_CLAUSE"
-  ]
- },
- "probe/options/pg-dollar-quote": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-double-quoted-ident": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-e-string": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-filter-agg": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/pg-group-rollup": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-ilike-distinct-on": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-interval": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-json": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-lateral": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/pg-limit-offset": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/pg-on-conflict": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "probe/options/pg-params": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/pg-returning-update": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "probe/options/pg-window": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
   ]
  },
  "probe/options/policy-bail-div": {
@@ -9665,23 +7952,6 @@
   "codes": [
    "SYN_UNEXPECTED_TOKEN"
   ]
- },
- "probe/options/rev2-4-cjk-unquoted-generic": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "probe/options/rev2-4-cjk-unquoted-mysql": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "probe/options/rev2-4-cjk-unquoted-pg": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
  },
  "probe/options/tab-cmt-align": {
   "op": "formatSql",
@@ -10308,14 +8578,6 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/production-private-contract/select-a-collate-c-from-t-dd19fcab": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
  "recapture/production-private-contract/select-a-from-t-dd4baca9": {
   "op": "formatSql",
   "status": "formatted",
@@ -10354,27 +8616,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-1-b-2-as-y-from-t-w-7c5bbf1f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-a-1-as-x-fuzz-112-not-flag-as-y-f-eae2d74f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-113-not-flag-as-y-f-cb8fb0b8": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-114-not-flag-as-y-f-9f68fab1": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-115-not-flag-as-y-f-b34ce6b6": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10384,47 +8626,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-17-coalesce-b-0-as-929dec22": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-18-coalesce-b-0-as-f74e85c5": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-19-coalesce-b-0-as-855ba94d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-2-b-2-as-y-from-t-w-6dd01354": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-3-b-2-as-y-from-t-w-ce66a075": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-a-1-as-x-fuzz-32-as-y-from-t-wher-f6b55ddd": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-33-value-as-y-from-2dc688cd": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-34-1-as-y-from-t-wh-9554c969": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-35-value-as-y-from-c45324ba": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10434,37 +8636,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-49-not-flag-as-y-fr-2726d8f7": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-50-not-flag-as-y-fr-1c0e39b9": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-51-not-flag-as-y-fr-2733b624": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-a-1-as-x-fuzz-64-b-2-as-y-from-t-8c18646f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-65-b-2-as-y-from-t-8e9f51fd": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-66-b-2-as-y-from-t-76348ffd": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-67-b-2-as-y-from-t-ea78aa09": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10474,37 +8646,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-81-coalesce-b-0-as-6ed8c9a5": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-82-coalesce-b-0-as-3aa0514d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-83-coalesce-b-0-as-5cf1ac97": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-a-1-as-x-fuzz-96-as-y-from-t-wher-713fe921": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-97-value-as-y-from-56228934": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-98-1-as-y-from-t-wh-26d44c39": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-a-1-as-x-fuzz-99-value-as-y-from-016cb441": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10526,31 +8668,6 @@
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-13ed7130": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-1caf02bf": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-29157f7c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-2956307e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-31972cf8": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-34e21b3d": {
   "op": "formatSql",
   "status": "formatted",
@@ -10561,57 +8678,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-4c5e4537": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-584fbe9a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-5a7f872a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-5b905cc0": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-5bf349ca": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-616b677f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-7be1136e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-8041236c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-85522da5": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-87a70b57": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-89d3da37": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10621,42 +8688,12 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-b15c8cce": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-c123cca7": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-cad7f221": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-ccfc7cc3": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-d3899a37": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-d83caa42": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-d901bcc5": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-e378c356": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10671,41 +8708,10 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-ef51f25d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-fb9cb941": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-case-when-a-1-then-2-else-3-end-a-fdc7f12e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-case-when-hz-then-else-end-as-fro-683e3506": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "recapture/wave3-properties/select-from-event-stream-match-recognize-332d8343": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3-properties/select-from-sales-source-pivot-sum-amoun-f1ac32b4": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
  },
  "recapture/wave3-properties/select-from-select-from-select-from-sele-edf5c738": {
   "op": "formatSql",
@@ -10724,11 +8730,6 @@
    "FMT_UNSUPPORTED_BAIL_OUT"
   ]
  },
- "recapture/wave3-properties/select-from-where-47af88fd": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-from-where-ca388186": {
   "op": "formatSql",
   "status": "formatted",
@@ -10739,37 +8740,7 @@
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
- "recapture/wave3-properties/select-from-where-e4b5a050": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3-properties/select-from-where-f40bc93c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-from-x-as-x-fuzz-100-as-y-from-t-7ba34213": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-101-value-as-y-f-1a9b2f7f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-102-1-as-y-from-36a9000c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-103-value-as-y-f-ab7be21f": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10779,37 +8750,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-117-not-flag-as-1f654920": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-118-not-flag-as-90179791": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-119-not-flag-as-917fab37": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-from-x-as-x-fuzz-20-coalesce-b-0-39fadff8": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-21-coalesce-b-0-36e3c4de": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-22-coalesce-b-0-66b91321": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-23-coalesce-b-0-682efc1e": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10819,27 +8760,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-37-value-as-y-fr-617907a0": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-38-1-as-y-from-t-ab9e9396": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-39-value-as-y-fr-3ba3c661": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-from-x-as-x-fuzz-4-b-2-as-y-from-49962c67": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-5-b-2-as-y-from-88e61a1c": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10849,47 +8770,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-53-not-flag-as-y-4a0bcd94": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-54-not-flag-as-y-92bb3aa1": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-55-not-flag-as-y-837497f8": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-6-b-2-as-y-from-a8522143": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-from-x-as-x-fuzz-68-b-2-as-y-from-50671e22": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-69-b-2-as-y-from-dafbd184": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-7-b-2-as-y-from-f0a4c4e3": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-70-b-2-as-y-from-0417cb60": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-71-b-2-as-y-from-72409783": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10899,47 +8780,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-85-coalesce-b-0-33e3e45e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-86-coalesce-b-0-ba11d2a9": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-from-x-as-x-fuzz-87-coalesce-b-0-bb869435": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-10-b-2-as-y-d773441d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-mixed-name-as-x-fuzz-104-as-y-fro-b1ae8686": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-105-value-as-439067b7": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-106-1-as-y-f-a4753fbc": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-107-value-as-4b09e6b7": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-11-b-2-as-y-d5ad0b86": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10949,37 +8790,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-121-not-flag-88b56cc2": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-122-not-flag-433fe2b3": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-123-not-flag-50149bff": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-mixed-name-as-x-fuzz-24-coalesce-d7ff20cb": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-25-coalesce-9d726b69": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-26-coalesce-96ae7b6f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-27-coalesce-7ea010b3": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -10989,57 +8800,12 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-41-value-as-493b8c44": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-42-1-as-y-fr-7fe7ce38": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-43-value-as-0f1bf8c4": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-mixed-name-as-x-fuzz-56-not-flag-9fe587fd": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-57-not-flag-5ad02282": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-58-not-flag-47e5ef00": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-59-not-flag-b848f54a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-mixed-name-as-x-fuzz-72-b-2-as-y-9d0bf693": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-73-b-2-as-y-e0ca1659": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-74-b-2-as-y-edba873c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-75-b-2-as-y-daeb0d28": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -11054,26 +8820,6 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-89-coalesce-def24b8c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-9-b-2-as-y-f-4fdf3bcb": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-90-coalesce-f55c9306": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3-properties/select-mixed-name-as-x-fuzz-91-coalesce-5cd760f6": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-region-city-count-as-order-count-1c242db7": {
   "op": "formatSql",
   "status": "unchanged",
@@ -11081,11 +8827,6 @@
    "SYN_UNMODELED_CONSTRUCT",
    "SYN_UNMODELED_CONSTRUCT"
   ]
- },
- "recapture/wave3-properties/select-tab-name-as-tabbed-elect-as-long-4298cc2c": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
  },
  "recapture/wave3-properties/select-transform-payload-using-python3-n-b11473bb": {
   "op": "formatSql",
@@ -11095,20 +8836,7 @@
    "SYN_UNMODELED_CONSTRUCT"
   ]
  },
- "recapture/wave3-properties/select-u-id-payload-order-id-as-order-id-d3ad7410": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3-properties/select-unterminated-0-88b2180e": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-1-bb33ee04": {
   "op": "formatSql",
   "status": "preserved",
   "codes": [
@@ -11124,63 +8852,7 @@
    "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
   ]
  },
- "recapture/wave3-properties/select-unterminated-13-2b31261e": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-14-820c542c": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-15-df66184f": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
  "recapture/wave3-properties/select-unterminated-16-084335fd": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-17-f8d91f6e": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-18-68f0f1ee": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-19-c9751f43": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-2-66ca2e5f": {
   "op": "formatSql",
   "status": "preserved",
   "codes": [
@@ -11196,63 +8868,7 @@
    "LEX_UNTERMINATED_BLOCK_COMMENT"
   ]
  },
- "recapture/wave3-properties/select-unterminated-21-3a9bb901": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-22-08d4229b": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-23-b085614a": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
  "recapture/wave3-properties/select-unterminated-28-fb398f74": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-29-874f100c": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-3-92aabdaf": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-30-c55a8ef2": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-31-34c0eb50": {
   "op": "formatSql",
   "status": "preserved",
   "codes": [
@@ -11268,55 +8884,7 @@
    "LEX_UNTERMINATED_STRING"
   ]
  },
- "recapture/wave3-properties/select-unterminated-33-65dfdb01": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-34-7143884d": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-35-a89dab99": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_STRING"
-  ]
- },
  "recapture/wave3-properties/select-unterminated-36-9fb56107": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-37-76a38d70": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-38-4c6ab02b": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-39-13b1d5c3": {
   "op": "formatSql",
   "status": "preserved",
   "codes": [
@@ -11348,97 +8916,7 @@
    "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
   ]
  },
- "recapture/wave3-properties/select-unterminated-45-197c46e9": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-46-249b77e9": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-47-5ae8db66": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_QUOTED_IDENTIFIER"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-5-d87120fe": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-6-a126c74c": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
- "recapture/wave3-properties/select-unterminated-7-12ab7ff4": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LEX_UNTERMINATED_BLOCK_COMMENT"
-  ]
- },
- "recapture/wave3-properties/select-x-2eb79242": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
- "recapture/wave3-properties/select-x-5522eb58": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
  "recapture/wave3-properties/select-x-7ba78e8c": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
- "recapture/wave3-properties/select-x-8182fd27": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
- "recapture/wave3-properties/select-x-8234f04f": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
- "recapture/wave3-properties/select-x-82ef276a": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
- "recapture/wave3-properties/select-x-a70b7887": {
   "op": "formatSql",
   "status": "preserved",
   "codes": [
@@ -11452,28 +8930,7 @@
    "SYN_UNMATCHED_DELIMITER"
   ]
  },
- "recapture/wave3-properties/select-x-af59edad": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
- "recapture/wave3-properties/select-x-b4e97fa1": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
  "recapture/wave3-properties/select-x-b62f8813": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMATCHED_DELIMITER"
-  ]
- },
- "recapture/wave3-properties/select-x-f3019641": {
   "op": "formatSql",
   "status": "preserved",
   "codes": [
@@ -11543,16 +9000,6 @@
   "codes": []
  },
  "recapture/wave3b-format-kernel/select-1-c943c047": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3b-format-kernel/select-1-e4bfde68": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3b-format-kernel/select-1-ef32a758": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -11825,89 +9272,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3d-expression-layout/select-a-1-2-jsonb-a-0-from-t-26c61407": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3d-expression-layout/select-a-b-from-t-21973c9d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3d-expression-layout/select-a-b-from-t-2b5fff43": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3d-expression-layout/select-a-b-from-t-7ee642e4": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3d-expression-layout/select-a-b-from-t-b5932b99": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3d-expression-layout/select-a-b-from-t-c3583627": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3d-expression-layout/select-a-from-t-05e7dd66": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-a-from-t-0a7e2e71": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-a-from-t-267dfbdb": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-a-from-t-66329214": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3d-expression-layout/select-a-from-t-7c0407e5": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-a-from-t-c87ef619": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-a-from-t-da9fb31f": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-a-from-t-e2ea056d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-a-from-t-f0cf6fc7": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -11932,24 +9297,7 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3d-expression-layout/select-doc-a-0-from-t-6d693940": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
  "recapture/wave3d-expression-layout/select-keep-a-from-t-1634e49b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-payload-x-from-t-5a69045b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3d-expression-layout/select-payload-x-from-t-e90777d6": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -11991,11 +9339,6 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3e-alignment-options/select-a-as-x-longer-as-y-payload-x-as-j-3b9e225e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3e-alignment-options/select-a-as-x-one-longer-as-y-two-from-t-77a385ce": {
   "op": "formatSql",
   "status": "formatted",
@@ -12021,43 +9364,6 @@
   "status": "formatted",
   "codes": []
  },
- "recapture/wave3e-dialect-layout/merge-into-t-using-s-on-t-id-s-id-when-m-1ec98ac2": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "recapture/wave3e-dialect-layout/merge-into-t-using-s-on-t-id-s-id-when-m-3339fb83": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
- },
- "recapture/wave3e-dialect-layout/merge-into-t-using-s-on-t-id-s-id-when-m-895662bb": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-1-select-2-031e1f0d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-1-select-2-1a964611": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-1-select-2-3239a77a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
  "recapture/wave3e-dialect-layout/select-1-select-a-from-t-qualify-row-num-301755f8": {
   "op": "formatSql",
   "status": "preserved",
@@ -12073,26 +9379,6 @@
   "codes": [
    "SYN_UNMODELED_CONSTRUCT",
    "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-as-x-b-as-y-from-t-191bd539": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-a-collate-c-from-t-831055d1": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-collate-c-from-t-ec7d1824": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
   ]
  },
  "recapture/wave3e-dialect-layout/select-a-div-b-from-t-9653a663": {
@@ -12139,216 +9425,6 @@
    "SYN_MAX_DEPTH_EXCEEDED",
    "FMT_UNSUPPORTED_BAIL_OUT"
   ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-match-recognize-pattern-1b9f3a6c": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-match-recognize-pattern-4db7b47b": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-match-recognize-pattern-a25c1dc1": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-pivot-sum-v-for-k-in-1-49fc310b": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-pivot-sum-v-for-k-in-1-75df610e": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-pivot-sum-v-for-k-in-1-994abb0f": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-qualify-row-number-over-0f77727a": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-qualify-row-number-over-3ff3c35d": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-qualify-row-number-over-5bb29b6d": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-union-all-select-b-from-226c2390": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-union-all-select-b-from-f621dbd2": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-union-all-select-b-from-f939d1ae": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-unpivot-v-for-k-in-a-b-42a27ce1": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-unpivot-v-for-k-in-a-b-c0bb98eb": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-a-from-t-unpivot-v-for-k-in-a-b-df332784": {
-  "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNMODELED_CONSTRUCT",
-   "SYN_UNMODELED_CONSTRUCT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-case-when-a-1-then-lower-cast-a-a-91948b57": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-case-when-a-1-then-lower-cast-a-a-a24b933e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-case-when-a-1-then-lower-cast-a-a-d7f3d36b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-count-filter-where-x-1-from-t-2dadf262": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-count-filter-where-x-1-from-t-89ac2dbe": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-doc-a-0-from-t-355cdedc": {
-  "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-doc-a-0-from-t-8bd0c3da": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
- },
- "recapture/wave3e-dialect-layout/select-from-as-name-cast-a-as-char-as-va-7c7cf9da": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-from-where-as-body-cast-a-as-text-e45ff5f0": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-name-as-x-b-as-y-from-t-f15060bf": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-x-from-unnest-a-x-690bd0e0": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-x-from-unnest-a-x-84a26d4e": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/select-x-from-unnest-a-x-9712e71a": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/with-c-as-select-a-1-as-x-from-t-where-a-1569dc05": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/with-c-as-select-a-from-t-where-a-0-sele-b707d8b2": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/with-c-as-select-a-from-t-where-a-0-sele-be173ed5": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
- },
- "recapture/wave3e-dialect-layout/with-c-as-select-a-from-t-where-a-0-sele-dea99f8d": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": []
  },
  "recapture/wave3e-option-matrix/select-case-when-a-1-then-from-else-y-en-112aadcc": {
   "op": "formatSql",
@@ -12709,13 +9785,6 @@
   "op": "formatSql",
   "status": "formatted",
   "codes": []
- },
- "recapture/wave3e-trivia-layout/select-mixed-name-as-x-keep-value-as-y-f-d0d1c07b": {
-  "op": "formatSql",
-  "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
  },
  "recapture/wave4-properties/create-external-table-db108-t-108-c108-0-81f39e7c": {
   "op": "formatHiveDdl",

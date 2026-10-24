@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-select a, rank() over (partition by b order by c desc nulls last) from t

@@ -1,4 +1,0 @@
-SELECT
-      𐐀name AS x
-    , b     AS y
-FROM t

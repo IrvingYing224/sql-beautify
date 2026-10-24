@@ -1,4 +1,0 @@
-SELECT
-      data->'$.a'
-    , data->>'$.b'
-FROM t

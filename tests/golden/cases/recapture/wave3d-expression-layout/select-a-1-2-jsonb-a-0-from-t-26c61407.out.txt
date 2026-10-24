@@ -1,3 +1,0 @@
-SELECT
-      '{"a":[1,2]}'::jsonb#-'{a,0}'
-FROM t

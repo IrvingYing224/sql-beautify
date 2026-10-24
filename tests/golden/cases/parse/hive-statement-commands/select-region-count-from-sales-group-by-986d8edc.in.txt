@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-SELECT region, count(*) FROM sales GROUP BY region GROUPING SETS ((region),())

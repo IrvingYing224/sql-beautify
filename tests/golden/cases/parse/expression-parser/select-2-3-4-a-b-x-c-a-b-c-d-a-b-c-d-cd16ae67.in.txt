@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-SELECT 2 * 3 ^ 4, a + b ->> 'x' = c, a + b || c = d, a + b & c = d

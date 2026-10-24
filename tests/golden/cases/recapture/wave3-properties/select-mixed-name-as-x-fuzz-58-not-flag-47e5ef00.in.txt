@@ -1,5 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":66,"commaStyle":"trailing","dialect":"postgresql","keywordCase":"lower","maxAlignWidth":69}}
-SeLeCt
-"Mixed Name"
-as x,	/* fuzz 58 */
-not flag	as y	from	t where a=1 and b>2

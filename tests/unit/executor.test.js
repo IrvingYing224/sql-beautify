@@ -17,7 +17,7 @@ var Worker = require('worker_threads').Worker;
 var THRESHOLD = 32768;
 
 function options(extra) {
-    return m.config.resolveFormatOptions(Object.assign({ dialect: 'hive', unsupportedSyntaxPolicy: 'preserve' }, extra)).options;
+    return m.config.resolveFormatOptions(Object.assign({ unsupportedSyntaxPolicy: 'preserve' }, extra)).options;
 }
 
 function request(source, extra) {

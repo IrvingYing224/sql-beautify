@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-select payload->>'x' as x from t

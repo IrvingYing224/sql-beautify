@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-select "abc" from t

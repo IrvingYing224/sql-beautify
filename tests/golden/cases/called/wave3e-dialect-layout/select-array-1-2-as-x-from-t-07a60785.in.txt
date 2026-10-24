@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-select ARRAY[1,2] as x from t

@@ -1,6 +1,0 @@
-SELECT
-      a::int
-    , b::text[]
-    , '2024-01-01'::date + 1
-    , (x->>'k')::numeric
-FROM t

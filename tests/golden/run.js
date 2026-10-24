@@ -65,7 +65,6 @@ var compute = core.compute;
 var HEADER = '-- golden: ';
 var FIELDS = ['op', 'options', 'mode', 'newline', 'tabSize', 'startColumn'];
 var OPS = ['formatSql', 'formatHiveDdl', 'extractDdl'];
-var DIALECTS = ['generic', 'hive', 'postgresql', 'mysql'];
 var WAIVABLE = ['token', 'glue', 'idempotence'];
 var WORD = { keyword: true, identifier: true, number: true, parameter: true };
 var STOP = { ',': true, '(': true, ')': true, ';': true };
@@ -226,10 +225,10 @@ async function execute(source, spec) {
     return { text: result.text, status: result.status, codes: codesOf(result.diagnostics) };
 }
 
-function codeLeaves(source, dialect) {
+function codeLeaves(source) {
     var leaves = [];
     var gap = true;
-    lexer.lexSql(source, { dialect: dialect }).leaves.forEach(function(leaf) {
+    lexer.lexSql(source).leaves.forEach(function(leaf) {
         if (leaf.kind === 'whitespace' || leaf.kind === 'newline') {
             gap = true;
             return;
@@ -253,8 +252,8 @@ function describe(leaves, index) {
 
 // Indexes into the input code leaves whose case formatSql may change: leaves the layout plan
 // re-cases that also have a CST keyword role, as in the runtime token check (src/core/api/format.ts).
-function sqlCaseAuthorized(source, options, dialect, mode, a) {
-    var analysis = analyze.analyzeSql(source, { dialect: dialect, mode: mode });
+function sqlCaseAuthorized(source, options, mode, a) {
+    var analysis = analyze.analyzeSql(source, { mode: mode });
     var resolved = resolveOptions.resolveFormatOptions(options);
     var planned = resolved.ok && analysis.status === 'analyzed'
         ? policy.buildLayoutPlan(analysis, resolved.options)
@@ -284,7 +283,7 @@ function ddlCaseAuthorized(source, env, a) {
     if (status !== 'formatted' && status !== 'unchanged') {
         return allowed;
     }
-    var artifact = parser.parseSqlArtifact(source, { dialect: 'hive', mode: 'document' });
+    var artifact = parser.parseSqlArtifact(source, { mode: 'document' });
     var leaves = artifact.output.leaves;
     var codeIndex = new Map();
     a.forEach(function(leaf, index) {
@@ -424,13 +423,10 @@ function glueViolations(a, b) {
 // Safety floor 2 (plan §4): token equivalence plus glue preservation. Returns failures by property.
 function floorFailures(source, output, spec) {
     var env = resolveEnvironment(spec, source);
-    var dialect = env.options && DIALECTS.indexOf(env.options.dialect) >= 0
-        ? env.options.dialect
-        : 'hive';
-    var a = codeLeaves(source, dialect);
-    var b = codeLeaves(output, dialect);
+    var a = codeLeaves(source);
+    var b = codeLeaves(output);
     var allowed = env.op === 'formatSql'
-        ? sqlCaseAuthorized(source, env.options, dialect, env.mode, a)
+        ? sqlCaseAuthorized(source, env.options, env.mode, a)
         : ddlCaseAuthorized(source, env, a);
     var mismatch = tokenMismatch(a, b, allowed);
     if (mismatch !== null) {
@@ -465,8 +461,8 @@ function selfTest() {
         ['select a  from t', 'select a\nfrom t', ''],
     ].forEach(function(probe) {
         var actual = Object.keys(floorFailures(probe[0], probe[1], {})).join();
-        var a = codeLeaves(probe[0], 'hive');
-        var b = codeLeaves(probe[1], 'hive');
+        var a = codeLeaves(probe[0]);
+        var b = codeLeaves(probe[1]);
         // Token-equivalent probes hold for the runtime rule in floor.ts as well.
         var kept = probe[2] === 'token' || floor.glueKept(a.map(function(leaf, i) {
             return { source: leaf, output: b[i], sourceGap: leaf.gap, outputGap: b[i].gap };
@@ -479,7 +475,7 @@ function selfTest() {
     // After a template swallow judged glue the runtime check goes on, so a later changed token is
     // still reported as token (P1b-M1). Hive, document mode, default options.
     var options = resolveOptions.resolveFormatOptions(undefined).options;
-    var analysis = analyze.analyzeSql('select ${v} + 1 from t', { dialect: options.dialect, mode: 'document' });
+    var analysis = analyze.analyzeSql('select ${v} + 1 from t', { mode: 'document' });
     var plan = policy.buildLayoutPlan(analysis, options).plan;
     [
         ['SELECT ${v}+ 1 FROM t', 'glue'],
@@ -701,7 +697,7 @@ async function runFuzz(total) {
     var failures = [];
     for (var i = 0; i < total && inputs.length > 0; i++) {
         var base = inputs[random(inputs.length)];
-        var leaves = lexer.lexSql(base.source, { dialect: 'hive' }).leaves.map(function(leaf) {
+        var leaves = lexer.lexSql(base.source).leaves.map(function(leaf) {
             return leaf.raw;
         });
         var at = random(leaves.length + 1);

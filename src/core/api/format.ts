@@ -235,10 +235,7 @@ export function formatSql(
             return originalResult("preserved", source, [value]);
         }
         const options = resolved.options;
-        const analysis = analyzeSql(source, {
-            dialect: options.dialect,
-            mode: modeValue,
-        });
+        const analysis = analyzeSql(source, { mode: modeValue });
         if (analysis.status === "failed") {
             return originalResult("failed", source, analysis.diagnostics);
         }

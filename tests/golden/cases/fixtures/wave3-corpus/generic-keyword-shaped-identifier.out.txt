@@ -1,4 +1,0 @@
-SELECT
-      qualify AS c
-FROM t
-WHERE qualify = 1

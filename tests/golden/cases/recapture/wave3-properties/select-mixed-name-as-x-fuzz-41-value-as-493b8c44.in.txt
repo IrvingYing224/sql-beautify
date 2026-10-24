@@ -1,3 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":55,"dialect":"generic","indentStyle":"tab","maxAlignWidth":81,"unsupportedSyntaxPolicy":"bail_out"}}
-SeLeCt "Mixed Name"  as x,
-/* fuzz 41 */	:value  as y FrOm	t where a=1 and b>2

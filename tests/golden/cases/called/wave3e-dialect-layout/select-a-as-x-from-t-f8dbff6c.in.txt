@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql","unsupportedSyntaxPolicy":"bail_out"}}
-select 'a' as x from t

@@ -1,5 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":45,"commaStyle":"trailing","dialect":"postgresql","keywordCase":"lower","maxAlignWidth":133,"unsupportedSyntaxPolicy":"preserve"}}
-select "Mixed Name"
-as x,
-/* fuzz 106 */  $1 as y  FrOm
-t where a=1 and b>2

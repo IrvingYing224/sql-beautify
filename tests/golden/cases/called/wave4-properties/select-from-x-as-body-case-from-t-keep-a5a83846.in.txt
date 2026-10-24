@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql","unsupportedSyntaxPolicy":"preserve"}}
-select $$FROM, x$$ as body, "Case" from t /* keep */

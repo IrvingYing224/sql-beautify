@@ -1,7 +1,0 @@
-SELECT
-      a      AS x
-    , longer AS y
-    , payload->>'x' AS j
-    , c           AS z
-    , widest_name AS q
-FROM t

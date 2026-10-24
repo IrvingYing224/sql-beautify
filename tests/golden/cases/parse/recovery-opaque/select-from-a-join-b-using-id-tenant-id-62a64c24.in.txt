@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-SELECT * FROM a JOIN b USING (id, tenant_id)

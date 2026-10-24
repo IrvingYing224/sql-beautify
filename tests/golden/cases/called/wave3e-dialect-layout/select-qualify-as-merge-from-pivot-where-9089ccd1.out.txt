@@ -1,4 +1,0 @@
-SELECT
-      qualify AS merge
-FROM pivot
-WHERE unpivot = 1

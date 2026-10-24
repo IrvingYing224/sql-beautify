@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-select * from a, lateral (select * from b where b.id = a.id) x

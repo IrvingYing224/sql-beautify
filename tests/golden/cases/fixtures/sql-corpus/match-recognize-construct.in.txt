@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-SELECT * FROM t MATCH_RECOGNIZE (PARTITION BY id ORDER BY ts PATTERN (A+) DEFINE A AS value > 0)

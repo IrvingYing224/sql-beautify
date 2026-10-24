@@ -1,3 +1,0 @@
-SELECT
-      count(*) filter (where a > 1) AS c
-FROM t

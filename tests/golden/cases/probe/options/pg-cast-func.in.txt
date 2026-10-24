@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-select cast(a as varchar(10)), a::varchar(10) from t

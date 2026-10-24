@@ -1,3 +1,0 @@
-SELECT
-      *
-FROM t LATERAL VIEW EXPLODE(items) e AS item

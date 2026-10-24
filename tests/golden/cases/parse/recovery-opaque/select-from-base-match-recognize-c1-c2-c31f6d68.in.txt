@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-SELECT * FROM base match_recognize(c1, c2)

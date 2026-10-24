@@ -1,3 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":93,"commaStyle":"trailing","dialect":"postgresql","indentStyle":"tab","maxAlignWidth":94,"unsupportedSyntaxPolicy":"bail_out"}}
-SELECT	a+1	as x,	/* fuzz 50 */ not flag
-as y from  t where a=1 and b>2

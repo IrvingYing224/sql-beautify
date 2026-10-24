@@ -1,4 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":67,"commaStyle":"trailing","dialect":"mysql","maxAlignWidth":85,"unsupportedSyntaxPolicy":"preserve"}}
-SELECT 'FROM  x'
-as x,
-/* fuzz 7 */	b*2 as y FrOm  t where a=1 and b>2

@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-select 1; select 2

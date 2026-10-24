@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-SELECT * FROM a JOIN b q ON a.id = b.id QUALIFY (flag)

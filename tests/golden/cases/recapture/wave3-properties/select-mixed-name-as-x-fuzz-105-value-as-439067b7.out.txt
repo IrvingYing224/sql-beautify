@@ -1,6 +1,0 @@
-SELECT
-      "Mixed Name" AS x, /* fuzz 105 */
-      :value       AS y
-FROM t
-WHERE a = 1
-    AND b > 2

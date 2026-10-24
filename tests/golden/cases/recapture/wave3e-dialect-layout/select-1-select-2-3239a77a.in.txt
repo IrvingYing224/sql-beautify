@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-select 1; select 2

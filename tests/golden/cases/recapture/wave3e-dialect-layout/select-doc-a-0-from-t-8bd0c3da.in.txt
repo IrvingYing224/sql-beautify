@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql","unsupportedSyntaxPolicy":"preserve"}}
-select doc#-'{a,0}' from t

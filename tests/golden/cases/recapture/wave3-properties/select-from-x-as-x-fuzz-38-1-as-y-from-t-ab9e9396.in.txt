@@ -1,5 +1,0 @@
--- golden: {"options":{"dialect":"postgresql","maxAlignWidth":127,"unsupportedSyntaxPolicy":"preserve"}}
-select
-'FROM  x' as x,
-/* fuzz 38 */
-$1  as y	FrOm	t where a=1 and b>2

@@ -1,5 +1,0 @@
-SELECT
-      E'abc'
-    , U&'d\0061t'
-FROM t
-WHERE name !~* 'x'

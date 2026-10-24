@@ -1,4 +1,0 @@
-SELECT
-      á AS x
-    , b AS y
-FROM t

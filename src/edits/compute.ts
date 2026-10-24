@@ -146,7 +146,7 @@ function computeFormat(request: FormatRequest, debugEvents: DebugEvent[]): Compu
     if (targets === null) {
         return rejected([documentDiagnostic(source, "ADAPTER_TRANSACTION_TARGET", "Formatting targets overlap")]);
     }
-    const validation = validateFormatTargets(source, targets, request.options.dialect);
+    const validation = validateFormatTargets(source, targets);
     if (!validation.ok) {
         // A range that cannot be formatted alone is no problem in the SQL, for example half a
         // statement that formatOnPaste passes to the range provider (K26).

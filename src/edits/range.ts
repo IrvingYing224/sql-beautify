@@ -1,6 +1,5 @@
 import { analyzeSql } from "../core/analysis/analyze";
 import type { AnalyzedArtifact } from "../core/analysis/types";
-import type { Dialect } from "../core/config/options";
 import { lexSql } from "../core/lexer/lossless-lexer";
 import type { SourceLeaf } from "../core/lexer/token";
 import type { EditTarget } from "./types";
@@ -176,8 +175,7 @@ function validateFormatTarget(
  */
 export function validateFormatTargets(
     source: string,
-    targets: readonly EditTarget[],
-    dialect: Dialect
+    targets: readonly EditTarget[]
 ): FormatRangeValidation {
     let evidence: FormatEvidence | null = null;
     if (targets.some((target) =>
@@ -185,7 +183,7 @@ export function validateFormatTargets(
         target.start !== target.end &&
         !(target.start === 0 && target.end === source.length)
     )) {
-        const artifact = analyzeSql(source, { dialect, mode: "document" });
+        const artifact = analyzeSql(source, { mode: "document" });
         evidence = artifact.status === "analyzed" ? formatEvidence(artifact) : null;
     }
     const modes = new Map<string, "document" | "fragment">();

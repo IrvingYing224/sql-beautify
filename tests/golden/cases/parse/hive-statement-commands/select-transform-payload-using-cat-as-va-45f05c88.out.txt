@@ -1,3 +1,0 @@
-SELECT
-      TRANSFORM(payload) USING 'cat' AS (value string)
-FROM src

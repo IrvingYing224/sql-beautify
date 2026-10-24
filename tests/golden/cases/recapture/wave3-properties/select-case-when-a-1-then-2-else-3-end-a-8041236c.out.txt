@@ -1,6 +1,0 @@
-SELECT
-      CASE WHEN a = 1 THEN 2 ELSE 3 END AS x, /* fuzz 30 */
-      coalesce(b, 0)                    AS y
-FROM t
-WHERE a = 1
-    AND b > 2

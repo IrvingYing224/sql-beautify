@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-SELECT * FROM fn(x) q(c) QUALIFY (flag)

@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-SELECT * FROM t QUALIFY join ((SELECT 1))[1] = 1

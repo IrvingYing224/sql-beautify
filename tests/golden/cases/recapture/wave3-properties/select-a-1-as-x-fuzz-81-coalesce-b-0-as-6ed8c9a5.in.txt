@@ -1,2 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":61,"dialect":"generic","maxAlignWidth":123,"unsupportedSyntaxPolicy":"preserve"}}
-SELECT a+1 as x,	/* fuzz 81 */	coalesce(b,0)  as y	FrOm	t where a=1 and b>2

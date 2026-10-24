@@ -1,4 +1,0 @@
-SELECT
-      a
-FROM t
-WHERE a regexp '^x' and b rlike 'y'

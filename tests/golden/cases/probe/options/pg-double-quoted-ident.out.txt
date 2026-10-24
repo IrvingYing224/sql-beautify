@@ -1,4 +1,0 @@
-SELECT
-      "Col A"
-    , "select"
-FROM "My Table"

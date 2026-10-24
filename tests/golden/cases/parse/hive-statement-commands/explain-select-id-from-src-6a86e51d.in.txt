@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-EXPLAIN SELECT id FROM src

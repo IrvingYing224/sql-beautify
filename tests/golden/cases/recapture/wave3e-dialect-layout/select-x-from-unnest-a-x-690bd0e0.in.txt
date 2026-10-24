@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-select x from unnest(a) x

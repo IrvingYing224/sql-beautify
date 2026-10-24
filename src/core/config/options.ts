@@ -6,7 +6,6 @@ export type CaseLayout = "expanded" | "compactShort";
 export type UnsupportedSyntaxPolicy = "warn" | "preserve" | "bail_out";
 
 export interface CanonicalFormatOptions {
-    readonly dialect: Dialect;
     readonly keywordCase: KeywordCase;
     readonly commaStyle: CommaStyle;
     readonly indentStyle: IndentStyle;

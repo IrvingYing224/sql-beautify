@@ -1,7 +1,0 @@
-SELECT
-    'FROM  x' AS x,
-    /* fuzz 86 */
-    coalesce(b, 0) AS y
-FROM t
-WHERE a = 1
-    AND b > 2

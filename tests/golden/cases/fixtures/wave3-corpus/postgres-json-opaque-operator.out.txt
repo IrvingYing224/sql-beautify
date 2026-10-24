@@ -1,3 +1,0 @@
-SELECT
-      payload @> '{"id":1}'::jsonb
-FROM t

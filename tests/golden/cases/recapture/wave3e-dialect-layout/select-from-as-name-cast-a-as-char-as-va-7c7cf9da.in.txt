@@ -1,2 +1,0 @@
--- golden: {"options":{"commaStyle":"trailing","dialect":"mysql","indentStyle":"tab"}}
-select `from` as name, cast(a as char) as value from t where id=? and label='FROM' order by value limit 2

@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-SELECT @name

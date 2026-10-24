@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-select group_concat(distinct a order by b separator ',') from t

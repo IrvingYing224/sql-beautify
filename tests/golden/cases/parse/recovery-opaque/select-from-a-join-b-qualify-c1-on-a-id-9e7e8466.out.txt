@@ -1,5 +1,0 @@
-SELECT
-      *
-FROM a
-JOIN b qualify(c1)
-    ON a.id = b.id

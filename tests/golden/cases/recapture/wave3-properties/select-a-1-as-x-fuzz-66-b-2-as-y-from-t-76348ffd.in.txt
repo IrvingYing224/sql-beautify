@@ -1,5 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":32,"dialect":"postgresql","keywordCase":"lower","maxAlignWidth":40}}
-select
-a+1 as x,	-- fuzz 66
- b*2
-as y  FrOm t where a=1 and b>2

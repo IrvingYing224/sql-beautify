@@ -15,7 +15,7 @@ var m = require('./helpers/src')({
 });
 
 function format(source, options) {
-    return m.format.formatSql(source, Object.assign({ dialect: 'hive' }, options));
+    return m.format.formatSql(source, options);
 }
 
 function entries(result) {
@@ -105,7 +105,6 @@ test('D1: diagnostic severity, capability, recovery and span', function() {
         ['select aaaaaaaaaa as x -- c1\n, b as y -- c2\n, cc as z -- c3\nfrom t', { commaStyle: 'trailing' }, ['formatted',
             ['LAYOUT_COMMA_FALLBACK', 'info', null, 'none', 0, 66]]],
         [nested, {}, ['preserved', ['LAYOUT_COMPILE_RESOURCE', 'warning', null, 'preserve-target', 0, nested.length]]],
-        ['select 1', { dialect: 'postgres' }, ['failed', ['CFG_OPTION_VALUE', 'error', null, 'preserve-target', 0, 8]]],
         ['select 1', { foo: 1 }, ['failed', ['CFG_UNKNOWN_OPTION', 'error', null, 'preserve-target', 0, 8]]]
     ];
     table.forEach(function(value) {
@@ -148,9 +147,9 @@ test('R1: the core keeps input over 524,288 code units unchanged', function() {
 
 test('U-CFG: option validation and the manifest agree', function() {
     var resolve = m.resolve.resolveFormatOptions;
-    assert.deepStrictEqual(resolve(), { ok: true, options: { dialect: 'hive', keywordCase: 'upper', commaStyle: 'leading',
+    assert.deepStrictEqual(resolve(), { ok: true, options: { keywordCase: 'upper', commaStyle: 'leading',
         indentStyle: 'space', maxAlignWidth: 150, caseWhenThenWrapLength: 50, caseLayout: 'expanded', unsupportedSyntaxPolicy: 'warn' } });
-    var full = { dialect: 'postgresql', keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab', maxAlignWidth: 1,
+    var full = { keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab', maxAlignWidth: 1,
         caseWhenThenWrapLength: 300, caseLayout: 'compactShort', unsupportedSyntaxPolicy: 'bail_out' };
     assert.deepStrictEqual(resolve(full), { ok: true, options: full });
     assert.strictEqual(resolve({ maxAlignWidth: 500 }).ok, true);
@@ -166,7 +165,7 @@ test('U-CFG: option validation and the manifest agree', function() {
         assert.deepStrictEqual(failure({ caseWhenThenWrapLength: value }), [false, 'CFG_OPTION_VALUE', 'caseWhenThenWrapLength']);
     });
     [['keywordCase', 'title'], ['commaStyle', 'none'], ['indentStyle', 'mixed'], ['caseLayout', 'auto'],
-        ['unsupportedSyntaxPolicy', 'ignore'], ['dialect', 'postgres']].forEach(function(pair) {
+        ['unsupportedSyntaxPolicy', 'ignore']].forEach(function(pair) {
         var values = {};
         values[pair[0]] = pair[1];
         assert.deepStrictEqual(failure(values), [false, 'CFG_OPTION_VALUE', pair[0]]);

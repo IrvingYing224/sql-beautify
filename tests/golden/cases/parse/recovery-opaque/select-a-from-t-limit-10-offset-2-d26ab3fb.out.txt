@@ -1,4 +1,0 @@
-SELECT
-      a
-FROM t
-LIMIT 10 OFFSET 2

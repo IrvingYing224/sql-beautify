@@ -232,9 +232,6 @@ export function createLayoutPlanBuilder(
     analysis: AnalyzedArtifact,
     options: CanonicalFormatOptions
 ): LayoutPlanBuilder | null {
-    if (analysis.dialect !== options.dialect) {
-        return null;
-    }
     let budget: LayoutResourceBudget;
     let claims: ReturnType<typeof dominatingVerbatimClaims>;
     try {

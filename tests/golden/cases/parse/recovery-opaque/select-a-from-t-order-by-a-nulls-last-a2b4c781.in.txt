@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-SELECT a FROM t ORDER BY a NULLS LAST

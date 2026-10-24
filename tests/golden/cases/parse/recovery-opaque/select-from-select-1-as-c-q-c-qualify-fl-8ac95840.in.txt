@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-SELECT * FROM (SELECT 1 AS c) q(c) QUALIFY (flag)

@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-select a from t where a regexp '^x' and b rlike 'y'

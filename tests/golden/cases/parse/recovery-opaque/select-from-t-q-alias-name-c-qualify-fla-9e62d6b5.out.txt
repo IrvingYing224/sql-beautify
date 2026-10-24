@@ -1,3 +1,0 @@
-SELECT
-      *
-FROM t q alias_name(c) QUALIFY (flag)

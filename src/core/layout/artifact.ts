@@ -14,9 +14,7 @@ export interface LayoutArtifact {
     readonly budget: LayoutResourceBudget;
 }
 
-export type LayoutArtifactFailureCode =
-    | "LAYOUT_ARTIFACT_DIALECT"
-    | "LAYOUT_ARTIFACT_RESOURCE";
+export type LayoutArtifactFailureCode = "LAYOUT_ARTIFACT_RESOURCE";
 
 export interface LayoutArtifactFailure {
     readonly ok: false;
@@ -46,13 +44,6 @@ export function createLayoutArtifact(
     root: LayoutDoc,
     options: CanonicalFormatOptions
 ): CreateLayoutArtifactResult {
-    if (options.dialect !== analysis.dialect) {
-        return failure(
-            "LAYOUT_ARTIFACT_DIALECT",
-            "Layout options dialect must match analysis dialect"
-        );
-    }
-
     const resources = checkLayoutResources(analysis, root);
     if (!resources.ok) {
         return failure("LAYOUT_ARTIFACT_RESOURCE", resources.message);

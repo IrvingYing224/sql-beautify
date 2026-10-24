@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-select payload @> '{"id":1}'::jsonb from t

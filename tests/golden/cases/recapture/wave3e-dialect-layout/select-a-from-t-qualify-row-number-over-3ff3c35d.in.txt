@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic","unsupportedSyntaxPolicy":"preserve"}}
-select a from t qualify row_number() over(order by a)=1

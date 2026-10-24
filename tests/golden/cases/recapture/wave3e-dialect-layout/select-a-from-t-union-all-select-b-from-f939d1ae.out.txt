@@ -1,7 +1,0 @@
-SELECT
-      a
-FROM t
-UNION ALL
-SELECT
-      b
-FROM u

@@ -1,7 +1,0 @@
-select
-    a + 1 as x,
-    /* fuzz 3 */
-    b * 2 as y
-from t
-where a = 1
-    and b > 2

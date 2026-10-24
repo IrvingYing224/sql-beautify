@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-select á as x, b as y from t

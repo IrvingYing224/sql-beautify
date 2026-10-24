@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-INSERT INTO dst SELECT id FROM src

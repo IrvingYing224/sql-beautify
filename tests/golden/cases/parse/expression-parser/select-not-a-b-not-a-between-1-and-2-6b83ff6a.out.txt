@@ -1,3 +1,0 @@
-SELECT
-      NOT a = b
-    , NOT a BETWEEN 1 AND 2

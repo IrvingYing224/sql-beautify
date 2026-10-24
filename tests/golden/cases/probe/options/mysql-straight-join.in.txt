@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-select * from a straight_join b on a.id = b.id

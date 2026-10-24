@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"generic"}}
-SELECT * FROM base AS qualify(c1, c2)

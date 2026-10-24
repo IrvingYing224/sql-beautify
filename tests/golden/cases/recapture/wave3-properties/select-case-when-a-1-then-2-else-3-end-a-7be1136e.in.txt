@@ -1,5 +1,0 @@
--- golden: {"options":{"caseWhenThenWrapLength":51,"commaStyle":"trailing","dialect":"generic","indentStyle":"tab","maxAlignWidth":134,"unsupportedSyntaxPolicy":"preserve"}}
-SeLeCt
-case when a=1 then 2 else 3 end
-as x,  /* fuzz 45 */ :value as y FROM
-t where a=1 and b>2

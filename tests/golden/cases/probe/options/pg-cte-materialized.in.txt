@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-with x as materialized (select 1) select * from x

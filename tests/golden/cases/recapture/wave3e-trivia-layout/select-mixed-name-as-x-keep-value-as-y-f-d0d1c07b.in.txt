@@ -1,2 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":62,"commaStyle":"trailing","dialect":"postgresql","maxAlignWidth":73}}
-SeLeCt	"Mixed Name"  as x, /* keep */	:value  as y FrOm	t where a=1 and b>2

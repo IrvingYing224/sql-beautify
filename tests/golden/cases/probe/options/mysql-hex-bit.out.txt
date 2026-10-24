@@ -1,6 +1,0 @@
-SELECT
-      x'41'
-    , 0x41
-    , b'101'
-    , _utf8mb4'abc'
-FROM t

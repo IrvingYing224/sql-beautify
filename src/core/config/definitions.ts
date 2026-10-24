@@ -29,7 +29,6 @@ function integer(minimum: number, maximum: number, fallback: number): IntegerDef
 
 /** Shared runtime constraints; manifest compatibility is checked against these. */
 export const FORMAT_OPTION_DEFINITIONS: OptionDefinitions = Object.freeze({
-    dialect: enumeration(["generic", "hive", "postgresql", "mysql"], "hive"),
     keywordCase: enumeration(["upper", "lower"], "upper"),
     commaStyle: enumeration(["leading", "trailing"], "leading"),
     indentStyle: enumeration(["tab", "space"], "space"),

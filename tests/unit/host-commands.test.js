@@ -108,7 +108,7 @@ test('H3: settings are read at the document scope; an invalid value stops the pr
         var editor = h.open(SQL, { languageId: 'hive-sql', uri: 'untitled:wave5.sql' });
         await h.formatDocument(editor.document);
         assert.deepStrictEqual(h.configurationScopes[0], ['sqlBeautify', 'hive-sql', 'untitled:wave5.sql']);
-        for (var invalid of [['keywordCase', 'bogus'], ['maxAlignWidth', -3], ['dialect', 'invalid-dialect']]) {
+        for (var invalid of [['keywordCase', 'bogus'], ['maxAlignWidth', -3]]) {
             h.configuration = {};
             h.configuration['sqlBeautify.' + invalid[0]] = invalid[1];
             editor = h.open(SQL);

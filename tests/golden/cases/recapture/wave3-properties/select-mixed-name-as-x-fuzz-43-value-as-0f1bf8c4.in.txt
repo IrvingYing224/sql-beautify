@@ -1,5 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":86,"dialect":"mysql","keywordCase":"lower","maxAlignWidth":44}}
-SELECT	`Mixed Name`
-as x, /* fuzz 43 */  @value
-as y  FrOm
-t where a=1 and b>2

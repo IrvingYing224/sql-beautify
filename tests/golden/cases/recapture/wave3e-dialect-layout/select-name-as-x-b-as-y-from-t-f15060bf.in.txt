@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-select 𐐀name as x, b as y from t

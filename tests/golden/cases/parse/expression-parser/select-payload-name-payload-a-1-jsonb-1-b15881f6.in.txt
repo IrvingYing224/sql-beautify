@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-SELECT payload->>'name', payload @> '{"a":1}'::jsonb, '1'::int + 2, name ILIKE 'a%', name NOT ILIKE 'b%', ARRAY[1, 2], $1

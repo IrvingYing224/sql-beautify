@@ -1,3 +1,0 @@
-SELECT
-      payload->>'$.x'
-FROM t

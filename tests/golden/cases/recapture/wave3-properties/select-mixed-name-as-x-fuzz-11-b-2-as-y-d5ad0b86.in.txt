@@ -1,5 +1,0 @@
--- golden: {"options":{"caseLayout":"compactShort","caseWhenThenWrapLength":51,"commaStyle":"trailing","dialect":"mysql","indentStyle":"tab","maxAlignWidth":135,"unsupportedSyntaxPolicy":"bail_out"}}
-SELECT `Mixed Name`
-as x, -- fuzz 11
-  b*2 as y	from
-t where a=1 and b>2

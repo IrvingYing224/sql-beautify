@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"postgresql"}}
-SELECT TRANSFORM(payload) USING 'cat' AS (value string) FROM src

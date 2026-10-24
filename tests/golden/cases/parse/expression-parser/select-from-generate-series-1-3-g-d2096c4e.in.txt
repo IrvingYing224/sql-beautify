@@ -1,2 +1,0 @@
--- golden: {"options":{"dialect":"mysql"}}
-SELECT * FROM generate_series(1, 3) g

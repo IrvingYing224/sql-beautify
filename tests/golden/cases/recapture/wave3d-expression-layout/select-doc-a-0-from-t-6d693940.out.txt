@@ -1,3 +1,0 @@
-SELECT
-      doc#-'{a,0}'
-FROM t
