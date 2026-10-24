@@ -1,4 +1,3 @@
-import type { Dialect } from "../config/options";
 import type { Diagnostic } from "../diagnostics/diagnostic";
 import type { CapabilityEntry } from "../dialects/types";
 import type { SourceLeaf } from "../lexer/token";
@@ -99,7 +98,6 @@ export type AnalysisStatus = "analyzed" | "preserved" | "failed";
 export interface AnalysisArtifactBase<S extends AnalysisStatus> {
     readonly status: S;
     readonly source: string;
-    readonly dialect: Dialect;
     readonly mode: ParseMode;
     readonly root: ProgramNode;
     readonly leaves: readonly SourceLeaf[];

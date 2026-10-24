@@ -1,5 +1,3 @@
-import type { Dialect } from "../config/options";
-
 /** Capability state is a fact about current implementation status. */
 export type CapabilityState =
     | "recognized"
@@ -40,7 +38,7 @@ export interface CapabilityEntry {
  * Lookup is (key, fixity) — the same lexical token may have multiple entries.
  */
 export interface OperatorSemantics {
-    /** Stable and unique within one dialect registry view. */
+    /** Stable and unique within the registry. */
     readonly id: string;
     readonly key: string;
     readonly fixity: OperatorFixity;
@@ -125,10 +123,8 @@ export interface UnsupportedSyntaxSignature {
 /** @deprecated Use OperatorFixity; retained alias for arity naming. */
 export type OperatorArity = OperatorFixity;
 
-export interface DialectCapabilityView {
-    readonly id: Dialect;
+export interface CapabilityRegistry {
     getCapability(id: string): CapabilityEntry | null;
-    listCapabilities(): readonly CapabilityEntry[];
     /**
      * Lookup by lexical key + fixity. A single key may have multiple fixities.
      */
@@ -139,10 +135,4 @@ export interface DialectCapabilityView {
     listSetOperatorSyntax(): readonly SetOperatorSyntax[];
     listJoinSyntax(): readonly JoinSyntax[];
     listUnsupportedSyntax(): readonly UnsupportedSyntaxSignature[];
-}
-
-export interface DialectCapabilityRegistry {
-    listDialects(): readonly Dialect[];
-    getDialect(id: string): DialectCapabilityView;
-    hasDialect(id: string): boolean;
 }

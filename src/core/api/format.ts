@@ -293,7 +293,6 @@ export function formatSql(
         const failure = floorViolation(
             analysis.leaves,
             rendered.text,
-            analysis.dialect,
             plannedLeafText(analysis, plan, options.keywordCase)
         );
         if (failure === "token") {

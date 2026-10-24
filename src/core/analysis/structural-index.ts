@@ -1,5 +1,5 @@
-import { getDialect } from "../dialects/registry";
-import type { CapabilityEntry, DialectCapabilityView } from "../dialects/types";
+import { HIVE_REGISTRY } from "../dialects/registry";
+import type { CapabilityEntry } from "../dialects/types";
 import type { SourceLeaf } from "../lexer/token";
 import type { Diagnostic } from "../diagnostics/diagnostic";
 import type { SourceSpan } from "../source/source-span";
@@ -115,14 +115,13 @@ function capabilityIdOf(value: object, label: string): string | null {
 }
 
 function resolveCapability(
-    dialect: DialectCapabilityView,
     capabilityId: string | null,
     label: string
 ): CapabilityEntry | null {
     if (capabilityId === null) {
         return null;
     }
-    const capability = dialect.getCapability(capabilityId);
+    const capability = HIVE_REGISTRY.getCapability(capabilityId);
     if (capability === null) {
         invariantFailure(`${label} references unknown capability ${capabilityId}`);
     }
@@ -130,11 +129,10 @@ function resolveCapability(
 }
 
 function resolvePreservationCapability(
-    dialect: DialectCapabilityView,
     capabilityId: string | null,
     label: string
 ): CapabilityEntry | null {
-    const capability = resolveCapability(dialect, capabilityId, label);
+    const capability = resolveCapability(capabilityId, label);
     if (
         capability !== null &&
         capability.state !== "verbatim" &&
@@ -209,9 +207,8 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
     const { root, leaves, diagnostics } = artifact.output;
     const tokenTable = artifact.tokenTable;
     const hasCommentTrivia = artifact.hasCommentTrivia;
-    const dialect = getDialect(artifact.dialect);
     const canonicalOperatorById = new Map(
-        dialect.listOperatorSemantics().map((semantics) => [semantics.id, semantics])
+        HIVE_REGISTRY.listOperatorSemantics().map((semantics) => [semantics.id, semantics])
     );
     const leafCount = leaves.length;
     const canonicalSourceLength =
@@ -343,7 +340,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             );
         }
         const nodeCapability = resolveCapability(
-            dialect,
             nodeCapabilityId,
             `node ${node.id}`
         );
@@ -359,7 +355,7 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             );
         }
         if (formatRole === "opaque") {
-            resolvePreservationCapability(dialect, nodeCapabilityId, `opaque node ${node.id}`);
+            resolvePreservationCapability(nodeCapabilityId, `opaque node ${node.id}`);
         }
         capabilityByNode[node.id] = nodeCapability;
 
@@ -544,7 +540,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                 }
                 if (occurrence.capabilityId !== null) {
                     resolveCapability(
-                        dialect,
                         occurrence.capabilityId,
                         `operator ${occurrence.operatorId}`
                     );
@@ -684,7 +679,7 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             }
         } else if (node.kind === "opaque") {
             const capabilityId = capabilityIdOf(node, `opaque node ${node.id}`);
-            resolvePreservationCapability(dialect, capabilityId, `opaque node ${node.id}`);
+            resolvePreservationCapability(capabilityId, `opaque node ${node.id}`);
             opaqueNodeIds.push(node.id);
         }
 
@@ -1048,7 +1043,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                 `diagnostic ${diagnosticIndex}`
             );
             resolvePreservationCapability(
-                dialect,
                 capabilityId,
                 `diagnostic ${diagnosticIndex}`
             );
@@ -1351,7 +1345,7 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
             if (typeof capabilityId !== "string" || capabilityId.length === 0) {
                 throw new Error("Capability id must be a non-empty string");
             }
-            return dialect.getCapability(capabilityId);
+            return HIVE_REGISTRY.getCapability(capabilityId);
         },
     });
 

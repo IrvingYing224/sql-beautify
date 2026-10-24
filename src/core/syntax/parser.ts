@@ -1,8 +1,6 @@
-import type { Dialect } from "../config/options";
 import type { Diagnostic } from "../diagnostics/diagnostic";
 import { lexSql } from "../lexer/lossless-lexer";
 import type { LexOutput } from "../lexer/lossless-lexer";
-import { getDialect } from "../dialects/registry";
 import { freezeImmutableArray } from "../util/immutable-array";
 import { createNodeFactory } from "./node-factory";
 import type { ProgramNode, StatementNode, SyntaxNode } from "./node";
@@ -19,11 +17,9 @@ import type {
     SyntaxDiagnosticCode,
 } from "./parser-context";
 import type {
-    ParseInput,
     ParseMode,
     ParseOptions,
     ParseOutput,
-    ParserBackend,
 } from "./parser-backend";
 import { parseStatementRange } from "./statement-parser";
 import { buildStructuralTokenTable } from "./token-table";
@@ -33,9 +29,6 @@ import {
     type ParsedTypePrefix,
 } from "./type-parser";
 
-const BACKEND_ID = "sql-beautify-v2";
-const BACKEND_VERSION = "2e";
-
 /**
  * Internal parse product retained for Wave 2 analysis. The public parse result
  * deliberately omits the token table, while analysis consumes this artifact
@@ -44,7 +37,6 @@ const BACKEND_VERSION = "2e";
  */
 export interface ParseArtifact {
     readonly source: string;
-    readonly dialect: Dialect;
     readonly mode: ParseMode;
     readonly output: ParseOutput;
     /** Node ids of output.root are exactly [0, nodeCount). */
@@ -60,14 +52,12 @@ interface ParsedProgram {
 }
 
 function createContext(
-    dialect: Dialect,
     mode: ParseOptions["mode"],
     lexed: LexOutput,
     table: StructuralTokenTable,
     diagnostics: Diagnostic[] = Array.from(lexed.diagnostics)
 ): ParserContext {
     return Object.freeze({
-        dialect,
         mode: mode ?? "document",
         leaves: lexed.leaves,
         table,
@@ -153,14 +143,13 @@ function outputOf(context: ParserContext, root: ProgramNode): ParsedProgram {
 }
 
 function targetFallbackOutput(
-    dialect: Dialect,
     mode: ParseOptions["mode"],
     lexed: LexOutput,
     table: StructuralTokenTable,
     code: SyntaxDiagnosticCode,
     message: string
 ): ParsedProgram {
-    const context = createContext(dialect, mode, lexed, table);
+    const context = createContext(mode, lexed, table);
     const root = buildTargetPreservingProgram(context, code, message);
     return outputOf(context, root);
 }
@@ -174,7 +163,6 @@ function hasFatalLexicalDiagnostic(lexed: LexOutput): boolean {
 
 function artifactOf(
     source: string,
-    dialect: Dialect,
     mode: ParseMode,
     parsed: ParsedProgram,
     tokenTable: StructuralTokenTable,
@@ -182,7 +170,6 @@ function artifactOf(
 ): ParseArtifact {
     return Object.freeze({
         source,
-        dialect,
         mode,
         output: parsed.output,
         nodeCount: parsed.nodeCount,
@@ -195,10 +182,8 @@ export function parseSqlArtifact(
     source: string,
     options: ParseOptions = {}
 ): ParseArtifact {
-    const dialect = options.dialect ?? "hive";
     const mode = options.mode ?? "document";
-    getDialect(dialect);
-    const rawLexed = lexSql(source, { dialect });
+    const rawLexed = lexSql(source);
     let hasCommentTrivia = false;
     for (const leaf of rawLexed.leaves) {
         if (leaf.kind === "line-comment" || leaf.kind === "block-comment") {
@@ -215,10 +200,8 @@ export function parseSqlArtifact(
     if (hasFatalLexicalDiagnostic(lexed)) {
         return artifactOf(
             source,
-            dialect,
             mode,
             targetFallbackOutput(
-                dialect,
                 mode,
                 lexed,
                 table,
@@ -232,10 +215,8 @@ export function parseSqlArtifact(
     if (!table.statementBoundariesReliable()) {
         return artifactOf(
             source,
-            dialect,
             mode,
             targetFallbackOutput(
-                dialect,
                 mode,
                 lexed,
                 table,
@@ -249,10 +230,8 @@ export function parseSqlArtifact(
     if (mode !== "document" && table.statementRanges().length > 1) {
         return artifactOf(
             source,
-            dialect,
             mode,
             targetFallbackOutput(
-                dialect,
                 mode,
                 lexed,
                 table,
@@ -264,15 +243,13 @@ export function parseSqlArtifact(
         );
     }
     try {
-        const context = createContext(dialect, mode, lexed, table);
+        const context = createContext(mode, lexed, table);
         const root = buildProgram(context);
         if (mode === "fragment" && programContainsOpaque(root)) {
             return artifactOf(
                 source,
-                dialect,
                 mode,
                 targetFallbackOutput(
-                    dialect,
                     mode,
                     lexed,
                     table,
@@ -285,7 +262,6 @@ export function parseSqlArtifact(
         }
         return artifactOf(
             source,
-            dialect,
             mode,
             outputOf(context, root),
             table,
@@ -295,10 +271,8 @@ export function parseSqlArtifact(
         const message = error instanceof Error ? error.message : String(error);
         return artifactOf(
             source,
-            dialect,
             mode,
             targetFallbackOutput(
-                dialect,
                 mode,
                 lexed,
                 table,
@@ -309,10 +283,6 @@ export function parseSqlArtifact(
             hasCommentTrivia
         );
     }
-}
-
-export function parseSql(source: string, options: ParseOptions = {}): ParseOutput {
-    return parseSqlArtifact(source, options).output;
 }
 
 /**
@@ -330,7 +300,6 @@ export function parseTypePrefixFromArtifact(
         diagnostics: artifact.output.diagnostics,
     });
     const context = createContext(
-        artifact.dialect,
         artifact.mode,
         lexed,
         artifact.tokenTable,
@@ -355,10 +324,8 @@ export function preserveParseArtifactTarget(
     });
     return artifactOf(
         artifact.source,
-        artifact.dialect,
         artifact.mode,
         targetFallbackOutput(
-            artifact.dialect,
             artifact.mode,
             lexed,
             artifact.tokenTable,
@@ -369,14 +336,3 @@ export function preserveParseArtifactTarget(
         artifact.hasCommentTrivia
     );
 }
-
-export const parserBackend: ParserBackend = Object.freeze({
-    id: BACKEND_ID,
-    version: BACKEND_VERSION,
-    parse(input: ParseInput): ParseOutput {
-        return parseSql(input.source, {
-            dialect: input.dialect,
-            mode: input.mode,
-        });
-    },
-});

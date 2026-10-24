@@ -1,5 +1,4 @@
-import { getDialect } from "../dialects/registry";
-import { isParserStructuredCapabilityState } from "../dialects/capability-state";
+import { HIVE_REGISTRY } from "../dialects/registry";
 import type {
     OperatorSemantics,
     QueryClauseSyntax,
@@ -127,18 +126,6 @@ type StructuredSetSyntaxView = Readonly<{
     byWord: Readonly<Record<string, SetOperatorSyntax>>;
 }>;
 
-const STRUCTURED_QUERY_SYNTAX_CACHE: Partial<
-    Record<ParserContext["dialect"], StructuredQuerySyntaxView>
-> = Object.create(null) as Partial<
-    Record<ParserContext["dialect"], StructuredQuerySyntaxView>
->;
-
-const STRUCTURED_SET_SYNTAX_CACHE: Partial<
-    Record<ParserContext["dialect"], StructuredSetSyntaxView>
-> = Object.create(null) as Partial<
-    Record<ParserContext["dialect"], StructuredSetSyntaxView>
->;
-
 function hasPlausibleQueryBody(context: ParserContext, range: LeafRange): boolean {
     if (!isQueryLeadingRange(context, range)) {
         return false;
@@ -154,21 +141,8 @@ function isCteNameLeaf(context: ParserContext, leafIndex: number): boolean {
     return leaf?.kind === "identifier" || leaf?.kind === "quoted-identifier";
 }
 
-function structuredQuerySyntaxes(context: ParserContext): StructuredQuerySyntaxView {
-    const cached = STRUCTURED_QUERY_SYNTAX_CACHE[context.dialect];
-    if (cached !== undefined) {
-        return cached;
-    }
-    const dialect = getDialect(context.dialect);
-    const syntaxes = Object.freeze(
-        dialect.listQueryClauseSyntax().filter(
-            (syntax) =>
-                syntax.capabilityId === null ||
-                isParserStructuredCapabilityState(
-                    dialect.getCapability(syntax.capabilityId)?.state
-                )
-        )
-    );
+function buildStructuredQuerySyntax(): StructuredQuerySyntaxView {
+    const syntaxes = HIVE_REGISTRY.listQueryClauseSyntax();
     let select: QueryClauseSyntax | null = null;
     const mutableByFirstWord = Object.create(null) as Record<
         string,
@@ -194,39 +168,27 @@ function structuredQuerySyntaxes(context: ParserContext): StructuredQuerySyntaxV
     for (const firstWord of Object.keys(mutableByFirstWord)) {
         byFirstWord[firstWord] = Object.freeze(mutableByFirstWord[firstWord]!);
     }
-    const view = Object.freeze({
+    return Object.freeze({
         syntaxes,
         select,
         byFirstWord: Object.freeze(byFirstWord),
     });
-    STRUCTURED_QUERY_SYNTAX_CACHE[context.dialect] = view;
-    return view;
 }
 
-function structuredSetSyntaxes(context: ParserContext): StructuredSetSyntaxView {
-    const cached = STRUCTURED_SET_SYNTAX_CACHE[context.dialect];
-    if (cached !== undefined) {
-        return cached;
-    }
-    const dialect = getDialect(context.dialect);
+function buildStructuredSetSyntax(): StructuredSetSyntaxView {
     const byWord = Object.create(null) as Record<string, SetOperatorSyntax>;
-    let count = 0;
-    const syntaxes = dialect.listSetOperatorSyntax();
-    for (let index = 0; index < syntaxes.length; index++) {
-        const syntax = syntaxes[index]!;
-        const state = dialect.getCapability(syntax.capabilityId)?.state;
-        if (isParserStructuredCapabilityState(state)) {
-            byWord[syntax.word] = syntax;
-            count += 1;
-        }
+    const syntaxes = HIVE_REGISTRY.listSetOperatorSyntax();
+    for (const syntax of syntaxes) {
+        byWord[syntax.word] = syntax;
     }
-    const view = Object.freeze({
-        count,
+    return Object.freeze({
+        count: syntaxes.length,
         byWord: Object.freeze(byWord),
     });
-    STRUCTURED_SET_SYNTAX_CACHE[context.dialect] = view;
-    return view;
 }
+
+const STRUCTURED_QUERY_SYNTAX = buildStructuredQuerySyntax();
+const STRUCTURED_SET_SYNTAX = buildStructuredSetSyntax();
 
 function followsClauseHead(
     context: ParserContext,
@@ -248,7 +210,7 @@ function followsClauseHead(
             return true;
         }
     }
-    const syntaxes = structuredQuerySyntaxes(context).syntaxes;
+    const syntaxes = STRUCTURED_QUERY_SYNTAX.syntaxes;
     for (let syntaxIndex = 0; syntaxIndex < syntaxes.length; syntaxIndex++) {
         const syntax = syntaxes[syntaxIndex]!;
         let cursor: number | null = previous;
@@ -311,7 +273,7 @@ function findSetMarkers(
     range: LeafRange,
     topLevelIndexes: readonly number[]
 ): readonly SetMarker[] {
-    const syntaxes = structuredSetSyntaxes(context);
+    const syntaxes = STRUCTURED_SET_SYNTAX;
     if (syntaxes.count === 0) {
         return Object.freeze([]);
     }
@@ -381,7 +343,7 @@ function findSetTailMarkers(
     context: ParserContext,
     range: LeafRange
 ): readonly ClauseMarker[] {
-    const syntaxView = structuredQuerySyntaxes(context);
+    const syntaxView = STRUCTURED_QUERY_SYNTAX;
     const depth = baseDepth(context, range);
     const markers: ClauseMarker[] = [];
     let previousOrder = Number.NEGATIVE_INFINITY;
@@ -715,7 +677,7 @@ function parseWithQuery(
         throw new ParserSyntaxError(
             "SYN_UNSUPPORTED_STATEMENT",
             mainRange!,
-            `${context.dialect} ${unsupportedMain.signature.capabilityId} statement after WITH is recognized but not structured`,
+            `hive ${unsupportedMain.signature.capabilityId} statement after WITH is recognized but not structured`,
             "statement",
             unsupportedMain.signature.capabilityId
         );
@@ -823,7 +785,7 @@ function markerActsAsExpressionName(
     if (followsComma) {
         const leaf = context.leaves[afterHead]!;
         if (leaf.channel === "code") {
-            const candidates = structuredQuerySyntaxes(context).byFirstWord[
+            const candidates = STRUCTURED_QUERY_SYNTAX.byFirstWord[
                 context.table.normalizedWord(afterHead)
             ];
             if (candidates !== undefined) {
@@ -875,7 +837,7 @@ function findClauseMarkers(
     range: LeafRange,
     topLevelIndexes: readonly number[]
 ): readonly ClauseMarker[] {
-    const syntaxView = structuredQuerySyntaxes(context);
+    const syntaxView = STRUCTURED_QUERY_SYNTAX;
     const selectSyntax = syntaxView.select;
     if (!selectSyntax || !isCodeWord(context, range.start, "select")) {
         throw new ParserSyntaxError(
@@ -1240,7 +1202,7 @@ function operatorSemanticsAt(
     const key = leaf.kind === "operator"
         ? leaf.raw
         : context.table.normalizedWord(leafIndex);
-    return getDialect(context.dialect).listOperatorSemanticsForKey(key);
+    return HIVE_REGISTRY.listOperatorSemanticsForKey(key);
 }
 
 function candidateIsClearlyExpressionName(
@@ -1512,7 +1474,7 @@ function rejectProvenUnsupportedQueryClauses(
             throw new ParserSyntaxError(
                 "SYN_UNMODELED_CONSTRUCT",
                 { start: candidate.range.start, end: range.end },
-                `${context.dialect} ${candidate.signature.capabilityId.toUpperCase()} clause is recognized but not structured`,
+                `hive ${candidate.signature.capabilityId.toUpperCase()} clause is recognized but not structured`,
                 "statement",
                 candidate.signature.capabilityId
             );
@@ -1533,7 +1495,7 @@ function parseSelectQuery(
         throw new ParserSyntaxError(
             "SYN_UNMODELED_CONSTRUCT",
             { start: preservedConstruct.range.start, end: range.end },
-            `${context.dialect} ${preservedConstruct.signature.capabilityId.toUpperCase()} construct is recognized but not structured`,
+            `hive ${preservedConstruct.signature.capabilityId.toUpperCase()} construct is recognized but not structured`,
             "statement",
             preservedConstruct.signature.capabilityId
         );
@@ -1703,17 +1665,6 @@ export function parseInsertQueryRange(
     const capabilityId = overwrite
         ? "insert-overwrite-partition-select"
         : "insert-into-partition-select";
-    if (
-        !isParserStructuredCapabilityState(
-            getDialect(context.dialect).getCapability(capabilityId)?.state
-        )
-    ) {
-        throw new ParserSyntaxError(
-            "SYN_UNSUPPORTED_STATEMENT",
-            range,
-            `${context.dialect} does not declare ${overwrite ? "INSERT OVERWRITE" : "INSERT INTO"} query syntax`
-        );
-    }
     let headLast = operationKeyword!;
     const tableKeyword = nextSyntaxIndex(context, headLast, range.end);
     if (overwrite && (tableKeyword === null || !isCodeWord(context, tableKeyword, "table"))) {

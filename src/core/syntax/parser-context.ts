@@ -1,4 +1,3 @@
-import type { Dialect } from "../config/options";
 import {
     isCapabilityIdentity,
     type CapabilityIdentity,
@@ -54,7 +53,6 @@ export type ParserTrialClaim =
     | Readonly<{ readonly kind: "execute"; readonly cacheKey: string }>;
 
 export interface ParserContext {
-    readonly dialect: Dialect;
     readonly mode: ParseMode;
     readonly leaves: readonly SourceLeaf[];
     readonly table: StructuralTokenTable;

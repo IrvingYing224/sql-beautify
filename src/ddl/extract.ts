@@ -475,7 +475,7 @@ export function extractDdl(
     }
     let artifact: AnalysisArtifact;
     try {
-        artifact = analyzeSql(source, { dialect: "hive", mode: "document" });
+        artifact = analyzeSql(source, { mode: "document" });
     } catch (error) {
         debugEvents?.push(createDebugEvent("analysis", "EXTRACT_ANALYSIS_FAILED", error));
         return result("failed", source, ddlDiagnostic(

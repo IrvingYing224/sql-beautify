@@ -2,9 +2,7 @@ import type {
     CapabilityIdentity,
     RecoveryAction,
 } from "../diagnostics/diagnostic";
-import { isParserStructuredCapabilityState } from "../dialects/capability-state";
 import { isTemplateFragment } from "../lexer/token";
-import { getDialect } from "../dialects/registry";
 import type { LeafRange } from "./leaf-range";
 import type { QueryNode, StatementNode } from "./node";
 import {
@@ -111,14 +109,6 @@ function parseSetStatementRange(
     statementRange: LeafRange,
     bodyRange: LeafRange
 ): StatementNode {
-    const capability = getDialect(context.dialect).getCapability("set-command");
-    if (!isParserStructuredCapabilityState(capability?.state)) {
-        throw new ParserSyntaxError(
-            "SYN_UNSUPPORTED_STATEMENT",
-            bodyRange,
-            `${context.dialect} does not declare Hive SET command syntax`
-        );
-    }
     const setLeafId = bodyRange.start;
     const payloadStart = nextSyntaxIndex(context, setLeafId, bodyRange.end);
     const commandEnd = setPayloadEnd(context, statementRange);
@@ -303,7 +293,7 @@ export function parseStatementRange(
             context,
             range,
             "SYN_UNSUPPORTED_STATEMENT",
-            `${context.dialect} ${unsupported.signature.capabilityId} statement is preserved verbatim`,
+            `hive ${unsupported.signature.capabilityId} statement is preserved verbatim`,
             "verbatim-node",
             unsupported.signature.capabilityId
         );
@@ -320,7 +310,7 @@ export function parseStatementRange(
             context,
             range,
             "SYN_UNSUPPORTED_STATEMENT",
-            `${context.dialect} statement ${context.leaves[bodyRange.start]!.raw} is not structured`,
+            `hive statement ${context.leaves[bodyRange.start]!.raw} is not structured`,
             statementRecovery(context)
         );
     }
@@ -331,7 +321,7 @@ export function parseStatementRange(
             throw new ParserSyntaxError(
                 "SYN_UNSUPPORTED_STATEMENT",
                 bodyRange,
-                `${context.dialect} ${unsupported.signature.capabilityId} statement is recognized but not structured`,
+                `hive ${unsupported.signature.capabilityId} statement is recognized but not structured`,
                 "statement",
                 unsupported.signature.capabilityId
             );

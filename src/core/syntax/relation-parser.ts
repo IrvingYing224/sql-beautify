@@ -1,6 +1,5 @@
 import type { SourceLeaf } from "../lexer/token";
-import { getDialect } from "../dialects/registry";
-import { isParserStructuredCapabilityState } from "../dialects/capability-state";
+import { HIVE_REGISTRY } from "../dialects/registry";
 import type { LeafRange } from "./leaf-range";
 import { parseList } from "./list-parser";
 import { parseExpressionRange } from "./expression-parser";
@@ -540,7 +539,7 @@ function joinMarkerStart(
     indexes: readonly number[],
     joinPosition: number
 ): number {
-    const syntaxes = getDialect(context.dialect).listJoinSyntax();
+    const syntaxes = HIVE_REGISTRY.listJoinSyntax();
     let bestStartPosition = joinPosition;
     let bestLength = 1;
     for (const syntax of syntaxes) {
@@ -592,8 +591,7 @@ function assertValidJoinHead(context: ParserContext, marker: RelationMarker): vo
         )
         .join(" ");
     if (
-        !getDialect(context.dialect)
-            .listJoinSyntax()
+        !HIVE_REGISTRY.listJoinSyntax()
             .some((syntax) => syntax.words.join(" ") === head)
     ) {
         throw new ParserSyntaxError(
@@ -676,9 +674,6 @@ function markerActsAsOnExpressionName(
 
 function findMarkers(context: ParserContext, range: LeafRange): readonly RelationMarker[] {
     const indexes = topLevelSyntaxIndexes(context, range);
-    const supportsLateralView = isParserStructuredCapabilityState(
-        getDialect(context.dialect).getCapability("lateral-view")?.state
-    );
     const markers: RelationMarker[] = [];
     const starts = new Set<number>();
     let joinMayOwnOn = false;
@@ -721,7 +716,6 @@ function findMarkers(context: ParserContext, range: LeafRange): readonly Relatio
             });
         } else if (
             raw === "lateral" &&
-            supportsLateralView &&
             !keywordActsAsName &&
             i + 1 < indexes.length &&
             isCodeWord(context, indexes[i + 1]!, "view")

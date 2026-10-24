@@ -1,4 +1,3 @@
-import type { Dialect } from "../config/options";
 import { lexSql } from "../lexer/lossless-lexer";
 import { isTemplateFragment, type SourceLeaf, type TokenKind } from "../lexer/token";
 
@@ -58,10 +57,9 @@ export function glueKept(pairs: readonly LeafPair[]): boolean {
 export function floorViolation(
     sourceLeaves: readonly SourceLeaf[],
     output: string,
-    dialect: Dialect,
     expected: ExpectedLeafText
 ): "token" | "glue" | null {
-    const lexed = lexSql(output, { dialect });
+    const lexed = lexSql(output);
     if (lexed.diagnostics.some((value) => value.severity === "error")) {
         return "token";
     }

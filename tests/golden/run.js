@@ -482,7 +482,7 @@ function selfTest() {
         ['SELECT ${v} + 1 FROM CORRUPTED', 'token'],
         ['SELECT ${v}+ 1 FROM CORRUPTED', 'token'],
     ].forEach(function(probe) {
-        var actual = floor.floorViolation(analysis.leaves, probe[0], analysis.dialect,
+        var actual = floor.floorViolation(analysis.leaves, probe[0],
             format.plannedLeafText(analysis, plan, options.keywordCase));
         if (actual !== probe[1]) {
             throw new Error('template self-test ' + JSON.stringify(probe) + ' reported ' +

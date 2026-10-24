@@ -378,7 +378,7 @@ function parseTableSuffixes(
 }
 
 function parseHiveCreateTable(source: string): HiveCreateTableCst {
-    const artifact = parseSqlArtifact(source, { dialect: "hive", mode: "document" });
+    const artifact = parseSqlArtifact(source, { mode: "document" });
     const leaves = artifact.output.leaves;
     if (
         artifact.output.diagnostics.some(

@@ -30,7 +30,6 @@ function analysisArtifact(
     return Object.freeze({
         status,
         source: artifact.source,
-        dialect: artifact.dialect,
         mode: artifact.mode,
         root: output.root,
         leaves: output.leaves,

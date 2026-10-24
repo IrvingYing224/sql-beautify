@@ -1,4 +1,4 @@
-import { getDialect } from "../dialects/registry";
+import { HIVE_REGISTRY } from "../dialects/registry";
 import type {
     CapabilityState,
     UnsupportedSyntaxContext,
@@ -30,36 +30,17 @@ type UnsupportedSignatureView = Readonly<{
     byFirstWord: Readonly<Record<string, readonly UnsupportedSyntaxSignature[]>>;
 }>;
 
-const UNSUPPORTED_SIGNATURE_CACHE: Partial<
-    Record<
-        ParserContext["dialect"],
-        Partial<Record<UnsupportedSyntaxContext, UnsupportedSignatureView>>
-    >
-> = Object.create(null) as Partial<
-    Record<
-        ParserContext["dialect"],
-        Partial<Record<UnsupportedSyntaxContext, UnsupportedSignatureView>>
-    >
+const UNSUPPORTED_SIGNATURE_CACHE = Object.create(null) as Partial<
+    Record<UnsupportedSyntaxContext, UnsupportedSignatureView>
 >;
 
-function signatureViewFor(
-    context: ParserContext,
-    syntaxContext: UnsupportedSyntaxContext
-): UnsupportedSignatureView {
-    let dialectCache = UNSUPPORTED_SIGNATURE_CACHE[context.dialect];
-    if (dialectCache === undefined) {
-        dialectCache = Object.create(null) as Partial<
-            Record<UnsupportedSyntaxContext, UnsupportedSignatureView>
-        >;
-        UNSUPPORTED_SIGNATURE_CACHE[context.dialect] = dialectCache;
-    }
-    const cached = dialectCache[syntaxContext];
+function signatureViewFor(syntaxContext: UnsupportedSyntaxContext): UnsupportedSignatureView {
+    const cached = UNSUPPORTED_SIGNATURE_CACHE[syntaxContext];
     if (cached !== undefined) {
         return cached;
     }
     const signatures = freezeImmutableArray(
-        getDialect(context.dialect)
-        .listUnsupportedSyntax()
+        HIVE_REGISTRY.listUnsupportedSyntax()
             .filter((signature) => signature.context === syntaxContext)
     );
     const mutableByFirstWord = Object.create(null) as Record<
@@ -91,7 +72,7 @@ function signatureViewFor(
         signatures,
         byFirstWord: Object.freeze(byFirstWord),
     });
-    dialectCache[syntaxContext] = view;
+    UNSUPPORTED_SIGNATURE_CACHE[syntaxContext] = view;
     return view;
 }
 
@@ -143,7 +124,7 @@ function matchAt(
     if (matched === null) {
         return null;
     }
-    const capability = getDialect(context.dialect).getCapability(signature.capabilityId);
+    const capability = HIVE_REGISTRY.getCapability(signature.capabilityId);
     if (
         capability === null ||
         (capability.state !== "verbatim" && capability.state !== "diagnostic")
@@ -194,7 +175,7 @@ export function classifyUnsupportedStatementStart(
     context: ParserContext,
     range: LeafRange
 ): UnsupportedConstructMatch | null {
-    const view = signatureViewFor(context, "statement-start");
+    const view = signatureViewFor("statement-start");
     for (const signature of candidateSignaturesAt(context, range.start, view)) {
         const match = matchAt(context, range, range.start, signature);
         if (match !== null) {
@@ -211,7 +192,7 @@ function nextQueryClauseStart(
     rangeEnd: number,
     afterOrder: number
 ): number {
-    const clauses = getDialect(context.dialect).listQueryClauseSyntax();
+    const clauses = HIVE_REGISTRY.listQueryClauseSyntax();
     for (const index of indexes) {
         if (index < after) {
             continue;
@@ -237,7 +218,7 @@ export function classifyUnsupportedGroupBySuffix(
     range: LeafRange,
     topLevelIndexes: readonly number[] = topLevelSyntaxIndexes(context, range)
 ): UnsupportedConstructMatch | null {
-    const view = signatureViewFor(context, "group-by-suffix");
+    const view = signatureViewFor("group-by-suffix");
     let groupByEnd: number | null = null;
     for (const index of topLevelIndexes) {
         const matched = matchWordsAtSameDepth(
@@ -315,7 +296,7 @@ export function classifyUnsupportedSelectItemPrefix(
         return null;
     }
     const index = topLevelIndexes[1]!;
-    const view = signatureViewFor(context, "select-item-prefix");
+    const view = signatureViewFor("select-item-prefix");
     for (const signature of candidateSignaturesAt(context, index, view)) {
         const match = matchAt(context, range, index, signature);
         if (match === null) {
@@ -384,7 +365,7 @@ export function rejectUnsupportedRelationConstructs(
     range: LeafRange,
     indexes: readonly number[]
 ): void {
-    const view = signatureViewFor(context, "relation-suffix");
+    const view = signatureViewFor("relation-suffix");
     for (let position = 1; position < indexes.length; position++) {
         const index = indexes[position]!;
         const signatures = candidateSignaturesAt(context, index, view);
@@ -428,7 +409,7 @@ export function rejectUnsupportedRelationConstructs(
             throw new ParserSyntaxError(
                 "SYN_UNMODELED_CONSTRUCT",
                 { start: index, end: range.end },
-                `${context.dialect} relation construct ${signature.words.join(" ").toUpperCase()} is recognized but not structured`,
+                `hive relation construct ${signature.words.join(" ").toUpperCase()} is recognized but not structured`,
                 "statement",
                 signature.capabilityId
             );
@@ -441,7 +422,7 @@ export function findUnsupportedQueryClauseCandidates(
     range: LeafRange,
     topLevelIndexes: readonly number[] = topLevelSyntaxIndexes(context, range)
 ): readonly UnsupportedConstructMatch[] {
-    const view = signatureViewFor(context, "query-clause");
+    const view = signatureViewFor("query-clause");
     const matches: UnsupportedConstructMatch[] = [];
     for (const index of topLevelIndexes) {
         const signatures = candidateSignaturesAt(context, index, view);

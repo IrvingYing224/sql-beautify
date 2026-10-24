@@ -1,6 +1,6 @@
-import { getDialect } from "../dialects/registry";
-import { isParserStructuredCapabilityState } from "../dialects/capability-state";
+import { HIVE_REGISTRY } from "../dialects/registry";
 import type { OperatorSemantics } from "../dialects/types";
+import { isTemplateFragment } from "../lexer/token";
 import type { LeafRange } from "./leaf-range";
 import { parseList } from "./list-parser";
 import type {
@@ -15,7 +15,6 @@ import type {
     TypeExpressionNode,
     WindowSpecNode,
 } from "./node";
-import { primitiveExpressionCapabilityId } from "./primitive-capability";
 import {
     ParserSyntaxError,
     baseDepth,
@@ -33,10 +32,7 @@ import {
     createParserCheckpoint,
     recoverOpaqueFromError,
 } from "./recovery";
-import {
-    parseTypeExpression,
-    parseTypeExpressionPrefix,
-} from "./type-parser";
+import { parseTypeExpression } from "./type-parser";
 import { parseWindowSpecRange } from "./window-parser";
 
 export type ExpressionValueNode = ExpressionNode | OpaqueNode;
@@ -70,28 +66,6 @@ function expressionRange(
 
 function isAtomicNameKind(kind: string): boolean {
     return kind === "identifier" || kind === "keyword" || kind === "quoted-identifier";
-}
-
-function isCollectionName(dialect: ParserContext["dialect"], word: string): boolean {
-    if (dialect === "hive") {
-        return COLLECTION_NAMES.includes(word);
-    }
-    return (dialect === "generic" || dialect === "postgresql") && word === "array";
-}
-
-function supportsCollectionSyntax(dialect: ParserContext["dialect"]): boolean {
-    const capabilityId =
-        dialect === "hive"
-            ? "collection-expression"
-            : dialect === "postgresql"
-              ? "postgres-array-subset"
-              : dialect === "generic"
-                ? "generic-array-subset"
-                : null;
-    const state = capabilityId === null
-        ? null
-        : getDialect(dialect).getCapability(capabilityId)?.state;
-    return isParserStructuredCapabilityState(state);
 }
 
 class PrattParser {
@@ -222,16 +196,9 @@ class PrattParser {
         kind: ExpressionKind,
         range: LeafRange
     ): string | null {
-        const primitiveCapability =
-            kind === "literal" || kind === "parameter"
-                ? primitiveExpressionCapabilityId(
-                      this.context.dialect,
-                      kind,
-                      this.context.leaves[range.start]
-                  )
-                : null;
-        if (primitiveCapability !== null) {
-            return primitiveCapability;
+        const leaf = this.context.leaves[range.start];
+        if (kind === "parameter" && leaf?.kind === "parameter" && isTemplateFragment(leaf)) {
+            return "template-parameter";
         }
         if (kind === "function-call") {
             return "function-call";
@@ -249,15 +216,7 @@ class PrattParser {
             return "window-expression";
         }
         if (kind === "collection") {
-            if (this.context.dialect === "hive") {
-                return "collection-expression";
-            }
-            if (this.context.dialect === "postgresql") {
-                return "postgres-array-subset";
-            }
-            if (this.context.dialect === "generic") {
-                return "generic-array-subset";
-            }
+            return "collection-expression";
         }
         return null;
     }
@@ -425,7 +384,7 @@ class PrattParser {
         if (leaf.raw === "(") {
             return this.parseParenthesized(nestingDepth);
         }
-        if (leaf.raw === "[" && supportsCollectionSyntax(this.context.dialect)) {
+        if (leaf.raw === "[") {
             return this.parseBareCollection(nestingDepth);
         }
         if (leaf.raw === "*") {
@@ -533,46 +492,12 @@ class PrattParser {
                 left = this.parseCall(left, nestingDepth);
                 continue;
             }
-            if (this.raw() === "[" && supportsCollectionSyntax(this.context.dialect)) {
+            if (this.raw() === "[") {
                 left = this.parseIndexCollection(left, nestingDepth);
                 continue;
             }
             if (this.wordIs(this.position, "over")) {
                 left = this.parseWindow(left, nestingDepth);
-                continue;
-            }
-            const cast = getDialect(this.context.dialect).getOperatorSemantics(
-                this.raw() ?? "",
-                "postfix"
-            );
-            if (cast?.key === "::") {
-                const operator = this.leafIndex()!;
-                const typeStart = this.position + 1;
-                if (typeStart >= this.indexes.length) {
-                    throw new ParserSyntaxError(
-                        "SYN_INCOMPLETE_CLAUSE",
-                        { start: operator, end: operator + 1 },
-                        "PostgreSQL :: requires a type"
-                    );
-                }
-                const parsedType = parseTypeExpressionPrefix(
-                    this.context,
-                    expressionRange(this.indexes, typeStart, this.indexes.length),
-                    nestingDepth
-                );
-                const type = parsedType.node;
-                const nextPosition = this.indexes.findIndex(
-                    (index, position) =>
-                        position >= typeStart && index >= parsedType.endLeafIndex
-                );
-                this.position = nextPosition < 0 ? this.indexes.length : nextPosition;
-                left = this.create(
-                    { start: left.leafRange.start, end: type.leafRange.end },
-                    "cast",
-                    [operator],
-                    [left, type],
-                    [{ semantics: cast, leafIds: [operator] }]
-                );
                 continue;
             }
             break;
@@ -638,7 +563,7 @@ class PrattParser {
         this.position = closePosition + 1;
         return this.create(
             { start: callee.leafRange.start, end: close + 1 },
-            calleeWord !== null && isCollectionName(this.context.dialect, calleeWord)
+            calleeWord !== null && COLLECTION_NAMES.includes(calleeWord)
                 ? "collection"
                 : "function-call",
             [],
@@ -1285,7 +1210,7 @@ class PrattParser {
         if (key === null) {
             return null;
         }
-        const semantics = getDialect(this.context.dialect).getOperatorSemantics(key, "prefix");
+        const semantics = HIVE_REGISTRY.getOperatorSemantics(key, "prefix");
         return semantics === null
             ? null
             : Object.freeze({ semantics, positions: Object.freeze([this.position]) });
@@ -1297,9 +1222,8 @@ class PrattParser {
             return null;
         }
         const leaf = this.context.leaves[index]!;
-        const dialect = getDialect(this.context.dialect);
         if (leaf.kind === "operator") {
-            const semantics = dialect.getOperatorSemantics(leaf.raw, "infix");
+            const semantics = HIVE_REGISTRY.getOperatorSemantics(leaf.raw, "infix");
             return semantics === null
                 ? null
                 : Object.freeze({ semantics, positions: Object.freeze([this.position]) });
@@ -1312,12 +1236,12 @@ class PrattParser {
         let positions = [this.position];
         if (word === "not") {
             const compoundKey = `not-${this.word(this.position + 1) ?? ""}`;
-            if (dialect.getOperatorSemantics(compoundKey, "infix") !== null) {
+            if (HIVE_REGISTRY.getOperatorSemantics(compoundKey, "infix") !== null) {
                 key = compoundKey;
                 positions = [this.position, this.position + 1];
             }
         }
-        const semantics = dialect.getOperatorSemantics(key, "infix");
+        const semantics = HIVE_REGISTRY.getOperatorSemantics(key, "infix");
         return semantics === null
             ? null
             : Object.freeze({ semantics, positions: Object.freeze(positions) });
@@ -1344,7 +1268,7 @@ class PrattParser {
             key = `is-${predicate}`;
             positions = [this.position, this.position + 1];
         }
-        const semantics = getDialect(this.context.dialect).getOperatorSemantics(key, "postfix");
+        const semantics = HIVE_REGISTRY.getOperatorSemantics(key, "postfix");
         return semantics === null
             ? null
             : Object.freeze({ semantics, positions: Object.freeze(positions) });
