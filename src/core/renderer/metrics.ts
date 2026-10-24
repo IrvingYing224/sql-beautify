@@ -149,8 +149,6 @@ function childOf(doc: LayoutDoc): LayoutDoc | null {
 
 /** Computes context-independent flat summaries with one iterative post-order pass. */
 export function measureLayoutArtifact(artifact: LayoutArtifact): LayoutMetricsResult {
-    const budget = artifact.budget;
-
     const summaries = new WeakMap<object, FlatLayoutSummary>();
     const work: MetricWorkItem[] = [{ doc: artifact.root, exit: false }];
     let docNodeCount = 0;
@@ -160,12 +158,6 @@ export function measureLayoutArtifact(artifact: LayoutArtifact): LayoutMetricsRe
             const doc = item.doc;
             if (!item.exit) {
                 docNodeCount += 1;
-                if (docNodeCount > budget.maxDocNodes) {
-                    return failure(
-                        "METRICS_OVERFLOW",
-                        "Layout metrics exceeded the document-node budget"
-                    );
-                }
                 work.push({ doc, exit: true });
                 if (doc.kind === "concat") {
                     for (let index = doc.parts.length - 1; index >= 0; index--) {

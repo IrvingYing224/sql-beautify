@@ -470,10 +470,7 @@ export function deriveLayoutAlignmentPlan(
             return null;
         }
         const { analysis, options } = artifact;
-        const maximumTargetColumn = Math.min(
-            options.maxAlignWidth - 1,
-            artifact.budget.maxGeneratedColumnsPerLine
-        );
+        const maximumTargetColumn = options.maxAlignWidth - 1;
         if (maximumTargetColumn <= 0) {
             return alignmentPlan([]);
         }

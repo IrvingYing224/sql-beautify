@@ -4,7 +4,7 @@ import type {
     SafeFormatResult,
 } from "./format-result";
 import { floorViolation, type ExpectedLeafText } from "./floor";
-import { MAX_FORMAT_SOURCE_CODE_UNITS } from "./limits";
+import { MAX_FORMAT_SOURCE_CODE_UNITS, maxFormatOutputCodeUnits } from "./limits";
 import { analyzeSql } from "../analysis/analyze";
 import type { AnalyzedArtifact } from "../analysis/types";
 import type { FormatOptions } from "../config/options";
@@ -106,26 +106,18 @@ function safeResult(
           });
 }
 
-function isLayoutResourceFailure(code: string): boolean {
-    return (
-        code === "LAYOUT_PLAN_RESOURCE" ||
-        code === "LAYOUT_COMPILE_RESOURCE" ||
-        code === "RENDER_RESOURCE_BUDGET"
-    );
-}
-
 interface StageFailure {
     readonly code: string;
     readonly message: string;
 }
 
-/** A rejected stage keeps its own code: a resource limit preserves the text, anything else fails. */
+/** A rejected stage keeps its own code: the output limit preserves the text, anything else fails. */
 function stageFailure(
     source: string,
     diagnostics: readonly Diagnostic[],
     failure: StageFailure
 ): OriginalTextFormatResult {
-    const resource = isLayoutResourceFailure(failure.code);
+    const resource = failure.code === "RENDER_OUTPUT_LIMIT";
     const value = diagnostic(
         source,
         failure.code,
@@ -148,7 +140,11 @@ function compileAndRender(plan: LayoutPlan, environment: RenderEnvironment): Ren
     if (!compiled.ok) {
         return compiled;
     }
-    const rendered = renderLayoutArtifact(compiled.artifact, environment);
+    const rendered = renderLayoutArtifact(
+        compiled.artifact,
+        environment,
+        maxFormatOutputCodeUnits(plan.analysis.source.length)
+    );
     return rendered.ok
         ? { ok: true, artifact: compiled.artifact, rendered }
         : rendered;

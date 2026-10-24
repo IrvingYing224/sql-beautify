@@ -90,7 +90,7 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 - `unsupportedSyntaxPolicy=warn` 会继续格式化周边 SQL，并在 VS Code 中给出 warning。
 - `unsupportedSyntaxPolicy=preserve` 使用相同的安全输出，但不在编辑器中显示 capability warning；手动执行 `SQL Beautify: Format SQL` 且因未建模区域没有修改时，会显示一次不含 SQL 内容的汇总提示。format provider 与 format-on-save 不弹出该提示。
 - `unsupportedSyntaxPolicy=bail_out` 会在出现任何未建模或解析恢复区域时保留整个格式化目标的原文，包括尚未登记能力名称的语法、局部语法错误和 parser 深度超限；同一目标中其余语句也不会修改。
-- parser 遇到未建模语法、局部语法错误或资源预算耗尽时，按可证明边界保留对应区域、整条语句或整个目标，并报告 warning。`warn` / `preserve` 允许继续格式化局部保留区域之外的 SQL；`bail_out` 则保留整个目标。layout 或 renderer 预算耗尽会保留整个目标，不提交部分布局；内部不变量破坏仍作为 hard failure 处理。
+- parser 遇到未建模语法、局部语法错误或资源预算耗尽时，按可证明边界保留对应区域、整条语句或整个目标，并报告 warning。`warn` / `preserve` 允许继续格式化局部保留区域之外的 SQL；`bail_out` 则保留整个目标。格式化输出超过 4 × 输入 + 65,536 个 UTF-16 code units 时，renderer 立即停止并保留整个目标，不提交部分布局；内部不变量破坏仍作为 hard failure 处理。
 - Hive 的 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、主 formatter 中的 DDL、`UPDATE` 和 `DELETE` 目前明确按 verbatim 保留，不宣称已格式化；完整边界以生成的 support matrix 为准。
 - 选区格式化接受完整文档、完整单句或两个以上连续完整 statement；半条 statement、跨 protected/opaque 边界或结构不完整的片段会被拒绝，而不是猜测性改写。
 - 内部错误（含错误栈）写入输出面板的 `SQL Beautify` 日志；每次格式化的状态与诊断 code 摘要按 debug 级别记录，用 `Developer: Set Log Level` 调到 Debug 后可见。编辑器诊断直接显示格式化器的消息，可能引用 SQL 片段，最多 200 个字符。

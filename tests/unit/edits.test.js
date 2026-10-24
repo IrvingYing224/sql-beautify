@@ -109,7 +109,7 @@ test('U13: 524,288 code units are accepted, one more is rejected before formatti
         [['ADAPTER_INPUT_LIMIT', 'error', 0, 524289, null]]);
 });
 
-test('U-TX: one target over the layout budget rejects all 24', function() {
+test('U-TX: one target over the output limit rejects all 24', function() {
     var heavy = fs.readFileSync(path.join(__dirname, '..', 'golden', 'cases', 'explicit', 'resource', 'nested-case-80.in.txt'), 'utf8')
         .replace(/\n$/, '');
     function lines(withHeavy) {
@@ -127,7 +127,7 @@ test('U-TX: one target over the layout budget rejects all 24', function() {
     var source = lines(true).join('');
     var result = format(source, targets(lines(true)));
     assert.deepStrictEqual([result.status, result.edits], ['rejected', []]);
-    assert.deepStrictEqual(diagnostics(result), [['LAYOUT_COMPILE_RESOURCE', 'warning', 194, 2927, 'line:17']]);
+    assert.deepStrictEqual(diagnostics(result), [['RENDER_OUTPUT_LIMIT', 'warning', 194, 2927, 'line:17']]);
     result = format(lines(false).join(''), targets(lines(false)));
     assert.strictEqual(result.edits.length, 24);
     assert.deepStrictEqual(edits(result)[0], ['line:0', 0, 11, 'SELECT c0;\n']);

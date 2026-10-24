@@ -11,7 +11,12 @@ var test = require('node:test');
 var m = require('./helpers/src')({
     format: 'core/api/format',
     resolve: 'core/config/resolve-options',
-    definitions: 'core/config/definitions'
+    definitions: 'core/config/definitions',
+    analyze: 'core/analysis/analyze',
+    policy: 'core/layout/policy',
+    compiler: 'core/layout/compiler',
+    render: 'core/renderer/render',
+    environment: 'core/renderer/environment'
 });
 
 function format(source, options) {
@@ -79,7 +84,7 @@ test('D1: diagnostic severity, capability, recovery and span', function() {
             return [item.code, item.severity, item.capabilityId, item.recovery, item.span.start, item.span.end];
         }));
     }
-    var nested = 'select ' + 'case when a=1 then '.repeat(44) + '0' + ' else 1 end'.repeat(44) + ' from t';
+    var nested = 'select ' + 'case when a=1 then '.repeat(100) + '0' + ' else 1 end'.repeat(100) + ' from t';
     var table = [
         ['UPDATE target SET value=1 WHERE id=2', {}, ['unchanged', ['SYN_UNSUPPORTED_STATEMENT', 'warning', 'update', 'verbatim-node', 0, 36]]],
         ['DELETE FROM target WHERE id=2', {}, ['unchanged', ['SYN_UNSUPPORTED_STATEMENT', 'warning', 'delete', 'verbatim-node', 0, 29]]],
@@ -104,7 +109,7 @@ test('D1: diagnostic severity, capability, recovery and span', function() {
             ['LEX_UNTERMINATED_STRING', 'error', null, 'preserve-target', 7, 20]]],
         ['select aaaaaaaaaa as x -- c1\n, b as y -- c2\n, cc as z -- c3\nfrom t', { commaStyle: 'trailing' }, ['formatted',
             ['LAYOUT_COMMA_FALLBACK', 'info', null, 'none', 0, 66]]],
-        [nested, {}, ['preserved', ['LAYOUT_COMPILE_RESOURCE', 'warning', null, 'preserve-target', 0, nested.length]]],
+        [nested, {}, ['preserved', ['RENDER_OUTPUT_LIMIT', 'warning', null, 'preserve-target', 0, nested.length]]],
         ['select 1', { foo: 1 }, ['failed', ['CFG_UNKNOWN_OPTION', 'error', null, 'preserve-target', 0, 8]]]
     ];
     table.forEach(function(value) {
@@ -143,6 +148,28 @@ test('R1: the core keeps input over 524,288 code units unchanged', function() {
         return [item.code, item.severity, item.capabilityId, item.recovery, item.span.start, item.span.end];
     }), [['FMT_INPUT_LIMIT', 'warning', null, 'preserve-target', 0, 524289]]);
     assert.strictEqual(format('select 1'.padEnd(524288, ' ')).status, 'formatted');
+});
+
+test('R5: formatSql output stops at 4 x input + 64 Ki code units', function() {
+    var source = 'select a, b from t';
+    var options = m.resolve.resolveFormatOptions({}).options;
+    var analysis = m.analyze.analyzeSql(source, { mode: 'document' });
+    var compiled = m.compiler.compileLayoutPlan(m.policy.buildLayoutPlan(analysis, options).plan);
+    var env = m.environment.inferRenderEnvironment(source);
+    function render(root, limit) {
+        var artifact = Object.assign({}, compiled.artifact, { root: root || compiled.artifact.root });
+        var result = m.render.renderLayoutArtifact(artifact, env, limit);
+        return result.ok ? result.text : result.code;
+    }
+    var text = format(source).text;
+    assert.strictEqual(render(null, text.length), text);
+    assert.strictEqual(render(null, text.length - 1), 'RENDER_OUTPUT_LIMIT');
+    // The check runs before generated whitespace is allocated: a 2^31-column space would make
+    // `repeat` throw (RENDER_INTERNAL) instead of reporting the limit.
+    assert.strictEqual(render({ kind: 'space', columns: Math.pow(2, 31) }, 100), 'RENDER_OUTPUT_LIMIT');
+    var prefix = { kind: 'indent', levels: Math.pow(2, 29),
+        content: { kind: 'concat', parts: [{ kind: 'line', mode: 'hard' }, { kind: 'leaf', leafId: 0, transform: 'raw' }] } };
+    assert.strictEqual(render(prefix, 100), 'RENDER_OUTPUT_LIMIT');
 });
 
 test('U-CFG: option validation and the manifest agree', function() {

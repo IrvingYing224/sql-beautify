@@ -39,7 +39,7 @@ export type LayoutMetricsResult = LayoutMetricsSuccess | LayoutMetricsFailure;
 export type RenderFailureCode =
     | "RENDER_METRICS"
     | "RENDER_KEYWORD_TRANSFORM"
-    | "RENDER_RESOURCE_BUDGET"
+    | "RENDER_OUTPUT_LIMIT"
     | "RENDER_SOURCE_MAP"
     | "RENDER_NEWLINE_CONTRACT"
     | "RENDER_INTERNAL";

@@ -3140,7 +3140,7 @@
   "op": "formatSql",
   "status": "preserved",
   "codes": [
-   "LAYOUT_COMPILE_RESOURCE"
+   "RENDER_OUTPUT_LIMIT"
   ]
  },
  "explicit/resource/extract-12000-columns": {
@@ -3165,16 +3165,14 @@
  },
  "explicit/resource/nested-case-60": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "LAYOUT_COMPILE_RESOURCE"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/resource/nested-case-80": {
   "op": "formatSql",
   "status": "preserved",
   "codes": [
-   "LAYOUT_COMPILE_RESOURCE"
+   "RENDER_OUTPUT_LIMIT"
   ]
  },
  "explicit/resource/operator-chain-2001": {
@@ -5914,7 +5912,7 @@
   "op": "formatSql",
   "status": "preserved",
   "codes": [
-   "LAYOUT_COMPILE_RESOURCE"
+   "RENDER_OUTPUT_LIMIT"
   ]
  },
  "parse/parser-depth/select-1-3682cf06": {
@@ -9058,15 +9056,13 @@
   "op": "formatSql",
   "status": "preserved",
   "codes": [
-   "LAYOUT_COMPILE_RESOURCE"
+   "RENDER_OUTPUT_LIMIT"
   ]
  },
  "recapture/wave3b-format-kernel/select-case-when-a-1-then-case-when-a-1-cec6323b": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "LAYOUT_COMPILE_RESOURCE"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "recapture/wave3b-format-kernel/select-from-t-qualify-row-number-over-1-8c4a6b0d": {
   "op": "formatSql",

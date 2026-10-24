@@ -3,8 +3,6 @@ import type { CanonicalFormatOptions } from "../config/options";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type { DominatingVerbatimClaim } from "./verbatim-claims";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
-import type { LayoutResourceBudget } from "./resource-budget";
-import { createLayoutResourceBudget } from "./resource-budget";
 
 export type PlannedLeafEmission =
     | "raw"
@@ -69,7 +67,6 @@ export interface LayoutScopeAction {
 export interface LayoutPlan {
     readonly analysis: AnalyzedArtifact;
     readonly options: CanonicalFormatOptions;
-    readonly budget: LayoutResourceBudget;
     readonly leafEmissions: readonly PlannedLeafEmission[];
     readonly leafAuthorityNodeIds: readonly (number | null)[];
     readonly gapActions: readonly (LayoutGapAction | null)[];
@@ -88,7 +85,6 @@ export type LayoutPlanFailureCode =
     | "LAYOUT_PLAN_CONFLICT"
     | "LAYOUT_PLAN_GAP"
     | "LAYOUT_PLAN_SCOPE"
-    | "LAYOUT_PLAN_RESOURCE"
     | "LAYOUT_PLAN_INTERNAL";
 
 export interface LayoutPlanFailure {
@@ -107,7 +103,6 @@ export type LayoutPlanResult = LayoutPlanSuccess | LayoutPlanFailure;
 export interface LayoutPlanBuilder {
     readonly analysis: AnalyzedArtifact;
     readonly options: CanonicalFormatOptions;
-    readonly budget: LayoutResourceBudget;
     setKeywordCase(authorityNodeId: number, leafId: number): boolean;
     replaceGap(
         authorityNodeId: number,
@@ -131,14 +126,11 @@ function resultFailure(
     return Object.freeze({ ok: false, code, message });
 }
 
-function isColumnCount(value: number, maximum: number): boolean {
-    return Number.isSafeInteger(value) && value > 0 && value <= maximum;
+function isColumnCount(value: number): boolean {
+    return Number.isSafeInteger(value) && value > 0;
 }
 
-function validGapDecision(
-    value: LayoutGapDecision,
-    maximumColumns: number
-): boolean {
+function validGapDecision(value: LayoutGapDecision): boolean {
     switch (value.kind) {
         case "empty":
         case "hard-line":
@@ -146,9 +138,9 @@ function validGapDecision(
         case "soft-line":
             return value.flat === "empty" || value.flat === "space";
         case "space":
-            return isColumnCount(value.columns, maximumColumns);
+            return isColumnCount(value.columns);
         case "pad-to-column":
-            return isColumnCount(value.targetColumn, maximumColumns);
+            return isColumnCount(value.targetColumn);
     }
 }
 
@@ -172,19 +164,16 @@ function decisionsEqual(
     return true;
 }
 
-function validScopeDecision(
-    value: LayoutScopeDecision,
-    budget: LayoutResourceBudget
-): boolean {
+function validScopeDecision(value: LayoutScopeDecision): boolean {
     switch (value.kind) {
         case "group":
             return value.mode === "flat" || value.mode === "break";
         case "indent":
-            return isColumnCount(value.levels, budget.maxCumulativeIndentLevels);
+            return isColumnCount(value.levels);
         case "align":
-            return isColumnCount(value.columns, budget.maxGeneratedColumnsPerLine);
+            return isColumnCount(value.columns);
         case "auto-group":
-            return isColumnCount(value.maxFlatWidth, budget.maxGeneratedColumnsPerLine);
+            return isColumnCount(value.maxFlatWidth);
     }
 }
 
@@ -232,19 +221,12 @@ export function createLayoutPlanBuilder(
     analysis: AnalyzedArtifact,
     options: CanonicalFormatOptions
 ): LayoutPlanBuilder | null {
-    let budget: LayoutResourceBudget;
     let claims: ReturnType<typeof dominatingVerbatimClaims>;
     try {
-        const derivedBudget = createLayoutResourceBudget(
-            analysis.source.length,
-            analysis.leaves.length,
-            analysis.index.nodes().length
-        );
         claims = dominatingVerbatimClaims(analysis);
-        if (derivedBudget === null || claims === null) {
+        if (claims === null) {
             return null;
         }
-        budget = derivedBudget;
     } catch {
         return null;
     }
@@ -263,7 +245,6 @@ export function createLayoutPlanBuilder(
     const claimStarts: Array<DominatingVerbatimClaim | null> = new Array(
         analysis.leaves.length + 1
     ).fill(null);
-    let actionCount = 0;
     let failure: LayoutPlanFailure | null = null;
     let finished = false;
 
@@ -301,7 +282,6 @@ export function createLayoutPlanBuilder(
                 return null;
             }
             claimStarts[claim.leafRange.start] = claim;
-            actionCount += 1;
             for (
                 let leafId = claim.leafRange.start;
                 leafId < claim.leafRange.end;
@@ -324,12 +304,8 @@ export function createLayoutPlanBuilder(
                     leafEmissions[leafId] = "line-suffix";
                 }
             }
-            actionCount += 1;
         }
     } catch {
-        return null;
-    }
-    if (actionCount > budget.maxPlanActions) {
         return null;
     }
 
@@ -337,7 +313,6 @@ export function createLayoutPlanBuilder(
     builder = Object.freeze({
         analysis,
         options,
-        budget,
 
         setKeywordCase(authorityNodeId: number, leafId: number): boolean {
             if (finished) {
@@ -421,7 +396,7 @@ export function createLayoutPlanBuilder(
                 );
             }
             if (
-                !validGapDecision(decision, budget.maxGeneratedColumnsPerLine) ||
+                !validGapDecision(decision) ||
                 !Number.isSafeInteger(startLeafId) ||
                 !Number.isSafeInteger(endLeafId) ||
                 startLeafId < 0 ||
@@ -501,12 +476,6 @@ export function createLayoutPlanBuilder(
                     );
                 }
             }
-            if (actionCount >= budget.maxPlanActions) {
-                return poison(
-                    "LAYOUT_PLAN_RESOURCE",
-                    "Layout plan exceeds the action budget"
-                );
-            }
             const action = Object.freeze({
                 authorityNodeId,
                 startLeafId,
@@ -517,7 +486,6 @@ export function createLayoutPlanBuilder(
             for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
                 leafEmissions[leafId] = "replaced-trivia";
             }
-            actionCount += 1;
             return true;
         },
 
@@ -534,7 +502,7 @@ export function createLayoutPlanBuilder(
                 );
             }
             if (
-                !validScopeDecision(decision, budget) ||
+                !validScopeDecision(decision) ||
                 !Number.isSafeInteger(startLeafId) ||
                 !Number.isSafeInteger(endLeafId) ||
                 startLeafId < 0 ||
@@ -594,12 +562,6 @@ export function createLayoutPlanBuilder(
                           `Scope ${key} already has an incompatible decision`
                       );
             }
-            if (actionCount >= budget.maxPlanActions) {
-                return poison(
-                    "LAYOUT_PLAN_RESOURCE",
-                    "Layout plan exceeds the action budget"
-                );
-            }
             const action = Object.freeze({
                 id: scopeActions.length,
                 authorityNodeId,
@@ -609,7 +571,6 @@ export function createLayoutPlanBuilder(
             });
             scopeActions.push(action);
             scopeByKey.set(key, action);
-            actionCount += 1;
             return true;
         },
 
@@ -699,19 +660,10 @@ export function createLayoutPlanBuilder(
                     }
                 }
 
-                const scopeBoundaryCounts = new Uint16Array(
+                const scopeBoundaryCounts = new Uint32Array(
                     analysis.leaves.length + 1
                 );
                 for (const scope of sortedScopes) {
-                    if (
-                        scopeBoundaryCounts[scope.startLeafId] === 0xFFFF ||
-                        scopeBoundaryCounts[scope.endLeafId] === 0xFFFF
-                    ) {
-                        return resultFailure(
-                            "LAYOUT_PLAN_RESOURCE",
-                            "Layout scope boundary fanout is too large"
-                        );
-                    }
                     scopeBoundaryCounts[scope.startLeafId] =
                         scopeBoundaryCounts[scope.startLeafId]! + 1;
                     scopeBoundaryCounts[scope.endLeafId] =
@@ -772,7 +724,6 @@ export function createLayoutPlanBuilder(
             const plan = Object.freeze({
                 analysis,
                 options,
-                budget,
                 leafEmissions: Object.freeze(leafEmissions.slice()),
                 leafAuthorityNodeIds: Object.freeze(
                     leafAuthorityNodeIds.slice()

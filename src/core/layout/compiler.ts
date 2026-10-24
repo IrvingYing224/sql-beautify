@@ -7,8 +7,6 @@ import type { LayoutPlan, LayoutScopeAction } from "./plan";
 export type LayoutCompileFailureCode =
     | "LAYOUT_COMPILE_ACTION"
     | "LAYOUT_COMPILE_DOC"
-    | "LAYOUT_COMPILE_ARTIFACT"
-    | "LAYOUT_COMPILE_RESOURCE"
     | "LAYOUT_COMPILE_INTERNAL";
 
 export interface LayoutCompileFailure {
@@ -49,12 +47,10 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
     let scopeActionVisitCount = 0;
     let cursor = 0;
     let boundaryPending = true;
-    let docPartCount = 0;
     const hasScopes = plan.scopeActionCount > 0;
     try {
         const appendDoc = (doc: LayoutDoc): void => {
             frames[frames.length - 1]!.parts.push(doc);
-            docPartCount += 1;
         };
         const closeScope = (action: LayoutScopeAction): LayoutCompileFailure | null => {
             const frame = frames[frames.length - 1];
@@ -212,12 +208,6 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
                 "Layout compiler finished with unclosed scopes"
             );
         }
-        if (docPartCount > plan.budget.maxDocNodes) {
-            return failure(
-                "LAYOUT_COMPILE_RESOURCE",
-                "Layout compiler exceeded the document-node budget"
-            );
-        }
         const root = factory.concat(frames[0]!.parts);
         if (root === null) {
             return failure(
@@ -225,20 +215,10 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
                 "Layout compiler could not assemble the canonical document graph"
             );
         }
-        const created = createLayoutArtifact(
-            plan.analysis,
-            root,
-            plan.options
-        );
-        if (!created.ok) {
-            return failure(
-                created.code === "LAYOUT_ARTIFACT_RESOURCE"
-                    ? "LAYOUT_COMPILE_RESOURCE"
-                    : "LAYOUT_COMPILE_ARTIFACT",
-                `${created.code}: ${created.message}`
-            );
-        }
-        return Object.freeze({ ok: true, artifact: created.artifact });
+        return Object.freeze({
+            ok: true,
+            artifact: createLayoutArtifact(plan.analysis, root, plan.options),
+        });
     } catch {
         return failure(
             "LAYOUT_COMPILE_INTERNAL",

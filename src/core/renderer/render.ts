@@ -6,10 +6,7 @@ import type {
 import type { SourceSpan } from "../source/source-span";
 import type { SourceMap, SourceMapEntry } from "../source/source-map";
 import { measureDisplayText } from "./display-width";
-import {
-    inferRenderEnvironment,
-    type RenderEnvironment,
-} from "./environment";
+import type { RenderEnvironment } from "./environment";
 import { applyKeywordCase } from "./keyword-case";
 import { measureLayoutArtifact } from "./metrics";
 import type {
@@ -138,10 +135,9 @@ function freezeSourceMap(values: readonly MutableSourceMapEntry[]): SourceMap {
 function renderCanonical(
     artifact: LayoutArtifact,
     metrics: LayoutMetrics,
-    environment: RenderEnvironment
+    environment: RenderEnvironment,
+    maxOutputCodeUnits: number
 ): RenderResult {
-    const budget = artifact.budget;
-
     const chunks: string[] = [];
     const mapEntries: MutableSourceMapEntry[] = [];
     const suffixes: PendingSuffix[] = [];
@@ -154,21 +150,15 @@ function renderCanonical(
         },
     ];
     let outputCodeUnits = 0;
-    let generatedWhitespaceCodeUnits = 0;
-    let generatedColumnsOnLine = 0;
     let displayColumn = 0;
     let needsLinePrefix = false;
-    let docVisitCount = 0;
 
+    // Checked before every append, and before `repeat` allocates generated whitespace.
     const assertOutputCapacity = (amount: number): void => {
-        if (
-            !Number.isSafeInteger(amount) ||
-            amount < 0 ||
-            outputCodeUnits > budget.maxOutputCodeUnits - amount
-        ) {
+        if (outputCodeUnits > maxOutputCodeUnits - amount) {
             throw new RenderAbort(
-                "RENDER_RESOURCE_BUDGET",
-                "Rendered output exceeds the code-unit budget"
+                "RENDER_OUTPUT_LIMIT",
+                "Rendered output exceeds the output limit"
             );
         }
     };
@@ -184,31 +174,14 @@ function renderCanonical(
                 "Generated line break does not match the render environment"
             );
         }
-        if (
-            !Number.isSafeInteger(displayColumns) ||
-            displayColumns < 0 ||
-            generatedWhitespaceCodeUnits >
-                budget.maxGeneratedWhitespaceCodeUnits - raw.length ||
-            (!lineBreak &&
-                generatedColumnsOnLine >
-                    budget.maxGeneratedColumnsPerLine - displayColumns)
-        ) {
-            throw new RenderAbort(
-                "RENDER_RESOURCE_BUDGET",
-                "Generated layout whitespace exceeds its runtime budget"
-            );
-        }
         assertOutputCapacity(raw.length);
         chunks.push(raw);
         outputCodeUnits += raw.length;
-        generatedWhitespaceCodeUnits += raw.length;
         if (lineBreak) {
             displayColumn = 0;
-            generatedColumnsOnLine = 0;
             needsLinePrefix = true;
         } else {
             displayColumn += displayColumns;
-            generatedColumnsOnLine += displayColumns;
         }
     };
 
@@ -284,7 +257,7 @@ function renderCanonical(
         );
         if (measured === null) {
             throw new RenderAbort(
-                "RENDER_RESOURCE_BUDGET",
+                "RENDER_INTERNAL",
                 "Source-derived display width could not be represented"
             );
         }
@@ -304,9 +277,6 @@ function renderCanonical(
         outputCodeUnits += raw.length;
         appendMapEntry(span.start, span.end, outputStart, outputCodeUnits);
         displayColumn = measured.endColumn;
-        if (measured.containsLineBreak) {
-            generatedColumnsOnLine = 0;
-        }
         needsLinePrefix = measured.endsWithLineBreak;
     };
 
@@ -316,25 +286,16 @@ function renderCanonical(
         if (!needsLinePrefix) {
             return;
         }
-        const indentColumns = frame.indentLevels *
-            (artifact.options.indentStyle === "tab" ? environment.tabSize : 4);
-        const totalColumns = indentColumns + frame.alignColumns;
-        if (
-            !Number.isSafeInteger(totalColumns) ||
-            totalColumns > budget.maxGeneratedColumnsPerLine
-        ) {
-            throw new RenderAbort(
-                "RENDER_RESOURCE_BUDGET",
-                "Generated line prefix exceeds the column budget"
-            );
-        }
+        const tab = artifact.options.indentStyle === "tab";
+        const totalColumns = frame.indentLevels * (tab ? environment.tabSize : 4) +
+            frame.alignColumns;
         if (totalColumns === 0) {
             needsLinePrefix = false;
             return;
         }
-        const raw = artifact.options.indentStyle === "tab"
-            ? "\t".repeat(frame.indentLevels) +
-                " ".repeat(frame.alignColumns)
+        assertOutputCapacity(tab ? frame.indentLevels + frame.alignColumns : totalColumns);
+        const raw = tab
+            ? "\t".repeat(frame.indentLevels) + " ".repeat(frame.alignColumns)
             : " ".repeat(totalColumns);
         needsLinePrefix = false;
         appendGenerated(raw, totalColumns, false);
@@ -354,6 +315,7 @@ function renderCanonical(
             emitLinePrefix(frame);
         }
         if (columns > 0) {
+            assertOutputCapacity(columns);
             appendGenerated(" ".repeat(columns), columns, false);
         }
     };
@@ -466,13 +428,6 @@ function renderCanonical(
         while (stack.length > 0) {
             const frame = stack.pop()!;
             const doc = frame.doc;
-            docVisitCount += 1;
-            if (docVisitCount > budget.maxDocNodes) {
-                throw new RenderAbort(
-                    "RENDER_RESOURCE_BUDGET",
-                    "Renderer exceeded the document-node budget"
-                );
-            }
             switch (doc.kind) {
                 case "leaf":
                     appendLeaf(doc, frame);
@@ -543,12 +498,6 @@ function renderCanonical(
                     break;
                 }
                 case "line-suffix":
-                    if (suffixes.length >= budget.maxPendingLineSuffixes) {
-                        throw new RenderAbort(
-                            "RENDER_RESOURCE_BUDGET",
-                            "Renderer exceeded the pending line-suffix budget"
-                        );
-                    }
                     suffixes.push({
                         commentLeafId: doc.commentLeafId,
                         spacing: doc.spacing,
@@ -588,17 +537,21 @@ function renderCanonical(
     }
 }
 
-/** Fail-closed SQL-agnostic renderer for LayoutArtifact objects. */
+/**
+ * Fail-closed SQL-agnostic renderer for LayoutArtifact objects. Rendering stops with
+ * RENDER_OUTPUT_LIMIT as soon as the output would exceed `maxOutputCodeUnits` (plan §4 floor 4).
+ */
 export function renderLayoutArtifact(
     value: LayoutArtifact,
-    environment: RenderEnvironment = inferRenderEnvironment(value.analysis.source)
+    environment: RenderEnvironment,
+    maxOutputCodeUnits: number
 ): RenderResult {
     try {
         const measured = measureLayoutArtifact(value);
         if (!measured.ok) {
             return failure("RENDER_METRICS", measured.message);
         }
-        return renderCanonical(value, measured.metrics, environment);
+        return renderCanonical(value, measured.metrics, environment, maxOutputCodeUnits);
     } catch {
         return failure("RENDER_INTERNAL", "Renderer boundary inspection failed");
     }

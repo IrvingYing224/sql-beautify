@@ -21,10 +21,6 @@ import type {
     VerbatimTrigger,
 } from "./doc";
 import {
-    createLayoutResourceBudget,
-} from "./resource-budget";
-import type { LayoutResourceBudget } from "./resource-budget";
-import {
     dominatingVerbatimClaims,
     verbatimTriggersEqual,
 } from "./verbatim-claims";
@@ -43,7 +39,6 @@ export type LineSuffixSpacingInput =
 
 export interface LayoutDocFactory {
     readonly analysis: AnalyzedArtifact;
-    readonly budget: LayoutResourceBudget;
     readonly verbatimClaims: readonly DominatingVerbatimClaim[];
     empty(): ConcatDoc | null;
     leaf(leafId: number, transform?: LeafTransform): LeafDoc | null;
@@ -69,41 +64,25 @@ export interface LayoutDocFactory {
     ): LineSuffixDoc | null;
 }
 
-function isPositiveSafeInteger(value: unknown, maximum: number): value is number {
-    return (
-        typeof value === "number" &&
-        Number.isSafeInteger(value) &&
-        value > 0 &&
-        value <= maximum
-    );
+function isPositiveSafeInteger(value: unknown): value is number {
+    return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-function isNonNegativeSafeInteger(
-    value: unknown,
-    maximum: number
-): value is number {
-    return (
-        typeof value === "number" &&
-        Number.isSafeInteger(value) &&
-        value >= 0 &&
-        value <= maximum
-    );
+function isNonNegativeSafeInteger(value: unknown): value is number {
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
-function lineSuffixSpacing(
-    value: LineSuffixSpacingInput,
-    maximum: number
-): LineSuffixSpacing | undefined {
+function lineSuffixSpacing(value: LineSuffixSpacingInput): LineSuffixSpacing | undefined {
     if (value === null) {
         return null;
     }
     if (value.kind === "space") {
-        return isPositiveSafeInteger(value.columns, maximum)
+        return isPositiveSafeInteger(value.columns)
             ? Object.freeze({ kind: "space", columns: value.columns as PositiveColumns })
             : undefined;
     }
     return value.kind === "pad-to-column" &&
-        isPositiveSafeInteger(value.targetColumn, maximum)
+        isPositiveSafeInteger(value.targetColumn)
         ? Object.freeze({
               kind: "pad-to-column",
               targetColumn: value.targetColumn as PositiveColumns,
@@ -113,39 +92,15 @@ function lineSuffixSpacing(
 
 /**
  * Creates the constructor for immutable LayoutDoc nodes of one analyzed
- * artifact. Invalid input or an exhausted node budget returns null.
+ * artifact. Invalid input returns null.
  */
 export function createLayoutDocFactory(
     analysis: AnalyzedArtifact
 ): LayoutDocFactory | null {
-    let syntaxNodeCount: number;
-    try {
-        syntaxNodeCount = analysis.index.nodes().length;
-    } catch {
-        return null;
-    }
-    const budget = createLayoutResourceBudget(
-        analysis.source.length,
-        analysis.leaves.length,
-        syntaxNodeCount
-    );
-    if (budget === null) {
-        return null;
-    }
     const claims = dominatingVerbatimClaims(analysis);
     if (claims === null) {
         return null;
     }
-
-    let createdNodeCount = 0;
-
-    const register = <T extends LayoutDoc>(node: T): T | null => {
-        if (createdNodeCount >= budget.maxDocNodes) {
-            return null;
-        }
-        createdNodeCount += 1;
-        return Object.freeze(node);
-    };
 
     const commentBindingForLeaf = (leafId: number): CommentBinding | null => {
         try {
@@ -157,7 +112,7 @@ export function createLayoutDocFactory(
     };
 
     const empty = (): ConcatDoc | null =>
-        register({
+        Object.freeze({
             kind: "concat",
             parts: Object.freeze([]) as readonly LayoutDoc[],
         });
@@ -167,7 +122,7 @@ export function createLayoutDocFactory(
         zero: () => LayoutDoc | null,
         positive: (columns: PositiveColumns) => LayoutDoc | null
     ): LayoutDoc | null => {
-        if (!isNonNegativeSafeInteger(value, budget.maxGeneratedColumnsPerLine)) {
+        if (!isNonNegativeSafeInteger(value)) {
             return null;
         }
         return value === 0 ? zero() : positive(value as PositiveColumns);
@@ -175,7 +130,6 @@ export function createLayoutDocFactory(
 
     const factory: LayoutDocFactory = {
         analysis,
-        budget,
         verbatimClaims: claims.claims,
 
         empty,
@@ -210,7 +164,7 @@ export function createLayoutDocFactory(
                     return null;
                 }
             }
-            return register({ kind: "leaf", leafId, transform });
+            return Object.freeze({ kind: "leaf", leafId, transform });
         },
 
         verbatim(ownerNodeId, trigger): VerbatimDoc | null {
@@ -218,7 +172,7 @@ export function createLayoutDocFactory(
             if (claim === null || !verbatimTriggersEqual(claim.trigger, trigger)) {
                 return null;
             }
-            return register({
+            return Object.freeze({
                 kind: "verbatim",
                 ownerNodeId,
                 trigger: claim.trigger,
@@ -230,25 +184,22 @@ export function createLayoutDocFactory(
             return zeroOrPositiveColumns(
                 columns,
                 empty,
-                (positive) => register({ kind: "space", columns: positive } as SpaceDoc)
+                (positive) => Object.freeze({ kind: "space", columns: positive } as SpaceDoc)
             );
         },
 
         hardLine(): HardLineDoc | null {
-            return register({ kind: "line", mode: "hard" });
+            return Object.freeze({ kind: "line", mode: "hard" });
         },
 
         softLine(flat): SoftLineDoc | null {
             if (flat !== "empty" && flat !== "space") {
                 return null;
             }
-            return register({ kind: "line", mode: "soft", flat });
+            return Object.freeze({ kind: "line", mode: "soft", flat });
         },
 
         concat(rawParts): LayoutDoc | null {
-            if (rawParts.length > budget.maxDocNodes) {
-                return null;
-            }
             const parts = Object.freeze(rawParts.slice());
             if (parts.length === 0) {
                 return empty();
@@ -256,22 +207,17 @@ export function createLayoutDocFactory(
             if (parts.length === 1) {
                 return parts[0]!;
             }
-            return register({ kind: "concat", parts });
+            return Object.freeze({ kind: "concat", parts });
         },
 
         indent(levels, content): LayoutDoc | null {
-            if (
-                !isNonNegativeSafeInteger(
-                    levels,
-                    budget.maxCumulativeIndentLevels
-                )
-            ) {
+            if (!isNonNegativeSafeInteger(levels)) {
                 return null;
             }
             if (levels === 0) {
                 return content;
             }
-            return register({
+            return Object.freeze({
                 kind: "indent",
                 levels: levels as PositiveLevels,
                 content,
@@ -283,7 +229,7 @@ export function createLayoutDocFactory(
                 columns,
                 () => content,
                 (positive) =>
-                    register({
+                    Object.freeze({
                         kind: "align",
                         columns: positive,
                         content,
@@ -296,7 +242,7 @@ export function createLayoutDocFactory(
                 targetColumn,
                 empty,
                 (positive) =>
-                    register({
+                    Object.freeze({
                         kind: "pad-to-column",
                         targetColumn: positive,
                     } as PadToColumnDoc)
@@ -304,15 +250,10 @@ export function createLayoutDocFactory(
         },
 
         autoGroup(maxFlatWidth, content): AutoGroupDoc | null {
-            if (
-                !isPositiveSafeInteger(
-                    maxFlatWidth,
-                    budget.maxGeneratedColumnsPerLine
-                )
-            ) {
+            if (!isPositiveSafeInteger(maxFlatWidth)) {
                 return null;
             }
-            return register({
+            return Object.freeze({
                 kind: "group",
                 mode: "auto",
                 maxFlatWidth: maxFlatWidth as PositiveColumns,
@@ -324,7 +265,7 @@ export function createLayoutDocFactory(
             if (mode !== "flat" && mode !== "break") {
                 return null;
             }
-            return register({ kind: "group", mode, content });
+            return Object.freeze({ kind: "group", mode, content });
         },
 
         lineSuffix(commentLeafId, spacing = null): LineSuffixDoc | null {
@@ -347,14 +288,11 @@ export function createLayoutDocFactory(
             ) {
                 return null;
             }
-            const canonicalSpacing = lineSuffixSpacing(
-                spacing,
-                budget.maxGeneratedColumnsPerLine
-            );
+            const canonicalSpacing = lineSuffixSpacing(spacing);
             if (canonicalSpacing === undefined) {
                 return null;
             }
-            return register({
+            return Object.freeze({
                 kind: "line-suffix",
                 commentLeafId,
                 spacing: canonicalSpacing,
