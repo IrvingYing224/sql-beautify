@@ -312,9 +312,6 @@ const CAPABILITIES: readonly CapabilityEntry[] = freezeImmutableArray([
 ].map(({ id, state }) => Object.freeze({ id, state })));
 
 function operatorFormatClass(item: OperatorDefinition): OperatorFormatClass {
-    if (item.key === "::") {
-        return "attached";
-    }
     const word = item.form !== "symbol";
     if (item.fixity === "prefix") {
         return word ? "prefix-word" : "prefix-symbol";
@@ -332,7 +329,6 @@ const OPERATORS: readonly OperatorSemantics[] = freezeImmutableArray(
     [...SYMBOL_OPERATORS, ...WORD_OPERATORS].map((item) => Object.freeze({
         ...item,
         id: `${item.fixity}:${item.key}`,
-        capabilityId: null,
         formatClass: operatorFormatClass(item),
     }))
 );

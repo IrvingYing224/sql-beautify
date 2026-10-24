@@ -487,7 +487,6 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                     occurrence.ownerNodeId !== node.id ||
                     canonicalSemantics === undefined ||
                     occurrence.semantics !== canonicalSemantics ||
-                    occurrence.capabilityId !== canonicalSemantics.capabilityId ||
                     occurrence.fixity !== canonicalSemantics.fixity ||
                     occurrence.formatClass !== canonicalSemantics.formatClass ||
                     occurrence.leafIds.length === 0
@@ -533,15 +532,9 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                                 ? "symbol-operator"
                                 : "word-operator-keyword",
                             "operator",
-                            occurrence.capabilityId,
+                            null,
                             canonicalSemantics.form !== "symbol"
                         )
-                    );
-                }
-                if (occurrence.capabilityId !== null) {
-                    resolveCapability(
-                        occurrence.capabilityId,
-                        `operator ${occurrence.operatorId}`
                     );
                 }
                 occurrences.push(occurrence);

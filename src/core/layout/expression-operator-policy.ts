@@ -74,15 +74,11 @@ function directAnchors(
 }
 
 function needsBefore(occurrence: OperatorOccurrence): boolean {
-    return occurrence.fixity === "infix" ||
-        occurrence.fixity === "postfix" ||
-        occurrence.formatClass === "attached";
+    return occurrence.fixity === "infix" || occurrence.fixity === "postfix";
 }
 
 function needsAfter(occurrence: OperatorOccurrence): boolean {
-    return occurrence.fixity === "prefix" ||
-        occurrence.fixity === "infix" ||
-        occurrence.formatClass === "attached";
+    return occurrence.fixity === "prefix" || occurrence.fixity === "infix";
 }
 
 function beforeDecision(occurrence: OperatorOccurrence) {
@@ -97,7 +93,6 @@ function beforeDecision(occurrence: OperatorOccurrence) {
             return SPACE;
         case "prefix-symbol":
         case "postfix-symbol":
-        case "attached":
             return EMPTY;
     }
 }
@@ -115,13 +110,11 @@ function afterDecision(
             return SPACE;
         case "prefix-symbol":
             // The lexer has already proved that these are separate operators.
-            // Keep a boundary before a nested symbol: removing it can create
-            // '--', '~~', or a PostgreSQL user-defined operator name.
+            // Keep a boundary before a nested symbol: removing it can create '--'.
             return context.analysis.leafKind(next.start) === "operator"
                 ? SPACE
                 : EMPTY;
         case "postfix-symbol":
-        case "attached":
             return EMPTY;
         case "postfix-word":
             return SPACE;

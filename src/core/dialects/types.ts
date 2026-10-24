@@ -15,8 +15,7 @@ export type OperatorFormatClass =
     | "infix-word-continuation"
     | "infix-symbol"
     | "postfix-word"
-    | "postfix-symbol"
-    | "attached";
+    | "postfix-symbol";
 
 /**
  * How the operator is recognized in the leaf stream.
@@ -50,7 +49,6 @@ export interface OperatorSemantics {
     readonly words: readonly string[];
     readonly precedence: number;
     readonly associativity: OperatorAssociativity;
-    readonly capabilityId: string | null;
     readonly formatClass: OperatorFormatClass;
 }
 

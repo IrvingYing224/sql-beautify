@@ -304,7 +304,6 @@ function freezeOperatorOccurrences(
             ownerNodeId,
             leafIds,
             operatorId: semantics.id,
-            capabilityId: semantics.capabilityId,
             fixity: semantics.fixity,
             formatClass: semantics.formatClass,
             semantics,

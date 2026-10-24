@@ -28,10 +28,7 @@ function compareClaims(left: CandidateClaim, right: CandidateClaim): number {
         left.depth - right.depth ||
         right.priority - left.priority ||
         left.ownerNodeId - right.ownerNodeId ||
-        (left.trigger.kind === "operator-capability" &&
-        right.trigger.kind === "operator-capability"
-            ? left.trigger.operatorId.localeCompare(right.trigger.operatorId)
-            : left.trigger.kind.localeCompare(right.trigger.kind))
+        left.trigger.kind.localeCompare(right.trigger.kind)
     );
 }
 
@@ -61,10 +58,7 @@ export function verbatimTriggersEqual(
 ): boolean {
     return (
         left.kind === right.kind &&
-        left.capabilityId === right.capabilityId &&
-        (left.kind !== "operator-capability" ||
-            (right.kind === "operator-capability" &&
-                left.operatorId === right.operatorId))
+        left.capabilityId === right.capabilityId
     );
 }
 
@@ -147,37 +141,6 @@ export function dominatingVerbatimClaims(
                             depthByNodeId[node.id]!
                         )
                     );
-                }
-            }
-            if (node.kind === "expression") {
-                for (const occurrence of analysis.index.operatorOccurrencesOf(
-                    node.id
-                )) {
-                    if (occurrence.capabilityId === null) {
-                        continue;
-                    }
-                    const capability = analysis.index.capability(
-                        occurrence.capabilityId
-                    );
-                    if (capability === null) {
-                        CLAIMS_BY_ANALYSIS.set(analysis, null);
-                        return null;
-                    }
-                    if (capability.state !== "formatted") {
-                        candidates.push(
-                            candidate(
-                                node.id,
-                                node.leafRange,
-                                {
-                                    kind: "operator-capability",
-                                    capabilityId: capability.id,
-                                    operatorId: occurrence.operatorId,
-                                },
-                                3,
-                                depthByNodeId[node.id]!
-                            )
-                        );
-                    }
                 }
             }
         }

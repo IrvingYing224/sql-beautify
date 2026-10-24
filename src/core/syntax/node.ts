@@ -81,7 +81,7 @@ export interface SyntaxNodeFacts {
 
 export interface OperatorOccurrenceInput {
     readonly leafIds: readonly number[];
-    /** Exact canonical semantics object returned by the dialect registry. */
+    /** Exact canonical semantics object returned by the registry. */
     readonly semantics: OperatorSemantics;
 }
 
@@ -89,7 +89,6 @@ export interface OperatorOccurrence {
     readonly ownerNodeId: number;
     readonly leafIds: readonly number[];
     readonly operatorId: string;
-    readonly capabilityId: string | null;
     readonly fixity: OperatorFixity;
     readonly formatClass: OperatorFormatClass;
     /** Retains registry object identity; analysis rejects cloned semantics. */
