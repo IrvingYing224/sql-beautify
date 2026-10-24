@@ -693,9 +693,12 @@ async function runPrivate(dir) {
 // Deterministic mutations of formatSql case inputs; checks floor 2 and idempotence only.
 async function runFuzz(total) {
     var seed = 0x5eed;
+    // mulberry32: an LCG product exceeds 2^53 in a JS number and falls into a short cycle.
     function random(limit) {
-        seed = (seed * 1103515245 + 12345) >>> 0;
-        return (seed >>> 8) % limit;
+        seed = (seed + 0x6d2b79f5) >>> 0;
+        var t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) % limit;
     }
     var pool = [' ', '\n', ',', '(', ')', ';', 'select', 'from', 'case', 'end', '${x}', "'s'",
         '-- c\n', '/* c */', 'a.b', '1', 'and'];
