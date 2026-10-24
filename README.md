@@ -15,7 +15,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 - 格式化 SQL / HQL
 - 对 `SELECT`、`GROUP BY` 和顶层 `ORDER BY` 做列表换行与逗号对齐
 - 格式化有界的 Hive `INSERT INTO [TABLE] ... [PARTITION (...)] SELECT/WITH ...` 与 `SET` 命令
-- 格式化 Hive CTAS（`CREATE [TEMPORARY] [TRANSACTIONAL] [EXTERNAL] TABLE ... AS SELECT/WITH/(...)` 与 `CREATE MANAGED TABLE ... AS ...`）：`AS` 之前的外壳只规范空白的量，`AS` 留在外壳末行，查询从下一行开始按普通查询排版；`AS VALUES`、`AS FROM ...` 或查询不完整时整句保留原文
+- 格式化 Hive CTAS（`CREATE [TEMPORARY] [TRANSACTIONAL] [EXTERNAL] TABLE ... AS SELECT/WITH/(...)` 与 `CREATE MANAGED TABLE ... AS ...`）：`AS` 之前的外壳只规范空白的量，`AS` 留在外壳末行，查询从下一行开始按普通查询排版；`AS VALUES`、`AS FROM ...`、`AS WITH ... INSERT ...` 或查询无法解析时整句保留原文；查询内部可以局部恢复的错误与独立 `SELECT` 相同，只保留出错的片段并给出诊断
 - Hive 脚本语句（`USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`ADD JAR`、`DFS` 等）只规范空白的量：行内连续空白压成一个空格、删除行尾空白，换行和续行缩进不变；只有语句开头的关键字（如 `ANALYZE TABLE`）按 `keywordCase` 改大小写，其余词保持原样；`ADD JAR`、`DFS`、`!`、`SOURCE` 等命令之后的路径、URI、类名和 shell 参数逐字节保留
 - 支持 VS Code 标准 `Format Document` / `Format Selection`
 - 提供实验性的 Hive DDL 格式化
