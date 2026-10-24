@@ -1,0 +1,6 @@
+CREATE TABLE t AS
+SELECT
+      a
+    , b
+FROM s
+WHERE c = 1

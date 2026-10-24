@@ -1,0 +1,4 @@
+CREATE TEMPORARY TABLE t row format delimited fields terminated by ',' null defined as '\\N' stored as textfile AS
+SELECT
+      a
+FROM s

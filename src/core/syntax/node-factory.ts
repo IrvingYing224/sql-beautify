@@ -378,7 +378,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
             if (
                 body !== null &&
                 ((statementKind === "opaque" && body.kind !== "opaque") ||
-                    ((statementKind === "query" || statementKind === "insert-query") &&
+                    ((statementKind === "query" || statementKind === "write-query") &&
                         body.kind !== "query") ||
                     (statementKind === "set" && body.kind !== "set-statement") ||
                     (statementKind === "generic" && body.kind !== "generic-statement"))

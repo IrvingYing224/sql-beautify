@@ -1,0 +1,2 @@
+-- golden: {"mode":"fragment"}
+create table t as select a from s;

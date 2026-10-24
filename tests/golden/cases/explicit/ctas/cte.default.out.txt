@@ -1,0 +1,12 @@
+CREATE TABLE t AS
+WITH
+      q AS (
+          SELECT
+                a
+              , b
+          FROM src
+      )
+SELECT
+      a
+    , b
+FROM q

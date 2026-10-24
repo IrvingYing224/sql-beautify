@@ -10,8 +10,13 @@ ADD JAR hdfs:///user/lib/udf-1.0.jar;
 CREATE TEMPORARY FUNCTION parse_ua as 'com.x.ParseUA';
 
 DROP TABLE IF EXISTS tmp.tmp_user_order_${hivevar:dt};
-create table tmp.tmp_user_order_${hivevar:dt} as
-select user_id, order_id, amount from ods.orders where dt = '${hivevar:dt}';
+CREATE TABLE tmp.tmp_user_order_${hivevar:dt} AS
+SELECT
+      user_id
+    , order_id
+    , amount
+FROM ods.orders
+WHERE dt = '${hivevar:dt}';
 
 WITH
       orders AS (

@@ -1,0 +1,4 @@
+create managed table t as select 1;
+create transactional table t as select 1;
+CREATE TEMPORARY EXTERNAL TABLE t AS select 1;
+create table db_${env}.t_${dt} stored as orc as (select 1);

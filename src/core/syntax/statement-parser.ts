@@ -17,7 +17,11 @@ import {
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext, SyntaxDiagnosticCode } from "./parser-context";
-import { parseInsertQueryRange, parseQueryRange } from "./query-parser";
+import {
+    parseCreateTableAsQueryRange,
+    parseInsertQueryRange,
+    parseQueryRange,
+} from "./query-parser";
 import {
     createOpaqueWithDiagnostic,
     createParserCheckpoint,
@@ -241,7 +245,7 @@ function parseGenericStatementRange(
     );
 }
 
-function representsInsertQuery(query: QueryNode): boolean {
+function representsWriteQuery(query: QueryNode): boolean {
     const first = query.children[0];
     if (first?.kind === "clause" && first.clauseKind === "insert") {
         return true;
@@ -251,12 +255,44 @@ function representsInsertQuery(query: QueryNode): boolean {
         first.clauseKind === "with" &&
         query.children[1]?.kind === "query"
     ) {
-        return representsInsertQuery(query.children[1]);
+        return representsWriteQuery(query.children[1]);
     }
     if (query.queryKind === "set" && first?.kind === "query") {
-        return representsInsertQuery(first);
+        return representsWriteQuery(first);
     }
     return false;
+}
+
+/**
+ * CREATE TABLE … AS SELECT (plan §6 P6 step 5), or null. A statement whose query does not
+ * parse completely stays verbatim as Hive DDL.
+ */
+function parseCreateTableAsStatement(
+    context: ParserContext,
+    range: LeafRange,
+    bodyRange: LeafRange
+): StatementNode | null {
+    if (!isCodeWord(context, bodyRange.start, "create") || bodyHasSemicolon(context, bodyRange)) {
+        return null;
+    }
+    const checkpoint = createParserCheckpoint(context);
+    try {
+        const query = parseCreateTableAsQueryRange(context, bodyRange);
+        return query === null
+            ? null
+            : context.factory.createStatement(
+                  range,
+                  "write-query",
+                  query,
+                  statementFacts(context, range)
+              );
+    } catch (error) {
+        if (!(error instanceof ParserSyntaxError)) {
+            throw error;
+        }
+        rollbackParserCheckpoint(context, checkpoint);
+        return null;
+    }
 }
 
 export function isEmptyStatementRange(context: ParserContext, range: LeafRange): boolean {
@@ -359,6 +395,10 @@ export function parseStatementRange(
             return parseGenericStatementRange(context, range, bodyRange, head);
         }
     }
+    const ctas = parseCreateTableAsStatement(context, range, bodyRange);
+    if (ctas !== null) {
+        return ctas;
+    }
     if (unsupported?.state === "verbatim") {
         return createOpaqueStatement(
             context,
@@ -405,7 +445,7 @@ export function parseStatementRange(
             : parseQueryRange(context, bodyRange);
         return context.factory.createStatement(
             range,
-            startsInsert || representsInsertQuery(query) ? "insert-query" : "query",
+            startsInsert || representsWriteQuery(query) ? "write-query" : "query",
             query,
             statementFacts(context, range)
         );

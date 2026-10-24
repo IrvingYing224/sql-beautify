@@ -1,0 +1,2 @@
+CREATE TABLE defined AS
+SELECT 1

@@ -123,7 +123,8 @@ export interface AliasInfo {
     readonly nameLeafRange: LeafRange;
 }
 
-export type StatementKind = "empty" | "query" | "insert-query" | "set" | "generic" | "opaque";
+/** A write-query writes a table: INSERT … SELECT or CREATE TABLE … AS SELECT. */
+export type StatementKind = "empty" | "query" | "write-query" | "set" | "generic" | "opaque";
 export type QueryKind = "select" | "set" | "parenthesized";
 export type ClauseKind =
     | "with"
@@ -142,6 +143,7 @@ export type ClauseKind =
     | "join-using"
     | "lateral-view"
     | "insert"
+    | "create-table"
     | "partition"
     | "set-operation";
 

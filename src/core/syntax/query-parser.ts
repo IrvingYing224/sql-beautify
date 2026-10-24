@@ -1,4 +1,5 @@
 import { HIVE_REGISTRY } from "../dialects/registry";
+import { isTemplateFragment } from "../lexer/token";
 import type {
     OperatorSemantics,
     QueryClauseSyntax,
@@ -44,6 +45,7 @@ import {
     trimToSyntax,
 } from "./parser-context";
 import type { ParserContext, ParserTrialKey } from "./parser-context";
+import { matchCreateTableHead } from "./statement-head";
 import { hasAsciiKeywordCaseShape } from "./contextual-fact-contract";
 import { assertParserDepth, descendParserDepth } from "./parser-depth";
 import {
@@ -1696,6 +1698,110 @@ export function parseQueryRange(
     return parseQueryAtom(context, range, nestingDepth, topLevelIndexes);
 }
 
+/** Whether a parsed query is an INSERT, possibly after a WITH clause. */
+function endsInInsert(query: QueryNode): boolean {
+    const first = query.children[0];
+    if (first?.kind === "clause" && first.clauseKind === "insert") {
+        return true;
+    }
+    return (
+        first?.kind === "clause" &&
+        first.clauseKind === "with" &&
+        query.children[1]?.kind === "query" &&
+        endsInInsert(query.children[1])
+    );
+}
+
+/** End of the table name (`t`, `db.t`, `db_${env}.t`) after `leafId`, or null. */
+function tableNameEnd(context: ParserContext, leafId: number, end: number): number | null {
+    let part = nextSyntaxIndex(context, leafId, end);
+    while (part !== null) {
+        const leaf = context.leaves[part]!;
+        if (!isAliasNameLeaf(leaf) && !isTemplateFragment(leaf)) {
+            return null;
+        }
+        const after = nextSyntaxIndex(context, part, end);
+        if (after === null || context.leaves[after]!.raw !== ".") {
+            return after;
+        }
+        part = nextSyntaxIndex(context, after, end);
+    }
+    return null;
+}
+
+/**
+ * The AS that ends a CTAS shell, or null (plan §6 P6 step 5). Right after the table name it ends
+ * the shell at once, so STORED or DEFINED may name the table. Otherwise it is the first AS at the
+ * statement's depth that does not follow STORED (`STORED AS ORC`) or DEFINED
+ * (`NULL DEFINED AS '\N'`). The query must start with SELECT, WITH or `(`: VALUES, MAP and
+ * REDUCE queries and FROM-first inserts are not structured.
+ */
+function ctasShellEnd(context: ParserContext, range: LeafRange, headLast: number): number | null {
+    const nameEnd = tableNameEnd(context, headLast, range.end);
+    if (nameEnd === null) {
+        return null;
+    }
+    const as = isCodeWord(context, nameEnd, "as")
+        ? nameEnd
+        : topLevelSyntaxIndexes(context, { start: nameEnd, end: range.end }).find((index) => {
+              const previous = previousSyntaxIndex(context, index, range.start)!;
+              return (
+                  isCodeWord(context, index, "as") &&
+                  !isCodeWord(context, previous, "stored") &&
+                  !isCodeWord(context, previous, "defined")
+              );
+          });
+    const query = as === undefined ? null : nextSyntaxIndex(context, as, range.end);
+    return query !== null &&
+        (isCodeWord(context, query, "select") ||
+            isCodeWord(context, query, "with") ||
+            context.leaves[query]!.raw === "(")
+        ? as!
+        : null;
+}
+
+/**
+ * CREATE TABLE … AS SELECT, or null when the statement is not one. The shell up to and including
+ * AS is a create-table clause that takes the generic layer; the query after it is parsed as usual.
+ */
+export function parseCreateTableAsQueryRange(
+    context: ParserContext,
+    range: LeafRange,
+    nestingDepth: number = 0
+): QueryNode | null {
+    const head = matchCreateTableHead(context, range);
+    const headLast = head === null ? null : head[head.length - 1]!;
+    const as = headLast === null ? null : ctasShellEnd(context, range, headLast);
+    if (headLast === null || as === null) {
+        return null;
+    }
+    const headRange = { start: range.start, end: headLast + 1 };
+    const shell = context.factory.createClause(
+        { start: range.start, end: as + 1 },
+        "create-table",
+        headRange,
+        { start: headLast + 1, end: as + 1 },
+        [],
+        queryClauseFacts(context, "create-table", headRange, "create-table-as-select", [], [as])
+    );
+    const queryRange = trimToSyntax(context.leaves, { start: as + 1, end: range.end })!;
+    const query = parseQueryRange(context, queryRange, nestingDepth);
+    if (endsInInsert(query)) {
+        throw new ParserSyntaxError(
+            "SYN_UNEXPECTED_TOKEN",
+            queryRange,
+            "CTAS query must end in SELECT, not INSERT"
+        );
+    }
+    return context.factory.createQuery(
+        range,
+        "select",
+        [],
+        [shell, query],
+        nodeFacts("create-table-as-select", "capability")
+    );
+}
+
 /**
  * `(c1, c2)` right before the INSERT query is the target column list (Hive insertClause); the
  * group after PARTITION is the partition spec instead.
@@ -1939,19 +2045,7 @@ export function parseInsertQueryRange(
         );
     }
     const bodyQuery = parseQueryRange(context, selectRange, nestingDepth);
-    const representsNestedInsert = (query: QueryNode): boolean => {
-        const first = query.children[0];
-        if (first?.kind === "clause" && first.clauseKind === "insert") {
-            return true;
-        }
-        return (
-            first?.kind === "clause" &&
-            first.clauseKind === "with" &&
-            query.children[1]?.kind === "query" &&
-            representsNestedInsert(query.children[1])
-        );
-    };
-    if (representsNestedInsert(bodyQuery)) {
+    if (endsInInsert(bodyQuery)) {
         throw new ParserSyntaxError(
             "SYN_UNEXPECTED_TOKEN",
             selectRange,

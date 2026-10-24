@@ -132,6 +132,26 @@ export function takesGenericLayer(context: ParserContext, range: LeafRange): boo
     return word !== null && word !== "from" && !COMMAND_VERBS.has(word);
 }
 
+/** CREATE TABLE heads that may end in AS SELECT (plan §6 P6 step 5). */
+const CREATE_TABLE_HEADS: readonly CompiledHead[] = [
+    "create [temporary] [transactional] [external] table [if not exists]",
+    "create managed table [if not exists]",
+].map((pattern) => compileHead({ pattern, keywordCase: true, payload: false }));
+
+/** Head words of a CREATE TABLE statement, or null. */
+export function matchCreateTableHead(
+    context: ParserContext,
+    range: LeafRange
+): readonly number[] | null {
+    for (const head of CREATE_TABLE_HEADS) {
+        const leafIds = matchHead(context, range, head);
+        if (leafIds !== null) {
+            return leafIds;
+        }
+    }
+    return null;
+}
+
 /** The longest statement-head table entry matching at the start of `range`, or null. */
 export function matchStatementHead(
     context: ParserContext,

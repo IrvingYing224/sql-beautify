@@ -1,0 +1,5 @@
+CREATE TABLE t comment 'as select 1' -- as select
+AS
+SELECT
+      'as select' AS x /* as select */
+FROM s

@@ -1,0 +1,4 @@
+CREATE TABLE t AS
+SELECT
+      a
+FROM s;

@@ -1,3 +1,4 @@
+import type { LeafRange } from "../syntax/leaf-range";
 import type {
     ClauseNode,
     CteNode,
@@ -67,16 +68,13 @@ function formatSetStatement(
  * one space and a run before a line break goes away; line breaks, continuation indentation,
  * zero-width gaps and the command payload stay as written.
  */
-function formatGenericStatement(
+function formatGenericRange(
     context: QueryLayoutContext,
-    statement: GenericStatementNode
+    authorityNodeId: number,
+    range: LeafRange
 ): boolean {
-    const authorityNodeId = authorityForNode(context, statement.id);
-    if (authorityNodeId === null) {
-        return true;
-    }
     const { analysis } = context;
-    for (let leafId = statement.leafRange.start; leafId < statement.leafRange.end; leafId++) {
+    for (let leafId = range.start; leafId < range.end; leafId++) {
         if (
             analysis.leafKind(leafId) !== "whitespace" ||
             context.claims.claimForLeaf(leafId) !== null
@@ -98,6 +96,15 @@ function formatGenericStatement(
     return true;
 }
 
+function formatGenericStatement(
+    context: QueryLayoutContext,
+    statement: GenericStatementNode
+): boolean {
+    const authorityNodeId = authorityForNode(context, statement.id);
+    return authorityNodeId === null ||
+        formatGenericRange(context, authorityNodeId, statement.leafRange);
+}
+
 function formatClause(
     context: QueryLayoutContext,
     clause: ClauseNode
@@ -105,6 +112,10 @@ function formatClause(
     const authorityNodeId = authorityForNode(context, clause.id);
     if (authorityNodeId === null) {
         return true;
+    }
+    if (clause.clauseKind === "create-table") {
+        // The CTAS shell takes the generic layer; the query starts on the next line.
+        return formatGenericRange(context, authorityNodeId, clause.leafRange);
     }
     if (
         !normalizeMarkerSequence(

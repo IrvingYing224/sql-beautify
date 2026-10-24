@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS db.t
+  comment 'daily  orders'
+  stored as orc
+  tblproperties ('orc.compress'='SNAPPY')
+AS
+SELECT
+      a
+    , b
+FROM s

@@ -2626,12 +2626,35 @@
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
+ "explicit/ctas/as-in-text": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/ctas/cte#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/ctas/cte#lower-trailing": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/ctas/defined-name": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/ctas/fragment": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/ctas/heads": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
  },
  "explicit/ctas/malformed-shell": {
   "op": "formatSql",
@@ -2640,19 +2663,35 @@
    "SYN_UNSUPPORTED_STATEMENT"
   ]
  },
- "explicit/ctas/qualified-defined-name": {
+ "explicit/ctas/not-ctas": {
   "op": "formatSql",
   "status": "unchanged",
   "codes": [
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
    "SYN_UNSUPPORTED_STATEMENT"
   ]
  },
+ "explicit/ctas/qualified-defined-name": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/ctas/row-format": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/ctas/shell-clauses": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/ctas/stored-name": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/ddl-env/create-table#col4": {
   "op": "formatHiveDdl",
@@ -3098,10 +3137,8 @@
  },
  "explicit/known/k12-ctas": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k13-null-true-false": {
   "op": "formatSql",
@@ -7251,10 +7288,8 @@
  },
  "probe/hive/create-table-as": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/crlf-basic": {
   "op": "formatSql",
@@ -8122,9 +8157,7 @@
  "probe/prod-etl/case": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "probe/targeted/and-paren": {
   "op": "formatSql",

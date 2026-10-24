@@ -1,0 +1,4 @@
+create table t as values (1);
+create table t as from s select a;
+create table t as with q as (select 1) insert into x select 1;
+create table t (a int);
