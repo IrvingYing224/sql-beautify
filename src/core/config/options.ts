@@ -1,4 +1,3 @@
-export type Dialect = "hive" | "generic" | "postgresql" | "mysql";
 export type KeywordCase = "upper" | "lower";
 export type CommaStyle = "leading" | "trailing";
 export type IndentStyle = "space" | "tab";

@@ -268,7 +268,7 @@ function computeDdl(request: DdlRequest, debugEvents: DebugEvent[]): ComputeResu
             // Safety floor 2 for DDL: only the leaves the renderer reports may change, and only in case.
             const keywordCase = resolveHiveDdlFormatOptions(request.options)!.keywordCase;
             const recased = new Set("recased" in result ? result.recased : []);
-            const violation = floorViolation(lexSql(text, { dialect: "hive" }).leaves, result.text, (leaf) =>
+            const violation = floorViolation(lexSql(text).leaves, result.text, (leaf) =>
                 recased.has(leaf.id) ? caseKeyword(leaf.raw, keywordCase) : leaf.raw
             );
             if (violation !== null) {

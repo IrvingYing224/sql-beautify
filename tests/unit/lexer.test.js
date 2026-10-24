@@ -8,7 +8,7 @@ var test = require('node:test');
 var lexSql = require('./helpers/src')({ lexer: 'core/lexer/lossless-lexer' }).lexer.lexSql;
 
 function hive(source) {
-    return lexSql(source, { dialect: 'hive' });
+    return lexSql(source);
 }
 
 function assertConserves(source, output) {
@@ -145,7 +145,6 @@ test('U-L4: deterministic fuzz conserves the source and lexes the same twice', f
         '\\', '§', '©',
         "'unterminated", '/* open', '${open', '`open', '$tag$open'
     ];
-    var dialects = ['hive', 'generic', 'postgresql', 'mysql'];
     for (var index = 0; index < 500; index++) {
         var count = 1 + Math.floor(rng() * 12);
         var parts = [];
@@ -153,9 +152,8 @@ test('U-L4: deterministic fuzz conserves the source and lexes the same twice', f
             parts.push(fragments[Math.floor(rng() * fragments.length)]);
         }
         var source = parts.join('');
-        var dialect = dialects[Math.floor(rng() * dialects.length)];
-        var first = lexSql(source, { dialect: dialect });
+        var first = lexSql(source);
         assertConserves(source, first);
-        assert.deepStrictEqual(lexSql(source, { dialect: dialect }), first);
+        assert.deepStrictEqual(lexSql(source), first);
     }
 });

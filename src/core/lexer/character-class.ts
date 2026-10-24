@@ -75,32 +75,6 @@ export function isNewlineChar(ch: string): boolean {
     return ch === "\n" || ch === "\r";
 }
 
-export function isQuoteChar(ch: string): boolean {
-    return ch === "'" || ch === '"' || ch === "`";
-}
-
-export function isOperatorCandidateStart(ch: string): boolean {
-    return (
-        ch === "!" ||
-        ch === "#" ||
-        ch === "%" ||
-        ch === "&" ||
-        ch === "*" ||
-        ch === "+" ||
-        ch === "-" ||
-        ch === "/" ||
-        ch === ":" ||
-        ch === "<" ||
-        ch === "=" ||
-        ch === ">" ||
-        ch === "?" ||
-        ch === "@" ||
-        ch === "^" ||
-        ch === "|" ||
-        ch === "~"
-    );
-}
-
 /** UTF-16 code-unit width of a Unicode code point. */
 export function codePointWidth(codePoint: number): number {
     return codePoint > 0xffff ? 2 : 1;

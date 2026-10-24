@@ -225,7 +225,7 @@ export function blankRunEnd(source: string, offset: number): number {
  * of the next line, as query targets do (K18). Returns the first invalid target.
  */
 export function invalidDdlTarget(source: string, targets: readonly EditTarget[]): EditTarget | null {
-    const lexed = lexSql(source, { dialect: "hive" });
+    const lexed = lexSql(source);
     for (const target of targets) {
         if (
             target.start === target.end ||

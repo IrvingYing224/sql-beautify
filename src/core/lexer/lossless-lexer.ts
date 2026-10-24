@@ -1,12 +1,10 @@
-import type { Dialect } from "../config/options";
 import type { Diagnostic } from "../diagnostics/diagnostic";
 import { isTemplateFragment, type SourceLeaf, type TokenChannel, type TokenKind } from "./token";
-import { getLexicalProfile } from "./lexical-profile";
+import { KEYWORDS, operatorsFor } from "./lexical-profile";
 import {
     codePointAt,
     codePointWidth,
     isAsciiDigit,
-    isAsciiLetter,
     isBinaryDigit,
     isHexDigit,
     isHorizontalWhitespace,
@@ -14,10 +12,6 @@ import {
     isIdentifierStart,
     isNewlineChar,
 } from "./character-class";
-
-export interface LexOptions {
-    readonly dialect?: Dialect;
-}
 
 export interface LexOutput {
     readonly leaves: readonly SourceLeaf[];
@@ -31,7 +25,6 @@ interface ScannerState {
     nextId: number;
     leaves: SourceLeaf[];
     diagnostics: Diagnostic[];
-    profile: ReturnType<typeof getLexicalProfile>;
 }
 
 const CHANNEL_BY_KIND: Record<TokenKind, TokenChannel> = {
@@ -53,55 +46,6 @@ const CHANNEL_BY_KIND: Record<TokenKind, TokenChannel> = {
 
 const PUNCTUATION = new Set([",", ";", "(", ")", "[", "]", "{", "}", ".", ":"]);
 const FRAGMENT_STOPS = new Set([",", "(", ")", ";"]);
-const POSTGRES_OPERATOR_CHARACTERS = new Set("~!@#^&|`?+-*/%<>=".split(""));
-const POSTGRES_NONSTANDARD_OPERATOR_CHARACTERS = new Set("~!@#^&|`?%".split(""));
-
-const CANONICAL_DIALECTS: ReadonlySet<string> = new Set([
-    "hive",
-    "generic",
-    "postgresql",
-    "mysql",
-]);
-
-function resolveDialect(dialect: string | undefined): Dialect {
-    if (dialect === undefined) {
-        return "hive";
-    }
-    if (!CANONICAL_DIALECTS.has(dialect)) {
-        throw new Error(
-            'Unsupported dialect "' +
-                dialect +
-                '". Expected one of: hive, generic, postgresql, mysql.'
-        );
-    }
-    return dialect as Dialect;
-}
-
-/** Dollar-quote tag body: [A-Za-z_][A-Za-z0-9_]* — must not treat `$` as continue. */
-function isDollarTagStart(ch: string): boolean {
-    return isAsciiLetter(ch) || ch === "_";
-}
-
-function isDollarTagContinue(ch: string): boolean {
-    return isAsciiLetter(ch) || isAsciiDigit(ch) || ch === "_";
-}
-
-/**
- * MySQL requires whitespace or a control character after `--` to start a comment.
- * Followers: U+0000..U+001F (C0 controls including NUL/tab/CR/LF), space U+0020, DEL U+007F.
- * U+0080+ is not an ASCII control. EOF after `--` starts an empty comment.
- */
-function isMysqlDashDashFollower(ch: string, atEof: boolean): boolean {
-    if (atEof) {
-        return true;
-    }
-    if (ch.length === 0) {
-        return false;
-    }
-    const code = ch.charCodeAt(0);
-    return code <= 0x1f || code === 0x20 || code === 0x7f;
-}
-
 function emitLeaf(
     state: ScannerState,
     kind: TokenKind,
@@ -153,9 +97,8 @@ function startsWith(state: ScannerState, value: string, index: number = state.cu
  * Scan a quoted body starting at `quoteIndex` (the opening quote).
  * Returns the exclusive end offset and whether the unit terminated.
  *
- * When allowBackslashEscape is true (E'...' and Hive/MySQL strings), a backslash
- * skips the next code unit so `\'` does not close the string.
- * U& forms must pass false: backslash is a Unicode escape introducer, not a quote escape.
+ * When allowBackslashEscape is true (Hive strings), a backslash skips the next
+ * code unit so `\'` does not close the string.
  */
 function scanQuotedBody(
     state: ScannerState,
@@ -244,29 +187,7 @@ function scanDashDashComment(state: ScannerState): boolean {
     if (!startsWith(state, "--")) {
         return false;
     }
-
-    if (state.profile.dashDashComments === "mysql") {
-        const followerIndex = state.cursor + 2;
-        const atEof = followerIndex >= state.length;
-        const follower = atEof ? "" : charAt(state, followerIndex);
-        if (!isMysqlDashDashFollower(follower, atEof)) {
-            return false;
-        }
-    }
-
     let end = state.cursor + 2;
-    while (end < state.length && !isNewlineChar(charAt(state, end))) {
-        end += 1;
-    }
-    emitLeaf(state, "line-comment", state.cursor, end);
-    return true;
-}
-
-function scanHashComment(state: ScannerState): boolean {
-    if (!state.profile.hashComments || charAt(state, state.cursor) !== "#") {
-        return false;
-    }
-    let end = state.cursor + 1;
     while (end < state.length && !isNewlineChar(charAt(state, end))) {
         end += 1;
     }
@@ -281,35 +202,13 @@ function scanBlockComment(state: ScannerState): boolean {
     const start = state.cursor;
     let end = start + 2;
     let terminated = false;
-
-    if (state.profile.nestedBlockComments) {
-        let depth = 1;
-        while (end < state.length) {
-            if (startsWith(state, "/*", end)) {
-                depth += 1;
-                end += 2;
-                continue;
-            }
-            if (startsWith(state, "*/", end)) {
-                depth -= 1;
-                end += 2;
-                if (depth === 0) {
-                    terminated = true;
-                    break;
-                }
-                continue;
-            }
-            end += codePointWidth(codePointAt(state.source, end) ?? 0);
+    while (end < state.length) {
+        if (startsWith(state, "*/", end)) {
+            end += 2;
+            terminated = true;
+            break;
         }
-    } else {
-        while (end < state.length) {
-            if (startsWith(state, "*/", end)) {
-                end += 2;
-                terminated = true;
-                break;
-            }
-            end += codePointWidth(codePointAt(state.source, end) ?? 0);
-        }
+        end += codePointWidth(codePointAt(state.source, end) ?? 0);
     }
 
     if (!terminated) {
@@ -326,66 +225,8 @@ function scanBlockComment(state: ScannerState): boolean {
     return true;
 }
 
-function scanDollarString(state: ScannerState): boolean {
-    if (!state.profile.dollarStrings || charAt(state, state.cursor) !== "$") {
-        return false;
-    }
-
-    const start = state.cursor;
-    const tagEnd = dollarStringTagEnd(state, start);
-    if (tagEnd === null) {
-        return false;
-    }
-    const tag = state.source.slice(start, tagEnd);
-    let end = tagEnd;
-    let terminated = false;
-    while (end < state.length) {
-        if (startsWith(state, tag, end)) {
-            end += tag.length;
-            terminated = true;
-            break;
-        }
-        end += codePointWidth(codePointAt(state.source, end) ?? 0);
-    }
-
-    if (!terminated) {
-        end = state.length;
-        emitDiagnostic(
-            state,
-            "LEX_UNTERMINATED_DOLLAR_STRING",
-            "Unterminated dollar-quoted string.",
-            start,
-            end
-        );
-    }
-
-    emitLeaf(state, "string", start, end);
-    return true;
-}
-
-function dollarStringTagEnd(
-    state: ScannerState,
-    start: number
-): number | null {
-    if (!state.profile.dollarStrings || charAt(state, start) !== "$") {
-        return null;
-    }
-    let tagEnd = start + 1;
-    if (charAt(state, tagEnd) === "$") {
-        return tagEnd + 1;
-    }
-    if (!isDollarTagStart(charAt(state, tagEnd))) {
-        return null;
-    }
-    tagEnd += 1;
-    while (tagEnd < state.length && isDollarTagContinue(charAt(state, tagEnd))) {
-        tagEnd += 1;
-    }
-    return charAt(state, tagEnd) === "$" ? tagEnd + 1 : null;
-}
-
 function scanTemplateParameter(state: ScannerState): boolean {
-    if (!state.profile.templateParameters || !startsWith(state, "${")) {
+    if (!startsWith(state, "${")) {
         return false;
     }
     const start = state.cursor;
@@ -423,161 +264,28 @@ function scanTemplateParameter(state: ScannerState): boolean {
     return true;
 }
 
-/**
- * Prefixed string / Unicode quoted-identifier forms.
- * Single-quoted forms only for E/U&/N/X/B/_charset string literals.
- * PostgreSQL also accepts U&"..." as a quoted identifier (not a string).
- *
- * U& forms deliberately disable C-style backslash quote escaping: in PostgreSQL
- * U& strings, `\` introduces Unicode escapes and does not skip a closing quote.
- * Only E'...' uses allowBackslashEscape=true among prefixed forms.
- */
+/** Hive binary and bit string literals `X'…'` and `B'…'`: single quote only, no escapes. */
 function scanPrefixedLiteral(state: ScannerState): boolean {
-    const start = state.cursor;
-    const first = charAt(state, start);
-    const second = charAt(state, start + 1);
-    const third = charAt(state, start + 2);
-    const forms = state.profile.prefixedLiterals;
-
-    if (forms.has("E") && (first === "E" || first === "e") && second === "'") {
-        emitQuotedUnit(state, start, start + 1, "'", "string", true);
+    const first = charAt(state, state.cursor).toUpperCase();
+    if ((first === "X" || first === "B") && charAt(state, state.cursor + 1) === "'") {
+        emitQuotedUnit(state, state.cursor, state.cursor + 1, "'", "string", false);
         return true;
     }
-
-    if (forms.has("U&") && (first === "U" || first === "u") && second === "&") {
-        if (third === "'") {
-            // No C-style quote escape: closing quote always ends the leaf.
-            emitQuotedUnit(state, start, start + 2, "'", "string", false);
-            return true;
-        }
-        // PostgreSQL Unicode quoted identifier: U&"..."
-        if (third === '"' && state.profile.doubleQuote === "identifier") {
-            emitQuotedUnit(state, start, start + 2, '"', "quoted-identifier", false);
-            return true;
-        }
-    }
-
-    // N/X/B string prefixes accept single quote only — never double quote.
-    if (forms.has("N") && (first === "N" || first === "n") && second === "'") {
-        emitQuotedUnit(
-            state,
-            start,
-            start + 1,
-            "'",
-            "string",
-            state.profile.backslashStringEscapes
-        );
-        return true;
-    }
-
-    if (forms.has("X") && (first === "X" || first === "x") && second === "'") {
-        emitQuotedUnit(state, start, start + 1, "'", "string", false);
-        return true;
-    }
-
-    if (forms.has("B") && (first === "B" || first === "b") && second === "'") {
-        emitQuotedUnit(state, start, start + 1, "'", "string", false);
-        return true;
-    }
-
-    // _charset'...' — single quote only per Wave 1 design.
-    if (forms.has("_charset") && first === "_") {
-        let prefixEnd = start + 1;
-        while (prefixEnd < state.length && isIdentifierContinue(charAt(state, prefixEnd))) {
-            prefixEnd += 1;
-        }
-        if (prefixEnd > start + 1 && charAt(state, prefixEnd) === "'") {
-            emitQuotedUnit(
-                state,
-                start,
-                prefixEnd,
-                "'",
-                "string",
-                state.profile.backslashStringEscapes
-            );
-            return true;
-        }
-    }
-
     return false;
 }
 
+/** Hive strings take either quote and backslash escapes; backticks quote identifiers. */
 function scanQuoted(state: ScannerState): boolean {
     const ch = charAt(state, state.cursor);
-    if (ch === "'") {
-        emitQuotedUnit(
-            state,
-            state.cursor,
-            state.cursor,
-            "'",
-            "string",
-            state.profile.backslashStringEscapes
-        );
+    if (ch === "'" || ch === '"') {
+        emitQuotedUnit(state, state.cursor, state.cursor, ch, "string", true);
         return true;
     }
-    if (ch === '"') {
-        if (state.profile.doubleQuote === "identifier") {
-            emitQuotedUnit(state, state.cursor, state.cursor, '"', "quoted-identifier", false);
-            return true;
-        }
-        emitQuotedUnit(
-            state,
-            state.cursor,
-            state.cursor,
-            '"',
-            "string",
-            state.profile.backslashStringEscapes
-        );
-        return true;
-    }
-    if (ch === "`" && state.profile.backtickIdentifiers) {
+    if (ch === "`") {
         emitQuotedUnit(state, state.cursor, state.cursor, "`", "quoted-identifier", false);
         return true;
     }
     return false;
-}
-
-function scanMysqlDigitStartedIdentifier(
-    state: ScannerState,
-    start: number
-): boolean {
-    if (state.profile.dialect !== "mysql") {
-        return false;
-    }
-    let digitEnd = start;
-    while (digitEnd < state.length && isAsciiDigit(charAt(state, digitEnd))) {
-        digitEnd += 1;
-    }
-    const next = charAt(state, digitEnd);
-    const exponentFollower = charAt(state, digitEnd + 1);
-    const hasNumericExponent =
-        (next === "e" || next === "E") &&
-        (isAsciiDigit(exponentFollower) ||
-            ((exponentFollower === "+" || exponentFollower === "-") &&
-                isAsciiDigit(charAt(state, digitEnd + 2))));
-    if (hasNumericExponent) {
-        return false;
-    }
-    const nextCodePoint = codePointAt(state.source, digitEnd);
-    if (
-        nextCodePoint === undefined ||
-        !state.profile.identifierCharacters.isContinue(nextCodePoint)
-    ) {
-        return false;
-    }
-    let end = digitEnd;
-    while (end < state.length) {
-        const codePoint = codePointAt(state.source, end);
-        if (
-            codePoint === undefined ||
-            !state.profile.identifierCharacters.isContinue(codePoint)
-        ) {
-            break;
-        }
-        end += codePointWidth(codePoint);
-    }
-    emitLeaf(state, "identifier", start, end);
-    return true;
 }
 
 function scanNumber(state: ScannerState): boolean {
@@ -604,10 +312,6 @@ function scanNumber(state: ScannerState): boolean {
             emitLeaf(state, "number", start, end);
             return true;
         }
-    }
-
-    if (isAsciiDigit(ch) && scanMysqlDigitStartedIdentifier(state, start)) {
-        return true;
     }
 
     let end = start;
@@ -659,101 +363,22 @@ function scanNumber(state: ScannerState): boolean {
 
 function scanIdentifierOrKeyword(state: ScannerState): boolean {
     const start = state.cursor;
-    const firstCodePoint = codePointAt(state.source, start);
-    if (
-        firstCodePoint === undefined ||
-        !state.profile.identifierCharacters.isStart(firstCodePoint)
-    ) {
+    if (!isIdentifierStart(charAt(state, start))) {
         return false;
     }
-    let end = start + codePointWidth(firstCodePoint);
-    while (end < state.length) {
-        const nextCodePoint = codePointAt(state.source, end);
-        if (
-            nextCodePoint === undefined ||
-            !state.profile.identifierCharacters.isContinue(nextCodePoint) ||
-            // `$` continues a Hive identifier, but `${` always starts a template: `tbl_${dt}`.
-            (nextCodePoint === 0x24 &&
-                state.profile.templateParameters &&
-                charAt(state, end + 1) === "{")
-        ) {
-            break;
-        }
-        end += codePointWidth(nextCodePoint);
+    let end = start + 1;
+    // `$` continues a Hive identifier, but `${` always starts a template: `tbl_${dt}`.
+    while (isIdentifierContinue(charAt(state, end)) && !startsWith(state, "${", end)) {
+        end += 1;
     }
-    const raw = state.source.slice(start, end);
-    let keywordCandidate = raw;
-    let hasAsciiLowercase = false;
-    for (let index = 0; index < raw.length; index++) {
-        const code = raw.charCodeAt(index);
-        if (code > 0x7F) {
-            keywordCandidate = "";
-            break;
-        }
-        hasAsciiLowercase = hasAsciiLowercase || (code >= 0x61 && code <= 0x7A);
-    }
-    if (keywordCandidate.length > 0 && hasAsciiLowercase) {
-        keywordCandidate = raw.toUpperCase();
-    }
-    const kind = keywordCandidate.length > 0 &&
-        state.profile.keywords.has(keywordCandidate)
-        ? "keyword"
-        : "identifier";
+    // Identifier leaves are ASCII, so upper-casing them cannot change their length.
+    const kind = KEYWORDS.has(state.source.slice(start, end).toUpperCase()) ? "keyword" : "identifier";
     emitLeaf(state, kind, start, end);
     return true;
 }
 
-/**
- * PostgreSQL operator names are complete character runs, not a finite list.
- * Follow scan.l's comment boundaries and trailing +/- rule:
- * https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-OPERATORS
- * Unknown names remain one token so syntax recovery preserves their meaning.
- */
-function scanPostgresOperator(state: ScannerState): boolean {
-    const start = state.cursor;
-    if (!POSTGRES_OPERATOR_CHARACTERS.has(charAt(state, start))) {
-        // :: and := contain ':' and continue through the fixed-token scanner.
-        return false;
-    }
-    let end = start;
-    let lastNonSignEnd = start;
-    let hasNonstandardCharacter = false;
-    while (end < state.length) {
-        const ch = charAt(state, end);
-        if (!POSTGRES_OPERATOR_CHARACTERS.has(ch)) {
-            break;
-        }
-        const next = charAt(state, end + 1);
-        if ((ch === "-" && next === "-") || (ch === "/" && next === "*")) {
-            break;
-        }
-        hasNonstandardCharacter = hasNonstandardCharacter ||
-            POSTGRES_NONSTANDARD_OPERATOR_CHARACTERS.has(ch);
-        end += 1;
-        if (ch !== "+" && ch !== "-") {
-            lastNonSignEnd = end;
-        }
-    }
-    if (end === start) {
-        return false;
-    }
-    const operatorEnd = hasNonstandardCharacter
-        ? end
-        : Math.max(start + 1, lastNonSignEnd);
-    emitLeaf(state, "operator", start, operatorEnd);
-    // Scan a sign suffix once, rather than rescanning the remaining run for
-    // every one-character token (quadratic for a long sequence of '+').
-    while (state.cursor < end) {
-        emitLeaf(state, "operator", state.cursor, state.cursor + 1);
-    }
-    return true;
-}
-
 function scanOperator(state: ScannerState): boolean {
-    if (state.profile.dialect === "postgresql" && scanPostgresOperator(state)) {
-        return true;
-    }
-    for (const op of state.profile.operatorsFor(charAt(state, state.cursor))) {
+    for (const op of operatorsFor(charAt(state, state.cursor))) {
         if (startsWith(state, op)) {
             emitLeaf(state, "operator", state.cursor, state.cursor + op.length);
             return true;
@@ -762,70 +387,13 @@ function scanOperator(state: ScannerState): boolean {
     return false;
 }
 
-function hasColonParameterLeftBoundary(state: ScannerState): boolean {
-    const previous = state.leaves[state.leaves.length - 1];
-    if (previous === undefined || previous.span.end !== state.cursor) {
-        return true;
+/** Hive prepared-statement parameter `?`; `${…}` templates are scanned separately. */
+function scanParameter(state: ScannerState): boolean {
+    if (charAt(state, state.cursor) !== "?") {
+        return false;
     }
-    return (
-        previous.raw !== ":" &&
-        previous.kind !== "identifier" &&
-        previous.kind !== "keyword" &&
-        previous.kind !== "quoted-identifier"
-    );
-}
-
-function scanNamedParameter(state: ScannerState): boolean {
-    const ch = charAt(state, state.cursor);
-
-    if (state.profile.parameters.has("$n") && ch === "$") {
-        const next = charAt(state, state.cursor + 1);
-        if (isAsciiDigit(next)) {
-            let end = state.cursor + 2;
-            while (end < state.length && isAsciiDigit(charAt(state, end))) {
-                end += 1;
-            }
-            emitLeaf(state, "parameter", state.cursor, end);
-            return true;
-        }
-    }
-
-    if (
-        state.profile.parameters.has(":id") &&
-        ch === ":" &&
-        hasColonParameterLeftBoundary(state)
-    ) {
-        const next = charAt(state, state.cursor + 1);
-        if (isIdentifierStart(next)) {
-            let end = state.cursor + 2;
-            while (end < state.length && isIdentifierContinue(charAt(state, end))) {
-                end += 1;
-            }
-            emitLeaf(state, "parameter", state.cursor, end);
-            return true;
-        }
-    }
-
-    if (state.profile.parameters.has("@name") && ch === "@") {
-        const systemVariable = charAt(state, state.cursor + 1) === "@";
-        const nameStart = state.cursor + (systemVariable ? 2 : 1);
-        const next = charAt(state, nameStart);
-        if (isIdentifierStart(next)) {
-            let end = nameStart + 1;
-            while (end < state.length && isIdentifierContinue(charAt(state, end))) {
-                end += 1;
-            }
-            emitLeaf(state, "parameter", state.cursor, end);
-            return true;
-        }
-    }
-
-    if (state.profile.parameters.has("?") && ch === "?") {
-        emitLeaf(state, "parameter", state.cursor, state.cursor + 1);
-        return true;
-    }
-
-    return false;
+    emitLeaf(state, "parameter", state.cursor, state.cursor + 1);
+    return true;
 }
 
 function scanPunctuation(state: ScannerState): boolean {
@@ -847,58 +415,23 @@ function knownLeafStartsAfterUnknown(
     }
     const ch = charAt(state, index);
     if (codePoint > 0x7f) {
-        return isHorizontalWhitespace(ch) ||
-            state.profile.identifierCharacters.isStart(codePoint);
+        return isHorizontalWhitespace(ch);
     }
     if (
         isNewlineChar(ch) ||
         isHorizontalWhitespace(ch) ||
         isAsciiDigit(ch) ||
-        state.profile.identifierCharacters.isStart(codePoint) ||
+        isIdentifierStart(ch) ||
         ch === "'" ||
         ch === '"' ||
-        (ch === "`" && state.profile.backtickIdentifiers) ||
+        ch === "`" ||
+        ch === "?" ||
         PUNCTUATION.has(ch) ||
-        (state.profile.hashComments && ch === "#") ||
-        (state.profile.templateParameters &&
-            state.source.startsWith("${", index)) ||
-        dollarStringTagEnd(state, index) !== null
+        state.source.startsWith("${", index)
     ) {
         return true;
     }
-    if (
-        state.profile.dialect === "postgresql" &&
-        POSTGRES_OPERATOR_CHARACTERS.has(ch)
-    ) {
-        return true;
-    }
-    for (const operator of state.profile.operatorsFor(ch)) {
-        if (state.source.startsWith(operator, index)) {
-            return true;
-        }
-    }
-    if (
-        state.profile.parameters.has("$n") &&
-        ch === "$" &&
-        isAsciiDigit(charAt(state, index + 1))
-    ) {
-        return true;
-    }
-    if (
-        state.profile.parameters.has(":id") &&
-        ch === ":" &&
-        isIdentifierStart(charAt(state, index + 1))
-    ) {
-        return true;
-    }
-    if (
-        state.profile.parameters.has("@name") &&
-        ch === "@" &&
-        isIdentifierStart(charAt(state, index + 1))
-    ) {
-        return true;
-    }
-    return state.profile.parameters.has("?") && ch === "?";
+    return operatorsFor(ch).some((operator) => state.source.startsWith(operator, index));
 }
 
 function scanUnknown(state: ScannerState): void {
@@ -930,16 +463,10 @@ function advanceOneLeaf(state: ScannerState): void {
     if (scanDashDashComment(state)) {
         return;
     }
-    if (scanHashComment(state)) {
-        return;
-    }
     if (scanBlockComment(state)) {
         return;
     }
     if (scanTemplateParameter(state)) {
-        return;
-    }
-    if (scanDollarString(state)) {
         return;
     }
     if (scanPrefixedLiteral(state)) {
@@ -954,11 +481,10 @@ function advanceOneLeaf(state: ScannerState): void {
     if (scanIdentifierOrKeyword(state)) {
         return;
     }
-    // operators before parameters so ::/:=/@>/?|/? win over :id/@name/? parameter
     if (scanOperator(state)) {
         return;
     }
-    if (scanNamedParameter(state)) {
+    if (scanParameter(state)) {
         return;
     }
     if (scanPunctuation(state)) {
@@ -975,11 +501,7 @@ function advanceOneLeaf(state: ScannerState): void {
     }
 }
 
-export function lexSql(source: string, options?: LexOptions): LexOutput {
-    // Dialect must be validated before the empty-source fast path so that
-    // empty and non-empty inputs reject illegal dialects consistently.
-    const dialect = resolveDialect(options?.dialect);
-
+export function lexSql(source: string): LexOutput {
     if (source.length === 0) {
         return {
             leaves: Object.freeze([]) as readonly SourceLeaf[],
@@ -994,18 +516,13 @@ export function lexSql(source: string, options?: LexOptions): LexOutput {
         nextId: 0,
         leaves: [],
         diagnostics: [],
-        profile: getLexicalProfile(dialect),
     };
 
     while (state.cursor < state.length) {
         advanceOneLeaf(state);
     }
-    const leaves = state.profile.templateParameters
-        ? mergeTemplateFragments(source, state.leaves)
-        : state.leaves;
-
     return {
-        leaves: Object.freeze(leaves),
+        leaves: Object.freeze(mergeTemplateFragments(source, state.leaves)),
         diagnostics: state.diagnostics,
     };
 }
