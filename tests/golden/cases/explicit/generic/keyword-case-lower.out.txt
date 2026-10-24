@@ -1,0 +1,3 @@
+use DW;
+show tables IN DW;
+add jar /TMP/A.JAR;

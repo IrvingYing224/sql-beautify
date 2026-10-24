@@ -29,6 +29,7 @@ export type SyntaxMarkerId =
     | `clause:${ClauseKind}`
     | "statement-terminator"
     | "set:head"
+    | "statement-head"
     | "cte-as"
     | "alias-as"
     | "lateral-view-output-as"
@@ -122,7 +123,7 @@ export interface AliasInfo {
     readonly nameLeafRange: LeafRange;
 }
 
-export type StatementKind = "empty" | "query" | "insert-query" | "set" | "opaque";
+export type StatementKind = "empty" | "query" | "insert-query" | "set" | "generic" | "opaque";
 export type QueryKind = "select" | "set" | "parenthesized";
 export type ClauseKind =
     | "with"
@@ -260,6 +261,20 @@ export interface SetPayloadNode extends SyntaxNodeBase<"set-payload"> {
     readonly children: readonly [];
 }
 
+/**
+ * Generic layer (plan §5.3): a statement whose whitespace amount is normalized while its words
+ * keep their case, except head words from the statement-head table (`statement-head` markers).
+ */
+export interface GenericStatementNode extends SyntaxNodeBase<"generic-statement"> {
+    readonly payloadChildId: number | null;
+    readonly children: readonly CommandPayloadNode[];
+}
+
+/** Script command payload after the command head; layout keeps the complete range verbatim. */
+export interface CommandPayloadNode extends SyntaxNodeBase<"command-payload"> {
+    readonly children: readonly [];
+}
+
 export interface QueryNode extends SyntaxNodeBase<"query"> {
     readonly queryKind: QueryKind;
     /** Leaf ids of set operators combining child queries (empty for non-set). */
@@ -360,6 +375,8 @@ export type SyntaxNode =
     | StatementNode
     | SetStatementNode
     | SetPayloadNode
+    | GenericStatementNode
+    | CommandPayloadNode
     | QueryNode
     | CteNode
     | ClauseNode

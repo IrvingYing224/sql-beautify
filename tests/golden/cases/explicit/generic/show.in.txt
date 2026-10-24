@@ -1,0 +1,8 @@
+show databases;
+show schemas like 'd*';
+show tables in dw;
+show views;
+show partitions t;
+show functions;
+show columns in t;
+show tblproperties t;

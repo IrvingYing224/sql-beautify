@@ -1,0 +1,4 @@
+-- golden: {"options":{"keywordCase":"lower"}}
+USE DW;
+SHOW TABLES IN DW;
+ADD JAR /TMP/A.JAR;

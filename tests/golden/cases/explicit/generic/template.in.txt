@@ -1,0 +1,3 @@
+use ${hivevar:db};
+drop table if exists db_${env}.t_${dt};
+msck repair table ${t};

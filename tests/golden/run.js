@@ -494,6 +494,13 @@ function selfTest() {
     [
         ['select MixedCase from MyTable', 'SELECT MIXEDCASE FROM MYTABLE', {}, 'token'],
         ['add jar /tmp/current.jar;', 'ADD jar /tmp/CURRENT.jar;', {}, 'token'],
+        // Generic layer: only statement-head table words may change case (plan §5.3).
+        ['add jar /tmp/current.jar;', 'ADD JAR /tmp/current.jar;', {}, ''],
+        ['use Db', 'USE Db', {}, ''],
+        ['use Db', 'USE DB', {}, 'token'],
+        ['analyze table t compute statistics', 'ANALYZE TABLE t COMPUTE statistics', {}, 'token'],
+        ['show role grant user string', 'SHOW role grant user string', {}, 'token'],
+        ['show role grant user string', 'show role grant user STRING', {}, 'token'],
         ['select ${v}and from t', 'SELECT ${v}AND FROM t', {}, 'token'],
         ['select ${v}and from t', 'select ${v}AND from t', {}, 'token'],
         ['select a rlike b from t', 'SELECT a RLIKE b FROM t', {}, ''],

@@ -1,0 +1,2 @@
+msck table t;
+msck repair table t;

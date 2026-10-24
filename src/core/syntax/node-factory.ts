@@ -12,10 +12,12 @@ import type {
     ClauseNodeFacts,
     ClauseKind,
     ClauseNode,
+    CommandPayloadNode,
     CteNode,
     ExpressionKind,
     ExpressionNode,
     ExpressionNodeFacts,
+    GenericStatementNode,
     ListItemNode,
     ListItemRole,
     ListNode,
@@ -48,9 +50,15 @@ export interface NodeFactory {
     createStatement(
         range: LeafRange,
         statementKind: StatementKind,
-        body: QueryNode | SetStatementNode | OpaqueNode | null,
+        body: QueryNode | SetStatementNode | GenericStatementNode | OpaqueNode | null,
         facts?: SyntaxNodeFacts
     ): StatementNode;
+    createGenericStatement(
+        range: LeafRange,
+        payload: CommandPayloadNode | null,
+        facts: SyntaxNodeFacts
+    ): GenericStatementNode;
+    createCommandPayload(range: LeafRange): CommandPayloadNode;
     createSetStatement(
         range: LeafRange,
         payload: SetPayloadNode | null,
@@ -372,7 +380,8 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
                 ((statementKind === "opaque" && body.kind !== "opaque") ||
                     ((statementKind === "query" || statementKind === "insert-query") &&
                         body.kind !== "query") ||
-                    (statementKind === "set" && body.kind !== "set-statement"))
+                    (statementKind === "set" && body.kind !== "set-statement") ||
+                    (statementKind === "generic" && body.kind !== "generic-statement"))
             ) {
                 throw new Error(`Invalid ${statementKind} statement body kind: ${body.kind}`);
             }
@@ -415,6 +424,40 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
                     : freezeImmutableArray([payload]),
             });
             return node;
+        },
+
+        createGenericStatement(range, payload, facts): GenericStatementNode {
+            const leafRange = freezeRange(range, leafCount, false);
+            if (
+                payload !== null &&
+                (payload.leafRange.start < leafRange.start ||
+                    payload.leafRange.end !== leafRange.end)
+            ) {
+                throw new Error("Command payload must end its statement");
+            }
+            return Object.freeze({
+                id: allocateId(),
+                kind: "generic-statement" as const,
+                span: spanForRange(leafRange),
+                leafRange,
+                ...freezeFacts(facts, leafRange, "intrinsic-container"),
+                payloadChildId: payload === null ? null : payload.id,
+                children: payload === null
+                    ? freezeImmutableArray([]) as readonly CommandPayloadNode[]
+                    : freezeImmutableArray([payload]),
+            });
+        },
+
+        createCommandPayload(range): CommandPayloadNode {
+            const leafRange = freezeRange(range, leafCount, false);
+            return Object.freeze({
+                id: allocateId(),
+                kind: "command-payload" as const,
+                span: spanForRange(leafRange),
+                leafRange,
+                ...freezeFacts(undefined, leafRange, "intrinsic-container"),
+                children: freezeImmutableArray([]) as readonly [],
+            });
         },
 
         createSetPayload(

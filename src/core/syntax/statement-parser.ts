@@ -23,6 +23,8 @@ import {
     createParserCheckpoint,
     rollbackParserCheckpoint,
 } from "./recovery";
+import { matchStatementHead, takesGenericLayer } from "./statement-head";
+import type { StatementHead } from "./statement-head";
 import { classifyUnsupportedStatementStart } from "./unsupported-recognizer";
 
 function statementRecovery(
@@ -186,6 +188,59 @@ function parseSetStatementRange(
     );
 }
 
+/**
+ * Hive splits statements at every `;` outside quotes, brackets included. A `;` inside the body
+ * means brackets ran across statements, so another command and its payload may hide here.
+ */
+function bodyHasSemicolon(context: ParserContext, bodyRange: LeafRange): boolean {
+    for (let leafId = bodyRange.start; leafId < bodyRange.end; leafId++) {
+        const leaf = context.leaves[leafId]!;
+        if (leaf.channel === "code" && leaf.raw === ";") {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Generic layer (plan §5.3). The node runs to the statement's `;` so the whitespace before it is
+ * normalized too; a command payload starts at the first syntax leaf after the head.
+ */
+function parseGenericStatementRange(
+    context: ParserContext,
+    statementRange: LeafRange,
+    bodyRange: LeafRange,
+    head: StatementHead | null
+): StatementNode {
+    const last = lastSyntaxIndex(context.leaves, statementRange)!;
+    const end = context.leaves[last]!.raw === ";" && context.leaves[last]!.channel === "code"
+        ? last
+        : bodyRange.end;
+    const headWords = head === null
+        ? []
+        : head.leafIds.filter((leafId) => context.leaves[leafId]!.raw !== "!");
+    const payloadStart = head?.payload === true
+        ? nextSyntaxIndex(context, head.leafIds[head.leafIds.length - 1]!, end)
+        : null;
+    const generic = context.factory.createGenericStatement(
+        { start: bodyRange.start, end },
+        payloadStart === null
+            ? null
+            : context.factory.createCommandPayload({ start: payloadStart, end }),
+        nodeFacts(
+            "generic-statement",
+            "capability",
+            head?.keywordCase === true ? syntaxMarkers(headWords, "statement-head") : []
+        )
+    );
+    return context.factory.createStatement(
+        statementRange,
+        "generic",
+        generic,
+        statementFacts(context, statementRange)
+    );
+}
+
 function representsInsertQuery(query: QueryNode): boolean {
     const first = query.children[0];
     if (first?.kind === "clause" && first.clauseKind === "insert") {
@@ -288,6 +343,22 @@ export function parseStatementRange(
         context.leaves[bodyRange.start]!.channel === "code" &&
         context.leaves[bodyRange.start]!.raw === "(";
     const unsupported = classifyUnsupportedStatementStart(context, bodyRange);
+    if (!startsSelect && !startsWith && !startsParenthesized && !startsInsert && !startsSet) {
+        // Statements the registry knows (DDL, EXPLAIN, UPDATE, DELETE, MERGE) take the generic
+        // layer only through the statement-head table: `CREATE TABLE` belongs to Format Hive DDL
+        // and views or EXPLAIN carry a query, whose alignment the generic layer would flatten.
+        // A fragment target may be a clause or a list rather than a statement.
+        const head = matchStatementHead(context, bodyRange);
+        if (
+            (head !== null ||
+                (unsupported === null &&
+                    context.mode !== "fragment" &&
+                    takesGenericLayer(context, bodyRange))) &&
+            !bodyHasSemicolon(context, bodyRange)
+        ) {
+            return parseGenericStatementRange(context, range, bodyRange, head);
+        }
+    }
     if (unsupported?.state === "verbatim") {
         return createOpaqueStatement(
             context,

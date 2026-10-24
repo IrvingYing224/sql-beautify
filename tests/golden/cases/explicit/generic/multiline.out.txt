@@ -1,0 +1,3 @@
+ALTER TABLE t
+    add columns (a int comment 'x  y',
+				 b string);

@@ -26,7 +26,7 @@ export type VerbatimTrigger =
       }
     | {
           readonly kind: "bounded-payload";
-          readonly capabilityId: "set-command";
+          readonly capabilityId: "set-command" | "generic-statement";
       };
 
 export type LineSuffixSpacing =

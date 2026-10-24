@@ -1,0 +1,2 @@
+CREATE FUNCTION f as 'com.x.F' using jar 'hdfs:///lib/F.jar';
+CREATE TEMPORARY FUNCTION g as 'com.x.G';

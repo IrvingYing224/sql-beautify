@@ -1,5 +1,5 @@
-add jar /tmp/my-udf.jar;
-create temporary function f as 'com.x.F';
+ADD JAR /tmp/my-udf.jar;
+CREATE TEMPORARY FUNCTION f as 'com.x.F';
 SELECT
       f(a)
 FROM t;

@@ -1,0 +1,4 @@
+SHOW TABLES -- Trailing
+  in dw /* Block */ like 'x*';
+-- Leading
+USE dw;

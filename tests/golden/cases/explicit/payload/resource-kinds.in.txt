@@ -1,0 +1,6 @@
+add archives /tmp/A.tar.gz /tmp/b.zip;
+add files /tmp/a.txt;
+list files;
+list file /tmp/A.txt;
+delete file /tmp/A.txt;
+delete archive /tmp/A.tar.gz;

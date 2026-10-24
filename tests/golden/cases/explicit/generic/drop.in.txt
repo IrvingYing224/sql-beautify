@@ -1,0 +1,4 @@
+drop table t;
+drop view if exists v;
+drop function f;
+drop database if exists d cascade;

@@ -1,0 +1,9 @@
+create table t (
+    id      bigint comment 'id',
+    name    string
+);
+create view v as select a,   b from t;
+explain select a,   b from t;
+update t set a = 1;
+delete from t where a = 1;
+from src insert overwrite table t select a,   b;

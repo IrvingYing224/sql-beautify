@@ -1,0 +1,2 @@
+LOAD DATA LOCAL INPATH '/tmp/A.csv' overwrite into table t;
+LOAD DATA INPATH '/tmp/b' into table t;

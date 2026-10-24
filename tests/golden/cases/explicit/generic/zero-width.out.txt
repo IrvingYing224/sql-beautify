@@ -1,0 +1,3 @@
+ALTER TABLE t add partition(dt='1')location'/x';
+USE dw;
+SHOW TABLES;

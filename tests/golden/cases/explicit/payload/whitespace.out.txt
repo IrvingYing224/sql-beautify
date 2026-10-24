@@ -1,0 +1,1 @@
+ADD JAR /tmp/a.jar   /tmp/B.jar  ;

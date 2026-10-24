@@ -1,0 +1,7 @@
+describe t;
+desc t;
+describe extended t;
+desc formatted dw.t;
+describe database dw;
+desc function upper;
+describe function extended upper;

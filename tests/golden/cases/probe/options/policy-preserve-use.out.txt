@@ -1,4 +1,4 @@
-use db;
+USE db;
 SELECT
       a
     , b

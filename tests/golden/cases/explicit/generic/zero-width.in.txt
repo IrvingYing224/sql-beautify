@@ -1,0 +1,2 @@
+alter table t add partition(dt='1')location'/x';
+use dw;show tables;

@@ -2,14 +2,14 @@
 -- 任务名称: dws_user_order_daily
 -- 负责人: data-team
 -- =============================================
-use dw;
+USE dw;
 SET hive.exec.dynamic.partition=true;
 SET hive.exec.dynamic.partition.mode=nonstrict;
 SET mapreduce.map.memory.mb=4096;
-add jar hdfs:///user/lib/udf-1.0.jar;
-create temporary function parse_ua as 'com.x.ParseUA';
+ADD JAR hdfs:///user/lib/udf-1.0.jar;
+CREATE TEMPORARY FUNCTION parse_ua as 'com.x.ParseUA';
 
-drop table if exists tmp.tmp_user_order_${hivevar:dt};
+DROP TABLE IF EXISTS tmp.tmp_user_order_${hivevar:dt};
 create table tmp.tmp_user_order_${hivevar:dt} as
 select user_id, order_id, amount from ods.orders where dt = '${hivevar:dt}';
 
@@ -78,4 +78,4 @@ DISTRIBUTE BY
 SORT BY
       a.total_amount DESC;
 
-msck repair table dws.user_order_daily;
+MSCK REPAIR TABLE dws.user_order_daily;

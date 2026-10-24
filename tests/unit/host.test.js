@@ -139,15 +139,16 @@ test('output newline follows the document text, then the document eol', function
 
 test('K23: the editor shows a core message as it is, cut to 200 characters', function() {
     return host(async function(h) {
-        var editor = h.open("'" + 'x'.repeat(200000) + "' foo bar;");
+        var editor = h.open("('" + 'x'.repeat(200000) + "' foo bar);");
         assert.deepStrictEqual(await h.formatDocument(editor.document), []);
         var shown = h.diagnostics.get('untitled:test.sql');
-        assert.deepStrictEqual(shown.map(function(item) { return item.code; }), ['SYN_UNSUPPORTED_STATEMENT']);
-        assert.strictEqual(shown[0].message, "hive statement '" + 'x'.repeat(183) + '…');
+        assert.deepStrictEqual(shown.map(function(item) { return item.code; }), ['SYN_UNEXPECTED_TOKEN']);
+        assert.strictEqual(shown[0].message, "Unsupported query-leading token '" + 'x'.repeat(166) + '…');
         // The cut never splits a surrogate pair.
-        editor = h.open("'" + '😀'.repeat(300) + "' foo bar;");
+        editor = h.open("('" + '😀'.repeat(300) + "' foo bar);");
         await h.formatDocument(editor.document);
-        assert.strictEqual(h.diagnostics.get('untitled:test.sql')[0].message, "hive statement '" + '😀'.repeat(183) + '…');
+        assert.strictEqual(h.diagnostics.get('untitled:test.sql')[0].message,
+            "Unsupported query-leading token '" + '😀'.repeat(166) + '…');
     });
 });
 

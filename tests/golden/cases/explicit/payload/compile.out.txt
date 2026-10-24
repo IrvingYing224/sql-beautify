@@ -1,0 +1,1 @@
+COMPILE `import org.apache.hadoop.hive.ql.exec.UDF \n public class Pyth extends UDF { }` AS GROOVY NAMED Pyth.groovy;

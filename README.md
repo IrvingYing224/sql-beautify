@@ -15,6 +15,7 @@ VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格�
 - 格式化 SQL / HQL
 - 对 `SELECT`、`GROUP BY` 和顶层 `ORDER BY` 做列表换行与逗号对齐
 - 格式化有界的 Hive `INSERT INTO [TABLE] ... [PARTITION (...)] SELECT/WITH ...` 与 `SET` 命令
+- Hive 脚本语句（`USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`ADD JAR`、`DFS` 等）只规范空白的量：行内连续空白压成一个空格、删除行尾空白，换行和续行缩进不变；只有语句开头的关键字（如 `ANALYZE TABLE`）按 `keywordCase` 改大小写，其余词保持原样；`ADD JAR`、`DFS`、`!`、`SOURCE` 等命令之后的路径、URI、类名和 shell 参数逐字节保留
 - 支持 VS Code 标准 `Format Document` / `Format Selection`
 - 提供实验性的 Hive DDL 格式化
 - 提供实验性的 Hive Extract DDL 草稿提取
@@ -72,7 +73,7 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 
 它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、`LOCATION`、`TBLPROPERTIES`、CTAS、重复或乱序后缀、未知 storage format、约束、默认值或结构不完整的输入都会保留完整原文，不会被猜测性改写。选区命令只对生成空白应用首行缩进与文档 LF/CRLF；多行 string、quoted identifier 和 comment 内部的原始空格与 EOL 保持逐字符不变。公开 DDL / Extract DDL API 的单次输入及 VS Code DDL transaction 的完整文档同样以 524,288 个 UTF-16 code units 为上限；所有目标继续以整批原子方式提交，任一目标不受支持或超过输入/输出资源预算时不会提交部分编辑。
 
-主 `Format SQL` 命令会保留 Hive DDL；需要格式化 `CREATE TABLE` 时，应使用专用的 `Format Hive DDL (Experimental)` 命令。
+主 `Format SQL` 命令会保留 `CREATE TABLE` 等 Hive DDL 的原文（`DROP`、`TRUNCATE TABLE`、`ALTER TABLE` 与 `CREATE FUNCTION` 只规范空白的量）；需要格式化 `CREATE TABLE` 时，应使用专用的 `Format Hive DDL (Experimental)` 命令。
 
 ### Hive Extract DDL
 
@@ -91,7 +92,7 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 - `unsupportedSyntaxPolicy=preserve` 使用相同的安全输出，但不在编辑器中显示 capability warning；手动执行 `SQL Beautify: Format SQL` 且因未建模区域没有修改时，会显示一次不含 SQL 内容的汇总提示。format provider 与 format-on-save 不弹出该提示。
 - `unsupportedSyntaxPolicy=bail_out` 会在出现任何未建模或解析恢复区域时保留整个格式化目标的原文，包括尚未登记能力名称的语法、局部语法错误和 parser 深度超限；同一目标中其余语句也不会修改。
 - parser 遇到未建模语法、局部语法错误或资源预算耗尽时，按可证明边界保留对应区域、整条语句或整个目标，并报告 warning。`warn` / `preserve` 允许继续格式化局部保留区域之外的 SQL；`bail_out` 则保留整个目标。格式化输出超过 4 × 输入 + 65,536 个 UTF-16 code units 时，renderer 立即停止并保留整个目标，不提交部分布局；内部不变量破坏仍作为 hard failure 处理。
-- Hive 的 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、主 formatter 中的 DDL、`UPDATE` 和 `DELETE` 目前明确按 verbatim 保留，不宣称已格式化；完整边界以生成的 support matrix 为准。
+- Hive 的 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、主 formatter 中的 `CREATE TABLE`、`CREATE VIEW` 等 DDL、`UPDATE`、`DELETE` 和以 `FROM` 开头的 multi-insert 目前明确按 verbatim 保留，不宣称已格式化。
 - 选区格式化接受完整文档、完整单句或两个以上连续完整 statement；半条 statement、跨 protected/opaque 边界或结构不完整的片段会被拒绝，而不是猜测性改写。
 - 内部错误（含错误栈）写入输出面板的 `SQL Beautify` 日志；每次格式化的状态与诊断 code 摘要按 debug 级别记录，用 `Developer: Set Log Level` 调到 Debug 后可见。编辑器诊断直接显示格式化器的消息，可能引用 SQL 片段，最多 200 个字符。
 

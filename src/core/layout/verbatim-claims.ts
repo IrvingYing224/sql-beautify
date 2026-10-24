@@ -88,14 +88,16 @@ export function dominatingVerbatimClaims(
         }
         const candidates: CandidateClaim[] = [];
         for (const node of nodes) {
-            if (node.kind === "set-payload") {
+            if (node.kind === "set-payload" || node.kind === "command-payload") {
                 candidates.push(
                     candidate(
                         node.id,
                         node.leafRange,
                         {
                             kind: "bounded-payload",
-                            capabilityId: "set-command",
+                            capabilityId: node.kind === "set-payload"
+                                ? "set-command"
+                                : "generic-statement",
                         },
                         2,
                         depthByNodeId[node.id]!

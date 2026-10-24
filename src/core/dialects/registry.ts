@@ -149,6 +149,7 @@ const FORMATTED_CAPABILITIES: readonly FormattedCapability[] = freezeImmutableAr
         "insert-overwrite-partition-select",
         "insert-into-partition-select",
         "set-command",
+        "generic-statement",
     ].map((id): FormattedCapability => Object.freeze({
         id,
         state: "formatted",

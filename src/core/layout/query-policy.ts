@@ -1,6 +1,7 @@
 import type {
     ClauseNode,
     CteNode,
+    GenericStatementNode,
     QueryNode,
     SetStatementNode,
     SyntaxNode,
@@ -59,6 +60,42 @@ function formatSetStatement(
             SPACE
         )
     );
+}
+
+/**
+ * Generic layer (plan §5.3): only the amount of whitespace changes. A run inside a line becomes
+ * one space and a run before a line break goes away; line breaks, continuation indentation,
+ * zero-width gaps and the command payload stay as written.
+ */
+function formatGenericStatement(
+    context: QueryLayoutContext,
+    statement: GenericStatementNode
+): boolean {
+    const authorityNodeId = authorityForNode(context, statement.id);
+    if (authorityNodeId === null) {
+        return true;
+    }
+    const { analysis } = context;
+    for (let leafId = statement.leafRange.start; leafId < statement.leafRange.end; leafId++) {
+        if (
+            analysis.leafKind(leafId) !== "whitespace" ||
+            context.claims.claimForLeaf(leafId) !== null
+        ) {
+            continue;
+        }
+        const decision = analysis.leafKind(leafId + 1) === "newline"
+            ? EMPTY
+            : analysis.leafKind(leafId - 1) === "newline"
+              ? null
+              : SPACE;
+        if (
+            decision !== null &&
+            !context.plan.replaceGap(authorityNodeId, leafId, leafId + 1, decision)
+        ) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function formatClause(
@@ -384,6 +421,12 @@ export function applyQueryLayout(
         if (
             node.kind === "set-statement" &&
             !formatSetStatement(context, node)
+        ) {
+            return false;
+        }
+        if (
+            node.kind === "generic-statement" &&
+            !formatGenericStatement(context, node)
         ) {
             return false;
         }

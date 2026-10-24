@@ -1,0 +1,6 @@
+grant select on table t to user Alice;
+revoke select on table t from user Alice;
+show role grant user Alice;
+show grant user Alice on table t;
+create role Analyst;
+drop role Analyst;

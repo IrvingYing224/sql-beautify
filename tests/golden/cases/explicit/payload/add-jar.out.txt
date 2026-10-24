@@ -1,0 +1,1 @@
+ADD JAR /tmp/current.jar;

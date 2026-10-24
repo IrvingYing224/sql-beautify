@@ -1,0 +1,1 @@
+ADD JAR hdfs:///user/Lib/UDF.jar;

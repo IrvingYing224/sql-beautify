@@ -1,0 +1,5 @@
+USE db;
+SELECT
+      a
+    , b
+FROM t;

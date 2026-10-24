@@ -2768,6 +2768,130 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/generic/alter-table": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/analyze": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/authorization": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/blank-line": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/comments": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/create-function": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/describe": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/drop": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/excluded": {
+  "op": "formatSql",
+  "status": "unchanged",
+  "codes": [
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT"
+  ]
+ },
+ "explicit/generic/fragment": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/keyword-case-lower": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/load-data": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/msck": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/multiline": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/not-generic": {
+  "op": "formatSql",
+  "status": "unchanged",
+  "codes": [
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT",
+   "SYN_UNSUPPORTED_STATEMENT"
+  ]
+ },
+ "explicit/generic/show": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/show-create-table": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/template": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/truncate": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/unknown-head": {
+  "op": "formatSql",
+  "status": "unchanged",
+  "codes": []
+ },
+ "explicit/generic/use": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/generic/zero-width": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k01-partial-trailing-comments": {
   "op": "formatSql",
   "status": "formatted",
@@ -2891,45 +3015,33 @@
  },
  "explicit/known/k11-analyze": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k11-describe": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k11-load-data": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k11-msck": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k11-show": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k11-use": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k12-ctas": {
   "op": "formatSql",
@@ -3057,74 +3169,68 @@
  },
  "explicit/payload/add-file": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/add-jar": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/add-jar-dash": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/add-jar-hdfs": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/add-jars-multiple": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/payload/compile": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/delete-jar": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/dfs": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/list-jars": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/reset": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/payload/reset-key": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/payload/resource-kinds": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
  },
  "explicit/payload/script": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "explicit/payload/set-path": {
   "op": "formatSql",
@@ -3134,16 +3240,17 @@
  "explicit/payload/shell": {
   "op": "formatSql",
   "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "explicit/payload/source": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/payload/whitespace": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
  },
  "explicit/resource/comment-dense-2000": {
   "op": "formatSql",
@@ -5809,9 +5916,7 @@
  "parse/hive-cst-parser/x-1-863816b3": {
   "op": "formatSql",
   "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "parse/hive-statement-commands/create-table-t-id-int-6d303139": {
   "op": "formatSql",
@@ -6054,9 +6159,7 @@
  "parse/recovery-opaque/select-1-truncate-table-db-t-select-2-a12cc09c": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "parse/recovery-opaque/select-a-b-c-1-from-t-e327d025": {
   "op": "formatSql",
@@ -6847,11 +6950,7 @@
  "probe/hive/add-jar-use": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "probe/hive/already-formatted": {
   "op": "formatSql",
@@ -6860,17 +6959,13 @@
  },
  "probe/hive/alter-table-add-partition": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/analyze": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/arith-unary-div": {
   "op": "formatSql",
@@ -7098,9 +7193,7 @@
  "probe/hive/comment-bang-line": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "probe/hive/create-table": {
   "op": "formatSql",
@@ -7160,10 +7253,8 @@
  },
  "probe/hive/describe": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/distinct-agg": {
   "op": "formatSql",
@@ -7187,10 +7278,8 @@
  },
  "probe/hive/drop-table": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/emoji-string": {
   "op": "formatSql",
@@ -7227,9 +7316,7 @@
  "probe/hive/garbage": {
   "op": "formatSql",
   "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "probe/hive/group-by-many": {
   "op": "formatSql",
@@ -7378,10 +7465,8 @@
  },
  "probe/hive/load-data": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/lone-cr": {
   "op": "formatSql",
@@ -7415,10 +7500,8 @@
  },
  "probe/hive/msck": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/multi-insert-from": {
   "op": "formatSql",
@@ -7530,10 +7613,8 @@
  },
  "probe/hive/show-partitions": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/sort-array-funcs": {
   "op": "formatSql",
@@ -7609,10 +7690,8 @@
  },
  "probe/hive/truncate": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/unbalanced-in-second-stmt": {
   "op": "formatSql",
@@ -7671,10 +7750,8 @@
  },
  "probe/hive/use-db-only": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/hive/very-long-expression": {
   "op": "formatSql",
@@ -7923,18 +8000,13 @@
  },
  "probe/options/policy-bail-use": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/options/policy-preserve-use": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNSUPPORTED_STATEMENT"
-  ]
+  "codes": []
  },
  "probe/options/rev2-1-leading": {
   "op": "formatSql",
@@ -8018,11 +8090,6 @@
   "op": "formatSql",
   "status": "formatted",
   "codes": [
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT",
-   "SYN_UNSUPPORTED_STATEMENT",
    "SYN_UNSUPPORTED_STATEMENT"
   ]
  },

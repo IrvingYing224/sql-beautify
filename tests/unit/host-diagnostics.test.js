@@ -7,7 +7,8 @@ var assert = require('assert');
 var test = require('node:test');
 var fake = require('./helpers/fake-vscode');
 
-var USE = 'use db;\nselect a from t qualify row_number() over (order by a) = 1;';
+// A FROM-first multi-insert is not modeled and its warning carries no capability.
+var FROM_FIRST = 'from t select a;\nselect a from t qualify row_number() over (order by a) = 1;';
 var S = 'select a,b from t;\n\nCREATE TABLE t (x INT);';
 var O = 'SELECT\n      a\n    , b\nFROM t;\n\nCREATE TABLE t (x INT);';
 var MODELED_WARNING = [['SYN_UNSUPPORTED_STATEMENT', 1, 30, 55]];
@@ -24,16 +25,16 @@ function published(h, document) {
 }
 
 test('H5: warn shows every innermost diagnostic; preserve hides capability warnings; bail_out rejects', function() {
-    var warn = [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 7], ['SYN_UNMODELED_CONSTRUCT', 1, 24, 66]];
+    var warn = [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 16], ['SYN_UNMODELED_CONSTRUCT', 1, 33, 75]];
     return host(async function(h) {
-        var editor = h.open(USE);
+        var editor = h.open(FROM_FIRST);
         assert.deepStrictEqual(await h.formatDocument(editor.document), []);
         assert.deepStrictEqual(published(h, editor.document), warn, 'the containing qualify span is dropped');
 
         var result = await h.run('formatSql', { unsupportedSyntaxPolicy: 'bail_out' });
         assert.strictEqual(result.status, 'rejected');
-        assert.deepStrictEqual(published(h, editor.document), [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 7],
-            ['FMT_UNSUPPORTED_BAIL_OUT', 1, 0, 67], ['SYN_UNMODELED_CONSTRUCT', 1, 24, 66]]);
+        assert.deepStrictEqual(published(h, editor.document), [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 16],
+            ['FMT_UNSUPPORTED_BAIL_OUT', 1, 0, 76], ['SYN_UNMODELED_CONSTRUCT', 1, 33, 75]]);
         assert.deepStrictEqual(h.lastMessage(), { kind: 'warning',
             text: 'SQL Beautify did not modify the document because formatting was not safe.' });
 
@@ -44,19 +45,19 @@ test('H5: warn shows every innermost diagnostic; preserve hides capability warni
         assert.deepStrictEqual(h.messages, []);
 
         // Explicit preserve in the command arguments behaves like the setting.
-        editor = h.open(USE);
+        editor = h.open(FROM_FIRST);
         result = await h.run('formatSql', { unsupportedSyntaxPolicy: 'preserve' });
         assert.strictEqual(result.status, 'unchanged');
-        assert.deepStrictEqual(published(h, editor.document), [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 7]]);
+        assert.deepStrictEqual(published(h, editor.document), [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 16]]);
     }).then(function() {
         return host({ configuration: { 'sqlBeautify.unsupportedSyntaxPolicy': 'preserve' } }, async function(h) {
-            var editor = h.open(USE);
+            var editor = h.open(FROM_FIRST);
             assert.deepStrictEqual(await h.formatDocument(editor.document), []);
-            assert.deepStrictEqual(published(h, editor.document), [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 7]]);
+            assert.deepStrictEqual(published(h, editor.document), [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 16]]);
             assert.deepStrictEqual(h.messages, [], 'providers show no popup');
             var result = await h.run('formatSql');
             assert.strictEqual(result.status, 'unchanged');
-            assert.deepStrictEqual(published(h, editor.document), [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 7]]);
+            assert.deepStrictEqual(published(h, editor.document), [['SYN_UNSUPPORTED_STATEMENT', 1, 0, 16]]);
             assert.deepStrictEqual(h.lastMessage(), { kind: 'info',
                 text: 'SQL Beautify made no changes because 1 SQL region(s) are not modeled.' });
         });

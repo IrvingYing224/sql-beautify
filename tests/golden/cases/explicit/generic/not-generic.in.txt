@@ -1,0 +1,7 @@
+!${cmd}   x;
+dfs${o}  -ls;
+add jar${v}   /x;
+${stmt}   x;
+list  foo;
+kill query (  ;
+  show tables  );
