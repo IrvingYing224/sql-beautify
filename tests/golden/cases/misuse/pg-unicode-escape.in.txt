@@ -1,0 +1,1 @@
+select U&'d\0061t\+000061' as u from t;

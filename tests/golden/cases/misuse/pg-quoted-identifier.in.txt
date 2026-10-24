@@ -1,0 +1,1 @@
+select "Order Id", "a""b" from "Sales"."Orders" where "Status" = 'paid';

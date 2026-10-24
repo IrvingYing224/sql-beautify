@@ -5345,6 +5345,50 @@
   "status": "formatted",
   "codes": []
  },
+ "misuse/mysql-hash-comment": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "misuse/pg-dollar-string": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "misuse/pg-escape-string": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "misuse/pg-json-dollar-comment": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "misuse/pg-quoted-identifier": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNMODELED_CONSTRUCT"
+  ]
+ },
+ "misuse/pg-unicode-escape": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "parse/analysis-index/create-table-t-a-string-b3e0f681": {
   "op": "formatSql",
   "status": "unchanged",

@@ -1,0 +1,1 @@
+select E'line\nnext' as s, e'it\'s' as t from t;

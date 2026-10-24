@@ -1,0 +1,8 @@
+SELECT
+      u.id
+    , payload->>'order_id' AS order_id
+    , payload ? 'coupon' AS has_coupon
+    , $$CASE WHEN -- keep raw text$$ as raw_sql_text
+from public.events u
+WHERE payload->>'status' = 'paid'
+and u.created_at >= now() - interval '1 day';

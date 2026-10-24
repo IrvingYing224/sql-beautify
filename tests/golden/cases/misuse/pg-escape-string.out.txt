@@ -1,0 +1,4 @@
+SELECT
+      E'line\nnext' AS s
+    , e'it\'s' AS t
+FROM t;

@@ -1,0 +1,5 @@
+SELECT
+      a
+    , # pick a
+    , c b
+FROM t;
