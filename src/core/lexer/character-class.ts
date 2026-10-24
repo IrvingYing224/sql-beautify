@@ -1,6 +1,6 @@
 /**
  * Character-class predicates for the lossless lexer.
- * This module must not contain dialect keyword/operator tables.
+ * Keyword and operator tables live in lexical-profile.ts.
  */
 
 export function isAsciiDigit(ch: string): boolean {

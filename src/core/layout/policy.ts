@@ -6,8 +6,11 @@ import type {
     LayoutPlanResult,
 } from "./plan";
 import { createLayoutPlanBuilder } from "./plan";
-import { applyDialectLayout } from "./dialect-policy";
+import { applyExpressionLayout } from "./expression-policy";
+import { applyKeywordCaseLayout } from "./keyword-policy";
 import { createQueryLayoutContext } from "./query-layout-context";
+import { applyQueryLayout } from "./query-policy";
+import { applyTriviaLayout } from "./trivia-policy";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
 
 function failure(message: string): LayoutPlanFailure {
@@ -38,7 +41,7 @@ export function finalizeLayoutPolicyApplication(
 
 /**
  * Wave 3 policy dispatch. Registry state and dominating claims gate the proven
- * subset for each dialect before the shared typed policy can register actions.
+ * Hive subset before the typed policies register actions in one transaction.
  */
 export function buildLayoutPlan(
     analysis: AnalyzedArtifact,
@@ -58,9 +61,14 @@ export function buildLayoutPlan(
         if (context === null) {
             return failure("Layout policy could not derive query authority");
         }
+        const complete =
+            applyQueryLayout(context) &&
+            applyExpressionLayout(context) &&
+            applyTriviaLayout(context) &&
+            applyKeywordCaseLayout(context);
         return finalizeLayoutPolicyApplication(
             builder,
-            applyDialectLayout(context) ? context.state.commaFallback : null
+            complete ? context.state.commaFallback : null
         );
     } catch {
         return failure("Layout policy inspection failed");

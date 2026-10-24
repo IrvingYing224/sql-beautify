@@ -8,7 +8,7 @@ export type RecoveryAction =
     | "preserve-target";
 
 /**
- * Stable registry identity for a recognized dialect capability.
+ * Stable registry identity for a recognized Hive capability.
  * `null` means the diagnostic is lexical, malformed-input, or internal and
  * therefore must not claim ownership by a registry capability.
  */
