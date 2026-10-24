@@ -18,6 +18,7 @@ import type {
 import {
     ParserSyntaxError,
     baseDepth,
+    intervalUnit,
     isAliasNameLeaf,
     isQueryLeadingRange,
     mergeSyntaxMarkers,
@@ -405,6 +406,12 @@ class PrattParser {
                 this.position += 1;
                 return this.create({ start: leafIndex, end: leafIndex + 1 }, "literal", [], []);
             }
+            if (word === "interval") {
+                const interval = this.parseInterval(nestingDepth);
+                if (interval !== null) {
+                    return interval;
+                }
+            }
             if (
                 (word === "date" || word === "timestamp" || word === "interval") &&
                 this.leafIndex(start + 1) !== null &&
@@ -445,6 +452,70 @@ class PrattParser {
             { start: leafIndex, end: leafIndex + 1 },
             `Unsupported expression atom ${leaf.raw}`
         );
+    }
+
+    /**
+     * `INTERVAL value unit` (Hive intervalExpression). The value is a string, a number, a
+     * template or a parenthesized expression; the unit is one word or `YEAR TO MONTH` /
+     * `DAY TO SECOND`. Null without a unit, which keeps the bare `INTERVAL 'text'` literal.
+     */
+    private parseInterval(nestingDepth: number): ExpressionNode | null {
+        const keywordPosition = this.position;
+        const valueIndex = this.leafIndex(keywordPosition + 1);
+        if (valueIndex === null) {
+            return null;
+        }
+        const valueLeaf = this.context.leaves[valueIndex]!;
+        const parenthesized = valueLeaf.raw === "(";
+        if (
+            !parenthesized &&
+            valueLeaf.kind !== "string" &&
+            valueLeaf.kind !== "number" &&
+            valueLeaf.kind !== "parameter"
+        ) {
+            return null;
+        }
+        const unitPosition = parenthesized
+            ? this.matchingPosition(keywordPosition + 1) + 1
+            : keywordPosition + 2;
+        const unitLength = this.intervalUnitLength(unitPosition);
+        if (unitLength === 0) {
+            return null;
+        }
+        this.position = keywordPosition + 1;
+        const value = parenthesized
+            ? this.parseParenthesized(nestingDepth)
+            : this.create(
+                  { start: valueIndex, end: valueIndex + 1 },
+                  valueLeaf.kind === "parameter" ? "parameter" : "literal",
+                  [],
+                  []
+              );
+        const keyword = this.indexes[keywordPosition]!;
+        const unitIds = this.indexes.slice(unitPosition, unitPosition + unitLength);
+        this.position = unitPosition + unitLength;
+        return this.create(
+            { start: keyword, end: unitIds[unitIds.length - 1]! + 1 },
+            "typed-literal",
+            [],
+            [value],
+            [],
+            mergeSyntaxMarkers(
+                syntaxMarkers([keyword], "type:name", "builtin-type-keyword"),
+                syntaxMarkers(unitIds, "type:name")
+            )
+        );
+    }
+
+    private intervalUnitLength(position: number): number {
+        const unit = intervalUnit(this.word(position));
+        if (unit === null) {
+            return 0;
+        }
+        const last = this.wordIs(position + 1, "to") ? intervalUnit(this.word(position + 2)) : null;
+        return (unit === "year" && last === "month") || (unit === "day" && last === "second")
+            ? 3
+            : 1;
     }
 
     private parsePostfix(

@@ -1,0 +1,10 @@
+SELECT
+      INTERVAL '1 day'
+FROM t;
+SELECT
+      interval
+    , interval day
+FROM t;
+SELECT
+      interval 1 day to x
+FROM t;

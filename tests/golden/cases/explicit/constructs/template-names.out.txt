@@ -1,0 +1,8 @@
+SELECT
+      t.${c}
+    , a AS ${alias}
+    , b AS ${p}_x
+FROM db_${env}.t t;
+SELECT
+      a ${alias}
+FROM t;

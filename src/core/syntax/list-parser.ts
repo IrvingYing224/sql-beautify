@@ -1,8 +1,10 @@
+import { isTemplateFragment } from "../lexer/token";
 import type { LeafRange } from "./leaf-range";
 import { listItemRoleFor } from "./list-role-contract";
 import type { AliasInfo, ListNode, ListRole, SyntaxNode } from "./node";
 import {
     ParserSyntaxError,
+    intervalUnit,
     isAliasNameLeaf,
     isCodeWord,
     isDottedNamePart,
@@ -25,7 +27,8 @@ import {
 
 export interface OpaqueListOptions {
     readonly allowAlias: boolean;
-    readonly modifierWords?: readonly string[];
+    /** Items may end in `[ASC|DESC] [NULLS FIRST|LAST]` (Hive columnRefOrder). */
+    readonly ordering?: boolean;
     readonly requireSingleName?: boolean;
     readonly reasonMessage: string;
 }
@@ -77,8 +80,6 @@ const IMPLICIT_ALIAS_PREDECESSOR_BLOCKERS = Object.freeze([
     "when",
 ]);
 
-const EMPTY_MODIFIER_WORDS: readonly string[] = Object.freeze([]);
-
 function listItemFacts(alias: AliasInfo | null, modifierLeafIds: readonly number[]) {
     const aliasKeywordLeafId = alias?.keywordLeafId ?? null;
     if (aliasKeywordLeafId === null && modifierLeafIds.length === 0) {
@@ -101,24 +102,6 @@ function listItemFacts(alias: AliasInfo | null, modifierLeafIds: readonly number
     );
 }
 
-function normalizeModifierWords(
-    words: readonly string[] | undefined
-): readonly string[] {
-    if (words === undefined || words.length === 0) {
-        return EMPTY_MODIFIER_WORDS;
-    }
-    let normalized = true;
-    for (const word of words) {
-        if (word !== word.toLowerCase()) {
-            normalized = false;
-            break;
-        }
-    }
-    return normalized && Object.isFrozen(words)
-        ? words
-        : Object.freeze(Array.from(words, (word) => word.toLowerCase()));
-}
-
 function canBeImplicitAlias(context: ParserContext, leafIndex: number): boolean {
     const leaf = context.leaves[leafIndex]!;
     if (!isAliasNameLeaf(leaf)) {
@@ -130,48 +113,80 @@ function canBeImplicitAlias(context: ParserContext, leafIndex: number): boolean 
     );
 }
 
+/** `day` in `INTERVAL '1' day` or `INTERVAL (n) day` is the interval unit, not an alias. */
+function isIntervalUnit(context: ParserContext, leafIndex: number, rangeStart: number): boolean {
+    if (
+        context.leaves[leafIndex]!.channel !== "code" ||
+        intervalUnit(context.table.normalizedWord(leafIndex)) === null
+    ) {
+        return false;
+    }
+    const value = previousSyntaxIndex(context, leafIndex, rangeStart);
+    const valueStart = value !== null && context.leaves[value]!.raw === ")"
+        ? context.table.matchingDelimiterIndex(value)
+        : value;
+    const keyword = valueStart === null
+        ? null
+        : previousSyntaxIndex(context, valueStart, rangeStart);
+    return keyword !== null && isCodeWord(context, keyword, "interval");
+}
+
+/** Number of trailing `[ASC|DESC] [NULLS FIRST|LAST]` words among `indexes`. */
+function orderingModifierCount(
+    context: ParserContext,
+    range: LeafRange,
+    indexes: readonly number[]
+): number {
+    const isWord = (position: number, words: readonly string[]): boolean => {
+        const leafId = indexes[position];
+        return (
+            leafId !== undefined &&
+            context.leaves[leafId]!.channel === "code" &&
+            words.includes(context.table.normalizedWord(leafId)) &&
+            !isDottedNamePart(context, leafId, range.start, range.end)
+        );
+    };
+    let end = indexes.length;
+    if (isWord(end - 1, ["first", "last"]) && isWord(end - 2, ["nulls"])) {
+        end -= 2;
+    }
+    if (isWord(end - 1, ["asc", "desc"])) {
+        end -= 1;
+        if (isWord(end - 1, ["asc", "desc"])) {
+            throw new ParserSyntaxError(
+                "SYN_UNEXPECTED_TOKEN",
+                { start: indexes[end - 1]!, end: indexes[end]! + 1 },
+                "List item must not contain conflicting trailing modifiers"
+            );
+        }
+    }
+    if (end === 0 && indexes.length > 0) {
+        throw new ParserSyntaxError(
+            "SYN_INCOMPLETE_CLAUSE",
+            range,
+            "List item modifier has no value"
+        );
+    }
+    return indexes.length - end;
+}
+
 function parseItemFacts(
     context: ParserContext,
     range: LeafRange,
-    options: OpaqueListOptions,
-    modifierWords: readonly string[]
+    options: OpaqueListOptions
 ): {
     readonly valueRange: LeafRange;
     readonly alias: AliasInfo | null;
     readonly modifierLeafIds: readonly number[];
 } {
     let valueEnd = range.end;
-    const modifiers: number[] = [];
     let indexes = topLevelSyntaxIndexes(context, range);
-
-    while (indexes.length > 0) {
-        const last = indexes[indexes.length - 1]!;
-        const leaf = context.leaves[last]!;
-        if (
-            leaf.channel !== "code" ||
-            !modifierWords.includes(context.table.normalizedWord(last)) ||
-            isDottedNamePart(context, last, range.start, range.end)
-        ) {
-            break;
-        }
-        if (modifiers.length > 0) {
-            throw new ParserSyntaxError(
-                "SYN_UNEXPECTED_TOKEN",
-                { start: last, end: modifiers[0]! + 1 },
-                "List item must not contain conflicting trailing modifiers"
-            );
-        }
-        modifiers.unshift(last);
-        valueEnd = last;
-        const beforeModifier = trimToSyntax(context.leaves, { start: range.start, end: valueEnd });
-        if (beforeModifier === null) {
-            throw new ParserSyntaxError(
-                "SYN_INCOMPLETE_CLAUSE",
-                range,
-                "List item modifier has no value"
-            );
-        }
-        indexes = topLevelSyntaxIndexes(context, beforeModifier);
+    const modifiers = options.ordering === true
+        ? indexes.slice(indexes.length - orderingModifierCount(context, range, indexes))
+        : [];
+    if (modifiers.length > 0) {
+        valueEnd = modifiers[0]!;
+        indexes = indexes.slice(0, indexes.length - modifiers.length);
     }
 
     let alias: AliasInfo | null = null;
@@ -183,9 +198,13 @@ function parseItemFacts(
             }
             const afterAs = indexes.slice(i + 1);
             const aliasIndex = afterAs.length === 1 ? afterAs[0]! : null;
+            // A template after AS stands for an alias name: `a AS ${alias}`.
             if (
                 aliasIndex === null ||
-                !isAliasNameLeaf(context.leaves[aliasIndex]!)
+                !(
+                    isAliasNameLeaf(context.leaves[aliasIndex]!) ||
+                    isTemplateFragment(context.leaves[aliasIndex]!)
+                )
             ) {
                 throw new ParserSyntaxError(
                     "SYN_INCOMPLETE_CLAUSE",
@@ -235,6 +254,7 @@ function parseItemFacts(
             if (
                 canBeImplicitAlias(context, aliasIndex) &&
                 !blockedPrevious &&
+                !isIntervalUnit(context, aliasIndex, range.start) &&
                 syntaxLeavesAreSeparated(context, previousIndex, aliasIndex)
             ) {
                 alias = Object.freeze({
@@ -273,16 +293,10 @@ export function parseList(
         );
     }
     const split = splitTopLevelByComma(context, trimmed);
-    const modifierWords = normalizeModifierWords(options.modifierWords);
     const items = split.ranges.map((itemRange) => {
         const itemCheckpoint = createParserCheckpoint(context);
         try {
-            let facts = parseItemFacts(
-                context,
-                itemRange,
-                options,
-                modifierWords
-            );
+            let facts = parseItemFacts(context, itemRange, options);
             if (options.requireSingleName === true) {
                 const nameIndexes = topLevelSyntaxIndexes(context, facts.valueRange);
                 if (
@@ -307,8 +321,7 @@ export function parseList(
                 facts = parseItemFacts(
                     context,
                     itemRange,
-                    Object.freeze({ ...options, allowAlias: false }),
-                    modifierWords
+                    Object.freeze({ ...options, allowAlias: false })
                 );
                 value = parseValue(context, facts.valueRange);
             }

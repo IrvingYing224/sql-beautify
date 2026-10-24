@@ -1,0 +1,3 @@
+select a from t order by t.nulls last;
+select a from t order by a asc desc;
+select a from t order by nulls last;

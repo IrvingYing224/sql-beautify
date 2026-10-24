@@ -1,4 +1,4 @@
 SELECT
       a
 FROM t
-LIMIT 10 offset 5
+LIMIT 10 OFFSET 5

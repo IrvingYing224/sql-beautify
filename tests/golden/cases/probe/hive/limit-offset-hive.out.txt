@@ -3,4 +3,4 @@ SELECT
 FROM t
 ORDER BY
       a
-LIMIT 10 offset 5;
+LIMIT 10 OFFSET 5;

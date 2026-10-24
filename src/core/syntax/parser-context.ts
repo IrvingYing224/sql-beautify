@@ -348,6 +348,21 @@ export function isDottedNamePart(
     );
 }
 
+const INTERVAL_UNITS: readonly string[] = Object.freeze([
+    "year",
+    "month",
+    "day",
+    "hour",
+    "minute",
+    "second",
+]);
+
+/** The singular Hive interval unit a word names (`days` → `day`), or null. */
+export function intervalUnit(word: string | null): string | null {
+    const unit = word?.endsWith("s") === true ? word.slice(0, -1) : word;
+    return unit !== null && INTERVAL_UNITS.includes(unit) ? unit : null;
+}
+
 export function isCodeWord(
     context: ParserContext,
     leafIndex: number,

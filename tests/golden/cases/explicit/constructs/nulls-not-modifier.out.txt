@@ -1,0 +1,15 @@
+SELECT
+      a
+FROM t
+ORDER BY
+      t.nulls last;
+SELECT
+      a
+FROM t
+ORDER BY
+      a asc desc;
+SELECT
+      a
+FROM t
+ORDER BY
+      nulls last;

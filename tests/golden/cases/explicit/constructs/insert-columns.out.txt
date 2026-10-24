@@ -1,0 +1,19 @@
+INSERT INTO t (c1, c2)
+SELECT
+      a
+    , b
+FROM s;
+INSERT INTO TABLE t
+PARTITION (ds = '${dt}') (c1, c2)
+SELECT
+      a
+    , b
+FROM s;
+WITH
+      q AS (
+          SELECT 1 AS a
+      )
+INSERT INTO t (a)
+SELECT
+      a
+FROM q;

@@ -5,4 +5,4 @@ SELECT
 FROM t
 GROUP BY
       a
-    , b with rollup;
+    , b WITH ROLLUP;

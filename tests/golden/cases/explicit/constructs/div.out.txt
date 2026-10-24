@@ -1,0 +1,5 @@
+SELECT
+      a DIV b
+    , a DIV 2 * c
+    , (a + b) DIV 2 AS half
+FROM t

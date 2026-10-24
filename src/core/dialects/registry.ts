@@ -101,6 +101,7 @@ const SYMBOL_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
  * Validated via lexical keyword membership, not operator token view.
  */
 const WORD_OPERATORS: readonly OperatorDefinition[] = freezeImmutableArray([
+    wordOperator("div", "infix", "keyword", ["div"], PRECEDENCE.multiplicative, "left"),
     wordOperator("not", "prefix", "keyword", ["not"], PRECEDENCE.not, "right"),
     wordOperator("or", "infix", "keyword", ["or"], PRECEDENCE.or, "left"),
     wordOperator("and", "infix", "keyword", ["and"], PRECEDENCE.and, "left"),

@@ -285,7 +285,7 @@ class WindowParser {
                 "window-order",
                 {
                     allowAlias: false,
-                    modifierWords: ["asc", "desc"],
+                    ordering: true,
                     reasonMessage: "Window order is not modeled",
                 },
                 (_context, range) => this.parseNestedValue(range)

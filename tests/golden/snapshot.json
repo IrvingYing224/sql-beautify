@@ -40,9 +40,7 @@
  "called/wave3e-dialect-layout/select-a-div-b-from-t-fb565289": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "called/wave3e-dialect-layout/select-a-from-t-11664245": {
   "op": "formatSql",
@@ -2558,6 +2556,76 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/constructs/comments": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/div": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/div-not-name": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "explicit/constructs/insert-columns": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/interval": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/interval-not-unit": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
+ "explicit/constructs/limit": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/nulls-not-modifier": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_INCOMPLETE_CLAUSE"
+  ]
+ },
+ "explicit/constructs/nulls-order": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/rollup#leading": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/rollup#trailing": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/template-names": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
  "explicit/ctas/defined-name": {
   "op": "formatSql",
   "status": "unchanged",
@@ -2961,45 +3029,32 @@
  "explicit/known/k10-div": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/known/k10-insert-columns": {
   "op": "formatSql",
-  "status": "unchanged",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k10-interval": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/known/k10-limit-comma": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/known/k10-limit-offset": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/known/k10-nulls-last": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/known/k10-templated-names": {
   "op": "formatSql",
@@ -3009,9 +3064,7 @@
  "explicit/known/k10-with-rollup": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/known/k11-analyze": {
   "op": "formatSql",
@@ -6180,9 +6233,7 @@
  "parse/recovery-opaque/select-a-from-t-limit-10-offset-2-a027016e": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "parse/recovery-opaque/select-a-from-t-minus-select-a-from-u-34c1f6ee": {
   "op": "formatSql",
@@ -6195,9 +6246,7 @@
  "parse/recovery-opaque/select-a-from-t-order-by-a-nulls-last-98120ef8": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "parse/recovery-opaque/select-a-select-2-09356f7d": {
   "op": "formatSql",
@@ -6970,9 +7019,7 @@
  "probe/hive/arith-unary-div": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/hive/backtick-identifiers": {
   "op": "formatSql",
@@ -7400,9 +7447,7 @@
  "probe/hive/interval-literal": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/hive/join-comma-old-style": {
   "op": "formatSql",
@@ -7452,16 +7497,12 @@
  "probe/hive/limit-comma": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/hive/limit-offset-hive": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/hive/load-data": {
   "op": "formatSql",
@@ -7543,10 +7584,7 @@
  "probe/hive/order-by-nulls": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/hive/regex-strings": {
   "op": "formatSql",
@@ -7776,9 +7814,7 @@
  "probe/hive/with-rollup": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/options/case-in-condition": {
   "op": "formatSql",
@@ -7992,11 +8028,8 @@
  },
  "probe/options/policy-bail-div": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "probe/options/policy-bail-use": {
   "op": "formatSql",
@@ -8226,9 +8259,7 @@
  "probe/targeted/div-op": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "probe/targeted/exists-in-and-chain": {
   "op": "formatSql",
@@ -9457,18 +9488,13 @@
  },
  "recapture/wave3e-dialect-layout/select-a-div-b-from-t-9653a663": {
   "op": "formatSql",
-  "status": "preserved",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "FMT_UNSUPPORTED_BAIL_OUT"
-  ]
+  "status": "formatted",
+  "codes": []
  },
  "recapture/wave3e-dialect-layout/select-a-div-b-from-t-969cea42": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "recapture/wave3e-dialect-layout/select-a-from-t-07fe219b": {
   "op": "formatSql",

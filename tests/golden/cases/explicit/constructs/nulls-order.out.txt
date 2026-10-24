@@ -1,0 +1,12 @@
+SELECT
+      a
+FROM t
+ORDER BY
+      a NULLS FIRST
+    , b DESC NULLS LAST
+    , c ASC;
+SELECT
+      row_number() OVER (PARTITION BY a ORDER BY b DESC NULLS LAST) AS rn
+FROM t
+SORT BY
+      a NULLS FIRST;

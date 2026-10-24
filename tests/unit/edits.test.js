@@ -98,9 +98,9 @@ test('U6 U7 U8 U11 U12: overlap, one preserved target, all unchanged, empty and 
 });
 
 test('U10: diagnostics of a ready result are in output coordinates, widened over layout gaps', function() {
-    var result = format('select a div b from t');
-    assert.deepStrictEqual(edits(result), [['document', 0, 21, 'SELECT\n      a div b\nFROM t']]);
-    assert.deepStrictEqual(diagnostics(result), [['SYN_UNEXPECTED_TOKEN', 'warning', 6, 21, 'document']]);
+    var result = format('select a ${b} from t');
+    assert.deepStrictEqual(edits(result), [['document', 0, 20, 'SELECT\n      a ${b}\nFROM t']]);
+    assert.deepStrictEqual(diagnostics(result), [['SYN_UNEXPECTED_TOKEN', 'warning', 6, 20, 'document']]);
 });
 
 test('U13: 524,288 code units are accepted, one more is rejected before formatting', function() {
@@ -177,7 +177,7 @@ test('R2-R7: range codes', function() {
         ['select a\nqualify row_number() over (order by a)=1\n', 0, 8, 'ADAPTER_RANGE_OPAQUE'],
         ['select a;\nCREATE TABLE t(x INT);\nselect b;\n', 10, 32, 'ADAPTER_RANGE_OPAQUE'],
         ['select a;\nCREATE TABLE t(x INT);\nselect b;\n', 0, 9, 'fragment'],
-        ['select one;\nselect a div b from t;\n', 12, 35, 'ADAPTER_RANGE_OPAQUE'],
+        ['select one;\nselect a ${b} from t;\n', 12, 34, 'ADAPTER_RANGE_OPAQUE'],
         ['-- first\nselect a;\n/* last */\n  ', 19, 29, 'ADAPTER_RANGE_EMPTY'],
         [' \t\nselect a;\n\t \nselect b;\n   ', 0, 2, 'ADAPTER_RANGE_EMPTY']
     ];

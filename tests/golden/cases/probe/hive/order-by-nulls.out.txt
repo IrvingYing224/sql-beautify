@@ -2,5 +2,5 @@ SELECT
       a
 FROM t
 ORDER BY
-      a desc nulls last
-    , b asc nulls first;
+      a DESC NULLS LAST
+    , b ASC NULLS FIRST;

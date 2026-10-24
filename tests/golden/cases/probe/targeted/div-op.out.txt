@@ -1,4 +1,4 @@
 SELECT
-      a div 2 AS x
+      a DIV 2 AS x
     , b
 FROM t

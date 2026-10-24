@@ -1,0 +1,8 @@
+select a from t order by a desc /* c */ nulls last;
+select a from t limit 5 /* c */, 10;
+select a from t limit 10 -- c
+offset 5;
+select a, count(1) from t group by a -- c
+with rollup;
+select a + interval /* c */ 1 day from t;
+insert into t /* c */ (c1, c2) select a, b from s;

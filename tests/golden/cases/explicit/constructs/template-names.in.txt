@@ -1,0 +1,2 @@
+select t.${c}, a as ${alias}, b as ${p}_x from db_${env}.t t;
+select a ${alias} from t;

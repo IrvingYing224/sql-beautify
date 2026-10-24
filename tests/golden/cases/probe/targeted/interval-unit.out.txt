@@ -1,4 +1,4 @@
 SELECT
-      current_date - INTERVAL '1' day
-    , ts + INTERVAL '2' hour
+      current_date - INTERVAL '1' DAY
+    , ts + INTERVAL '2' HOUR
 FROM t

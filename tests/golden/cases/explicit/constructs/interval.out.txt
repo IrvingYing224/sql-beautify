@@ -1,0 +1,8 @@
+SELECT
+      a + INTERVAL '1' DAY
+    , ts - INTERVAL 2 HOURS
+    , INTERVAL '1-2' YEAR TO MONTH
+    , INTERVAL '1 2:3:4' DAY TO SECOND
+    , INTERVAL (n + 1) DAYS
+    , INTERVAL ${n} MINUTE
+FROM t

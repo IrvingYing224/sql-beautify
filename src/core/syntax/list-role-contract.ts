@@ -9,7 +9,7 @@ const ITEM_ROLE_BY_LIST_ROLE: Readonly<Record<ListRole, ListItemRole>> = Object.
     "sort-by-items": "sort-by-item",
     "partition-columns": "partition-column",
     "function-args": "function-arg",
-    "cte-columns": "cte-column",
+    "column-names": "column-name",
     "window-partition": "window-partition-item",
     "window-order": "window-order-item",
     "type-args": "type-arg",

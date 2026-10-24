@@ -1,0 +1,3 @@
+SELECT
+      a DIV b
+FROM t

@@ -1,0 +1,5 @@
+INSERT INTO TABLE t (c1, c2)
+SELECT
+      a
+    , b
+FROM s

@@ -102,7 +102,7 @@ test('D1: diagnostic severity, capability, recovery and span', function() {
             ['SYN_UNMODELED_CONSTRUCT', 'warning', 'qualify', 'preserve-statement', 10, 66],
             ['SYN_UNMODELED_CONSTRUCT', 'warning', 'qualify', 'preserve-statement', 27, 66],
             ['FMT_UNSUPPORTED_BAIL_OUT', 'warning', null, 'preserve-target', 0, 66]]],
-        ['select a div b from t', {}, ['formatted', ['SYN_UNEXPECTED_TOKEN', 'warning', null, 'verbatim-node', 7, 14]]],
+        ['select a ${b} from t', {}, ['formatted', ['SYN_UNEXPECTED_TOKEN', 'warning', null, 'verbatim-node', 7, 13]]],
         ['select (a +) from t', {}, ['formatted', ['SYN_INCOMPLETE_CLAUSE', 'warning', null, 'verbatim-node', 8, 11]]],
         ["SELECT 'unterminated", {}, ['preserved',
             ['SYN_UNEXPECTED_TOKEN', 'warning', null, 'preserve-target', 0, 20],
@@ -115,7 +115,7 @@ test('D1: diagnostic severity, capability, recovery and span', function() {
     table.forEach(function(value) {
         assert.deepStrictEqual(rows(value[0], value[1]), value[2], value[0].slice(0, 60));
     });
-    assert.strictEqual(format('select a div b from t').text, 'SELECT\n      a div b\nFROM t');
+    assert.strictEqual(format('select a ${b} from t').text, 'SELECT\n      a ${b}\nFROM t');
     assert.strictEqual(format('select (a +) from t').text, 'SELECT\n      (a +)\nFROM t');
 
     // Capabilities of the Hive corpus cases, in diagnostic order.

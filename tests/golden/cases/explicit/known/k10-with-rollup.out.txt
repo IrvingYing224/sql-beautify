@@ -3,4 +3,4 @@ SELECT
     , count(1)
 FROM t
 GROUP BY
-      a with rollup
+      a WITH ROLLUP

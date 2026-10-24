@@ -1,0 +1,2 @@
+select a from t order by a nulls first, b desc nulls last, c asc;
+select row_number() over (partition by a order by b desc nulls last) as rn from t sort by a nulls first;

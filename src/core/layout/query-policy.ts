@@ -152,13 +152,18 @@ function formatClause(
             if (first === undefined || first.kind !== "list") {
                 return false;
             }
-            return formatDelimitedList(
-                context,
-                authorityNodeId,
-                clause.leafRange,
-                null,
-                first,
-                false
+            const delimiters = matchingDelimitersAround(context, clause.leafRange, first.leafRange);
+            return (
+                delimiters !== null &&
+                formatDelimitedList(
+                    context,
+                    authorityNodeId,
+                    clause.leafRange,
+                    null,
+                    first,
+                    false
+                ) &&
+                formatInsertColumns(context, authorityNodeId, clause, delimiters[1] + 1)
             );
         }
         case "join-using": {
@@ -174,8 +179,22 @@ function formatClause(
                 true
             );
         }
-        case "select":
         case "group-by":
+            return first === undefined ||
+                formatClauseBody(context, authorityNodeId, clause, first.leafRange.end);
+        case "limit":
+            return formatClauseBody(context, authorityNodeId, clause, clause.headLeafRange.end);
+        case "insert":
+            return first === undefined ||
+                (replaceStructuralGap(
+                    context,
+                    authorityNodeId,
+                    clause.headLeafRange.end,
+                    first.leafRange.start,
+                    SPACE
+                ) &&
+                    formatInsertColumns(context, authorityNodeId, clause, first.leafRange.end));
+        case "select":
         case "order-by":
         case "cluster-by":
         case "distribute-by":
@@ -184,10 +203,8 @@ function formatClause(
             return true;
         case "where":
         case "having":
-        case "limit":
         case "join-on":
         case "lateral-view":
-        case "insert":
             return first === undefined ||
                 replaceStructuralGap(
                     context,
@@ -197,6 +214,62 @@ function formatClause(
                     SPACE
                 );
     }
+}
+
+/**
+ * Children and body keywords from `fromLeafId` on (`, n`, `OFFSET m`, `WITH ROLLUP`) are one
+ * space apart; a separator comma takes no space before it.
+ */
+function formatClauseBody(
+    context: QueryLayoutContext,
+    authorityNodeId: number,
+    clause: ClauseNode,
+    fromLeafId: number
+): boolean {
+    const keyword = `clause:${clause.clauseKind}`;
+    const anchors = [
+        ...clause.children.map((child) => child.leafRange),
+        ...clause.syntaxMarkers
+            .filter(
+                (marker) =>
+                    marker.syntaxId === keyword && marker.leafId >= clause.headLeafRange.end
+            )
+            .map((marker) => ({ start: marker.leafId, end: marker.leafId + 1 })),
+        ...clause.separatorLeafIds.map((leafId) => ({ start: leafId, end: leafId + 1 })),
+    ]
+        .filter((anchor) => anchor.start >= fromLeafId)
+        .sort((left, right) => left.start - right.start);
+    let leftEnd = fromLeafId;
+    for (const anchor of anchors) {
+        const decision = clause.separatorLeafIds.includes(anchor.start) ? EMPTY : SPACE;
+        if (!replaceStructuralGap(context, authorityNodeId, leftEnd, anchor.start, decision)) {
+            return false;
+        }
+        leftEnd = anchor.end;
+    }
+    return true;
+}
+
+/** `t (c1, c2)` and `PARTITION (…) (c1, c2)`: the INSERT column list one space after `leftEnd`. */
+function formatInsertColumns(
+    context: QueryLayoutContext,
+    authorityNodeId: number,
+    clause: ClauseNode,
+    leftEnd: number
+): boolean {
+    const columns = clause.children[1];
+    return (
+        columns === undefined ||
+        (columns.kind === "list" &&
+            formatDelimitedList(
+                context,
+                authorityNodeId,
+                clause.leafRange,
+                leftEnd,
+                columns,
+                true
+            ))
+    );
 }
 
 function formatCte(

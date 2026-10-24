@@ -1,0 +1,1 @@
+select a + interval '1' day, ts - interval 2 HOURS, interval '1-2' year to month, interval '1 2:3:4' day to second, interval (n + 1) days, interval ${n} minute from t

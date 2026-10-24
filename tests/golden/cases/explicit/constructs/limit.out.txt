@@ -1,0 +1,12 @@
+SELECT
+      a
+FROM t
+LIMIT 5, 10;
+SELECT
+      a
+FROM t
+LIMIT 10 OFFSET 5;
+SELECT
+      a
+FROM t
+LIMIT ${n}, ${m};

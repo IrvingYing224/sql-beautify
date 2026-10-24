@@ -1,0 +1,1 @@
+select a div b, a DIV 2 * c, (a + b) div 2 as half from t

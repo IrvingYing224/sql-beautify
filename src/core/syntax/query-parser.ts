@@ -78,7 +78,8 @@ function queryClauseFacts(
     clauseKind: ClauseKind,
     headRange: LeafRange,
     capabilityId: string | null,
-    separatorLeafIds: readonly number[] = []
+    separatorLeafIds: readonly number[] = [],
+    bodyKeywordLeafIds: readonly number[] = []
 ) {
     const headLeafIds = syntaxIndexesInRange(context, headRange);
     const keywordLeafIds: number[] = [];
@@ -94,6 +95,7 @@ function queryClauseFacts(
             delimiterLeafIds.push(leafId);
         }
     }
+    keywordLeafIds.push(...bodyKeywordLeafIds);
     const facts = nodeFacts(
         capabilityId,
         capabilityId === null ? "intrinsic-container" : "capability",
@@ -519,7 +521,8 @@ function parseSetQuery(
     );
 }
 
-function parseCteColumnList(
+/** `(c1, c2)` after a CTE name or an INSERT target. */
+function parseColumnNameList(
     context: ParserContext,
     open: number,
     close: number,
@@ -530,17 +533,17 @@ function parseCteColumnList(
         throw new ParserSyntaxError(
             "SYN_INCOMPLETE_CLAUSE",
             { start: open, end: close + 1 },
-            "CTE column list requires at least one name"
+            "Column list requires at least one name"
         );
     }
     return parseList(
         context,
         body,
-        "cte-columns",
+        "column-names",
         {
             allowAlias: false,
             requireSingleName: true,
-            reasonMessage: "CTE column name is not modeled",
+            reasonMessage: "Column name is not modeled",
         },
         (parserContext, valueRange) =>
             parseExpressionRange(
@@ -595,7 +598,7 @@ function parseWithQuery(
                 start: afterName,
                 end: closeColumns + 1,
             });
-            columnList = parseCteColumnList(
+            columnList = parseColumnNameList(
                 context,
                 afterName,
                 closeColumns,
@@ -959,47 +962,45 @@ function findClauseMarkers(
 type ClauseListFacts = Readonly<{
     readonly listRole: ListRole;
     readonly allowAlias: boolean;
-    readonly modifierWords: readonly string[];
+    readonly ordering: boolean;
 }>;
 
-const EMPTY_LIST_MODIFIERS: readonly string[] = Object.freeze([]);
-const ORDER_LIST_MODIFIERS: readonly string[] = Object.freeze(["asc", "desc"]);
 const LIST_FACTS_BY_CLAUSE: Partial<Record<ClauseKind, ClauseListFacts>> =
     Object.freeze({
         select: Object.freeze({
             listRole: "select-items" as const,
             allowAlias: true,
-            modifierWords: EMPTY_LIST_MODIFIERS,
+            ordering: false,
         }),
         "group-by": Object.freeze({
             listRole: "group-by-items" as const,
             allowAlias: false,
-            modifierWords: EMPTY_LIST_MODIFIERS,
+            ordering: false,
         }),
         "order-by": Object.freeze({
             listRole: "order-by-items" as const,
             allowAlias: false,
-            modifierWords: ORDER_LIST_MODIFIERS,
+            ordering: true,
         }),
         "cluster-by": Object.freeze({
             listRole: "cluster-by-items" as const,
             allowAlias: false,
-            modifierWords: EMPTY_LIST_MODIFIERS,
+            ordering: false,
         }),
         "distribute-by": Object.freeze({
             listRole: "distribute-by-items" as const,
             allowAlias: false,
-            modifierWords: EMPTY_LIST_MODIFIERS,
+            ordering: false,
         }),
         "sort-by": Object.freeze({
             listRole: "sort-by-items" as const,
             allowAlias: false,
-            modifierWords: ORDER_LIST_MODIFIERS,
+            ordering: true,
         }),
         window: Object.freeze({
             listRole: "other" as const,
             allowAlias: false,
-            modifierWords: EMPTY_LIST_MODIFIERS,
+            ordering: false,
         }),
     });
 
@@ -1040,17 +1041,35 @@ function buildSelectClause(
     const checkpoint = createParserCheckpoint(context);
     let children: readonly SyntaxNode[];
     let separatorLeafIds: readonly number[] = [];
+    let bodyKeywordLeafIds: readonly number[] = [];
     try {
         const listFacts = listFactsForClause(clauseKind);
-        if (listFacts !== null) {
+        if (clauseKind === "limit") {
+            const limit = parseLimitBody(context, body, nestingDepth);
+            children = limit.children;
+            separatorLeafIds = limit.separatorLeafIds;
+            bodyKeywordLeafIds = limit.keywordLeafIds;
+        } else if (listFacts !== null) {
+            const suffix = clauseKind === "group-by" ? groupBySuffix(context, body) : [];
+            bodyKeywordLeafIds = suffix;
+            const listRange = suffix.length === 0
+                ? body
+                : trimToSyntax(context.leaves, { start: body.start, end: suffix[0]! });
+            if (listRange === null) {
+                throw new ParserSyntaxError(
+                    "SYN_INCOMPLETE_CLAUSE",
+                    clauseRange,
+                    "GROUP BY requires expressions"
+                );
+            }
             children = [
                 parseList(
                     context,
-                    body,
+                    listRange,
                     listFacts.listRole,
                     {
                         allowAlias: listFacts.allowAlias,
-                        modifierWords: listFacts.modifierWords,
+                        ordering: listFacts.ordering,
                         reasonMessage: `${clauseKind} expression is not structured`,
                     },
                     clauseKind === "window"
@@ -1096,6 +1115,8 @@ function buildSelectClause(
             ];
         }
     } catch (error) {
+        separatorLeafIds = [];
+        bodyKeywordLeafIds = [];
         children = [
             recoverOpaqueFromError(
                 context,
@@ -1118,9 +1139,57 @@ function buildSelectClause(
             clauseKind,
             { start: marker.start, end: marker.headEnd },
             marker.syntax.capabilityId,
-            separatorLeafIds
+            separatorLeafIds,
+            bodyKeywordLeafIds
         )
     );
+}
+
+/** Trailing `WITH ROLLUP` or `WITH CUBE` of a GROUP BY body (Hive rollupOldSyntax). */
+function groupBySuffix(context: ParserContext, body: LeafRange): readonly number[] {
+    const indexes = topLevelSyntaxIndexes(context, body);
+    const last = indexes[indexes.length - 1]!;
+    const withIndex = indexes[indexes.length - 2];
+    return withIndex !== undefined &&
+        isCodeWord(context, withIndex, "with") &&
+        (isCodeWord(context, last, "rollup") || isCodeWord(context, last, "cube"))
+        ? [withIndex, last]
+        : [];
+}
+
+/** LIMIT body: `n`, `m, n` or `n OFFSET m`. */
+function parseLimitBody(
+    context: ParserContext,
+    body: LeafRange,
+    nestingDepth: number
+): Readonly<{
+    children: readonly SyntaxNode[];
+    separatorLeafIds: readonly number[];
+    keywordLeafIds: readonly number[];
+}> {
+    const split = topLevelSyntaxIndexes(context, body).find(
+        (index) => context.leaves[index]!.raw === "," || isCodeWord(context, index, "offset")
+    );
+    const parse = (range: LeafRange): SyntaxNode =>
+        parseExpressionRange(context, range, parseQueryRange, nestingDepth);
+    if (split === undefined) {
+        return { children: [parse(body)], separatorLeafIds: [], keywordLeafIds: [] };
+    }
+    const left = trimToSyntax(context.leaves, { start: body.start, end: split });
+    const right = trimToSyntax(context.leaves, { start: split + 1, end: body.end });
+    if (left === null || right === null) {
+        throw new ParserSyntaxError(
+            "SYN_INCOMPLETE_CLAUSE",
+            body,
+            "LIMIT requires a value on both sides"
+        );
+    }
+    const comma = context.leaves[split]!.raw === ",";
+    return {
+        children: [parse(left), parse(right)],
+        separatorLeafIds: comma ? [split] : [],
+        keywordLeafIds: comma ? [] : [split],
+    };
 }
 
 function containsOpaque(
@@ -1627,6 +1696,25 @@ export function parseQueryRange(
     return parseQueryAtom(context, range, nestingDepth, topLevelIndexes);
 }
 
+/**
+ * `(c1, c2)` right before the INSERT query is the target column list (Hive insertClause); the
+ * group after PARTITION is the partition spec instead.
+ */
+function insertColumnDelimiters(
+    context: ParserContext,
+    targetStart: number,
+    selectStart: number
+): Readonly<{ open: number; close: number }> | null {
+    const close = previousSyntaxIndex(context, selectStart, targetStart);
+    const open = close !== null && context.leaves[close]!.raw === ")"
+        ? context.table.matchingDelimiterIndex(close)
+        : null;
+    const beforeOpen = open === null ? null : previousSyntaxIndex(context, open, targetStart);
+    return beforeOpen === null || isCodeWord(context, beforeOpen, "partition")
+        ? null
+        : { open: open!, close: close! };
+}
+
 export function parseInsertQueryRange(
     context: ParserContext,
     inputRange: LeafRange,
@@ -1727,7 +1815,8 @@ export function parseInsertQueryRange(
             `${overwrite ? "INSERT OVERWRITE" : "INSERT INTO"} requires a SELECT query`
         );
     }
-    const targetEndBoundary = partitionStart ?? selectStart;
+    const columns = insertColumnDelimiters(context, targetStart, selectStart);
+    const targetEndBoundary = partitionStart ?? columns?.open ?? selectStart;
     const targetRange = trimToSyntax(context.leaves, {
         start: targetStart,
         end: targetEndBoundary,
@@ -1752,12 +1841,19 @@ export function parseInsertQueryRange(
             "INSERT target must be one complete table name"
         );
     }
+    const columnList = columns === null
+        ? null
+        : parseColumnNameList(context, columns.open, columns.close, nestingDepth);
+    // The column list ends whichever of the INSERT and PARTITION clauses comes last.
+    const insertEnd = partitionStart === null && columns !== null
+        ? columns.close + 1
+        : targetRange.end;
     const insertClause = context.factory.createClause(
-        { start: range.start, end: targetRange.end },
+        { start: range.start, end: insertEnd },
         "insert",
         { start: range.start, end: headLast + 1 },
-        { start: headLast + 1, end: targetRange.end },
-        [target],
+        { start: headLast + 1, end: insertEnd },
+        partitionStart === null && columnList !== null ? [target, columnList] : [target],
         queryClauseFacts(
             context,
             "insert",
@@ -1793,7 +1889,7 @@ export function parseInsertQueryRange(
             );
         }
         const afterPartition = nextSyntaxIndex(context, close, range.end);
-        if (afterPartition !== selectStart) {
+        if (afterPartition !== (columns?.open ?? selectStart)) {
             throw new ParserSyntaxError(
                 "SYN_UNEXPECTED_TOKEN",
                 { start: close + 1, end: selectStart },
@@ -1816,13 +1912,14 @@ export function parseInsertQueryRange(
                     descendParserDepth(valueRange, nestingDepth)
                 )
         );
+        const partitionEnd = columns === null ? close + 1 : columns.close + 1;
         children.push(
             context.factory.createClause(
-                { start: partitionStart, end: close + 1 },
+                { start: partitionStart, end: partitionEnd },
                 "partition",
                 { start: partitionStart, end: open + 1 },
-                { start: open + 1, end: close },
-                [list],
+                { start: open + 1, end: partitionEnd - 1 },
+                columnList === null ? [list] : [list, columnList],
                 queryClauseFacts(
                     context,
                     "partition",
