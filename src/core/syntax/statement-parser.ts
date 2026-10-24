@@ -206,9 +206,21 @@ function bodyHasSemicolon(context: ParserContext, bodyRange: LeafRange): boolean
     return false;
 }
 
+/** The first leaf after `leafId` that is not whitespace or a newline; comments count. */
+function nextNonBlankIndex(context: ParserContext, leafId: number, end: number): number | null {
+    for (let i = leafId + 1; i < end; i++) {
+        const kind = context.leaves[i]!.kind;
+        if (kind !== "whitespace" && kind !== "newline") {
+            return i;
+        }
+    }
+    return null;
+}
+
 /**
  * Generic layer (plan §5.3). The node runs to the statement's `;` so the whitespace before it is
- * normalized too; a command payload starts at the first syntax leaf after the head.
+ * normalized too; a command payload starts at the first non-blank leaf after the head, so a
+ * leading comment and the whitespace after it stay as written.
  */
 function parseGenericStatementRange(
     context: ParserContext,
@@ -224,7 +236,7 @@ function parseGenericStatementRange(
         ? []
         : head.leafIds.filter((leafId) => context.leaves[leafId]!.raw !== "!");
     const payloadStart = head?.payload === true
-        ? nextSyntaxIndex(context, head.leafIds[head.leafIds.length - 1]!, end)
+        ? nextNonBlankIndex(context, head.leafIds[head.leafIds.length - 1]!, end)
         : null;
     const generic = context.factory.createGenericStatement(
         { start: bodyRange.start, end },

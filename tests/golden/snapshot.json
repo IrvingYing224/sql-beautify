@@ -3282,6 +3282,11 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/payload/comment-only": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/payload/compile": {
   "op": "formatSql",
   "status": "formatted",
@@ -3293,6 +3298,16 @@
   "codes": []
  },
  "explicit/payload/dfs": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/payload/leading-comment#bail-lower": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/payload/leading-comment#default": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []

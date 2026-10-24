@@ -1,0 +1,8 @@
+dfs /*MiXeD*/  /tmp/Foo;
+add jar /*MiXeD*/  /tmp/Foo.jar;
+! /*MiXeD*/  echo Hi;
+source /*c*/	/tmp/init-Script.sql;
+reset /*c*/
+  hive.exec.Parallel;
+dfs -- note
+    -ls   /user/Hive;
