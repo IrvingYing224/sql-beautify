@@ -102,6 +102,40 @@ function delimiterPair(
         : null;
 }
 
+/**
+ * Whether a delimited interior is laid out on its own lines: it holds a line comment, or a
+ * dangling block comment written on a line of its own. Line breaks the formatter adds itself
+ * (AND continuations, CASE branches) must not decide this, or the second pass would split the
+ * parentheses the first pass kept closed (K30).
+ */
+function interiorKeepsLines(
+    context: QueryLayoutContext,
+    startLeafId: number,
+    endLeafId: number
+): boolean {
+    const analysis = context.analysis;
+    const isKind = (leafId: number, kind: string): boolean => analysis.leafKind(leafId) === kind;
+    const besideLineBreak = (leafId: number): boolean =>
+        isKind(leafId - 1, "newline") ||
+        isKind(leafId + 1, "newline") ||
+        (isKind(leafId - 1, "whitespace") && isKind(leafId - 2, "newline")) ||
+        (isKind(leafId + 1, "whitespace") && isKind(leafId + 2, "newline"));
+    for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
+        const kind = analysis.leafKind(leafId);
+        if (kind === "line-comment") {
+            return true;
+        }
+        if (
+            kind === "block-comment" &&
+            analysis.index.commentBinding(leafId)?.placement === "dangling" &&
+            besideLineBreak(leafId)
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function normalizeDelimitedInterior(
     context: QueryLayoutContext,
     authorityNodeId: number,
@@ -118,17 +152,7 @@ function normalizeDelimitedInterior(
     if (hasComment === null) {
         return false;
     }
-    let multiline = false;
-    if (hasComment) {
-        try {
-            multiline = context.analysis.index.rangeContainsLineBreak({
-                start: openLeafId + 1,
-                end: closeLeafId,
-            });
-        } catch {
-            return false;
-        }
-    }
+    const multiline = hasComment && interiorKeepsLines(context, openLeafId + 1, closeLeafId);
     const boundaryDecision = multiline ? HARD_LINE : EMPTY;
     const children = node.children.filter(
         (child) =>

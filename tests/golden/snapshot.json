@@ -3183,6 +3183,11 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k30-comment-family": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k30-comment-in-function-case": {
   "op": "formatSql",
   "status": "formatted",

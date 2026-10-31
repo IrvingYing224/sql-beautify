@@ -1,0 +1,57 @@
+SELECT
+      a
+FROM t
+WHERE (/* c */b
+    AND c);
+SELECT
+      a
+FROM t
+WHERE (b
+    AND
+    /* c */
+    c);
+SELECT
+      a
+FROM t
+WHERE (t.c0 >= 1
+    AND t.
+    /* c */
+    c0 IS NOT NULL);
+SELECT
+      (b
+          AND
+          /* c */
+          c) AS f
+FROM t;
+SELECT
+      a
+    , sum(CASE
+        WHEN
+        /* c */
+        x = 1 THEN
+            1
+        ELSE 0
+    END) AS k
+FROM t;
+SELECT
+      a
+    , sum(CASE
+        WHEN x = 1 THEN
+        /* c */
+            1
+        ELSE 0
+    END) AS k
+FROM t;
+SELECT
+      a
+FROM t
+WHERE (b /* c */
+    AND c);
+SELECT
+      a
+FROM t
+WHERE (
+    /* c */
+    b
+        AND c
+);

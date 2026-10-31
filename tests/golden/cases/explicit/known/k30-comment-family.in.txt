@@ -1,0 +1,14 @@
+select a from t where (/* c */ b and c);
+select a from t where (b and /* c */ c);
+select a from t where (t.c0 >= 1 and t./* c */c0 is not null);
+select (b and /* c */ c) as f from t;
+select a, sum(case when /* c */ x = 1 then 1 else 0 end) as k from t;
+select a, sum(case when x = 1 then /* c */ 1 else 0 end) as k from t;
+select a from t where (
+    b /* c */
+    and c
+);
+select a from t where (
+    /* c */
+    b and c
+);
