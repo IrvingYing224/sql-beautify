@@ -276,7 +276,9 @@ function sqlCaseAuthorized(source, options, mode, a) {
 // formatHiveDdl may change the case of its header and suffix keywords, the column `COMMENT` keyword
 // and the type names the type parser marks keyword-case eligible (`type:name`). Names, scalar type
 // arguments, strings and comments stay verbatim. Only input the DDL formatter models (CREATE TABLE
-// with columns, PARTITIONED BY, STORED AS) gets any, read with the parser calls the formatter uses.
+// with columns and the table clauses after them) gets any, read with the parser calls the formatter
+// uses. After the column list every word outside parentheses is a clause keyword; inside the
+// CLUSTERED BY and SORTED BY lists only ASC and DESC are.
 function ddlCaseAuthorized(source, env, a) {
     var allowed = new Set();
     var status = ddlOperation(source, env).status;
@@ -347,13 +349,19 @@ function ddlCaseAuthorized(source, env, a) {
         i += 1;
     }
     i = columnList(i);
-    if (take('partitioned')) {
-        take('by');
-        i = columnList(i);
-    }
-    if (take('stored')) {
-        take('as');
-        allowed.add(i);
+    var depth = 0;
+    while (i < a.length) {
+        if (a[i].raw === '(' && wordAt(i - 1, 'by') && wordAt(i - 2, 'partitioned')) {
+            i = columnList(i);
+            continue;
+        }
+        if (a[i].raw === '(' || a[i].raw === ')') {
+            depth += a[i].raw === '(' ? 1 : -1;
+        } else if (wordAt(i, a[i].raw.toLowerCase()) &&
+            (depth === 0 || wordAt(i, 'asc') || wordAt(i, 'desc'))) {
+            allowed.add(i);
+        }
+        i += 1;
     }
     return allowed;
 }

@@ -1,0 +1,26 @@
+create external table if not exists db.user_info
+(
+    id   bigint comment '用户ID',
+    name string comment '用户名',
+    tags array<string>
+)
+comment '用户信息表'
+partitioned by
+(
+    dt string comment '日期',
+    hr string
+)
+clustered by (id) sorted by (id desc, name) into 32 buckets
+row format delimited
+    fields terminated by '\t' escaped by '\\'
+    collection items terminated by ','
+    map keys terminated by ':'
+    lines terminated by '\n'
+    null defined as ''
+stored as orc
+location 'hdfs://ns/warehouse/db.db/user_info'
+tblproperties
+(
+    'orc.compress'  = 'SNAPPY',
+    'transactional' = "true"
+);

@@ -3328,6 +3328,31 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k19-show-create-table": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k19-stored-by": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k19-table-clauses#default": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k19-table-clauses#tab": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k19-table-clauses#trailing": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k22-column-names": {
   "op": "formatHiveDdl",
   "status": "formatted",

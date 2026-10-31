@@ -1,0 +1,3 @@
+-- golden: {"op":"formatHiveDdl"}
+create table t (k string, v string) stored by 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+with serdeproperties ('hbase.columns.mapping'=':key,cf:v') tblproperties ('hbase.table.name'='t')

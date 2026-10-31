@@ -519,7 +519,7 @@ test('formatHiveDdl: whole document, already formatted text, and unsupported DDL
             assert.strictEqual(editor.editCalls, 0);
         }
 
-        editor = h.open("create table t (a int) location 'x';\n");
+        editor = h.open("create table t (a int) stored as orc comment 'x';\n");
         result = await h.run('formatHiveDdl');
         assert.strictEqual(result.status, 'rejected');
         assert.deepStrictEqual(result.diagnostics.map(function(item) { return [item.code, item.severity]; }).sort(),

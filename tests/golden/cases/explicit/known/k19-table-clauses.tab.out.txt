@@ -1,0 +1,26 @@
+CREATE EXTERNAL TABLE IF NOT EXISTS db.user_info
+(
+	 id   BIGINT COMMENT '用户ID'
+	,name STRING COMMENT '用户名'
+	,tags ARRAY<STRING>
+)
+COMMENT '用户信息表'
+PARTITIONED BY
+(
+	 dt STRING COMMENT '日期'
+	,hr STRING
+)
+CLUSTERED BY (id) SORTED BY (id DESC, name) INTO 32 BUCKETS
+ROW FORMAT DELIMITED
+	FIELDS TERMINATED BY '\t' ESCAPED BY '\\'
+	COLLECTION ITEMS TERMINATED BY ','
+	MAP KEYS TERMINATED BY ':'
+	LINES TERMINATED BY '\n'
+	NULL DEFINED AS ''
+STORED AS ORC
+LOCATION 'hdfs://ns/warehouse/db.db/user_info'
+TBLPROPERTIES
+(
+	 'orc.compress'  = 'SNAPPY'
+	,'transactional' = "true"
+);

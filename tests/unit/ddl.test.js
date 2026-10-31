@@ -73,7 +73,7 @@ test('X1 X2: one edit per target; an already formatted target is unchanged', fun
 });
 
 test('X3: a result that cannot be applied rejects with the op diagnostic and ADAPTER_DDL_RESULT', function() {
-    assert.deepStrictEqual(diagnostics(ddl('CREATE TABLE t (a STRING) STORED AS JSONFILE')), [
+    assert.deepStrictEqual(diagnostics(ddl('CREATE TABLE t (a STRING) STORED AS KUDUFILE')), [
         ['ADAPTER_DDL_RESULT', 'error', 0, 44, 'document'], ['DDL_STORAGE_FORMAT', 'warning', 36, 44, 'document']
     ]);
     assert.deepStrictEqual(diagnostics(extract('SELECT * FROM t')), [
@@ -95,7 +95,7 @@ test('X8 X9 X10 X11: batches are atomic, in source order, and must not overlap',
     ]);
     assert.strictEqual(applied(TWO, result), 'CREATE TABLE a\n(\n     x INT\n);\nCREATE TABLE b\n(\n     y INT\n);');
 
-    result = ddl('CREATE TABLE a (x INT);\nCREATE TABLE b (y STRING) STORED AS JSONFILE;', [target('first', 0, 23), target('second', 24, 69)]);
+    result = ddl('CREATE TABLE a (x INT);\nCREATE TABLE b (y STRING) STORED AS KUDUFILE;', [target('first', 0, 23), target('second', 24, 69)]);
     assert.deepStrictEqual([result.status, result.edits], ['rejected', []]);
     assert.deepStrictEqual(diagnostics(result), [
         ['ADAPTER_DDL_RESULT', 'error', 24, 69, 'second'], ['DDL_STORAGE_FORMAT', 'warning', 60, 68, 'second']

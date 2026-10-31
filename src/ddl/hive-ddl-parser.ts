@@ -21,6 +21,7 @@ const STORAGE_FORMATS: ReadonlySet<string> = new Set([
     "orc",
     "parquet",
     "rcfile",
+    "jsonfile",
     "sequencefile",
     "textfile",
 ]);
@@ -51,6 +52,31 @@ export interface HiveDdlColumn {
     readonly comment: readonly [number, number] | null;
 }
 
+interface DdlLeafPart {
+    readonly kind: "keyword" | "raw";
+    readonly leafId: number;
+}
+
+export type DdlPart =
+    | DdlLeafPart
+    /** `(a, b DESC)` after CLUSTERED BY and SORTED BY. */
+    | { readonly kind: "names"; readonly items: readonly (readonly DdlPart[])[] };
+
+/** One output line: its parts joined by single spaces. */
+interface DdlLine {
+    readonly indented: boolean;
+    readonly parts: readonly DdlPart[];
+}
+
+/** A table clause after the column list: its lines, then a parenthesized block of rows if any. */
+interface HiveDdlSuffix {
+    readonly lines: readonly DdlLine[];
+    /** PARTITIONED BY columns. */
+    readonly columns: readonly HiveDdlColumn[] | null;
+    /** TBLPROPERTIES or SERDEPROPERTIES: the key and value string leaves. */
+    readonly properties: readonly (readonly [number, number])[] | null;
+}
+
 // Keywords are kept as leaf ids: the renderer re-cases those leaves and reports them.
 export interface HiveCreateTableCst {
     readonly artifact: ParseArtifact;
@@ -59,11 +85,7 @@ export interface HiveCreateTableCst {
     readonly terminator: string;
     readonly tableNameRange: LeafRange;
     readonly columns: readonly HiveDdlColumn[];
-    /** PARTITIONED BY */
-    readonly partitionLeafIds: readonly number[] | null;
-    readonly partitionColumns: readonly HiveDdlColumn[] | null;
-    /** STORED AS <format> */
-    readonly storageLeafIds: readonly number[] | null;
+    readonly suffixes: readonly HiveDdlSuffix[];
 }
 
 export function isSyntaxLeaf(leaf: SourceLeaf): boolean {
@@ -272,30 +294,139 @@ function parseColumns(
     return columns;
 }
 
-interface HiveTableSuffixes {
-    readonly partitionLeafIds: readonly number[] | null;
-    readonly partitionColumns: readonly HiveDdlColumn[] | null;
-    readonly storageLeafIds: readonly number[] | null;
+/** Reads the clauses after the column list one syntax leaf at a time. */
+class SuffixCursor {
+    leafId: number | null;
+
+    constructor(
+        readonly artifact: ParseArtifact,
+        start: number | null,
+        readonly end: number
+    ) {
+        this.leafId = start;
+    }
+
+    is(word: string): boolean {
+        return this.leafId !== null && wordAt(this.artifact, this.leafId) === word;
+    }
+
+    fail(): never {
+        failAt(
+            this.artifact,
+            "DDL_UNMODELED_SUFFIX",
+            "Hive table suffix is not fully modeled and was preserved",
+            this.leafId ?? this.end - 1
+        );
+    }
+
+    private take(): number {
+        const leafId = this.leafId!;
+        this.leafId = nextSyntax(this.artifact.output.leaves, leafId + 1, this.end);
+        return leafId;
+    }
+
+    keyword(word: string): DdlLeafPart {
+        if (!this.is(word)) {
+            this.fail();
+        }
+        return { kind: "keyword", leafId: this.take() };
+    }
+
+    literal(kind: "string" | "number"): DdlLeafPart {
+        if (this.leafId === null || this.artifact.output.leaves[this.leafId]!.kind !== kind) {
+            this.fail();
+        }
+        return { kind: "raw", leafId: this.take() };
+    }
+
+    private punctuation(raw: string): boolean {
+        if (this.leafId === null || this.artifact.output.leaves[this.leafId]!.raw !== raw) {
+            return false;
+        }
+        this.take();
+        return true;
+    }
+
+    /** `(item, item)`, each item read by `item`. */
+    private delimited<T>(item: () => T): readonly T[] {
+        if (!this.punctuation("(")) {
+            this.fail();
+        }
+        const items = [item()];
+        while (this.punctuation(",")) {
+            items.push(item());
+        }
+        if (!this.punctuation(")")) {
+            this.fail();
+        }
+        return items;
+    }
+
+    /** `(a, b)`, or with `ordering` `(a ASC, b)`. */
+    names(ordering: boolean): DdlPart {
+        return {
+            kind: "names",
+            items: this.delimited(() => {
+                if (this.leafId === null || !isNameLeaf(this.artifact.output.leaves[this.leafId])) {
+                    this.fail();
+                }
+                const item: DdlPart[] = [{ kind: "raw", leafId: this.take() }];
+                if (ordering && (this.is("asc") || this.is("desc"))) {
+                    item.push({ kind: "keyword", leafId: this.take() });
+                }
+                return item;
+            }),
+        };
+    }
+
+    /** `('key'='value', …)`. */
+    properties(): readonly (readonly [number, number])[] {
+        return this.delimited(() => {
+            const key = this.literal("string");
+            if (!this.punctuation("=")) {
+                this.fail();
+            }
+            return [key.leafId, this.literal("string").leafId] as const;
+        });
+    }
 }
 
+const line = (parts: readonly DdlPart[], indented = false): DdlLine => ({ indented, parts });
+
+/** The table clauses in the order Hive's grammar requires; anything else preserves the statement. */
 function parseTableSuffixes(
     artifact: ParseArtifact,
     start: number | null,
     end: number
-): HiveTableSuffixes {
+): readonly HiveDdlSuffix[] {
     const leaves = artifact.output.leaves;
-    let cursor = start;
-    let partitionLeafIds: readonly number[] | null = null;
-    let partitionColumns: readonly HiveDdlColumn[] | null = null;
-    let storageLeafIds: readonly number[] | null = null;
-    if (cursor !== null && wordAt(artifact, cursor) === "partitioned") {
-        const byLeafId = nextSyntax(leaves, cursor + 1, end);
+    const cursor = new SuffixCursor(artifact, start, end);
+    const suffixes: HiveDdlSuffix[] = [];
+    const add = (
+        lines: readonly DdlLine[],
+        columns: readonly HiveDdlColumn[] | null = null,
+        properties: HiveDdlSuffix["properties"] = null
+    ): void => {
+        suffixes.push({ lines, columns, properties });
+    };
+    const serdeProperties = (): void => {
+        if (cursor.is("with")) {
+            const head = [cursor.keyword("with"), cursor.keyword("serdeproperties")];
+            add([line(head)], null, cursor.properties());
+        }
+    };
+    if (cursor.is("comment")) {
+        add([line([cursor.keyword("comment"), cursor.literal("string")])]);
+    }
+    if (cursor.is("partitioned")) {
+        const partitioned = cursor.leafId!;
+        const byLeafId = nextSyntax(leaves, partitioned + 1, end);
         if (byLeafId === null || wordAt(artifact, byLeafId) !== "by") {
             failAt(
                 artifact,
                 "DDL_PARTITION_LIST",
                 "Hive PARTITIONED BY requires a column list",
-                cursor
+                partitioned
             );
         }
         const openLeafId = nextSyntax(leaves, byLeafId + 1, end);
@@ -316,42 +447,99 @@ function parseTableSuffixes(
                 openLeafId
             );
         }
-        partitionLeafIds = [cursor, byLeafId];
-        partitionColumns = parseColumns(artifact, openLeafId, closeLeafId);
-        cursor = nextSyntax(leaves, closeLeafId + 1, end);
+        add(
+            [line([{ kind: "keyword", leafId: partitioned }, { kind: "keyword", leafId: byLeafId }])],
+            parseColumns(artifact, openLeafId, closeLeafId)
+        );
+        cursor.leafId = nextSyntax(leaves, closeLeafId + 1, end);
     }
-    if (cursor !== null && wordAt(artifact, cursor) === "stored") {
-        const asLeafId = nextSyntax(leaves, cursor + 1, end);
-        if (asLeafId === null || wordAt(artifact, asLeafId) !== "as") {
+    if (cursor.is("clustered")) {
+        const parts = [cursor.keyword("clustered"), cursor.keyword("by"), cursor.names(false)];
+        if (cursor.is("sorted")) {
+            parts.push(cursor.keyword("sorted"), cursor.keyword("by"), cursor.names(true));
+        }
+        parts.push(cursor.keyword("into"), cursor.literal("number"), cursor.keyword("buckets"));
+        add([line(parts)]);
+    }
+    if (cursor.is("row")) {
+        const head = [cursor.keyword("row"), cursor.keyword("format")];
+        if (cursor.is("serde")) {
+            add([line([...head, cursor.keyword("serde"), cursor.literal("string")])]);
+            serdeProperties();
+        } else {
+            head.push(cursor.keyword("delimited"));
+            const lines = [line(head)];
+            const terminated = (...words: readonly string[]): DdlPart[] => [
+                ...words.map((word) => cursor.keyword(word)),
+                cursor.keyword("terminated"),
+                cursor.keyword("by"),
+                cursor.literal("string"),
+            ];
+            if (cursor.is("fields")) {
+                const parts = terminated("fields");
+                if (cursor.is("escaped")) {
+                    parts.push(cursor.keyword("escaped"), cursor.keyword("by"), cursor.literal("string"));
+                }
+                lines.push(line(parts, true));
+            }
+            if (cursor.is("collection")) {
+                lines.push(line(terminated("collection", "items"), true));
+            }
+            if (cursor.is("map")) {
+                lines.push(line(terminated("map", "keys"), true));
+            }
+            if (cursor.is("lines")) {
+                lines.push(line(terminated("lines"), true));
+            }
+            if (cursor.is("null")) {
+                const parts = [cursor.keyword("null"), cursor.keyword("defined"), cursor.keyword("as")];
+                lines.push(line([...parts, cursor.literal("string")], true));
+            }
+            add(lines);
+        }
+    }
+    if (cursor.is("stored")) {
+        const stored = cursor.keyword("stored");
+        if (cursor.is("by")) {
+            add([line([stored, cursor.keyword("by"), cursor.literal("string")])]);
+            serdeProperties();
+        } else if (!cursor.is("as")) {
             failAt(
                 artifact,
                 "DDL_STORAGE_FORMAT",
                 "Hive STORED AS requires a supported storage format",
-                cursor
+                stored.leafId
             );
+        } else {
+            const as = cursor.keyword("as");
+            if (cursor.is("inputformat")) {
+                const input = [stored, as, cursor.keyword("inputformat"), cursor.literal("string")];
+                const output = [cursor.keyword("outputformat"), cursor.literal("string")];
+                add([line(input), line(output, true)]);
+            } else {
+                const format = cursor.leafId === null ? "" : wordAt(artifact, cursor.leafId);
+                if (!STORAGE_FORMATS.has(format)) {
+                    failAt(
+                        artifact,
+                        "DDL_STORAGE_FORMAT",
+                        "Hive storage format is not supported",
+                        cursor.leafId ?? as.leafId
+                    );
+                }
+                add([line([stored, as, cursor.keyword(format)])]);
+            }
         }
-        const formatLeafId = nextSyntax(leaves, asLeafId + 1, end);
-        const format = formatLeafId === null ? "" : wordAt(artifact, formatLeafId);
-        if (!STORAGE_FORMATS.has(format)) {
-            failAt(
-                artifact,
-                "DDL_STORAGE_FORMAT",
-                "Hive storage format is not supported",
-                formatLeafId ?? asLeafId
-            );
-        }
-        storageLeafIds = [cursor, asLeafId, formatLeafId!];
-        cursor = nextSyntax(leaves, formatLeafId! + 1, end);
     }
-    if (cursor !== null) {
-        failAt(
-            artifact,
-            "DDL_UNMODELED_SUFFIX",
-            "Hive table suffix is not fully modeled and was preserved",
-            cursor
-        );
+    if (cursor.is("location")) {
+        add([line([cursor.keyword("location"), cursor.literal("string")])]);
     }
-    return { partitionLeafIds, partitionColumns, storageLeafIds };
+    if (cursor.is("tblproperties")) {
+        add([line([cursor.keyword("tblproperties")])], null, cursor.properties());
+    }
+    if (cursor.leafId !== null) {
+        cursor.fail();
+    }
+    return suffixes;
 }
 
 export function parseHiveCreateTable(source: string): HiveCreateTableCst {
@@ -451,6 +639,6 @@ export function parseHiveCreateTable(source: string): HiveCreateTableCst {
         terminator,
         tableNameRange: table.range,
         columns: parseColumns(artifact, table.openLeafId, closeLeafId),
-        ...suffixes,
+        suffixes,
     };
 }

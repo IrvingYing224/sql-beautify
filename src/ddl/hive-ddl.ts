@@ -19,6 +19,7 @@ import {
     HiveDdlParseError,
     isSyntaxLeaf,
     parseHiveCreateTable,
+    type DdlPart,
     type HiveCreateTableCst,
     type HiveDdlColumn,
 } from "./hive-ddl-parser";
@@ -127,17 +128,27 @@ class DdlRenderer {
         return nestedList === undefined ? name : `${name}<${this.typeList(nestedList)}>`;
     }
 
-    columns(columns: readonly HiveDdlColumn[], tabSize: number, startColumn: number): readonly string[] {
+    part(part: DdlPart): string {
+        if (part.kind === "names") {
+            return `(${part.items.map((item) => item.map((value) => this.part(value)).join(" ")).join(", ")})`;
+        }
+        return part.kind === "keyword"
+            ? this.keyword(part.leafId)
+            : this.artifact.output.leaves[part.leafId]!.raw;
+    }
+
+    get indent(): string {
+        return this.options.indentStyle === "tab" ? "\t" : "    ";
+    }
+
+    /** Block rows: the comma, `name` padded to a common column, then `rest`. */
+    rows(
+        rows: readonly { readonly name: string; readonly rest: string }[],
+        tabSize: number,
+        startColumn: number
+    ): readonly string[] {
         const options = this.options;
-        const leaves = this.artifact.output.leaves;
-        const indent = options.indentStyle === "tab" ? "\t" : "    ";
-        const rows = columns.map((column) => ({
-            name: leaves[column.nameLeafId]!.raw,
-            type: this.type(column.type),
-            comment: column.comment === null
-                ? ""
-                : ` ${this.keyword(column.comment[0])} ${leaves[column.comment[1]]!.raw}`,
-        }));
+        const indent = this.indent;
         const prefixes = rows.map((_, index) => options.commaStyle === "leading"
             ? index === 0 ? `${indent} ` : `${indent},`
             : indent);
@@ -151,8 +162,32 @@ class DdlRenderer {
         return rows.map((row, index) => {
             const padding = " ".repeat(paddings[index]!);
             const comma = options.commaStyle === "trailing" && index + 1 < rows.length ? "," : "";
-            return `${prefixes[index]!}${row.name}${padding}${row.type}${row.comment}${comma}`;
+            return `${prefixes[index]!}${row.name}${padding}${row.rest}${comma}`;
         });
+    }
+
+    columns(columns: readonly HiveDdlColumn[], tabSize: number, startColumn: number): readonly string[] {
+        const leaves = this.artifact.output.leaves;
+        const rows = columns.map((column) => ({
+            name: leaves[column.nameLeafId]!.raw,
+            rest: this.type(column.type) + (column.comment === null
+                ? ""
+                : ` ${this.keyword(column.comment[0])} ${leaves[column.comment[1]]!.raw}`),
+        }));
+        return this.rows(rows, tabSize, startColumn);
+    }
+
+    properties(
+        pairs: readonly (readonly [number, number])[],
+        tabSize: number,
+        startColumn: number
+    ): readonly string[] {
+        const leaves = this.artifact.output.leaves;
+        const rows = pairs.map(([key, value]) => ({
+            name: leaves[key]!.raw,
+            rest: `= ${leaves[value]!.raw}`,
+        }));
+        return this.rows(rows, tabSize, startColumn);
     }
 
     /** The statement as lines without indentation or line breaks. */
@@ -163,16 +198,16 @@ class DdlRenderer {
             ...this.columns(cst.columns, tabSize, startColumn),
             ")",
         ];
-        if (cst.partitionLeafIds !== null) {
-            lines.push(
-                this.keywords(cst.partitionLeafIds),
-                "(",
-                ...this.columns(cst.partitionColumns!, tabSize, startColumn),
-                ")"
-            );
-        }
-        if (cst.storageLeafIds !== null) {
-            lines.push(this.keywords(cst.storageLeafIds));
+        for (const suffix of cst.suffixes) {
+            for (const { indented, parts } of suffix.lines) {
+                lines.push(`${indented ? this.indent : ""}${parts.map((part) => this.part(part)).join(" ")}`);
+            }
+            if (suffix.columns !== null) {
+                lines.push("(", ...this.columns(suffix.columns, tabSize, startColumn), ")");
+            }
+            if (suffix.properties !== null) {
+                lines.push("(", ...this.properties(suffix.properties, tabSize, startColumn), ")");
+            }
         }
         lines[lines.length - 1] = `${lines[lines.length - 1]!}${cst.terminator}`;
         return lines;
@@ -218,7 +253,10 @@ export function formatHiveDdl(
         const renderer = new DdlRenderer(cst.artifact, resolved);
         const lines = renderer.createTable(cst, layout.tabSize, layoutStartColumn(layout));
         const rendered = `${lines.join("\n")}\n`;
-        const rowCount = cst.columns.length + (cst.partitionColumns?.length ?? 0);
+        const rowCount = cst.suffixes.reduce(
+            (count, suffix) => count + (suffix.columns?.length ?? 0) + (suffix.properties?.length ?? 0),
+            cst.columns.length
+        );
         if (!ddlOutputWithinBudget(source.length, rowCount, rendered.length)) {
             return result("failed", source, ddlDiagnostic(
                 "DDL_RESOURCE_LIMIT",
