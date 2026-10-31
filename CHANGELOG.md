@@ -4,6 +4,34 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 3.0.0
+
+**升级须知**
+
+* 只支持 Hive：删除 `sqlBeautify.dialect` 设置，`SQL` 与 `hive-sql` 语言模式都按 Hive 词法处理。设置里残留的 `sqlBeautify.dialect` 不再生效，也不会提示，可以直接删掉；命令参数里显式传 `dialect` 会报 `CFG_UNKNOWN_OPTION`。请不要用它格式化 PostgreSQL、MySQL 等其他数据库的 SQL
+* `sqlBeautify.caseLayout` 的默认值由 `expanded` 改为 `compactShort`：短的 CASE 收成一行。想保持 2.x 的排法，把它设为 `expanded`
+* 删除 `sqlBeautify.debugDiagnostics` 设置：内部错误（含错误栈）改为写入输出面板的 `SQL Beautify` 通道，每次格式化的结果摘要按 debug 级别记录
+* 删除 `SQL Beautify: Copy Safe Diagnostic Report` 命令：编辑器诊断直接显示格式化器的消息，最多 200 个字符
+* 删除 `vscode-sql-beautify/formatter` 与 `vscode-sql-beautify/experimental/ddl` 两个 Node.js 子路径导出（从未发布到 npm）
+* 逗号与注释的处理改为整张列表一起决定：逗号后面紧跟注释时，整张列表改用后置逗号；`commaStyle: trailing` 下逗号前有行注释时，整张列表改用前置逗号并报 `LAYOUT_COMMA_FALLBACK`。2.x 只在出问题的那个逗号上换风格，同一行会同时出现行首和行尾逗号
+* `${…}` 变量与相邻文字之间不再插入或删除空格：`ds=${hiveconf:ds}`、`order by ${p}desc` 保持原样，避免改变变量展开后的 SQL
+
+**变化**
+
+* Hive 脚本语句（`USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`TRUNCATE`、`ALTER TABLE`、`CREATE FUNCTION` 等）不再报 warning，改为只规范空白并给开头的关键字改大小写；`ADD JAR`、`DFS`、`!`、`SOURCE` 等命令后面的路径和参数逐字节保留
+* 格式化 CTAS（`CREATE TABLE … AS SELECT/WITH/(…)`），以及 `insert into t (select …)` 这类括号查询
+* 支持更多常见写法：`div`、`nulls first/last`、`limit 5, 10`、`limit 10 offset 5`、`0L`/`10Y`/`1.0BD` 等数字 literal、`interval 2 hour`、`with rollup`、`insert into table t (c1, c2) select …`、`(t.*, a)` 这类括号元组、元组 `IN`、方括号列表；`null`、`true`、`false` 跟随 `keywordCase`
+* 第一条语句前有缩进时，格式化后每一行都保留这段缩进（选区格式化同样适用）
+* 逗号前置时，非首项与首项对齐到同一内容列，CASE、子查询等多行内容不再落到逗号所在的列；展开的 CASE 中 `END` 与 `CASE` 对齐，`WHEN`、`ELSE` 多缩进一层，函数参数里的 CASE 也一样
+* 注释：行内块注释留在原来那一行；被注释掉的条件与 `AND` 同列；关键字后面同一行的注释（如 `SELECT /*+ MAPJOIN(b) */`、`WHERE -- 说明`、`SET /* c */`、`DATE /* c */ '…'`）留在关键字行，行注释后面的内容缩进一层；`f(/* arg */ x)` 保留注释后的空格；注释掉一列不再让逗号单独成行
+* 修复几类第一遍和第二遍格式化结果不同的问题：`then 'x'else 3` 这类零宽边界、括号内带块注释的布尔表达式与子查询
+* 删除最后一条语句后面的行尾空白
+* 畸形的窗口定义（如 `partition byx`）、空的类型参数（`DECIMAL(, 2)`）、带行注释的恢复项不再让整个文档格式化失败，只原样保留出错的那一项并报 warning
+* `db_${env}.tbl_${dt}` 这类与名字连写的变量能被识别，整段作为一个名字参与排版
+* Experimental DDL：整行选区（终点在下一行开头）不再被拒；不再给没有结尾换行的文档补换行；格式化后选区不再落在单词中间；CRLF 文档中光标在某些位置时整次命令被拒的问题已修复；对已格式化的 DDL 不再提交相同的文本；`location`、`row`、`stored` 等可以作列名
+* 宿主：编辑器拒绝编辑时的提示不再一律归因于只读；修改配置后立即刷新配置诊断；formatOnPaste 产生的半句选区降为信息级诊断
+* 内部：构建改用 esbuild，VSIX 只含 `dist/extension.cjs` 与 `dist/worker.cjs`；输入不小于 32 Ki 字符时在 worker 中格式化；删除运行时的自证明检查、墙钟性能门与发布字节溯源；排版行为由 2,135 个黄金快照用例约束
+
 ### 2.2.1 (2026/10/01)
 * 保留完整 PostgreSQL 运算符和相邻一元符号边界，按 Hive 字符串解码规则生成 DDL 注释
 * 修复非默认 tabSize 下的 AS/注释错列，以及未建模语句前重复格式化不断增加换行的问题
@@ -12,7 +40,7 @@
 * 将多选区边界查询改为索引和二分，提供公开 TypeScript 声明及真实安装包消费端验证
 * 收紧私有语料可用性门，增加最低/当前 VS Code 宿主 CI 验证，固定最低版本 API 类型并更新构建依赖安全修复
 
-### 2.2.0 (2026/07/29)
+### 2.2.0（未单独发布，内容随 2.2.1 发布）
 * 为嵌套 `QUALIFY` 证明建立请求内缓存与线性预算，资源耗尽按已证明边界 warning + preserve，不再出现指数级解析或把合法预算耗尽误报为内部 artifact 破坏
 * 修复 AS/尾注释零间距、合法宽字段 poison plan、逗号与注释 ownership、statement footer/terminator trivia 和 trailing comma 静默回退；局部降级现在报告 `LAYOUT_COMMA_FALLBACK`
 * 修复 Unicode keyword fold、PostgreSQL operator 热路径、generic `::`、MySQL `@@var` 与 Hive 嵌套 template 边界；显示宽度升级到 Unicode 17.0.0 并尊重 VS Code `tabSize`
@@ -23,7 +51,7 @@
 * 将 core/runtime build 改为带锁、完整产物 SHA-256 缓存、staging 和可恢复发布；VSIX verifier 同时锚定当前 source hash、可信 output manifest、完整 package metadata、repository-owned static bytes 与 generated identity/dependency metadata，dist ownership 只接管 allowlist regular file；统一 npm/VSIX allowlist 与声明式串行测试 runner，并在 Node 20/24 上执行公开 facade 和 extension activation smoke
 * 公开生产 corpus 扩为 25 个 manifest case；完整升级与回退边界见 [2.2 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.2.1/docs/migration-to-2.2.md)
 
-### 2.1.0 (2026/07/26)
+### 2.1.0（未单独发布，内容随 2.2.1 发布）
 * 为 CRLF、lone CR、BOM 和 trailing comma + 行尾注释建立 lossless、幂等且 source-map 单调的格式化边界
 * 将主 formatter 的单个完整文档或 target 上限固定为 524,288 个 UTF-16 code units，并以源码长度与 leaf 数双阈值路由 direct / persistent worker
 * 把 range 全文结构校验移入 executor，收紧 worker 排队 deadline、取消 drain、runtime digest、snapshot 和 all-or-nothing 事务契约
@@ -34,7 +62,7 @@
 * 将公开生产语料扩为 20-case manifest，覆盖多 KB 查询、CJK、CRLF/BOM、注释、四方言和 formatted/verbatim capability
 * 完整升级行为与兼容边界见 [2.1 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.2.1/docs/migration-to-2.1.md)
 
-### 2.0.1 (2026/07/26)
+### 2.0.1（未单独发布，内容随 2.2.1 发布）
 * 修正文档中的旧 `extractddl` 名称、Experimental Hive DDL 支持边界、support matrix 作用域和 2.0.0 实际发布日期
 * 删除已完成且已被现役架构文档、ADR 和测试取代的 Wave 0–5 阶段设计与实施计划
 * 删除 2021 年旧演示和未引用图片，发布清单只允许 `images/icon.png`，校验脚本不再自动接受图片目录中的任意文件
