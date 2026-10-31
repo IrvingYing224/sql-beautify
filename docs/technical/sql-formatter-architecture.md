@@ -41,11 +41,28 @@ lex → parse（CST）→ analyze（索引 + 注释绑定）→ plan → compile
 - **Layout IR**：`text`、`space`、`line`（hard 或可平铺）、`concat`、`indent`、`align`、`hang`、`group`、`pad-to-column`、`line-suffix`（推迟到行尾写出的注释）、`verbatim`。
 - **render**：栈式执行 Layout IR，行前缀在写出第一个非空白内容时才生成。第一条语句所在行有缩进时，这段缩进作为基准缩进加在之后每一行的前面（空行和原样片段内部除外）。metrics 计算各节点的平铺宽度，供 `auto-group` 判断。
 - **对齐第二遍**：第一遍渲染后测量 `AS` 和行尾注释所在的列，把 plan 里相应的 gap 改写成 `pad-to-column` 再编译、渲染一次，不重跑 policy（ADR 0003）。
-- **底线 2 检查**：逐 leaf 比较输入输出，token 序列必须相同（只对计划改大小写的 leaf 忽略大小写），相邻单词类 leaf 之间有没有空白必须与原文相同，模板片段内部不出现空白、外侧原有空白不删。不成立时返回原文，诊断为 `FMT_TOKEN_EQUIVALENCE` 或 `FMT_GLUE_PRESERVED`。
+- **底线 2 检查**（`api/floor.ts`）：重新 lex 输出，与原文逐 leaf 比较 token 与粘连，规则见下一节。
 
 结果有四种 status：`formatted`、`unchanged`（带 source map），`preserved`、`failed`（原文加诊断，没有 source map）。内部错误一律 throw，由 `formatSql` 顶层 catch 转为返回原文加 `FMT_INTERNAL`。
 
-上限：单个文档或 target 最多 524,288 个 UTF-16 code units，超过时返回原文（`FMT_INPUT_LIMIT`）；输出超过 4 × 输入 + 65,536 时 renderer 立即停止并返回原文（`RENDER_OUTPUT_LIMIT`）；parser 嵌套超过 256 层时按语法错误处理（`SYN_MAX_DEPTH_EXCEEDED`）。
+## 五条底线的细则
+
+`AGENTS.md` 列出五条底线，这里写它们的完整定义。
+
+1. **lexer 无损**：所有 leaf 拼接起来等于原文，只在 lexer 中检查一次。
+2. **token 等价与粘连保持**，适用于 `formatSql` 与 `formatHiveDdl`；Extract 生成的是另一种 SQL，不适用。
+   - token 等价：输出重新 lex 后，非空白 token 的 kind、channel、原文与输入逐个相同，只有计划改大小写的关键字按大小写不敏感比较。不成立时返回原文，status 为 `failed`，诊断 `FMT_TOKEN_EQUIVALENCE`（视为内部错误）。
+   - 粘连保持：检查按顺序排列的非空白 leaf（包括 channel 为 `protected` 的 parameter），注释算作分隔。相邻两个单词类 leaf（keyword、identifier、number、parameter）之间有没有空白，必须与原文相同。模板片段从每个 `${…}` 出发向两侧吸收零宽相邻的 leaf，遇到空白、换行、注释或 `,`、`(`、`)`、`;` 时停止；片段内部不得出现空白，片段外侧原有的空白不得删除。lexer 把每个模板片段合成一个 parameter leaf，所以运行时实际只需检查单词类相邻和片段外侧空白；golden runner 按完整定义独立检查。不成立时返回原文，status 为 `preserved`，warning `FMT_GLUE_PRESERVED`。
+   - 这条规则补的是 token 等价看不到的地方：`0L` → `0 L`、`${p}desc` → `${p} DESC`、`${lhs}=1` → `${lhs} = 1`（`lhs` 为 `x>` 时 `>=` 被拆开），token 指纹都不变。代价是模板紧贴运算符的写法（`ds=${hiveconf:run_date}`）保持原样。前提是 `${…}` 的展开值不改变词法结构（ADR 0006 的 D13）；`?`、`:name` 这类绑定占位符不做文本替换，不适用。
+3. **编辑原子提交**：计算前记下文档版本，算出全部 target，提交前复查文档身份与版本，一次提交并检查结果；任一 target 失败、取消或过期时不提交任何 edit。
+4. **资源上限**，超限一律返回原文：
+   - 单个文档或 target 最多 524,288 个 UTF-16 code units（`FMT_INPUT_LIMIT`，status 为 `preserved`）；
+   - parser 嵌套深度 256（`SYN_MAX_DEPTH_EXCEEDED`，超出的部分按语法错误原样保留），每个查询块识别未建模子句最多尝试 16 次，超出时整条语句原样保留（`SYN_PROOF_BUDGET`）；
+   - `formatSql` 每个 target 的输出不超过 4 × 输入 + 65,536，renderer 边写边计数，超限立即停止（`RENDER_OUTPUT_LIMIT`）；`formatHiveDdl` 与 Extract 不超过 4 × 输入 + 4,096 + 160 × 行数；
+   - 批量操作不另设总上限，target 互不重叠，总量已受单个 target 与输入上限约束。
+5. **受保护文本不改写**，字符原样保留，包括大小写和内部空白：字符串、注释、引号标识符、`${…}` 模板与模板片段（作为一个原子参与排版）、Hive 数字 literal 整体（`0L`、`10Y`、`5S`、`1.0D`、`1.0BD`）、命令载荷（包括 SET 的值），以及通用层中语句头表以外的词（保持原大小写）。
+
+原样保留以最小安全片段为单位：一个模板片段、一段载荷或一个未建模节点。只有词法错误（未闭合的字符串或注释）、资源超限、第 2 条不成立、内部异常，或者 `bail_out` 下还有原样保留的片段时，整个 target 才保持原文。幂等是测试属性，由 golden runner 和 fuzz 检查，运行时不检查。
 
 ## 三层排版与原样保留
 
