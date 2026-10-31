@@ -3049,6 +3049,11 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k05-non-first-members": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k06-then-string-else": {
   "op": "formatSql",
   "status": "formatted",

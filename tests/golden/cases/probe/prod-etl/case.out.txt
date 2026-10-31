@@ -47,9 +47,9 @@ WITH
               , count(DISTINCT order_id) AS order_cnt
               , sum(amount)              AS total_amount
               , sum(CASE
-                  WHEN status = 1 THEN amount
-                  ELSE 0
-              END) AS paid_amount
+                    WHEN status = 1 THEN amount
+                    ELSE 0
+                END) AS paid_amount
               , max(create_time)                                                   AS last_order_time
               , row_number() OVER (PARTITION BY user_id ORDER BY sum(amount) DESC) AS rn
           FROM orders
@@ -64,10 +64,10 @@ SELECT
     , a.total_amount
     , a.paid_amount
     , CASE
-        WHEN a.total_amount >= 10000 THEN 'S'
-        WHEN a.total_amount >= 1000 THEN 'A'
-        ELSE 'B'
-    END AS user_level -- 用户等级
+          WHEN a.total_amount >= 10000 THEN 'S'
+          WHEN a.total_amount >= 1000 THEN 'A'
+          ELSE 'B'
+      END AS user_level -- 用户等级
     , u.city
     , nvl(u.city_level, -1) AS city_level
     , tag

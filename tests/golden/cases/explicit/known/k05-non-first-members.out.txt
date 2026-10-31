@@ -1,0 +1,20 @@
+SELECT
+      a
+    , sum(CASE
+          WHEN a = 1 THEN b
+          ELSE 0
+      END) AS s
+    , sum(CASE
+          WHEN a = 2 THEN b
+          ELSE 0
+      END) AS t
+FROM x;
+SELECT
+      a
+    , coalesce((
+          SELECT
+                max(b)
+          FROM u
+          WHERE u.id = t.id
+      ), 0) AS m
+FROM t;

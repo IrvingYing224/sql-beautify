@@ -5,7 +5,7 @@ SELECT
     , (x)
     , DATE '2020-01-01'
     , EXISTS (
-        SELECT 1
-    )
+          SELECT 1
+      )
     , y IN (1, 2)
 FROM t

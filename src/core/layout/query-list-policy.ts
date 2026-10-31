@@ -188,13 +188,6 @@ function wrapFirstMultilineMember(
         );
 }
 
-function needsLeadingContinuationAlign(member: SyntaxNode): boolean {
-    return (
-        member.kind === "cte" ||
-        (member.kind === "relation" && member.relationKind === "subquery")
-    );
-}
-
 interface RangeCommentFacts {
     readonly hasLineComment: boolean;
     readonly hasTrailingComment: boolean;
@@ -347,7 +340,6 @@ export function formatMultilineSequence(
         const separatorLeafId = separatorLeafIds[index]!;
         const left = members[index]!;
         const right = members[index + 1]!;
-        const comments = separators[index]!;
         const useLeadingSeparator = leads[index]!;
         if (useLeadingSeparator && preferred === "trailing") {
             context.state.commaFallback = true;
@@ -373,10 +365,9 @@ export function formatMultilineSequence(
                 right.leafRange.start,
                 afterSeparator
             ) ||
-            ((contentAligned && !useLeadingSeparator) ||
-                (useLeadingSeparator &&
-                    (needsLeadingContinuationAlign(right) ||
-                        comments.after.hasLineComment))) &&
+            // Every member sits on the content column, so lines inside a later member line up with
+            // the same lines in the first one (K5).
+            contentAligned &&
                 !wrapLayoutRange(
                     context,
                     authorityNodeId,

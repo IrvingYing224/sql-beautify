@@ -1,0 +1,2 @@
+select a, sum(case when a = 1 then b else 0 end) as s, sum(case when a = 2 then b else 0 end) as t from x;
+select a, coalesce((select max(b) from u where u.id = t.id), 0) as m from t;

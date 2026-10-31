@@ -2,9 +2,9 @@ SELECT
       a      AS x
     , longer AS y
     , CASE
-        WHEN b = 1 THEN 1
-        ELSE 2
-    END AS middle
+          WHEN b = 1 THEN 1
+          ELSE 2
+      END AS middle
     , c           AS z
     , widest_name AS q
 FROM t

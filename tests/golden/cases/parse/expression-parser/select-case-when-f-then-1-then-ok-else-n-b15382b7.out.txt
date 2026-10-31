@@ -4,5 +4,5 @@ SELECT
           ELSE 'no'
       END
     , sum(x) OVER (ORDER BY y ROWS BETWEEN f(a
-        AND b) PRECEDING AND CURRENT ROW)
+          AND b) PRECEDING AND CURRENT ROW)
 FROM t

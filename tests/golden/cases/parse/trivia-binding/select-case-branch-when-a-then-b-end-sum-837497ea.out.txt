@@ -4,6 +4,6 @@ SELECT
           WHEN a THEN b
       END
     , sum(a) OVER (
-        -- window container
-        PARTITION BY b
-    );
+          -- window container
+          PARTITION BY b
+      );

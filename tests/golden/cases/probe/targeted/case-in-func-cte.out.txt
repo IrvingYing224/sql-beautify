@@ -3,8 +3,8 @@ WITH
           SELECT
                 a
               , count(DISTINCT CASE
-                  WHEN x = 1 THEN u
-              END) AS k
+                    WHEN x = 1 THEN u
+                END) AS k
           FROM t
           GROUP BY
                 a
