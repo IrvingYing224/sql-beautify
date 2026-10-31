@@ -1,100 +1,154 @@
 # SQL Beautify
 
-VS Code 扩展，用于格式化 SQL / HQL，并提供实验性的 Hive DDL 格式化与 DDL 提取能力。
+VS Code 扩展，用来格式化 Hive SQL / HQL。另外提供两个实验性命令：格式化 Hive 建表语句，以及从 SELECT 查询生成建表字段的草稿。
+
+**只支持 Hive。** `SQL` 与 `hive-sql` 两种语言模式都按 Hive 的词法处理。PostgreSQL 的 `$$…$$`、`E'…'`、双引号标识符，MySQL 的 `#` 注释等写法会被误读，格式化后可能改变语义，请不要用它格式化其他数据库的 SQL。
+
+## 效果
+
+格式化前：
+
+```sql
+set hive.exec.dynamic.partition.mode=nonstrict;
+insert overwrite table dw.user_daily partition (ds='${hiveconf:ds}')
+select u.user_id, u.city as city_name, count(distinct o.order_id) as order_cnt,
+sum(case when o.paid = 1 then o.amount else 0 end) as paid_amount,
+case when u.level >= 3 then 'vip' when u.level = 2 then 'regular' else 'new' end as user_type -- 用户分层
+from ods.users u left join ods.orders o on u.user_id = o.user_id and o.ds = '${hiveconf:ds}'
+where u.is_test = 0 group by u.user_id, u.city, u.level;
+```
+
+格式化后（默认设置）：
+
+```sql
+SET hive.exec.dynamic.partition.mode=nonstrict;
+INSERT OVERWRITE TABLE dw.user_daily
+PARTITION (ds = '${hiveconf:ds}')
+SELECT
+      u.user_id
+    , u.city                                             AS city_name
+    , count(DISTINCT o.order_id)                         AS order_cnt
+    , sum(CASE WHEN o.paid = 1 THEN o.amount ELSE 0 END) AS paid_amount
+    , CASE
+          WHEN u.level >= 3 THEN 'vip'
+          WHEN u.level = 2 THEN 'regular'
+          ELSE 'new'
+      END AS user_type -- 用户分层
+FROM ods.users u
+LEFT JOIN ods.orders o
+    ON u.user_id = o.user_id
+        AND o.ds = '${hiveconf:ds}'
+WHERE u.is_test = 0
+GROUP BY
+      u.user_id
+    , u.city
+    , u.level;
+```
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/IrvingYing224/sql-beautify/releases) 下载最新 `.vsix`，然后在 VS Code 中执行 `Extensions: Install from VSIX...` 安装。
+从 [GitHub Releases](https://github.com/IrvingYing224/sql-beautify/releases) 下载最新的 `.vsix`，在 VS Code 中执行 `Extensions: Install from VSIX...` 安装。最低支持 VS Code 1.90.0。
 
-最低支持 VS Code `1.90.0`。
+从 2.x 升级时，请先看 [CHANGELOG](CHANGELOG.md) 中 3.0.0 的升级说明：删除了两项设置和一个命令，`sqlBeautify.caseLayout` 的默认值也改了。
 
-从 1.x、2.0.x、2.1.x 或 2.2.0 升级时，请先阅读 [2.2 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.2.1/docs/migration-to-2.2.md)。
+## 使用
 
-## 这个扩展做什么
+把文件的语言模式设为 `SQL` 或 `hive-sql`（`hive-sql` 由第三方 Hive 语言扩展提供），然后：
 
-- 格式化 SQL / HQL
-- 对 `SELECT`、`GROUP BY` 和顶层 `ORDER BY` 做列表换行与逗号对齐
-- 格式化有界的 Hive `INSERT INTO [TABLE] ... [PARTITION (...)] SELECT/WITH ...` 与 `SET` 命令
-- 格式化 Hive CTAS（`CREATE [TEMPORARY] [TRANSACTIONAL] [EXTERNAL] TABLE ... AS SELECT/WITH/(...)` 与 `CREATE MANAGED TABLE ... AS ...`）：`AS` 之前的外壳只规范空白的量，`AS` 留在外壳末行，查询从下一行开始按普通查询排版；`AS VALUES`、`AS FROM ...`、`AS WITH ... INSERT ...` 或查询无法解析时整句保留原文；查询内部可以局部恢复的错误与独立 `SELECT` 相同，只保留出错的片段并给出诊断
-- Hive 脚本语句（`USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`ADD JAR`、`DFS` 等）只规范空白的量：行内连续空白压成一个空格、删除行尾空白，换行和续行缩进不变；只有语句开头的关键字（如 `ANALYZE TABLE`）按 `keywordCase` 改大小写，其余词保持原样；`ADD JAR`、`DFS`、`!`、`SOURCE` 等命令之后的路径、URI、类名和 shell 参数逐字节保留
-- 支持 VS Code 标准 `Format Document` / `Format Selection`
-- 提供实验性的 Hive DDL 格式化
-- 提供实验性的 Hive Extract DDL 草稿提取
+- 执行 `Format Document` 或 `Format Selection`，也可以用多个选区一起格式化；
+- 或者执行命令 `SQL Beautify: Format SQL`。
 
-只支持 Hive SQL / HQL：`SQL` 与 `hive-sql` 两种语言模式都按 Hive 词法处理。PostgreSQL 的 `$$…$$`、`E'…'`、`U&'…'`、双引号标识符，MySQL 的 `#` 注释等写法会被误读，格式化后可能改变语义；请不要用它格式化非 Hive SQL。
+装了多个 SQL formatter 时，把 `editor.defaultFormatter` 设为 `clarkyu.vscode-sql-beautify`。扩展不占用 `Shift+Alt+F`，需要专用快捷键时，可以在 Keyboard Shortcuts 中给 `sqlBeautify.formatSql` 绑定。
 
-## 怎么用
+格式化选区时，选区要覆盖整行，并且正好是一条语句、一个子句或一个列表，或者若干条连续的完整语句。半条语句、选区两端落在字符串或注释中间时，不做修改并给出提示。多个选区一起格式化时，只要有一个不能格式化，所有选区都不修改。
 
-将文件语言模式设为 `SQL` 或 `hive-sql` 后，可以用下面几种方式。`hive-sql` language id 由第三方 Hive 语言扩展提供，SQL Beautify 本身不注册语言：
+第一条语句前有缩进时（例如从别的文件里拷来的一段 SQL），格式化后每一行都保留这段缩进。
 
-- 执行 `Format Document` 或 `Format Selection`
-- 执行命令 `SQL Beautify: Format SQL`
+## 排版规则
 
-SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入口。若安装了多个 formatter，请把 `editor.defaultFormatter` 设为 `clarkyu.vscode-sql-beautify`；需要专用快捷键时可在 Keyboard Shortcuts 中为 `sqlBeautify.formatSql` 自行绑定。
+- 关键字按 `keywordCase` 统一大小写；表名、列名、函数名保持原样。
+- SELECT、GROUP BY 和顶层 ORDER BY 的列表每项一行；`AS` 别名和行尾注释在 `maxAlignWidth` 以内按列对齐。逗号前置时，各项内容对齐到同一列，CASE、子查询这类多行内容也一样。
+- 逗号后面紧跟注释时（`a, -- 说明`），为了让注释留在原来那一行，整张列表改用后置逗号。逗号后置模式下，逗号前有行注释时（`a -- 说明` 换行接 `, b`），整张列表改用前置逗号，并给出一条信息级诊断。
+- CASE：默认（`compactShort`）短的 CASE 收成一行；整个 CASE 平铺后超过 `caseWhenThenWrapLength` 列，或者内部有注释、模板、跨行内容时展开。展开时 `END` 与 `CASE` 对齐，`WHEN`、`ELSE` 多缩进一层，函数参数里的 CASE 也一样。`WHEN … THEN …` 一行超过 `caseWhenThenWrapLength` 时，THEN 的值换到下一行。
+- WHERE、ON 中的 AND、OR 换行并缩进；窗口函数 `OVER (…)` 里的内容保持在一行。
+- 注释保持在原来的位置。关键字后面同一行的注释留在关键字那一行；如果是行注释，后面的内容换行并缩进一层。
+- 字符串、注释、反引号标识符、`${…}` 变量、Hive 数字 literal（`0L`、`1.0BD` 等）以及命令后面的路径和参数，一个字符都不改，包括大小写和内部空白。紧贴变量的写法（`ds=${hiveconf:ds}`、`tbl_${dt}`）也保持原样，因为插入空格可能改变变量展开后的 SQL。
 
-实验性命令：
+## 支持的语句
 
-- `SQL Beautify: Format Hive DDL (Experimental)`
-- `SQL Beautify: Extract Hive DDL (Experimental)`
+| 语句 | 处理 |
+| --- | --- |
+| SELECT、WITH、UNION 等集合运算；`INSERT INTO/OVERWRITE … SELECT`（含 PARTITION 与列清单）；CTAS（`CREATE TABLE … AS SELECT`） | 完整排版。CTAS 中 `AS` 之前的部分只规范空白，查询从下一行开始 |
+| `SET key=value` | `SET` 改大小写，后面的内容原样保留 |
+| `USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`TRUNCATE`、`ALTER TABLE`、`CREATE FUNCTION` 等脚本语句 | 只规范空白：行内连续空白压成一个空格，删除行尾空白，换行不变；只有开头的关键字（如 `ANALYZE TABLE`）改大小写 |
+| `ADD JAR`、`DFS`、`!`、`SOURCE` 等命令 | 命令名改大小写，后面的路径、URI、类名和参数原样保留 |
+| 列定义形式的 `CREATE TABLE`、`CREATE VIEW`、`EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、`UPDATE`、`DELETE`、`MERGE`、`GRANT`、`REVOKE`、FROM 开头的 multi-insert | 原样保留，并给出 warning（见下面的 `unsupportedSyntaxPolicy`）。列定义形式的 `CREATE TABLE` 可以用实验性的 Format Hive DDL 命令 |
 
-对应快捷键：
-
-- `Alt+Shift+L`：格式化 Hive DDL
-- `Alt+Shift+;`：提取 Hive DDL 草稿
+语句中有语法错误时，只原样保留出错的那一段，其余部分照常格式化，并给出 warning。
 
 ## 配置
 
-请在 VS Code 设置中搜索 `sqlBeautify`。
-
-格式化选项支持工作区、文件夹及 `[sql]` / `[hive-sql]` 按语言覆盖，由 VS Code 按当前文档解析；程序调用 `sqlBeautify.formatSql` 时传入的显式选项再覆盖这些设置。缩进风格以 `sqlBeautify.indentStyle` 为准，空格缩进固定为 4 个空格；编辑器的 `insertSpaces` 不覆盖它，`tabSize` 只决定 tab stop 和显示宽度。数值选项只接受表中范围内的整数。
+在 VS Code 设置中搜索 `sqlBeautify`。设置可以按工作区、文件夹或语言（`[sql]`、`[hive-sql]`）分别指定。
 
 | 配置项 | 可选值 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `sqlBeautify.keywordCase` | `upper` / `lower` | `upper` | SQL 关键词大小写 |
-| `sqlBeautify.commaStyle` | `leading` / `trailing` | `leading` | 逗号位于行首或行尾；行尾注释阻断 source order 时，`trailing` 会局部回退到行首并报告信息诊断 |
-| `sqlBeautify.indentStyle` | `tab` / `space` | `space` | 缩进风格 |
+| `sqlBeautify.keywordCase` | `upper` / `lower` | `upper` | 关键字大小写 |
+| `sqlBeautify.commaStyle` | `leading` / `trailing` | `leading` | 逗号放在行首或行尾 |
+| `sqlBeautify.indentStyle` | `space` / `tab` | `space` | 缩进用 4 个空格或 tab；不受编辑器 `insertSpaces` 影响，`tabSize` 只决定 tab 的显示宽度 |
 | `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
-| `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | `CASE WHEN` 中 `THEN` / `ELSE` 值的换行阈值 |
-| `sqlBeautify.caseLayout` | `expanded` / `compactShort` | `compactShort` | `CASE` 表达式布局；`compactShort` 会在安全且较短时保持单行 |
-| `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `warn` | 未建模语法的处理策略 |
+| `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | CASE 收成一行的最大宽度，以及 `WHEN … THEN …` 换行的阈值 |
+| `sqlBeautify.caseLayout` | `compactShort` / `expanded` | `compactShort` | `expanded` 时所有 CASE 都展开 |
+| `sqlBeautify.unsupportedSyntaxPolicy` | `warn` / `preserve` / `bail_out` | `warn` | 遇到不支持的语法或语法错误时怎么办，见下 |
 
-顶层 `ORDER BY` 会像 `GROUP BY` 一样拆成多行并对齐逗号；窗口函数里的 `ORDER BY` 仍保持原有行内格式。
+`unsupportedSyntaxPolicy`：
 
-`sqlBeautify.caseLayout` 默认为 `compactShort`：整个 `CASE` 平铺后不超过 `caseWhenThenWrapLength` 列，且内部没有注释、模板片段和跨行内容时，收成一行；否则展开。展开的 `CASE` 中，`END` 与 `CASE` 对齐，`WHEN`、`ELSE` 比 `CASE` 多缩进一层，函数参数里的 `CASE` 也一样。设置为 `expanded` 后，所有 `CASE` 都展开。
+- `warn`：不支持的部分原样保留，其余照常格式化，在编辑器中给出 warning。
+- `preserve`：与 `warn` 相同，但不显示 warning。手动执行 `SQL Beautify: Format SQL` 而文档因此没有变化时，会提示一次有几处未支持的区域。
+- `bail_out`：只要有不支持的部分，整个文档（或选区）都不修改。
 
-已建模区域会应用 `sqlBeautify.keywordCase`；verbatim 区域始终保留原文，因此其中的关键词大小写不会被改写。主 formatter 的单个完整文档或 target 上限为 524,288 个 UTF-16 code units；超限输入会保留完整原文且不提交编辑。
+## 诊断与日志
 
-格式化或提取时的 tab stop 来自 VS Code 的 `FormattingOptions.tabSize` 或活动编辑器设置，并同时用于主 formatter、Experimental DDL 与 Extract DDL 的显示宽度和对齐计算。公开 Node.js `formatSql()`、`formatHiveDdl()` 与 `extractDdl()` 使用默认 tab stop 4，`tabSize` 不是它们的公开 option。非法 `sqlBeautify.*` 配置会发布安全的 `CFG_*` 诊断；手动命令会在配置 key 可安全识别时指出具体设置，不再静默跳过。
+- 编辑器诊断直接显示格式化器的消息，最多 200 个字符，可能包含 SQL 片段。
+- 内部错误（含错误栈）写入输出面板的 `SQL Beautify` 通道。每次格式化的结果摘要按 debug 级别记录，用 `Developer: Set Log Level` 调到 Debug 后可以看到。
+- 单个文档或选区最多 524,288 个字符（UTF-16 code units），超过时不修改。格式化出错或结果没法确认安全时，也不修改文档。
 
-## Experimental 能力
+## 实验性命令
 
-### Hive DDL formatting
+### Format Hive DDL
 
-`Format Hive DDL (Experimental)` 只接受完整消费的、已建模的 Hive `CREATE TABLE` 子集。除列定义和列 `COMMENT` 外，当前还支持按顺序出现的可选 `PARTITIONED BY (...)` 与 `STORED AS <format>`；`format` 仅限 `AVRO`、`ORC`、`PARQUET`、`RCFILE`、`SEQUENCEFILE` 和 `TEXTFILE`。DDL 输出沿用 `sqlBeautify.keywordCase`、`sqlBeautify.commaStyle`、`sqlBeautify.indentStyle` 与 `sqlBeautify.maxAlignWidth`；超宽列名会放弃补齐空格而不是放大输出。
+`SQL Beautify: Format Hive DDL (Experimental)`，快捷键 `Alt+Shift+L`。格式化选中的建表语句；没有选区时处理整个文档，这时文档里只能有这一条语句：
 
-它不是通用 DDL parser；`ALTER`、`DROP`、多 statement、`LOCATION`、`TBLPROPERTIES`、CTAS、重复或乱序后缀、未知 storage format、约束、默认值或结构不完整的输入都会保留完整原文，不会被猜测性改写。选区命令只对生成空白应用首行缩进与文档 LF/CRLF；多行 string、quoted identifier 和 comment 内部的原始空格与 EOL 保持逐字符不变。公开 DDL / Extract DDL API 的单次输入及 VS Code DDL transaction 的完整文档同样以 524,288 个 UTF-16 code units 为上限；所有目标继续以整批原子方式提交，任一目标不受支持或超过输入/输出资源预算时不会提交部分编辑。
+```sql
+CREATE TABLE dw.t
+(
+     id        BIGINT COMMENT 'ID'
+    ,user_name STRING COMMENT '用户名'
+    ,location  STRING
+)
+PARTITIONED BY
+(
+     ds STRING
+)
+STORED AS ORC;
+```
 
-主 `Format SQL` 命令会保留 CTAS 以外的 `CREATE TABLE` 等 Hive DDL 的原文（`DROP`、`TRUNCATE TABLE`、`ALTER TABLE` 与 `CREATE FUNCTION` 只规范空白的量）；需要格式化列定义形式的 `CREATE TABLE` 时，应使用专用的 `Format Hive DDL (Experimental)` 命令。CTAS 由主 `Format SQL` 命令格式化，`Format Hive DDL (Experimental)` 仍保留它的原文。
+只接受 Hive `CREATE TABLE` 的一个子集：列定义与列 `COMMENT`，后面可以依次跟 `PARTITIONED BY (…)` 和 `STORED AS AVRO|ORC|PARQUET|RCFILE|SEQUENCEFILE|TEXTFILE`。带表 `COMMENT`、`ROW FORMAT`、`LOCATION`、`TBLPROPERTIES`、约束或默认值的语句，以及多条语句，都保留原文。输出使用 `keywordCase`、`commaStyle`、`indentStyle` 与 `maxAlignWidth`。CTAS 由普通的格式化命令处理，这个命令保留它的原文。
 
-### Hive Extract DDL
+### Extract Hive DDL
 
-`Extract Hive DDL (Experimental)` 只从完整的 `SELECT` 查询字段列表生成 DDL 草稿，支持带 `WITH` 的查询；当前不接受 `INSERT SELECT`，此类输入会保留原文并提示不支持。
+`SQL Beautify: Extract Hive DDL (Experimental)`，快捷键 `Alt+Shift+;`。从选中的 SELECT 查询（可以带 WITH；没有选区时用整个文档）生成建表字段的草稿，替换原来的查询。例如 `select u.id, u.name as user_name, count(1) as cnt -- 次数` 加上 FROM、GROUP BY 子句，生成：
 
-它支持高置信的顶层 `UNION` / `UNION ALL` 分支提取；只有分支字段形状一致时才会生成 DDL，不一致时会跳过，避免输出误导性 schema。生成的字段注释会转义为 Hive 兼容字符串字面量。
+```sql
+     id        __TYPE_REQUIRED__
+    ,user_name __TYPE_REQUIRED__
+    ,cnt       __TYPE_REQUIRED__ COMMENT '次数'
+```
 
-它不会推断真实字段类型；Node.js API 的可选 `defaultType` 必须来自普通 data property、最长 128 个 UTF-16 code units，Proxy、accessor、未知 key 或异常 prototype 会安全失败。复杂表达式、非 Hive 语法、未加别名的表达式或复杂列推断场景，请人工复核输出。
+字段名取别名或列名，行尾注释变成 `COMMENT`。它不推断字段类型，`__TYPE_REQUIRED__` 需要手动替换。`SELECT *`、没有别名的表达式、重名字段，以及 UNION 各分支字段不一致时，不生成草稿；`INSERT … SELECT` 也不支持。
 
-公开 Node.js `formatSql()`、`formatHiveDdl()`、`extractDdl()` 通过省略选项使用默认值；选项对象为 `null`，或对象内字段显式设为 `null` / `undefined`，都会失败，避免把配置错误静默解释为默认值。Extract DDL 生成的是待补全类型的字段草稿，使用固定的行首逗号和空格布局，不读取主 formatter 的排版选项。
+## 注意
 
-## 简洁风险提示
+- 复杂 SQL 格式化后请看一眼结果；已知的排版缺陷见 [架构文档](docs/technical/sql-formatter-architecture.md) 末尾。
+- `${…}` 变量按"展开后不会带出未配对的引号、注释开头或分号"来处理。把一个字符串拆在两个变量里的写法（如 `${left},${right}` 展开成 `'a,b'`）格式化后可能改变展开结果。
 
-- 复杂 SQL 与未建模语法场景下，请在格式化后复核结果。
-- `unsupportedSyntaxPolicy=warn` 会继续格式化周边 SQL，并在 VS Code 中给出 warning。
-- `unsupportedSyntaxPolicy=preserve` 使用相同的安全输出，但不在编辑器中显示 capability warning；手动执行 `SQL Beautify: Format SQL` 且因未建模区域没有修改时，会显示一次不含 SQL 内容的汇总提示。format provider 与 format-on-save 不弹出该提示。
-- `unsupportedSyntaxPolicy=bail_out` 会在出现任何未建模或解析恢复区域时保留整个格式化目标的原文，包括尚未登记能力名称的语法、局部语法错误和 parser 深度超限；同一目标中其余语句也不会修改。
-- parser 遇到未建模语法、局部语法错误或资源预算耗尽时，按可证明边界保留对应区域、整条语句或整个目标，并报告 warning。`warn` / `preserve` 允许继续格式化局部保留区域之外的 SQL；`bail_out` 则保留整个目标。格式化输出超过 4 × 输入 + 65,536 个 UTF-16 code units 时，renderer 立即停止并保留整个目标，不提交部分布局；内部不变量破坏仍作为 hard failure 处理。
-- Hive 的 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、主 formatter 中 CTAS 以外的 `CREATE TABLE`、`CREATE VIEW` 等 DDL、`UPDATE`、`DELETE` 和以 `FROM` 开头的 multi-insert 目前明确按 verbatim 保留，不宣称已格式化。
-- 选区格式化接受完整文档、完整单句或两个以上连续完整 statement；半条 statement、跨 protected/opaque 边界或结构不完整的片段会被拒绝，而不是猜测性改写。
-- 内部错误（含错误栈）写入输出面板的 `SQL Beautify` 日志；每次格式化的状态与诊断 code 摘要按 debug 级别记录，用 `Developer: Set Log Level` 调到 Debug 后可见。编辑器诊断直接显示格式化器的消息，可能引用 SQL 片段，最多 200 个字符。
-
-[Release Notes](https://github.com/IrvingYing224/sql-beautify/blob/main/CHANGELOG.md)
+[Release Notes](CHANGELOG.md)
