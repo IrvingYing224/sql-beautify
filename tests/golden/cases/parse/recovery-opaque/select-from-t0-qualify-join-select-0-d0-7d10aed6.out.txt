@@ -5,99 +5,99 @@ FROM
 JOIN (
     SELECT 0
 ) d0
-    ON true
+    ON TRUE
     , t1 qualify
 JOIN (
     SELECT 1
 ) d1
-    ON true
+    ON TRUE
     , t2 qualify
 JOIN (
     SELECT 2
 ) d2
-    ON true
+    ON TRUE
     , t3 qualify
 JOIN (
     SELECT 3
 ) d3
-    ON true
+    ON TRUE
     , t4 qualify
 JOIN (
     SELECT 4
 ) d4
-    ON true
+    ON TRUE
     , t5 qualify
 JOIN (
     SELECT 5
 ) d5
-    ON true
+    ON TRUE
     , t6 qualify
 JOIN (
     SELECT 6
 ) d6
-    ON true
+    ON TRUE
     , t7 qualify
 JOIN (
     SELECT 7
 ) d7
-    ON true
+    ON TRUE
     , t8 qualify
 JOIN (
     SELECT 8
 ) d8
-    ON true
+    ON TRUE
     , t9 qualify
 JOIN (
     SELECT 9
 ) d9
-    ON true
+    ON TRUE
     , t10 qualify
 JOIN (
     SELECT 10
 ) d10
-    ON true
+    ON TRUE
     , t11 qualify
 JOIN (
     SELECT 11
 ) d11
-    ON true
+    ON TRUE
     , t12 qualify
 JOIN (
     SELECT 12
 ) d12
-    ON true
+    ON TRUE
     , t13 qualify
 JOIN (
     SELECT 13
 ) d13
-    ON true
+    ON TRUE
     , t14 qualify
 JOIN (
     SELECT 14
 ) d14
-    ON true
+    ON TRUE
     , t15 qualify
 JOIN (
     SELECT 15
 ) d15
-    ON true
+    ON TRUE
     , t16 qualify
 JOIN (
     SELECT 16
 ) d16
-    ON true
+    ON TRUE
     , t17 qualify
 JOIN (
     SELECT 17
 ) d17
-    ON true
+    ON TRUE
     , t18 qualify
 JOIN (
     SELECT 18
 ) d18
-    ON true
+    ON TRUE
     , t19 qualify
 JOIN (
     SELECT 19
 ) d19
-    ON true
+    ON TRUE

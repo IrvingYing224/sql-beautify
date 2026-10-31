@@ -1,7 +1,7 @@
 SELECT
       CASE
-          WHEN a IS NULL THEN null
-          WHEN b THEN true
-          ELSE false
+          WHEN a IS NULL THEN NULL
+          WHEN b THEN TRUE
+          ELSE FALSE
       END
 FROM t

@@ -1,6 +1,6 @@
 SELECT
-      null                              AS a
-    , true                              AS b
-    , false                             AS c
-    , CASE WHEN x IS NULL THEN null END AS d
+      NULL                              AS a
+    , TRUE                              AS b
+    , FALSE                             AS c
+    , CASE WHEN x IS NULL THEN NULL END AS d
 FROM t

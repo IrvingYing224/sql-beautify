@@ -404,7 +404,14 @@ class PrattParser {
             const word = this.word(start);
             if (word === "null" || word === "true" || word === "false") {
                 this.position += 1;
-                return this.create({ start: leafIndex, end: leafIndex + 1 }, "literal", [], []);
+                return this.create(
+                    { start: leafIndex, end: leafIndex + 1 },
+                    "literal",
+                    [],
+                    [],
+                    [],
+                    syntaxMarkers([leafIndex], "literal:keyword")
+                );
             }
             if (word === "interval") {
                 const interval = this.parseInterval(nestingDepth);

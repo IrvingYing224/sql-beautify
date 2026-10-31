@@ -56,6 +56,7 @@ export type SyntaxMarkerId =
     | "type:cast"
     | "type:as"
     | "type:member-colon"
+    | "literal:keyword"
     | "delimiter"
     | "separator"
     | "operator";

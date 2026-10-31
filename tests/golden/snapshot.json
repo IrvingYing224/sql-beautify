@@ -3245,6 +3245,16 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k13-keyword-literal-scope#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k13-keyword-literal-scope#lower": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k13-null-true-false": {
   "op": "formatSql",
   "status": "formatted",

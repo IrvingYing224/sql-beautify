@@ -1,0 +1,11 @@
+set hive.exec.dynamic.partition = true;
+select
+      'null'
+    , `true`
+    , x.false
+    , nullif(a, b)
+    , coalesce(c, null)
+    , if(d, true, false)
+from t
+where e is not null
+    and f = false
