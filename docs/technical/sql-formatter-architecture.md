@@ -57,7 +57,7 @@ lex → parse（CST）→ analyze（索引 + 注释绑定）→ plan → compile
 3. **编辑原子提交**：计算前记下文档版本，算出全部 target，提交前复查文档身份与版本，一次提交并检查结果；任一 target 失败、取消或过期时不提交任何 edit。
 4. **资源上限**，超限一律返回原文：
    - 单个文档或 target 最多 524,288 个 UTF-16 code units（`FMT_INPUT_LIMIT`，status 为 `preserved`）；
-   - parser 嵌套深度 256（`SYN_MAX_DEPTH_EXCEEDED`，超出的部分按语法错误原样保留），每个查询块识别未建模子句最多尝试 16 次，超出时整条语句原样保留（`SYN_PROOF_BUDGET`）；
+   - parser 嵌套深度 256（`SYN_MAX_DEPTH_EXCEEDED`，超出的部分按语法错误原样保留），parser 的试探解析（识别未建模子句等）共用一个预算：max(64, 8 × 语法 leaf 数)，每次没命中缓存的试探按所覆盖的 leaf 数扣减；另外每个查询块识别未建模子句最多尝试 16 次。两者超出时都是整条语句原样保留（`SYN_PROOF_BUDGET`）；
    - `formatSql` 每个 target 的输出不超过 4 × 输入 + 65,536，renderer 边写边计数，超限立即停止（`RENDER_OUTPUT_LIMIT`）；`formatHiveDdl` 与 Extract 不超过 4 × 输入 + 4,096 + 160 × 行数；
    - 批量操作不另设总上限，target 互不重叠，总量已受单个 target 与输入上限约束。
 5. **受保护文本不改写**，字符原样保留，包括大小写和内部空白：字符串、注释、引号标识符、`${…}` 模板与模板片段（作为一个原子参与排版）、Hive 数字 literal 整体（`0L`、`10Y`、`5S`、`1.0D`、`1.0BD`）、命令载荷（包括 SET 的值），以及通用层中语句头表以外的词（保持原大小写）。
@@ -69,7 +69,7 @@ lex → parse（CST）→ analyze（索引 + 注释绑定）→ plan → compile
 | 层 | 范围 | 行为 |
 | --- | --- | --- |
 | 已建模 | 查询（SELECT、WITH、集合运算）、INSERT、CTAS 的查询部分 | 完整排版 |
-| 通用层 | 语句头表命中的脚本语句（`USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`ALTER TABLE` 等）与 CTAS 的外壳 | 只改空白的量：行内连续空白压成一个空格，删除行尾空白；换行、续行缩进和零宽间隙不变；只有语句开头那段关键字按 `keywordCase` 改大小写 |
+| 通用层 | 语句头表命中的脚本语句（`USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`ALTER TABLE` 等）与 CTAS 的外壳 | 只改空白的量：行内连续空白压成一个空格，删除行尾空白；换行、续行缩进和零宽间隙不变；只有语句开头那段关键字按 `keywordCase` 改大小写。授权语句（`GRANT`、`REVOKE`、`SHOW GRANT` 等）也走这一层，但所有词保持原大小写 |
 | 命令载荷 | `ADD JAR`、`DFS`、`!`、`SOURCE`、`RESET`、`COMPILE` 等命令头之后到 `;` 之前的文本，以及 SET 的载荷 | 命令头改大小写，载荷逐字节保留 |
 | 原样保留 | 未建模语法（列定义形式的 `CREATE TABLE`、`CREATE VIEW`、`EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、`UPDATE`、`DELETE`、`MERGE`、FROM 开头的 multi-insert）、语法错误、超出上限 | 取能证明边界的最小范围保留原文，并给出诊断 |
 

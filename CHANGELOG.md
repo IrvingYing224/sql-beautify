@@ -13,7 +13,7 @@
 * 删除 `sqlBeautify.debugDiagnostics` 设置：内部错误（含错误栈）改为写入输出面板的 `SQL Beautify` 通道，每次格式化的结果摘要按 debug 级别记录
 * 删除 `SQL Beautify: Copy Safe Diagnostic Report` 命令：编辑器诊断直接显示格式化器的消息，最多 200 个字符
 * 删除 `vscode-sql-beautify/formatter` 与 `vscode-sql-beautify/experimental/ddl` 两个 Node.js 子路径导出（从未发布到 npm）
-* 逗号与注释的处理改为整张列表一起决定：逗号后面紧跟注释时，整张列表改用后置逗号；`commaStyle: trailing` 下逗号前有行注释时，整张列表改用前置逗号并报 `LAYOUT_COMMA_FALLBACK`。2.x 只在出问题的那个逗号上换风格，同一行会同时出现行首和行尾逗号
+* 逗号与注释的处理改为整张列表一起决定：逗号后面紧跟注释时，整张列表改用后置逗号；`commaStyle: trailing` 下逗号前有行注释时，整张列表改用前置逗号并报 `LAYOUT_COMMA_FALLBACK`；两种情况同时出现、哪种风格都统一不了时，仍逐个逗号决定。2.x 只在出问题的那个逗号上换风格，同一行会同时出现行首和行尾逗号
 * `${…}` 变量与相邻文字之间不再插入或删除空格：`ds=${hiveconf:ds}`、`order by ${p}desc` 保持原样，避免改变变量展开后的 SQL
 
 **变化**
@@ -26,7 +26,8 @@
 * 注释：行内块注释留在原来那一行；被注释掉的条件与 `AND` 同列；关键字后面同一行的注释（如 `SELECT /*+ MAPJOIN(b) */`、`WHERE -- 说明`、`SET /* c */`、`DATE /* c */ '…'`）留在关键字行，行注释后面的内容缩进一层；`f(/* arg */ x)` 保留注释后的空格；注释掉一列不再让逗号单独成行
 * 修复几类第一遍和第二遍格式化结果不同的问题：`then 'x'else 3` 这类零宽边界、括号内带块注释的布尔表达式与子查询
 * 删除最后一条语句后面的行尾空白
-* 畸形的窗口定义（如 `partition byx`）、空的类型参数（`DECIMAL(, 2)`）、带行注释的恢复项不再让整个文档格式化失败，只原样保留出错的那一项并报 warning
+* 畸形的窗口定义（如 `partition byx`）、后面跟行注释的语法错误项不再让整个文档格式化失败，只原样保留出错的那一项并报 warning
+* 空的类型参数（`DECIMAL(, 2)`）按普通语法错误报 `SYN_UNEXPECTED_TOKEN`，只保留出错的那一项；2.x 把它当作内部错误（`SYN_INTERNAL_INVARIANT`）并返回原文
 * `db_${env}.tbl_${dt}` 这类与名字连写的变量能被识别，整段作为一个名字参与排版
 * Experimental DDL：整行选区（终点在下一行开头）不再被拒；不再给没有结尾换行的文档补换行；格式化后选区不再落在单词中间；CRLF 文档中光标在某些位置时整次命令被拒的问题已修复；对已格式化的 DDL 不再提交相同的文本；`location`、`row`、`stored` 等可以作列名
 * 宿主：编辑器拒绝编辑时的提示不再一律归因于只读；修改配置后立即刷新配置诊断；formatOnPaste 产生的半句选区降为信息级诊断

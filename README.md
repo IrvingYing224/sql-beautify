@@ -68,7 +68,7 @@ GROUP BY
 
 - 关键字按 `keywordCase` 统一大小写；表名、列名、函数名保持原样。
 - SELECT、GROUP BY 和顶层 ORDER BY 的列表每项一行；`AS` 别名和行尾注释在 `maxAlignWidth` 以内按列对齐。逗号前置时，各项内容对齐到同一列，CASE、子查询这类多行内容也一样。
-- 逗号后面紧跟注释时（`a, -- 说明`），为了让注释留在原来那一行，整张列表改用后置逗号。逗号后置模式下，逗号前有行注释时（`a -- 说明` 换行接 `, b`），整张列表改用前置逗号，并给出一条信息级诊断。
+- 逗号后面紧跟注释时（`a, -- 说明`），为了让注释留在原来那一行，整张列表改用后置逗号。逗号后置模式下，逗号前有行注释时（`a -- 说明` 换行接 `, b`），整张列表改用前置逗号，并给出一条信息级诊断。同一张列表里两种情况都有、哪种风格都统一不了时（如 `a -- 说明` 换行接 `, b, -- 说明`），逐个逗号决定，前置和后置会混在一起。
 - CASE：默认（`compactShort`）短的 CASE 收成一行；整个 CASE 平铺后超过 `caseWhenThenWrapLength` 列，或者内部有注释、模板、跨行内容时展开。展开时 `END` 与 `CASE` 对齐，`WHEN`、`ELSE` 多缩进一层，函数参数里的 CASE 也一样。`WHEN … THEN …` 一行超过 `caseWhenThenWrapLength` 时，THEN 的值换到下一行。
 - WHERE、ON 中的 AND、OR 换行并缩进；窗口函数 `OVER (…)` 里的内容保持在一行。
 - 注释保持在原来的位置。关键字后面同一行的注释留在关键字那一行；如果是行注释，后面的内容换行并缩进一层。
@@ -81,8 +81,9 @@ GROUP BY
 | SELECT、WITH、UNION 等集合运算；`INSERT INTO/OVERWRITE … SELECT`（含 PARTITION 与列清单）；CTAS（`CREATE TABLE … AS SELECT`） | 完整排版。CTAS 中 `AS` 之前的部分只规范空白，查询从下一行开始 |
 | `SET key=value` | `SET` 改大小写，后面的内容原样保留 |
 | `USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`TRUNCATE`、`ALTER TABLE`、`CREATE FUNCTION` 等脚本语句 | 只规范空白：行内连续空白压成一个空格，删除行尾空白，换行不变；只有开头的关键字（如 `ANALYZE TABLE`）改大小写 |
+| `GRANT`、`REVOKE`、`SHOW GRANT` 等授权语句 | 只规范空白，所有词保持原来的大小写（用户名、角色名区分大小写） |
 | `ADD JAR`、`DFS`、`!`、`SOURCE` 等命令 | 命令名改大小写，后面的路径、URI、类名和参数原样保留 |
-| 列定义形式的 `CREATE TABLE`、`CREATE VIEW`、`EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、`UPDATE`、`DELETE`、`MERGE`、`GRANT`、`REVOKE`、FROM 开头的 multi-insert | 原样保留，并给出 warning（见下面的 `unsupportedSyntaxPolicy`）。列定义形式的 `CREATE TABLE` 可以用实验性的 Format Hive DDL 命令 |
+| 列定义形式的 `CREATE TABLE`、`CREATE VIEW`、`EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、`UPDATE`、`DELETE`、`MERGE`、FROM 开头的 multi-insert | 原样保留，并给出 warning（见下面的 `unsupportedSyntaxPolicy`）。列定义形式的 `CREATE TABLE` 可以用实验性的 Format Hive DDL 命令 |
 
 语句中有语法错误时，只原样保留出错的那一段，其余部分照常格式化，并给出 warning。
 
@@ -103,7 +104,7 @@ GROUP BY
 `unsupportedSyntaxPolicy`：
 
 - `warn`：不支持的部分原样保留，其余照常格式化，在编辑器中给出 warning。
-- `preserve`：与 `warn` 相同，但不显示 warning。手动执行 `SQL Beautify: Format SQL` 而文档因此没有变化时，会提示一次有几处未支持的区域。
+- `preserve`：与 `warn` 相同，但不显示上表中已识别的不支持语法（`CREATE TABLE`、`EXPLAIN`、`GROUPING SETS` 等）的 warning；语法错误和 FROM 开头的 multi-insert 的 warning 仍然显示。手动执行 `SQL Beautify: Format SQL` 而文档因此没有变化时，会提示一次有几处未支持的区域；如果是 Hive 建表语句，则提示改用 Format Hive DDL 命令。
 - `bail_out`：只要有不支持的部分，整个文档（或选区）都不修改。
 
 ## 诊断与日志

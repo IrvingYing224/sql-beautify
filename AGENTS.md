@@ -85,9 +85,10 @@ SQL Beautify 是所有者个人使用的 Hive SQL 格式化 VS Code 扩展，VSI
 
 - 提交格式 `<type>(scope): <summary>`，中文 summary 以动词开头、不超过 50 字、不以句号结尾；
   一个提交对应一个可回滚的边界。行为变化逐条写在提交说明中。
-- 在 `claude/*` 功能分支上开发；验收和复核通过后快进合入 `main`，不走 PR。不能快进时先把
-  `main` 合入功能分支；不 rebase，不 force-push。推送 `main` 后确认 CI，失败时在下一个提交里
-  修复或 revert。
+- 在 `claude/*` 功能分支上开发；验收和复核通过后快进合入 `main`，不走 PR。每批合入前至少
+  通过 `npm run typecheck`、`npm run build`、`npm test`、`npm run package`，fuzz 与 smoke 按
+  "测试"一节视改动范围另跑。不能快进时先把 `main` 合入功能分支；不 rebase，不 force-push。
+  推送 `main` 后确认 CI，失败时在下一个提交里修复或 revert。
 - 发布：在 `main` 上手动触发 workflow；package 版本、tag、CHANGELOG 三者一致；
   未发布的版本不写发布日期，发布时补上。
 - 不提交 `.vsix`、`dist/`、`.tmp/`。
