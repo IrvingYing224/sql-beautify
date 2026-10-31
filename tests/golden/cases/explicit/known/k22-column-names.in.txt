@@ -1,0 +1,2 @@
+-- golden: {"op":"formatHiveDdl"}
+create table t (location string, row int, stored string, sorted int, clustered string, partitioned int, tblproperties string, id bigint comment 'x') stored as orc

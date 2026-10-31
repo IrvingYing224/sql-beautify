@@ -3288,6 +3288,11 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k22-column-names": {
+  "op": "formatHiveDdl",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k28-template-after-identifier": {
   "op": "formatSql",
   "status": "formatted",

@@ -26,17 +26,11 @@ import { resolveHiveDdlFormatOptions, type ResolvedHiveDdlFormatOptions } from "
 import { ddlDiagnostic } from "./result";
 import type { DdlLayout, HiveDdlResult, HiveDdlStatus } from "./types";
 
+// Words that start a table constraint inside the column list; any other word can name a column (K22).
 const RESERVED_COLUMN_STARTS = new Set([
-    "clustered",
     "constraint",
     "foreign",
-    "location",
-    "partitioned",
     "primary",
-    "row",
-    "sorted",
-    "stored",
-    "tblproperties",
     "unique",
 ]);
 const STORAGE_FORMATS: ReadonlySet<string> = new Set([
@@ -242,7 +236,7 @@ function parseColumns(
             failAt(
                 artifact,
                 "DDL_UNMODELED_COLUMN",
-                "Hive table constraints and suffix clauses are not modeled as columns",
+                "Hive table constraints are not modeled as columns",
                 cursor
             );
         }

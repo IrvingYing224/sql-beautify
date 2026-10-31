@@ -1,0 +1,12 @@
+CREATE TABLE t
+(
+     location      STRING
+    ,row           INT
+    ,stored        STRING
+    ,sorted        INT
+    ,clustered     STRING
+    ,partitioned   INT
+    ,tblproperties STRING
+    ,id            BIGINT COMMENT 'x'
+)
+STORED AS ORC
