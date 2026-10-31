@@ -3034,6 +3034,11 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k06-zero-width-family": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k07-adjacent-templates": {
   "op": "formatSql",
   "status": "formatted",

@@ -1,0 +1,4 @@
+select case when a = 1 then concat(a, b)else 'n/a' end as x from t;
+select case when a = 1 then t.c1 /* c */ELSE 0 end as x from t;
+select case when a then 1 /* c */when b then 2 end as x from t;
+select case /* c */when a = 1 then 1 end as x from t;

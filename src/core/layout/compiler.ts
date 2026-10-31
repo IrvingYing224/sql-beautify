@@ -2,7 +2,7 @@ import type { LayoutArtifact } from "./artifact";
 import { createLayoutArtifact } from "./artifact";
 import type { LayoutDoc } from "./doc";
 import { createLayoutDocFactory } from "./doc-factory";
-import type { LayoutPlan, LayoutScopeAction } from "./plan";
+import type { LayoutGapAction, LayoutPlan, LayoutScopeAction } from "./plan";
 
 export type LayoutCompileFailureCode =
     | "LAYOUT_COMPILE_ACTION"
@@ -52,6 +52,26 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
         const appendDoc = (doc: LayoutDoc): void => {
             frames[frames.length - 1]!.parts.push(doc);
         };
+        const appendGap = (gap: LayoutGapAction): LayoutCompileFailure | null => {
+            const decision = gap.decision;
+            const doc = decision.kind === "space"
+                ? factory.space(decision.columns)
+                : decision.kind === "hard-line"
+                  ? factory.hardLine()
+                  : decision.kind === "soft-line"
+                    ? factory.softLine(decision.flat)
+                    : decision.kind === "pad-to-column"
+                      ? factory.padToColumn(decision.targetColumn)
+                      : factory.empty();
+            if (doc === null) {
+                return failure(
+                    "LAYOUT_COMPILE_DOC",
+                    `Gap action at leaf ${gap.startLeafId} could not create a document node`
+                );
+            }
+            appendDoc(doc);
+            return null;
+        };
         const closeScope = (action: LayoutScopeAction): LayoutCompileFailure | null => {
             const frame = frames[frames.length - 1];
             if (frame === undefined || frame.action?.id !== action.id) {
@@ -89,7 +109,21 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
         };
 
         while (cursor <= plan.analysis.leaves.length) {
-            if (boundaryPending && hasScopes) {
+            const atBoundary = boundaryPending;
+            const gap = atBoundary ? plan.gapActions[cursor] : null;
+            if (
+                gap !== null &&
+                gap !== undefined &&
+                (gap.startLeafId !== cursor ||
+                    gap.endLeafId < cursor ||
+                    gap.endLeafId > plan.analysis.leaves.length)
+            ) {
+                return failure(
+                    "LAYOUT_COMPILE_ACTION",
+                    `Invalid gap action at leaf ${cursor}`
+                );
+            }
+            if (atBoundary && hasScopes) {
                 const endingScopes = plan.scopeEnds[cursor];
                 if (endingScopes !== null && endingScopes !== undefined) {
                     for (const scope of endingScopes) {
@@ -100,6 +134,16 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
                         }
                     }
                 }
+            }
+            // A gap with no source whitespace goes between the scopes that end here and the ones
+            // that start here, where it would sit if the source had whitespace (K6).
+            if (gap !== null && gap !== undefined && gap.endLeafId === cursor) {
+                const appended = appendGap(gap);
+                if (appended !== null) {
+                    return appended;
+                }
+            }
+            if (atBoundary && hasScopes) {
                 const startingScopes = plan.scopeStarts[cursor];
                 if (startingScopes !== null && startingScopes !== undefined) {
                     for (const scope of startingScopes) {
@@ -108,35 +152,12 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
                     }
                 }
             }
-            const gap = boundaryPending ? plan.gapActions[cursor] : null;
             if (gap !== null && gap !== undefined) {
-                if (
-                    gap.startLeafId !== cursor ||
-                    gap.endLeafId < cursor ||
-                    gap.endLeafId > plan.analysis.leaves.length
-                ) {
-                    return failure(
-                        "LAYOUT_COMPILE_ACTION",
-                        `Invalid gap action at leaf ${cursor}`
-                    );
-                }
-                const doc = gap.decision.kind === "space"
-                    ? factory.space(gap.decision.columns)
-                    : gap.decision.kind === "hard-line"
-                      ? factory.hardLine()
-                      : gap.decision.kind === "soft-line"
-                        ? factory.softLine(gap.decision.flat)
-                        : gap.decision.kind === "pad-to-column"
-                          ? factory.padToColumn(gap.decision.targetColumn)
-                        : factory.empty();
-                if (doc === null) {
-                    return failure(
-                        "LAYOUT_COMPILE_DOC",
-                        `Gap action at leaf ${cursor} could not create a document node`
-                    );
-                }
-                appendDoc(doc);
                 if (gap.endLeafId > cursor) {
+                    const appended = appendGap(gap);
+                    if (appended !== null) {
+                        return appended;
+                    }
                     cursor = gap.endLeafId;
                     boundaryPending = true;
                     continue;

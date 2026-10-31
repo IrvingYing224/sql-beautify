@@ -1,10 +1,4 @@
 {
- "explicit/known/k06-then-string-else": {
-  "issue": "K6",
-  "waive": [
-   "idempotence"
-  ]
- },
  "explicit/known/k30-comment-before-paren": {
   "issue": "K30",
   "waive": [

@@ -1,0 +1,24 @@
+SELECT
+      CASE
+          WHEN a = 1 THEN concat(a, b)
+          ELSE 'n/a'
+      END AS x
+FROM t;
+SELECT
+      CASE
+          WHEN a = 1 THEN t.c1 /* c */
+          ELSE 0
+      END AS x
+FROM t;
+SELECT
+      CASE
+          WHEN a THEN 1 /* c */
+          WHEN b THEN 2
+      END AS x
+FROM t;
+SELECT
+      CASE
+      /* c */
+          WHEN a = 1 THEN 1
+      END AS x
+FROM t;
