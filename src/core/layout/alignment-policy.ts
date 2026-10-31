@@ -223,8 +223,9 @@ function buildCandidateItemShapes(
             hasMultilineSyntax ||=
                 analysis.index.leafContainsLineBreak(leafId);
         }
-        if (firstLine < 0 || lastLine < 0 || lastSyntaxLeafId < 0) {
-            return null;
+        // A recovered item has no syntax leaves and takes no part in alignment (K31).
+        if (firstLine < 0) {
+            continue;
         }
         shapes.set(item.id, Object.freeze({
             firstLine,
@@ -536,7 +537,7 @@ export function deriveLayoutAlignmentPlan(
         for (const item of candidateItems) {
             const baseShape = baseShapes.get(item.id);
             if (baseShape === undefined) {
-                return null;
+                continue;
             }
             shapes.set(item.id, Object.freeze({
                 ...baseShape,

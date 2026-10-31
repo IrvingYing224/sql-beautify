@@ -238,6 +238,19 @@ class WindowParser {
             );
         }
 
+        // Words before the first clause (a misspelt `partition byx a`, or a base window name,
+        // K41) are not modelled; the recovery keeps the item as written (K31).
+        const firstClause = Math.min(
+            ...[partitionPosition, orderPosition, framePosition].filter((position) => position >= 0)
+        );
+        if (firstClause !== bodyStart) {
+            throw new ParserSyntaxError(
+                "SYN_UNEXPECTED_TOKEN",
+                rangeFromIndexes(this.indexes, bodyStart, firstClause),
+                "Window specification has an unmodeled body"
+            );
+        }
+
         let partition: ListNode | null = null;
         let order: ListNode | null = null;
         let frame: ExpressionNode | null = null;

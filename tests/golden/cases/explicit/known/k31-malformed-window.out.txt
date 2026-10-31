@@ -1,0 +1,3 @@
+SELECT
+      row_number() over (partition byx a order by b desc) AS rn
+FROM t

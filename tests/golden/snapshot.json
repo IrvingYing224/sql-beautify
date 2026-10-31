@@ -3318,17 +3318,16 @@
  },
  "explicit/known/k31-malformed-window": {
   "op": "formatSql",
-  "status": "failed",
+  "status": "formatted",
   "codes": [
-   "LAYOUT_PLAN_PROVENANCE"
+   "SYN_UNEXPECTED_TOKEN"
   ]
  },
  "explicit/known/k31-recovered-item-comments": {
   "op": "formatSql",
-  "status": "failed",
+  "status": "formatted",
   "codes": [
-   "SYN_UNEXPECTED_TOKEN",
-   "LAYOUT_ALIGNMENT_FACTS"
+   "SYN_UNEXPECTED_TOKEN"
   ]
  },
  "explicit/known/k33-bracket-lists": {
@@ -3345,6 +3344,13 @@
   "op": "formatSql",
   "status": "formatted",
   "codes": []
+ },
+ "explicit/known/k41-base-window-name": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN"
+  ]
  },
  "explicit/literal/alias-l": {
   "op": "formatSql",
