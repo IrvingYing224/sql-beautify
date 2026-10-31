@@ -21,7 +21,7 @@
 * 扩展 Experimental Hive DDL：支持可选 `PARTITIONED BY`、六种 `STORED AS` format 与 `keywordCase`/`commaStyle`/`indentStyle`/`maxAlignWidth` options；修复 range normalization 改写多行 string、Unicode/tabSize 列名错列、超宽名称乘法级输出和超限输入进入同步分析，Extract options 改为严格 plain-data 边界
 * 收敛生产不变量遍历、source-map 查询、diagnostic 去重和 Unicode 宽度热路径；性能门改用单一基线、确定性操作计数与独立 strict relative gate
 * 将 core/runtime build 改为带锁、完整产物 SHA-256 缓存、staging 和可恢复发布；VSIX verifier 同时锚定当前 source hash、可信 output manifest、完整 package metadata、repository-owned static bytes 与 generated identity/dependency metadata，dist ownership 只接管 allowlist regular file；统一 npm/VSIX allowlist 与声明式串行测试 runner，并在 Node 20/24 上执行公开 facade 和 extension activation smoke
-* 公开生产 corpus 扩为 25 个 manifest case；完整升级与回退边界见 `docs/migration-to-2.2.md`
+* 公开生产 corpus 扩为 25 个 manifest case；完整升级与回退边界见 [2.2 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.2.1/docs/migration-to-2.2.md)
 
 ### 2.1.0 (2026/07/26)
 * 为 CRLF、lone CR、BOM 和 trailing comma + 行尾注释建立 lossless、幂等且 source-map 单调的格式化边界
@@ -32,7 +32,7 @@
 * 按方言限定裸标识符字符集并合并连续 unknown run，收紧 Hive/generic、PostgreSQL 和 MySQL 的词法边界
 * 支持有界的 Hive `INSERT INTO [TABLE] ... [PARTITION (...)] SELECT/WITH ...` 与 `SET`；明确保留 `EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、DDL、`UPDATE` 和 `DELETE`
 * 将公开生产语料扩为 20-case manifest，覆盖多 KB 查询、CJK、CRLF/BOM、注释、四方言和 formatted/verbatim capability
-* 完整升级行为与兼容边界见 `docs/migration-to-2.1.md`
+* 完整升级行为与兼容边界见 [2.1 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.2.1/docs/migration-to-2.1.md)
 
 ### 2.0.1 (2026/07/26)
 * 修正文档中的旧 `extractddl` 名称、Experimental Hive DDL 支持边界、support matrix 作用域和 2.0.0 实际发布日期
@@ -52,7 +52,7 @@
 * Node API 改为 `vscode-sql-beautify/formatter` 与 `vscode-sql-beautify/experimental/ddl` 两个显式 subpath export，package root 不再公开
 * 构建只生成五个共享生产 artifact；VSIX 使用显式 allowlist，clean package 与 release gate 校验 version/tag/SHA/manifest/artifact 一致性
 * CI 默认权限收敛为只读，只有从 `main` 手动触发的 release job 获得内容写权限
-* 完整 breaking change 和迁移步骤见 `docs/migration-to-2.0.md`
+* 完整 breaking change 和迁移步骤见 [2.0 迁移指南](https://github.com/IrvingYing224/sql-beautify/blob/v2.2.1/docs/migration-to-2.0.md)
 
 ### 1.0.13 (2026/07/05)
 * 将 `SELECT DISTINCT` / `SELECT ALL` 重构为结构化 SELECT header modifier，挂载在 `selectSpan.header.modifier`，不再作为 select item 参与字段列表布局

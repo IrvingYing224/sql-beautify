@@ -1,6 +1,8 @@
 # ADR 0004：按方言限定裸标识符字符集并合并 unknown run
 
-状态：接受
+状态：已被 3.0 取代。3.0 只保留 Hive 方言（ADR 0006 的 D1），PostgreSQL 与 MySQL 的标识符规则随之删除；
+direct 与 worker 的路由改为只看输入长度（不小于 32 Ki code units 走 worker），下文的 8,192 / 2,000 阈值
+不再适用。Hive 的标识符字符集与连续 unknown run 合并为一个 leaf 的做法仍然有效。
 
 日期：2026-07-26
 

@@ -42,7 +42,7 @@ A project-owned lossless lexer remains mandatory in every outcome. External pars
 - Cold start requires the built CommonJS artifact, constructs `HiveSQL`, and verifies that `SELECT 1` has no syntax diagnostics.
 - `maxRssKb` is the evaluation process upper watermark, not isolated parser heap.
 
-Full per-case evidence is recorded in `docs/technical/v2-parser-evaluation-report.md`.
+Full per-case evidence is recorded in [`v2-parser-evaluation-report.md`](https://github.com/IrvingYing224/sql-beautify/blob/v2.2.1/docs/technical/v2-parser-evaluation-report.md) (removed from `main` in 3.0).
 
 ## Consequences
 
