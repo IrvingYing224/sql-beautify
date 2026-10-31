@@ -4,7 +4,7 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
-### 3.1.0
+### 3.1.0 (2026/10/31)
 
 **新增**
 
