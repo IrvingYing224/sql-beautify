@@ -46,10 +46,7 @@ WHERE f(
     b
 ) = 1;
 SELECT
-      f(
-          a, /* x */
-          b
-      )
+      f(a, /* x */ b)
     , f(a, /* x */ b)
 FROM t;
 SELECT
@@ -63,7 +60,4 @@ FROM t;
 SELECT
       a
 FROM t
-WHERE a IN (
-    1,
-    /* x */ 2, 3
-)
+WHERE a IN (1, /* x */ 2, 3)

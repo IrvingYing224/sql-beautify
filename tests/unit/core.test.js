@@ -175,12 +175,14 @@ test('R5: formatSql output stops at 4 x input + 64 Ki code units', function() {
 test('U-CFG: option validation and the manifest agree', function() {
     var resolve = m.resolve.resolveFormatOptions;
     assert.deepStrictEqual(resolve(), { ok: true, options: { keywordCase: 'upper', commaStyle: 'leading',
-        indentStyle: 'space', maxAlignWidth: 150, caseWhenThenWrapLength: 50, caseLayout: 'compactShort', unsupportedSyntaxPolicy: 'warn' } });
-    var full = { keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab', maxAlignWidth: 1,
+        indentStyle: 'space', maxAlignWidth: 150, maxLineWidth: 120, caseWhenThenWrapLength: 50, caseLayout: 'compactShort',
+        unsupportedSyntaxPolicy: 'warn' } });
+    var full = { keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab', maxAlignWidth: 1, maxLineWidth: 0,
         caseWhenThenWrapLength: 300, caseLayout: 'compactShort', unsupportedSyntaxPolicy: 'bail_out' };
     assert.deepStrictEqual(resolve(full), { ok: true, options: full });
     assert.strictEqual(resolve({ maxAlignWidth: 500 }).ok, true);
     assert.strictEqual(resolve({ caseWhenThenWrapLength: 1 }).ok, true);
+    assert.strictEqual(resolve({ maxLineWidth: 500 }).ok, true);
     function failure(values) {
         var result = resolve(values);
         return [result.ok, result.code, result.optionKey];
@@ -190,6 +192,9 @@ test('U-CFG: option validation and the manifest agree', function() {
     });
     [0, 301, 1.5, NaN, Infinity].forEach(function(value) {
         assert.deepStrictEqual(failure({ caseWhenThenWrapLength: value }), [false, 'CFG_OPTION_VALUE', 'caseWhenThenWrapLength']);
+    });
+    [-1, 501, 1.5, NaN, Infinity].forEach(function(value) {
+        assert.deepStrictEqual(failure({ maxLineWidth: value }), [false, 'CFG_OPTION_VALUE', 'maxLineWidth']);
     });
     [['keywordCase', 'title'], ['commaStyle', 'none'], ['indentStyle', 'mixed'], ['caseLayout', 'auto'],
         ['unsupportedSyntaxPolicy', 'ignore']].forEach(function(pair) {

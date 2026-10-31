@@ -9,6 +9,8 @@ export interface CanonicalFormatOptions {
     readonly commaStyle: CommaStyle;
     readonly indentStyle: IndentStyle;
     readonly maxAlignWidth: number;
+    /** Width past which a parenthesized comma list wraps; 0 never wraps. */
+    readonly maxLineWidth: number;
     readonly caseWhenThenWrapLength: number;
     readonly caseLayout: CaseLayout;
     readonly unsupportedSyntaxPolicy: UnsupportedSyntaxPolicy;

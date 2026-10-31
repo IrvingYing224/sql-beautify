@@ -2,6 +2,8 @@ import type { AnalyzedArtifact, CommentBinding } from "../analysis/types";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type {
     AlignDoc,
+    BreakIndentDoc,
+    FillDoc,
     HangDoc,
     AutoGroupDoc,
     ConcatDoc,
@@ -57,9 +59,11 @@ export interface LayoutDocFactory {
     padToColumn(targetColumn: number): LayoutDoc | null;
     autoGroup(maxFlatWidth: number, content: LayoutDoc): AutoGroupDoc | null;
     group(
-        mode: "flat" | "break",
+        mode: "flat" | "break" | "fit",
         content: LayoutDoc
     ): ForcedGroupDoc | null;
+    breakIndent(content: LayoutDoc): BreakIndentDoc;
+    fill(parts: readonly LayoutDoc[]): FillDoc;
     lineSuffix(
         commentLeafId: number,
         spacing?: LineSuffixSpacingInput
@@ -268,10 +272,18 @@ export function createLayoutDocFactory(
         },
 
         group(mode, content): ForcedGroupDoc | null {
-            if (mode !== "flat" && mode !== "break") {
+            if (mode !== "flat" && mode !== "break" && mode !== "fit") {
                 return null;
             }
             return Object.freeze({ kind: "group", mode, content });
+        },
+
+        breakIndent(content): BreakIndentDoc {
+            return Object.freeze({ kind: "break-indent", content });
+        },
+
+        fill(parts): FillDoc {
+            return Object.freeze({ kind: "fill", parts: Object.freeze(parts.slice()) });
         },
 
         lineSuffix(commentLeafId, spacing = null): LineSuffixDoc | null {

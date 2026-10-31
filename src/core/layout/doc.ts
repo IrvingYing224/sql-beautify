@@ -105,8 +105,21 @@ export interface AutoGroupDoc {
 
 export interface ForcedGroupDoc {
     readonly kind: "group";
-    readonly mode: "flat" | "break";
+    /** `fit` breaks when the content does not fit within maxLineWidth from its column (K16). */
+    readonly mode: "flat" | "break" | "fit";
     readonly content: LayoutDoc;
+}
+
+/** One more indent level for its content when the enclosing group breaks. */
+export interface BreakIndentDoc {
+    readonly kind: "break-indent";
+    readonly content: LayoutDoc;
+}
+
+/** In a breaking group each soft line among `parts` breaks only when the next part does not fit. */
+export interface FillDoc {
+    readonly kind: "fill";
+    readonly parts: readonly LayoutDoc[];
 }
 
 export interface LineSuffixDoc {
@@ -128,4 +141,6 @@ export type LayoutDoc =
     | PadToColumnDoc
     | AutoGroupDoc
     | ForcedGroupDoc
+    | BreakIndentDoc
+    | FillDoc
     | LineSuffixDoc;

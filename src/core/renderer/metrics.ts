@@ -143,6 +143,7 @@ function childOf(doc: LayoutDoc): LayoutDoc | null {
     return doc.kind === "indent" ||
         doc.kind === "align" ||
         doc.kind === "hang" ||
+        doc.kind === "break-indent" ||
         doc.kind === "group"
         ? doc.content
         : null;
@@ -160,7 +161,7 @@ export function measureLayoutArtifact(artifact: LayoutArtifact): LayoutMetricsRe
             if (!item.exit) {
                 docNodeCount += 1;
                 work.push({ doc, exit: true });
-                if (doc.kind === "concat") {
+                if (doc.kind === "concat" || doc.kind === "fill") {
                     for (let index = doc.parts.length - 1; index >= 0; index--) {
                         work.push({ doc: doc.parts[index]!, exit: false });
                     }
@@ -217,10 +218,12 @@ export function measureLayoutArtifact(artifact: LayoutArtifact): LayoutMetricsRe
                         : noSourceSummary(doc.flat === "space" ? 1 : 0);
                     break;
                 case "concat":
+                case "fill":
                     summary = combineConcat(doc.parts, summaries);
                     break;
                 case "indent":
-                case "hang": {
+                case "hang":
+                case "break-indent": {
                     const child = summaries.get(doc.content);
                     summary = child ?? null;
                     break;

@@ -1,4 +1,5 @@
 import type { LeafRange } from "../syntax/leaf-range";
+import type { LayoutGapDecision } from "./plan";
 import type {
     AliasInfo,
     ListItemNode,
@@ -129,7 +130,8 @@ export function formatAlias(
 export function formatFlatList(
     context: QueryLayoutContext,
     authorityNodeId: number,
-    list: ListNode
+    list: ListNode,
+    afterSeparator: LayoutGapDecision = SPACE
 ): boolean {
     const members = list.children;
     if (list.separatorLeafIds.length !== Math.max(0, members.length - 1)) {
@@ -152,7 +154,7 @@ export function formatFlatList(
                 authorityNodeId,
                 separatorLeafId + 1,
                 right.leafRange.start,
-                SPACE
+                afterSeparator
             )
         ) {
             return false;

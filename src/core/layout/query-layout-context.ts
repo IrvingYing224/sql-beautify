@@ -284,7 +284,10 @@ export function wrapLayoutRange(
     );
     if (
         success &&
-        (decision.kind === "indent" || decision.kind === "align" || decision.kind === "hang")
+        (decision.kind === "indent" ||
+            decision.kind === "align" ||
+            decision.kind === "hang" ||
+            decision.kind === "break-indent")
     ) {
         context.state.hasIndentationScope = true;
         context.scopeDeltas[startLeafId] =

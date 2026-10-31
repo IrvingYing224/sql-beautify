@@ -110,6 +110,14 @@
 					"maximum": 500,
 					"description": "Maximum code width for AS and trailing comment alignment. /AS 和行尾注释对齐的最大代码宽度"
 				},
+				"sqlBeautify.maxLineWidth": {
+					"scope": "language-overridable",
+					"type": "integer",
+					"default": 120,
+					"minimum": 0,
+					"maximum": 500,
+					"description": "Line width past which a parenthesized comma list (IN list, function arguments) wraps; 0 never wraps. /括号里的逗号列表（IN 列表、函数参数）超过这个行宽时换行，0 表示不换行"
+				},
 				"sqlBeautify.caseWhenThenWrapLength": {
 					"scope": "language-overridable",
 					"type": "integer",

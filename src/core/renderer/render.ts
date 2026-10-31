@@ -18,9 +18,15 @@ import type {
 
 interface DocFrame {
     readonly doc: LayoutDoc;
-    readonly mode: "flat" | "break";
+    /**
+     * `hug` is a fit group that stays on its line: its own soft lines are flat, while the groups
+     * inside it still decide for themselves.
+     */
+    readonly mode: "flat" | "break" | "hug";
     readonly indentLevels: number;
     readonly alignColumns: number;
+    /** The next part of a fill doc. */
+    readonly fillIndex?: number;
 }
 
 interface PendingSuffix {
@@ -445,6 +451,100 @@ function renderCanonical(
         appendGeneratedLineBreak();
     };
 
+    /** The column the next output starts at, after pending comments and the line prefix. */
+    const currentColumn = (frame: DocFrame): number => {
+        beforeSource("");
+        return needsLinePrefix
+            ? indentEndColumn(baseColumns, frame.indentLevels, frame.alignColumns)
+            : displayColumn;
+    };
+
+    /**
+     * The flat width of the fill parts from `start` up to the next line. A part that cannot be
+     * written flat ends the measured run.
+     */
+    const fillSegmentWidth = (parts: readonly LayoutDoc[], start: number): number => {
+        let width = 0;
+        for (let next = start; next < parts.length; next++) {
+            const part = parts[next]!;
+            const partWidth = part.kind === "line" ? null : metrics.summaryOf(part)?.flatWidth ?? null;
+            if (partWidth === null) {
+                break;
+            }
+            width += partWidth;
+        }
+        return width;
+    };
+
+    /**
+     * The width the docs left on the stack write before the next line break, growing until it
+     * passes `limit`. A fit group counts as staying on its line and a pad as one space, so the
+     * width is the same before and after alignment.
+     */
+    const restOfLineWidth = (limit: number): number => {
+        let width = 0;
+        for (let frameIndex = stack.length - 1; frameIndex >= 0; frameIndex--) {
+            const frame = stack[frameIndex]!;
+            const work = [{ doc: frame.doc, mode: frame.mode, start: frame.fillIndex ?? 0 }];
+            while (work.length > 0) {
+                const { doc, mode, start } = work.pop()!;
+                let add: number | null = 0;
+                switch (doc.kind) {
+                    case "leaf":
+                    case "verbatim":
+                        add = metrics.summaryOf(doc)?.flatWidth ?? null;
+                        break;
+                    case "line-suffix": {
+                        // A trailing block comment and the space before it; a line comment ends the line.
+                        const comment = metrics.summaryOf(doc)?.flatWidth ?? null;
+                        add = comment === null ? null : comment + 1;
+                        break;
+                    }
+                    case "space":
+                        add = doc.columns;
+                        break;
+                    case "pad-to-column":
+                        add = 1;
+                        break;
+                    case "line":
+                        add = doc.mode === "hard" || mode === "break" ? null : doc.flat === "space" ? 1 : 0;
+                        break;
+                    case "concat":
+                    case "fill":
+                        // The soft lines of a breaking fill count as breaks.
+                        for (let part = doc.parts.length - 1; part >= start; part--) {
+                            work.push({ doc: doc.parts[part]!, mode, start: 0 });
+                        }
+                        break;
+                    case "group": {
+                        const flatWidth = metrics.summaryOf(doc.content)?.flatWidth ?? null;
+                        const groupMode = mode === "flat"
+                            ? "flat"
+                            : doc.mode === "auto"
+                              ? flatWidth !== null && flatWidth <= doc.maxFlatWidth ? "flat" : "break"
+                              : doc.mode === "fit" ? "hug" : doc.mode;
+                        work.push({ doc: doc.content, mode: groupMode, start: 0 });
+                        break;
+                    }
+                    case "indent":
+                    case "align":
+                    case "hang":
+                    case "break-indent":
+                        work.push({ doc: doc.content, mode, start: 0 });
+                        break;
+                }
+                if (add === null) {
+                    return width;
+                }
+                width += add;
+                if (width > limit) {
+                    return width;
+                }
+            }
+        }
+        return width;
+    };
+
     const beforeSource = (raw: string): void => {
         if (suffixes.length === 0) {
             return;
@@ -549,10 +649,7 @@ function renderCanonical(
                 case "hang": {
                     // Pending comments are written before the hanging content, so the column is
                     // read after them; at a line start it is where the line prefix will end.
-                    beforeSource("");
-                    const column = needsLinePrefix
-                        ? indentEndColumn(baseColumns, frame.indentLevels, frame.alignColumns)
-                        : displayColumn;
+                    const column = currentColumn(frame);
                     stack.push({
                         doc: doc.content,
                         mode: frame.mode,
@@ -568,7 +665,7 @@ function renderCanonical(
                     emitPad(doc.targetColumn, frame);
                     break;
                 case "group": {
-                    let mode: "flat" | "break";
+                    let mode: DocFrame["mode"];
                     if (frame.mode === "flat") {
                         mode = "flat";
                     } else if (doc.mode === "auto") {
@@ -579,6 +676,24 @@ function renderCanonical(
                             summary.flatWidth <= doc.maxFlatWidth
                                 ? "flat"
                                 : "break";
+                    } else if (doc.mode === "fit") {
+                        // A list breaks when it does not fit on its line, while its opening
+                        // delimiter does and what follows the closing one then fits after it.
+                        // Content that cannot be written flat (a multiline CASE or subquery) keeps
+                        // its delimiters where they are, and so does a list in a line too long
+                        // for other reasons (K16).
+                        const limit = artifact.options.maxLineWidth;
+                        const width = metrics.summaryOf(doc.content)?.flatWidth ?? null;
+                        const column = currentColumn(frame);
+                        const closeColumn =
+                            indentEndColumn(baseColumns, frame.indentLevels, frame.alignColumns) + 1;
+                        mode = limit > 0 &&
+                            width !== null &&
+                            column + width > limit &&
+                            column + 1 <= limit &&
+                            closeColumn + restOfLineWidth(limit) <= limit
+                            ? "break"
+                            : "hug";
                     } else {
                         mode = doc.mode;
                     }
@@ -588,6 +703,51 @@ function renderCanonical(
                         indentLevels: frame.indentLevels,
                         alignColumns: frame.alignColumns,
                     });
+                    break;
+                }
+                case "break-indent":
+                    stack.push({
+                        doc: doc.content,
+                        mode: frame.mode,
+                        indentLevels: frame.indentLevels + (frame.mode === "break" ? 1 : 0),
+                        alignColumns: frame.alignColumns,
+                    });
+                    break;
+                case "fill": {
+                    const index = frame.fillIndex ?? 0;
+                    if (frame.mode !== "break") {
+                        for (let part = doc.parts.length - 1; part >= 0; part--) {
+                            stack.push({
+                                doc: doc.parts[part]!,
+                                mode: frame.mode,
+                                indentLevels: frame.indentLevels,
+                                alignColumns: frame.alignColumns,
+                            });
+                        }
+                        break;
+                    }
+                    const part = doc.parts[index];
+                    if (part === undefined) {
+                        break;
+                    }
+                    stack.push({ ...frame, fillIndex: index + 1 });
+                    if (part.kind === "line" && part.mode === "soft") {
+                        const limit = artifact.options.maxLineWidth;
+                        const width = (part.flat === "space" ? 1 : 0) +
+                            fillSegmentWidth(doc.parts, index + 1);
+                        if (limit > 0 && currentColumn(frame) + width > limit) {
+                            emitLineBreak();
+                        } else if (part.flat === "space") {
+                            emitSpaces(1, frame);
+                        }
+                    } else {
+                        stack.push({
+                            doc: part,
+                            mode: frame.mode,
+                            indentLevels: frame.indentLevels,
+                            alignColumns: frame.alignColumns,
+                        });
+                    }
                     break;
                 }
                 case "line-suffix":

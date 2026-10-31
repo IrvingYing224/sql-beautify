@@ -1,0 +1,64 @@
+SELECT
+	  a
+FROM t
+WHERE a IN (
+	1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018, 1019,
+	1020, 1021, 1022, 1023, 1024
+);
+SELECT
+	  concat_ws('-', province_name, city_name, district_name, street_name, community_name, building_no, room_no) AS addr
+FROM t;
+SELECT
+	  concat_ws(
+		  '|', coalesce(CAST(user_id AS STRING), ''), coalesce(CAST(order_id AS STRING), ''),
+		  coalesce(CAST(amount AS STRING), '')
+	  ) AS line
+FROM t;
+SELECT
+	  coalesce(f0, 0) + coalesce(f1, 0) + coalesce(f2, 0) + coalesce(f3, 0) + coalesce(f4, 0) + coalesce(f5, 0) + coalesce(f6, 0) AS total
+FROM t;
+SELECT
+	  sum(CASE
+		      WHEN status IN ('paid', 'shipped', 'delivered', 'completed') THEN
+			      amount
+		      ELSE 0
+	      END) AS paid
+	, count(DISTINCT user_id, order_id, product_id, sku_id, warehouse_id, region_id, channel_id) AS n
+FROM t;
+SELECT
+	  a
+FROM t
+WHERE city IN (
+	'北京', '上海', '广州', '深圳', '杭州', '南京', '成都', '重庆', '武汉', '西安', '天津', '苏州', '长沙', '郑州'
+);
+SELECT
+	  named_struct('id', id, 'name', name, /* keep */ 'age', age, 'city', city, 'country', country, 'zip', zip_code) AS s, -- c
+	  nvl(x, 0)                                                                                                      AS y
+FROM t;
+SELECT
+	  a
+FROM t
+WHERE code IN ('c01', 'c02', 'c03', 'c04', 'c05', 'c06', 'c07', 'c08', 'c09', 'c10', 'c11', 'c12', 'c13', 'xxxxxxxxxxx');
+SELECT
+	  a
+FROM t
+WHERE code IN (
+	'c01', 'c02', 'c03', 'c04', 'c05', 'c06', 'c07', 'c08', 'c09', 'c10', 'c11', 'c12', 'c13', 'c14', 'xxxxx'
+);
+SELECT
+	  a
+FROM t
+WHERE code IN (
+	'c01', 'c02', 'c03', -- first three
+	'c04', 'c05', 'c06', 'c07', 'c08', 'c09', 'c10', 'c11', 'c12', 'c13', 'c14', 'c15', 'c16', 'c17', 'c18', 'c19',
+	'c20', 'c21', 'c22', 'c23'
+);
+SELECT
+	  a
+FROM t
+WHERE code IN (
+	'c01', 'c02',
+	/* the rest */
+	'c03', 'c04', 'c05', 'c06', 'c07', 'c08', 'c09', 'c10', 'c11', 'c12', 'c13', 'c14', 'c15', 'c16', 'c17', 'c18',
+	'c19', 'c20', 'c21', 'c22', 'c23'
+)

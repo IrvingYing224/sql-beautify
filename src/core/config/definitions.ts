@@ -33,6 +33,7 @@ export const FORMAT_OPTION_DEFINITIONS: OptionDefinitions = Object.freeze({
     commaStyle: enumeration(["leading", "trailing"], "leading"),
     indentStyle: enumeration(["tab", "space"], "space"),
     maxAlignWidth: integer(1, 500, 150),
+    maxLineWidth: integer(0, 500, 120),
     caseWhenThenWrapLength: integer(1, 300, 50),
     caseLayout: enumeration(["expanded", "compactShort"], "compactShort"),
     unsupportedSyntaxPolicy: enumeration(["preserve", "warn", "bail_out"], "warn"),

@@ -12,6 +12,17 @@ export const SOFT_LINE_SPACE = Object.freeze({
     kind: "soft-line" as const,
     flat: "space" as const,
 });
+/** Where a parenthesized list may wrap: after a separator, and inside its delimiters (K16). */
+export const REFLOW_LINE_SPACE = Object.freeze({
+    kind: "soft-line" as const,
+    flat: "space" as const,
+    reflow: true as const,
+});
+export const REFLOW_LINE_EMPTY = Object.freeze({
+    kind: "soft-line" as const,
+    flat: "empty" as const,
+    reflow: true as const,
+});
 
 export function isLayoutTrivia(
     analysis: LayoutAnalysisView,
@@ -31,6 +42,20 @@ export function isCommentLeaf(
 ): boolean {
     const kind = analysis.leafKind(leafId);
     return kind === "line-comment" || kind === "block-comment";
+}
+
+/** Whether the source has a line break, after at most one run of blanks, on each side of a leaf. */
+export function lineBreaksBeside(
+    analysis: LayoutAnalysisView,
+    leafId: number
+): { readonly before: boolean; readonly after: boolean } {
+    const isKind = (id: number, kind: string): boolean => analysis.leafKind(id) === kind;
+    return {
+        before: isKind(leafId - 1, "newline") ||
+            (isKind(leafId - 1, "whitespace") && isKind(leafId - 2, "newline")),
+        after: isKind(leafId + 1, "newline") ||
+            (isKind(leafId + 1, "whitespace") && isKind(leafId + 2, "newline")),
+    };
 }
 
 interface GapComment {
@@ -68,7 +93,8 @@ function decisionBetweenGapAnchors(
                 context.analysis.index.rangeContainsLineBreak({
                     start: startLeafId,
                     end: endLeafId,
-                })
+                }) &&
+                keepsCommentLineBreak(context, requested, left, right)
             ) {
                 return HARD_LINE;
             }
@@ -83,15 +109,51 @@ function decisionBetweenGapAnchors(
             return SPACE;
         }
     }
-    // The space written after a block comment stays where none is requested (`f(/* arg */ x)`, K15).
+    // The space written after a block comment on its line stays where none is requested
+    // (`f(/* arg */ x)`, K15).
     if (
-        requested.kind === "empty" &&
+        (requested.kind === "empty" ||
+            (requested.kind === "soft-line" && requested.flat === "empty")) &&
         left?.kind === "block-comment" &&
         rangeHasWhitespace(context, startLeafId, endLeafId)
     ) {
-        return SPACE;
+        try {
+            if (
+                !context.analysis.index.rangeContainsLineBreak({
+                    start: startLeafId,
+                    end: endLeafId,
+                })
+            ) {
+                return SPACE;
+            }
+        } catch {
+            return null;
+        }
     }
     return requested;
+}
+
+/**
+ * A wrap point of a parenthesized list keeps the line break of a line comment or of a block comment
+ * written on a line of its own. Other block comments reflow with the list, so a line break the list
+ * makes beside one is not read back as the source's on a second pass (K16).
+ */
+function keepsCommentLineBreak(
+    context: QueryLayoutContext,
+    requested: LayoutGapDecision,
+    left: GapComment | null,
+    right: GapComment | null
+): boolean {
+    if (requested.kind !== "soft-line" || requested.reflow !== true) {
+        return true;
+    }
+    return [left, right].some((comment) => {
+        if (comment === null) {
+            return false;
+        }
+        const beside = lineBreaksBeside(context.analysis, comment.leafId);
+        return comment.kind === "line-comment" || (beside.before && beside.after);
+    });
 }
 
 function rangeHasWhitespace(

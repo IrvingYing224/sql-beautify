@@ -25,6 +25,8 @@ export type LayoutGapDecision =
     | {
           readonly kind: "soft-line";
           readonly flat: "empty" | "space";
+          /** A wrap point of a parenthesized list, which reflows block comments (K16). */
+          readonly reflow?: true;
       }
     | {
           readonly kind: "pad-to-column";
@@ -49,7 +51,8 @@ export type LayoutScopeDecision =
       }
     | {
           readonly kind: "group";
-          readonly mode: "flat" | "break";
+          /** `fit` breaks when the content does not fit within maxLineWidth from its column. */
+          readonly mode: "flat" | "break" | "fit";
       }
     | {
           readonly kind: "auto-group";
@@ -58,6 +61,14 @@ export type LayoutScopeDecision =
     | {
           /** Lines inside start from the column where the scope's first leaf is written. */
           readonly kind: "hang";
+      }
+    | {
+          /** One more indent level when the enclosing group breaks. */
+          readonly kind: "break-indent";
+      }
+    | {
+          /** Each soft line directly inside breaks only when what follows it does not fit. */
+          readonly kind: "fill";
       };
 
 export interface LayoutScopeAction {
@@ -145,7 +156,8 @@ function validGapDecision(value: LayoutGapDecision): boolean {
         case "hard-line":
             return true;
         case "soft-line":
-            return value.flat === "empty" || value.flat === "space";
+            return (value.flat === "empty" || value.flat === "space") &&
+                (value.reflow === undefined || value.reflow === true);
         case "space":
             return isColumnCount(value.columns);
         case "pad-to-column":
@@ -164,7 +176,8 @@ function decisionsEqual(
         return right.kind === "space" && left.columns === right.columns;
     }
     if (left.kind === "soft-line") {
-        return right.kind === "soft-line" && left.flat === right.flat;
+        return right.kind === "soft-line" && left.flat === right.flat &&
+            left.reflow === right.reflow;
     }
     if (left.kind === "pad-to-column") {
         return right.kind === "pad-to-column" &&
@@ -176,7 +189,7 @@ function decisionsEqual(
 function validScopeDecision(value: LayoutScopeDecision): boolean {
     switch (value.kind) {
         case "group":
-            return value.mode === "flat" || value.mode === "break";
+            return value.mode === "flat" || value.mode === "break" || value.mode === "fit";
         case "indent":
             return isColumnCount(value.levels);
         case "align":
@@ -184,6 +197,8 @@ function validScopeDecision(value: LayoutScopeDecision): boolean {
         case "auto-group":
             return isColumnCount(value.maxFlatWidth);
         case "hang":
+        case "break-indent":
+        case "fill":
             return true;
     }
 }
@@ -208,12 +223,15 @@ function scopeDecisionsEqual(
                 left.maxFlatWidth === right.maxFlatWidth
             );
         case "hang":
-            return right.kind === "hang";
+        case "break-indent":
+        case "fill":
+            return right.kind === left.kind;
     }
 }
 
 // On the same range an align wraps the rest: a group then measures only its own content, and a
-// hang reads a column that already includes the alignment.
+// hang reads a column that already includes the alignment. A fill is innermost, so the soft lines
+// of its range are its direct parts.
 function scopeDecisionOrder(value: LayoutScopeDecision): number {
     return value.kind === "align"
         ? 0
@@ -221,7 +239,9 @@ function scopeDecisionOrder(value: LayoutScopeDecision): number {
           ? 1
           : value.kind === "hang"
             ? 2
-            : 3;
+            : value.kind === "fill"
+              ? 4
+              : 3;
 }
 
 function scopeDecisionFamily(value: LayoutScopeDecision): string {

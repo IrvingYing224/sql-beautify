@@ -3313,6 +3313,31 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k16-long-lists#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k16-long-lists#narrow": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k16-long-lists#off": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k16-long-lists#tab": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k16-long-lists#trailing": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k17-final-empty-line": {
   "op": "formatSql",
   "status": "formatted",

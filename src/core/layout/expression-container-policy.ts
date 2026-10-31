@@ -16,11 +16,24 @@ import { formatFlatList } from "./query-list-policy";
 import {
     EMPTY,
     HARD_LINE,
+    lineBreaksBeside,
+    REFLOW_LINE_EMPTY,
+    REFLOW_LINE_SPACE,
     replaceStructuralGap,
     SPACE,
 } from "./trivia-policy";
 
 const INDENT = Object.freeze({ kind: "indent" as const, levels: 1 });
+const FIT_GROUP = Object.freeze({ kind: "group" as const, mode: "fit" as const });
+const BREAK_GROUP = Object.freeze({ kind: "group" as const, mode: "break" as const });
+const BREAK_INDENT = Object.freeze({ kind: "break-indent" as const });
+const FILL = Object.freeze({ kind: "fill" as const });
+const REFLOW_CONTAINERS: ReadonlySet<string> = new Set([
+    "function-call",
+    "collection",
+    "parenthesized",
+    "in",
+]);
 
 interface DirectAnchor {
     readonly start: number;
@@ -103,25 +116,46 @@ function delimiterPair(
 }
 
 /**
+ * A list of two or more function arguments or values that fills the parentheses of its call, IN
+ * list or tuple. It wraps as one unit when it does not fit within maxLineWidth (K16).
+ */
+function isReflowList(context: QueryLayoutContext, list: ListNode): boolean {
+    if (
+        (list.listRole !== "function-args" && list.listRole !== "values") ||
+        list.separatorLeafIds.length === 0
+    ) {
+        return false;
+    }
+    const parent = context.analysis.index.parentOf(list.id);
+    if (parent?.kind !== "expression" || !REFLOW_CONTAINERS.has(parent.expressionKind)) {
+        return false;
+    }
+    const delimiters = delimiterPair(parent);
+    return delimiters !== null &&
+        delimiters[0] < list.leafRange.start &&
+        list.leafRange.end <= delimiters[1] &&
+        parent.children.every((child) => child === list || child.leafRange.end <= delimiters[0]);
+}
+
+/**
  * Whether a delimited interior is laid out on its own lines: it holds a line comment, or a block
- * comment between its items with a line break written beside it. Comments inside an item do not
- * count: line breaks the formatter adds itself (AND continuations, CASE branches, a nested
- * subquery that puts its comment on its own line) must not decide this, or the second pass would
- * split the parentheses the first pass kept closed (K30).
+ * comment between its items with a line break written beside it (on both sides in a list that
+ * reflows, K16). Comments inside an item do not count: line breaks the formatter adds itself (AND
+ * continuations, CASE branches, a nested subquery that puts its comment on its own line) must not
+ * decide this, or the second pass would split the parentheses the first pass kept closed (K30).
  */
 function interiorKeepsLines(
     context: QueryLayoutContext,
     node: ExpressionNode | TypeExpressionNode | WindowSpecNode,
     startLeafId: number,
-    endLeafId: number
+    endLeafId: number,
+    reflow: boolean
 ): boolean {
     const analysis = context.analysis;
-    const isKind = (leafId: number, kind: string): boolean => analysis.leafKind(leafId) === kind;
-    const besideLineBreak = (leafId: number): boolean =>
-        isKind(leafId - 1, "newline") ||
-        isKind(leafId + 1, "newline") ||
-        (isKind(leafId - 1, "whitespace") && isKind(leafId - 2, "newline")) ||
-        (isKind(leafId + 1, "whitespace") && isKind(leafId + 2, "newline"));
+    const keepsLines = (leafId: number): boolean => {
+        const beside = lineBreaksBeside(analysis, leafId);
+        return reflow ? beside.before && beside.after : beside.before || beside.after;
+    };
     // The items of an argument list are the list's own children.
     const items = node.children.flatMap(
         (child): readonly SyntaxNode[] => (child.kind === "list" ? child.children : [child])
@@ -133,7 +167,7 @@ function interiorKeepsLines(
         if (kind === "line-comment") {
             return true;
         }
-        if (kind === "block-comment" && !insideItem(leafId) && besideLineBreak(leafId)) {
+        if (kind === "block-comment" && !insideItem(leafId) && keepsLines(leafId)) {
             return true;
         }
     }
@@ -156,13 +190,16 @@ function normalizeDelimitedInterior(
     if (hasComment === null) {
         return false;
     }
-    const multiline = hasComment && interiorKeepsLines(context, node, openLeafId + 1, closeLeafId);
-    const boundaryDecision = multiline ? HARD_LINE : EMPTY;
     const children = node.children.filter(
         (child) =>
             child.leafRange.start > openLeafId &&
             child.leafRange.end <= closeLeafId
     );
+    const only = children.length === 1 ? children[0]! : null;
+    const list = only?.kind === "list" && isReflowList(context, only) ? only : null;
+    const multiline = hasComment &&
+        interiorKeepsLines(context, node, openLeafId + 1, closeLeafId, list !== null);
+    const boundaryDecision = multiline ? HARD_LINE : list !== null ? REFLOW_LINE_EMPTY : EMPTY;
     const markerLeafIds = node.syntaxMarkers
         .filter(
             (marker) =>
@@ -204,15 +241,22 @@ function normalizeDelimitedInterior(
               closeLeafId,
               boundaryDecision
           );
-    return normalized &&
-        (!multiline ||
-            wrapLayoutRange(
-                context,
-                authorityNodeId,
-                openLeafId + 1,
-                closeLeafId,
-                INDENT
-            ));
+    if (!normalized) {
+        return false;
+    }
+    if (list !== null) {
+        return wrapLayoutRange(
+            context,
+            authorityNodeId,
+            openLeafId,
+            closeLeafId + 1,
+            multiline ? BREAK_GROUP : FIT_GROUP
+        ) &&
+            wrapLayoutRange(context, authorityNodeId, openLeafId + 1, closeLeafId, BREAK_INDENT) &&
+            wrapLayoutRange(context, authorityNodeId, list.leafRange.start, list.leafRange.end, FILL);
+    }
+    return !multiline ||
+        wrapLayoutRange(context, authorityNodeId, openLeafId + 1, closeLeafId, INDENT);
 }
 
 function formatCallLike(
@@ -438,7 +482,12 @@ export function formatExpressionList(
         ? (() => {
               const authorityNodeId = authorityForNode(context, node.id);
               return authorityNodeId === null ||
-                  formatFlatList(context, authorityNodeId, node);
+                  formatFlatList(
+                      context,
+                      authorityNodeId,
+                      node,
+                      isReflowList(context, node) ? REFLOW_LINE_SPACE : SPACE
+                  );
           })()
         : true;
 }
