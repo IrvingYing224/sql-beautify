@@ -496,6 +496,35 @@ function formatStatements(context: QueryLayoutContext): boolean {
             return false;
         }
     }
+    return formatProgramTail(context, program.id);
+}
+
+/**
+ * Whitespace after the last statement goes away before a line break and at the end of the text
+ * (K17). Whitespace on a final empty line stays, so the output keeps the source's final line
+ * breaks; protected text such as a SET payload keeps its own whitespace.
+ */
+function formatProgramTail(context: QueryLayoutContext, programId: number): boolean {
+    const { analysis } = context;
+    const count = analysis.leafCount;
+    let last = count - 1;
+    while (last >= 0 && (analysis.leafKind(last) === "whitespace" || analysis.leafKind(last) === "newline")) {
+        last -= 1;
+    }
+    for (let leafId = last + 1; last >= 0 && leafId < count; leafId++) {
+        if (
+            analysis.leafKind(leafId) !== "whitespace" ||
+            context.claims.claimForLeaf(leafId) !== null
+        ) {
+            continue;
+        }
+        const trailing = leafId + 1 === count
+            ? analysis.leafKind(leafId - 1) !== "newline"
+            : analysis.leafKind(leafId + 1) === "newline";
+        if (trailing && !context.plan.replaceGap(programId, leafId, leafId + 1, EMPTY)) {
+            return false;
+        }
+    }
     return true;
 }
 

@@ -75,10 +75,9 @@ function buildProgram(context: ParserContext): ProgramNode {
     return context.factory.createProgram(
         { start: 0, end: context.leaves.length },
         statements,
-        nodeFacts(
-            statements.length > 1 ? "multi-statement" : null,
-            statements.length > 1 ? "capability" : "intrinsic-container"
-        )
+        // A single statement also needs the program's authority: the program owns the whitespace
+        // after the last statement (K17).
+        nodeFacts("multi-statement", "capability")
     );
 }
 

@@ -3200,6 +3200,16 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k17-final-empty-line": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k17-set-payload-tail": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k17-trailing-spaces": {
   "op": "formatSql",
   "status": "formatted",

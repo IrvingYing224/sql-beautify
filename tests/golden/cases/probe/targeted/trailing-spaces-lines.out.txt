@@ -1,4 +1,4 @@
 SELECT
       a
     , b
-FROM t   
+FROM t
