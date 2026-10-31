@@ -175,7 +175,7 @@ test('R5: formatSql output stops at 4 x input + 64 Ki code units', function() {
 test('U-CFG: option validation and the manifest agree', function() {
     var resolve = m.resolve.resolveFormatOptions;
     assert.deepStrictEqual(resolve(), { ok: true, options: { keywordCase: 'upper', commaStyle: 'leading',
-        indentStyle: 'space', maxAlignWidth: 150, caseWhenThenWrapLength: 50, caseLayout: 'expanded', unsupportedSyntaxPolicy: 'warn' } });
+        indentStyle: 'space', maxAlignWidth: 150, caseWhenThenWrapLength: 50, caseLayout: 'compactShort', unsupportedSyntaxPolicy: 'warn' } });
     var full = { keywordCase: 'lower', commaStyle: 'trailing', indentStyle: 'tab', maxAlignWidth: 1,
         caseWhenThenWrapLength: 300, caseLayout: 'compactShort', unsupportedSyntaxPolicy: 'bail_out' };
     assert.deepStrictEqual(resolve(full), { ok: true, options: full });

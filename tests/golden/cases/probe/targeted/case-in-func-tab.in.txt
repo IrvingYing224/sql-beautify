@@ -1,2 +1,2 @@
--- golden: {"options":{"indentStyle":"tab"}}
+-- golden: {"options":{"indentStyle":"tab"},"variants":{"default":{},"expanded":{"options":{"indentStyle":"tab","caseLayout":"expanded"}}}}
 select a, sum(case when x = 1 then 1 else 0 end) as k from t

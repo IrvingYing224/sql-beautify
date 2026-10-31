@@ -22,4 +22,8 @@ SELECT
           ELSE 'neither_condition'
       END AS n
 FROM x
-WHERE coalesce(CASE WHEN a = 1 THEN 1 END, 0) + CASE WHEN b = 2 THEN 2 END = 1
+WHERE coalesce(CASE
+                   WHEN a = 1 THEN 1
+               END, 0) + CASE
+                             WHEN b = 2 THEN 2
+                         END = 1

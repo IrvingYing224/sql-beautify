@@ -1,13 +1,14 @@
     SELECT
           CASE
-              WHEN a = 1 THEN 2
-              WHEN a = 3 THEN 4
-              ELSE 5
+              WHEN a = 1 THEN 'first'
+              WHEN a = 3 THEN 'third'
+              ELSE 'other'
           END AS x, -- first
           f(CASE
-                WHEN b THEN c
-                ELSE d
+                WHEN b = 1 THEN 'c_long_value'
+                ELSE 'd_long_value'
             END) AS longer_name, -- second
+          coalesce(CASE WHEN e THEN 1 END, 0) AS z,
           'multi
 line' AS s
     FROM t

@@ -1,0 +1,17 @@
+SELECT
+      CASE
+          WHEN a = 1 THEN
+              CASE WHEN b = 1 THEN 'x' ELSE 'y' END
+          ELSE 'a_long_value_that_needs_room'
+      END AS n
+    , coalesce(CASE WHEN c = 1 THEN 1 END, 0) AS short_in_func
+    , sum(CASE
+              WHEN status = 1 THEN amount_a
+              WHEN status = 2 THEN amount_b
+              ELSE 0
+          END) AS long_in_func
+    , CASE WHEN d THEN 1 ELSE 0 END + CASE
+                                          WHEN e = 1 THEN 'long_value_one'
+                                          WHEN e = 2 THEN 'long_value_two'
+                                      END AS mixed
+FROM t

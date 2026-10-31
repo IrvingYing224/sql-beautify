@@ -55,12 +55,12 @@ SQL Beautify 不覆盖 VS Code 的 `Shift+Alt+F` / `Format Document` 默认入�
 | `sqlBeautify.indentStyle` | `tab` / `space` | `space` | 缩进风格 |
 | `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
 | `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | `CASE WHEN` 中 `THEN` / `ELSE` 值的换行阈值 |
-| `sqlBeautify.caseLayout` | `expanded` / `compactShort` | `expanded` | `CASE` 表达式布局；`compactShort` 会在安全且较短时保持单行 |
+| `sqlBeautify.caseLayout` | `expanded` / `compactShort` | `compactShort` | `CASE` 表达式布局；`compactShort` 会在安全且较短时保持单行 |
 | `sqlBeautify.unsupportedSyntaxPolicy` | `preserve` / `warn` / `bail_out` | `warn` | 未建模语法的处理策略 |
 
 顶层 `ORDER BY` 会像 `GROUP BY` 一样拆成多行并对齐逗号；窗口函数里的 `ORDER BY` 仍保持原有行内格式。
 
-`sqlBeautify.caseLayout` 默认为 `expanded`，保持原有展开式 `CASE` 排版。设置为 `compactShort` 后，只有短的、CASE 内部无注释、无嵌套且不需要多行保护的 `CASE` 会保持单行；不满足条件时会自动回退到展开式排版。
+`sqlBeautify.caseLayout` 默认为 `compactShort`：整个 `CASE` 平铺后不超过 `caseWhenThenWrapLength` 列，且内部没有注释、模板片段和跨行内容时，收成一行；否则展开。展开的 `CASE` 中，`END` 与 `CASE` 对齐，`WHEN`、`ELSE` 比 `CASE` 多缩进一层，函数参数里的 `CASE` 也一样。设置为 `expanded` 后，所有 `CASE` 都展开。
 
 已建模区域会应用 `sqlBeautify.keywordCase`；verbatim 区域始终保留原文，因此其中的关键词大小写不会被改写。主 formatter 的单个完整文档或 target 上限为 524,288 个 UTF-16 code units；超限输入会保留完整原文且不提交编辑。
 

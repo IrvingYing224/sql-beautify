@@ -1,6 +1,3 @@
 SELECT
-      CASE qualify
-          WHEN 1 THEN 1
-          ELSE 0
-      END
+      CASE qualify WHEN 1 THEN 1 ELSE 0 END
 FROM t

@@ -1,1 +1,2 @@
+-- golden: {"variants":{"default":{},"expanded":{"options":{"caseLayout":"expanded"}}}}
 select case when a = 1 then 'x'else 3 end as c from t

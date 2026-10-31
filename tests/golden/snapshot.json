@@ -2556,12 +2556,22 @@
   "status": "formatted",
   "codes": []
  },
- "explicit/constructs/case-keyword-anchor#compact": {
+ "explicit/constructs/case-compact-default#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/case-compact-default#tab": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
  "explicit/constructs/case-keyword-anchor#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/case-keyword-anchor#expanded": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -3094,17 +3104,32 @@
   "status": "formatted",
   "codes": []
  },
- "explicit/known/k05-case-in-function": {
+ "explicit/known/k05-case-in-function#default": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "explicit/known/k05-non-first-members": {
+ "explicit/known/k05-case-in-function#expanded": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "explicit/known/k06-then-string-else": {
+ "explicit/known/k05-non-first-members#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k05-non-first-members#expanded": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k06-then-string-else#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k06-then-string-else#expanded": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -7065,7 +7090,7 @@
  },
  "parse/wave3a-cst-invariants/select-case-when-a-then-b-else-c-end-98e9325b": {
   "op": "formatSql",
-  "status": "formatted",
+  "status": "unchanged",
   "codes": []
  },
  "parse/wave3a-cst-invariants/select-cast-x-as-array-int-9997c8c2": {
@@ -8006,7 +8031,12 @@
   "status": "formatted",
   "codes": []
  },
- "probe/options/casewrap-300": {
+ "probe/options/casewrap-300#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/options/casewrap-300#expanded": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
@@ -8309,42 +8339,82 @@
   "status": "formatted",
   "codes": []
  },
- "probe/targeted/case-in-coalesce-where": {
+ "probe/targeted/case-in-coalesce-where#default": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "probe/targeted/case-in-concat": {
+ "probe/targeted/case-in-coalesce-where#expanded": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "probe/targeted/case-in-func-arith": {
+ "probe/targeted/case-in-concat#default": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "probe/targeted/case-in-func-cte": {
+ "probe/targeted/case-in-concat#expanded": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "probe/targeted/case-in-func-first": {
+ "probe/targeted/case-in-func-arith#default": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "probe/targeted/case-in-func-second": {
+ "probe/targeted/case-in-func-arith#expanded": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "probe/targeted/case-in-func-second-trailing": {
+ "probe/targeted/case-in-func-cte#default": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []
  },
- "probe/targeted/case-in-func-tab": {
+ "probe/targeted/case-in-func-cte#expanded": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/targeted/case-in-func-first#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/targeted/case-in-func-first#expanded": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/targeted/case-in-func-second#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/targeted/case-in-func-second#expanded": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/targeted/case-in-func-second-trailing#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/targeted/case-in-func-second-trailing#expanded": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/targeted/case-in-func-tab#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "probe/targeted/case-in-func-tab#expanded": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []

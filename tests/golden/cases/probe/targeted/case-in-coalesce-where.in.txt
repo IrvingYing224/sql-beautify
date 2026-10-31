@@ -1,1 +1,2 @@
+-- golden: {"variants":{"default":{},"expanded":{"options":{"caseLayout":"expanded"}}}}
 select a from t where coalesce(case when x = 1 then 'a' end, 'b') = 'a'

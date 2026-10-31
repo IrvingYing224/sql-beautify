@@ -1,6 +1,3 @@
 SELECT
-      CASE
-          WHEN a = 3 THEN b
-          ELSE c
-      END AS value
+      CASE WHEN a = 3 THEN b ELSE c END AS value
 FROM t

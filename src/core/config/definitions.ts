@@ -34,7 +34,7 @@ export const FORMAT_OPTION_DEFINITIONS: OptionDefinitions = Object.freeze({
     indentStyle: enumeration(["tab", "space"], "space"),
     maxAlignWidth: integer(1, 500, 150),
     caseWhenThenWrapLength: integer(1, 300, 50),
-    caseLayout: enumeration(["expanded", "compactShort"], "expanded"),
+    caseLayout: enumeration(["expanded", "compactShort"], "compactShort"),
     unsupportedSyntaxPolicy: enumeration(["preserve", "warn", "bail_out"], "warn"),
 });
 

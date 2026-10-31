@@ -1,4 +1,4 @@
--- golden: {"variants":{"default":{},"tab":{"options":{"indentStyle":"tab"}},"compact":{"options":{"caseLayout":"compactShort"}}}}
+-- golden: {"variants":{"default":{},"expanded":{"options":{"caseLayout":"expanded"}},"tab":{"options":{"indentStyle":"tab","caseLayout":"expanded"}}}}
 select sum(case when status = 1 then amount_a when status = 2 then amount_b else 0 end) as s,
   sum(case when status = 1 then amount_b when status = 2 then amount_a else 0 end) as t,
   cast(case when flag = 1 then price_with_tax_and_fee else price_without_tax_and_fee end as decimal(18, 2)) as p,

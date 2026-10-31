@@ -1,0 +1,7 @@
+-- golden: {"variants":{"default":{},"tab":{"options":{"indentStyle":"tab"}}}}
+select
+    case when a = 1 then case when b = 1 then 'x' else 'y' end else 'a_long_value_that_needs_room' end as n,
+    coalesce(case when c = 1 then 1 end, 0) as short_in_func,
+    sum(case when status = 1 then amount_a when status = 2 then amount_b else 0 end) as long_in_func,
+    case when d then 1 else 0 end + case when e = 1 then 'long_value_one' when e = 2 then 'long_value_two' end as mixed
+from t

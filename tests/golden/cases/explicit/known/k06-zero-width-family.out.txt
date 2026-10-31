@@ -1,8 +1,5 @@
 SELECT
-      CASE
-          WHEN a = 1 THEN concat(a, b)
-          ELSE 'n/a'
-      END AS x
+      CASE WHEN a = 1 THEN concat(a, b) ELSE 'n/a' END AS x
 FROM t;
 SELECT
       CASE

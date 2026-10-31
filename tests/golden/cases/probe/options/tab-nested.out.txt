@@ -16,9 +16,6 @@ WITH
 		  )
 	  )
 SELECT
-	  CASE
-		  WHEN a = 1 THEN b
-		  ELSE c
-	  END AS k
+	  CASE WHEN a = 1 THEN b ELSE c END AS k
 	, a
 FROM x
