@@ -1,9 +1,7 @@
 WITH
       a(/*e:with*/c) AS (
           /*e:subquery*/
-          SELECT
-          /*e:select*/
-          1
+          SELECT /*e:select*/ 1
       )
 SELECT
       c

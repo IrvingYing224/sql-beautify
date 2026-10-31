@@ -6741,7 +6741,7 @@
  },
  "parse/trivia-binding/select-multi-line-a-1c308466": {
   "op": "formatSql",
-  "status": "formatted",
+  "status": "unchanged",
   "codes": []
  },
  "parse/trivia-binding/with-a-as-select-1-cte-separator-b-as-se-7a1df93c": {

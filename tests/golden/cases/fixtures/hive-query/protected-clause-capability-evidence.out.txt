@@ -3,15 +3,11 @@ SELECT
 FROM
     /*e:from*/
     t
-WHERE
-/*e:where*/
-a = 1
+WHERE /*e:where*/ a = 1
 GROUP BY
       /*e:group*/
       a
-HAVING
-/*e:having*/
-count(*) > 0
+HAVING /*e:having*/ count(*) > 0
 WINDOW
       w AS (PARTITION /*e:window*/ BY a)
 ORDER BY
@@ -26,6 +22,4 @@ DISTRIBUTE BY
 SORT BY
       /*e:sort*/
       a
-LIMIT
-/*e:limit*/
-1
+LIMIT /*e:limit*/ 1

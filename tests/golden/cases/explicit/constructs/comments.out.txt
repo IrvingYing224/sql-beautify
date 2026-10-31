@@ -20,9 +20,7 @@ GROUP BY
       a -- c
 WITH ROLLUP;
 SELECT
-      a + INTERVAL
-      /* c */
-      1 DAY
+      a + INTERVAL /* c */ 1 DAY
 FROM t;
 INSERT INTO t /* c */ (c1, c2)
 SELECT

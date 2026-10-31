@@ -1,8 +1,7 @@
 SELECT
 	  'FROM  x' AS x
 	,
-	/* fuzz 116 */
-	NOT flag AS y
+	/* fuzz 116 */ NOT flag AS y
 FROM t
 WHERE a = 1
 	AND b > 2

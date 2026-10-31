@@ -4,8 +4,7 @@ select
           else 3
       end as x
     ,
-    /* fuzz 60 */
-    not flag as y
+    /* fuzz 60 */ not flag as y
 from t
 where a = 1
     and b > 2

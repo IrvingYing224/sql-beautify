@@ -47,19 +47,21 @@ function decisionBetweenGapAnchors(
     left: GapComment | null,
     right: GapComment | null
 ): LayoutGapDecision | null {
-    if (left?.kind === "line-comment") {
-        return HARD_LINE;
-    }
-    if (left?.placement === "leading" || right?.placement === "leading") {
+    if (
+        left?.kind === "line-comment" ||
+        (right?.kind === "line-comment" && right.placement === "leading")
+    ) {
         return HARD_LINE;
     }
     if (right?.placement === "trailing") {
         return SPACE;
     }
+    // A block comment keeps the line breaks written beside it; one written inline stays inline,
+    // so `a = /* x */ 1` is not split onto three lines at column 0 (K4).
     if (
-        left?.placement === "dangling" ||
-        right?.placement === "dangling" ||
-        left?.kind === "block-comment"
+        left?.kind === "block-comment" ||
+        right?.placement === "leading" ||
+        right?.placement === "dangling"
     ) {
         try {
             if (

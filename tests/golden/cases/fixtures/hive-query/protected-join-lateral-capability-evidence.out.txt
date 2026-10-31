@@ -1,10 +1,6 @@
 SELECT
       'x'
 FROM a
-JOIN
-    /*e:join*/
-    b
+JOIN /*e:join*/ b
     USING (id)
-LATERAL VIEW explode(/*e:table*/b.xs) e AS
-/*e:lateral*/
-x
+LATERAL VIEW explode(/*e:table*/b.xs) e AS /*e:lateral*/ x

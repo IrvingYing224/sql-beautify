@@ -1,5 +1,3 @@
 SELECT
-      -
-      /*keep*/
-      -a
+      - /*keep*/ -a
 FROM t

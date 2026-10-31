@@ -1,6 +1,4 @@
 SELECT
       aaa
-    ,
-    /* comment */
-    bbb
+    , /* comment */ bbb
 FROM t

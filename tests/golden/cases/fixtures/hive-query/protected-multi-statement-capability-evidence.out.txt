@@ -1,4 +1,2 @@
-SELECT
-/*e:select2*/
-1; /*e:multi*/
+SELECT /*e:select2*/ 1; /*e:multi*/
 SELECT 2;
