@@ -212,21 +212,39 @@ export function authorityForNode(
 }
 
 /**
- * A line comment after a keyword or operator (`WHERE -- note`) ends that line; the body on the next
- * line is indented one level instead of falling back to the clause's column.
+ * A comment after a keyword or operator can push the body onto a later line: a line comment
+ * (`WHERE -- note`) always does, a block comment does when a line break is written beside it.
+ * The body is then indented one level instead of falling back to the clause's column, and a
+ * comment written on its own line above the body lines up with it.
  */
-export function indentBodyAfterLineComment(
+export function indentBodyAfterComment(
     context: QueryLayoutContext,
     authorityNodeId: number,
     gapStartLeafId: number,
     body: { readonly start: number; readonly end: number }
 ): boolean {
+    let lineComment = false;
+    let blockComment = false;
     for (let leafId = gapStartLeafId; leafId < body.start; leafId++) {
-        if (context.analysis.leafKind(leafId) === "line-comment") {
-            return wrapLayoutRange(context, authorityNodeId, body.start, body.end, BODY_INDENT);
-        }
+        const kind = context.analysis.leafKind(leafId);
+        lineComment ||= kind === "line-comment";
+        blockComment ||= kind === "block-comment";
     }
-    return true;
+    const bodyOnLaterLine =
+        lineComment ||
+        (blockComment &&
+            context.analysis.index.rangeContainsLineBreak({
+                start: gapStartLeafId,
+                end: body.start,
+            }));
+    return !bodyOnLaterLine ||
+        wrapLayoutRange(
+            context,
+            authorityNodeId,
+            leadingCommentStart(context, gapStartLeafId, body.start),
+            body.end,
+            BODY_INDENT
+        );
 }
 
 /**

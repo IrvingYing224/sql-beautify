@@ -1,0 +1,69 @@
+SELECT
+	  a
+FROM t
+WHERE a =
+	/* x */
+	1;
+SELECT
+	  a
+FROM t
+WHERE a =
+	/* x */ 1;
+SELECT
+	  a
+FROM t
+WHERE a = /* x */
+	1;
+SELECT
+	  a
+FROM t
+WHERE a =
+	-- x
+	1;
+SELECT
+	  a
+FROM t
+WHERE
+	-- note
+	a = 1;
+SELECT
+	  a
+FROM t
+WHERE
+	/* note */
+	a = 1;
+SELECT
+	  a +
+		  /* c */
+		  b
+FROM t;
+SELECT
+	  a
+FROM t
+WHERE f(
+	a,
+	/* x */
+	b
+) = 1;
+SELECT
+	  f(
+		  a, /* x */
+		  b
+	  )
+	, f(a, /* x */ b)
+FROM t;
+SELECT
+	  f(
+		  -- only
+	  )
+	, g(
+		  /* only */
+	  )
+FROM t;
+SELECT
+	  a
+FROM t
+WHERE a IN (
+	1,
+	/* x */ 2, 3
+)

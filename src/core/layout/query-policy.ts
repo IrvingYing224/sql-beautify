@@ -9,7 +9,7 @@ import type {
 } from "../syntax/node";
 import {
     authorityForNode,
-    indentBodyAfterLineComment,
+    indentBodyAfterComment,
     wrapLayoutRange,
 } from "./query-layout-context";
 import type { QueryLayoutContext } from "./query-layout-context";
@@ -61,7 +61,7 @@ function formatSetStatement(
             payload.leafRange.start,
             SPACE
         ) &&
-        indentBodyAfterLineComment(context, authorityNodeId, head.leafId + 1, payload.leafRange)
+        indentBodyAfterComment(context, authorityNodeId, head.leafId + 1, payload.leafRange)
     );
 }
 
@@ -226,7 +226,7 @@ function formatClause(
                     first.leafRange.start,
                     SPACE
                 ) &&
-                    indentBodyAfterLineComment(
+                    indentBodyAfterComment(
                         context,
                         authorityNodeId,
                         clause.headLeafRange.end,
@@ -237,8 +237,8 @@ function formatClause(
 
 /**
  * Children and body keywords from `fromLeafId` on (`, n`, `OFFSET m`, `WITH ROLLUP`) are one
- * space apart; a separator comma takes no space before it. After a line comment the rest of the
- * body is indented one level (`LIMIT -- note`).
+ * space apart; a separator comma takes no space before it. When a comment pushes the rest of the
+ * body onto a later line (`LIMIT -- note`), it is indented one level.
  */
 function formatClauseBody(
     context: QueryLayoutContext,
@@ -265,7 +265,7 @@ function formatClauseBody(
         const decision = clause.separatorLeafIds.includes(anchor.start) ? EMPTY : SPACE;
         if (
             !replaceStructuralGap(context, authorityNodeId, leftEnd, anchor.start, decision) ||
-            !indentBodyAfterLineComment(context, authorityNodeId, leftEnd, {
+            !indentBodyAfterComment(context, authorityNodeId, leftEnd, {
                 start: anchor.start,
                 end: bodyEnd,
             })

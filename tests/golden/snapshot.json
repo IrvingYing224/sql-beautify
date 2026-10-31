@@ -3419,6 +3419,16 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k42-own-line-comment-continuation#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k42-own-line-comment-continuation#tab": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/literal/alias-l": {
   "op": "formatSql",
   "status": "formatted",

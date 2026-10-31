@@ -103,15 +103,15 @@ function delimiterPair(
 }
 
 /**
- * Whether a delimited interior is laid out on its own lines: it holds a line comment, or a
- * dangling block comment of its own written on a line of its own. Line breaks the formatter adds
- * itself (AND continuations, CASE branches, a nested subquery that puts its comment on its own
- * line) must not decide this, or the second pass would split the parentheses the first pass kept
- * closed (K30).
+ * Whether a delimited interior is laid out on its own lines: it holds a line comment, or a block
+ * comment between its items with a line break written beside it. Comments inside an item do not
+ * count: line breaks the formatter adds itself (AND continuations, CASE branches, a nested
+ * subquery that puts its comment on its own line) must not decide this, or the second pass would
+ * split the parentheses the first pass kept closed (K30).
  */
 function interiorKeepsLines(
     context: QueryLayoutContext,
-    ownerNodeId: number,
+    node: ExpressionNode | TypeExpressionNode | WindowSpecNode,
     startLeafId: number,
     endLeafId: number
 ): boolean {
@@ -122,17 +122,18 @@ function interiorKeepsLines(
         isKind(leafId + 1, "newline") ||
         (isKind(leafId - 1, "whitespace") && isKind(leafId - 2, "newline")) ||
         (isKind(leafId + 1, "whitespace") && isKind(leafId + 2, "newline"));
+    // The items of an argument list are the list's own children.
+    const items = node.children.flatMap(
+        (child): readonly SyntaxNode[] => (child.kind === "list" ? child.children : [child])
+    );
+    const insideItem = (leafId: number): boolean =>
+        items.some((item) => leafId >= item.leafRange.start && leafId < item.leafRange.end);
     for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
         const kind = analysis.leafKind(leafId);
         if (kind === "line-comment") {
             return true;
         }
-        const binding = kind === "block-comment" ? analysis.index.commentBinding(leafId) : null;
-        if (
-            binding?.placement === "dangling" &&
-            binding.ownerNodeId === ownerNodeId &&
-            besideLineBreak(leafId)
-        ) {
+        if (kind === "block-comment" && !insideItem(leafId) && besideLineBreak(leafId)) {
             return true;
         }
     }
@@ -155,7 +156,7 @@ function normalizeDelimitedInterior(
     if (hasComment === null) {
         return false;
     }
-    const multiline = hasComment && interiorKeepsLines(context, node.id, openLeafId + 1, closeLeafId);
+    const multiline = hasComment && interiorKeepsLines(context, node, openLeafId + 1, closeLeafId);
     const boundaryDecision = multiline ? HARD_LINE : EMPTY;
     const children = node.children.filter(
         (child) =>
@@ -180,31 +181,29 @@ function normalizeDelimitedInterior(
     if (anchors === null) {
         return false;
     }
-    if (anchors.length === 0) {
-        return replaceStructuralGap(
-            context,
-            authorityNodeId,
-            openLeafId + 1,
-            closeLeafId,
-            boundaryDecision
-        );
-    }
-    const normalized =
-        replaceStructuralGap(
-            context,
-            authorityNodeId,
-            openLeafId + 1,
-            anchors[0]!.start,
-            boundaryDecision
-        ) &&
-        normalizeSequence(context, authorityNodeId, anchors) &&
-        replaceStructuralGap(
-            context,
-            authorityNodeId,
-            anchors[anchors.length - 1]!.end,
-            closeLeafId,
-            boundaryDecision
-        );
+    const normalized = anchors.length === 0
+        ? replaceStructuralGap(
+              context,
+              authorityNodeId,
+              openLeafId + 1,
+              closeLeafId,
+              boundaryDecision
+          )
+        : replaceStructuralGap(
+              context,
+              authorityNodeId,
+              openLeafId + 1,
+              anchors[0]!.start,
+              boundaryDecision
+          ) &&
+          normalizeSequence(context, authorityNodeId, anchors) &&
+          replaceStructuralGap(
+              context,
+              authorityNodeId,
+              anchors[anchors.length - 1]!.end,
+              closeLeafId,
+              boundaryDecision
+          );
     return normalized &&
         (!multiline ||
             wrapLayoutRange(

@@ -1,0 +1,32 @@
+-- golden: {"variants":{"default":{},"tab":{"options":{"indentStyle":"tab"}}}}
+select a from t where a =
+/* x */
+1;
+select a from t where a =
+/* x */ 1;
+select a from t where a = /* x */
+1;
+select a from t where a =
+-- x
+1;
+select a from t where
+-- note
+a = 1;
+select a from t where
+/* note */
+a = 1;
+select a +
+/* c */
+b from t;
+select a from t where f(a,
+/* x */
+b) = 1;
+select f(a, /* x */
+b), f(a, /* x */ b) from t;
+select f(
+-- only
+), g(
+/* only */
+) from t;
+select a from t where a in (1,
+/* x */ 2, 3)
