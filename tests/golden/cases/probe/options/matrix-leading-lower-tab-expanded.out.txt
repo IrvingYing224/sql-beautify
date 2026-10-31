@@ -10,14 +10,14 @@ with
 			    user_id
 	  )
 select
-	  b.user_id
-	, b.total as total_amount, -- 总额
+	  b.user_id,
+	  b.total as total_amount, -- 总额
 	  case
 		  when b.total > 1000 then 'vip'
 		  when b.total > 100 then 'normal'
 		  else 'low'
-	  end as level
-	, u.name as user_name -- 用户名
+	  end as level,
+	  u.name as user_name -- 用户名
 from base b
 left join users u
 	on b.user_id = u.id

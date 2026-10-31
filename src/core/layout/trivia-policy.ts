@@ -75,6 +75,13 @@ function decisionBetweenGapAnchors(
         } catch {
             return null;
         }
+        // A leading block comment written on its item's line stays on that line.
+        if (
+            left?.placement === "leading" &&
+            (requested.kind === "hard-line" || requested.kind === "soft-line")
+        ) {
+            return SPACE;
+        }
     }
     // The space written after a block comment stays where none is requested (`f(/* arg */ x)`, K15).
     if (

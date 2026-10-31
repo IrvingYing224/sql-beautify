@@ -3,5 +3,5 @@ SELECT
     b
 FROM t
 GROUP BY
-    a   -- x
+      a -- x
     , b -- y

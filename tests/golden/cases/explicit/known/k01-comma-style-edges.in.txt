@@ -1,0 +1,13 @@
+-- golden: {"variants":{"default":{},"trailing":{"options":{"commaStyle":"trailing"}}}}
+select a -- x
+, b, -- y
+c from t;
+select a
+, b -- c
+, c, d from t;
+select a, /* c */ b,
+/* d */ c from t;
+select * from a join b on a.id = b.id, c, -- note
+d;
+select * from a join b on a.id, -- join
+ = b.id;

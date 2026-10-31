@@ -1,0 +1,31 @@
+SELECT
+      a  -- x
+    , b, -- y
+      c
+FROM t;
+SELECT
+      a
+    , b -- c
+    , c
+    , d
+FROM t;
+SELECT
+      a, /* c */
+      b,
+      /* d */ c
+FROM t;
+SELECT
+      *
+FROM
+      a
+JOIN b
+    ON a.id = b.id
+    , c, -- note
+      d;
+SELECT
+      *
+FROM
+      a
+JOIN b
+    ON a.id, -- join
+      = b.id;

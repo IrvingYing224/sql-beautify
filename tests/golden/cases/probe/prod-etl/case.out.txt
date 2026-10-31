@@ -21,12 +21,11 @@ WHERE dt = '${hivevar:dt}';
 WITH
       orders AS (
           SELECT
-                o.user_id
-              , o.order_id
-              , o.amount, -- 订单金额
-                o.status
-              ,
-              -- o.coupon_id,
+                o.user_id,
+                o.order_id,
+                o.amount, -- 订单金额
+                o.status,
+                -- o.coupon_id,
                 o.create_time
           FROM ods.orders o
           WHERE o.dt = '${hivevar:dt}'

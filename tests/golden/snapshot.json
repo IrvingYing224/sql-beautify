@@ -3004,6 +3004,21 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k01-comma-style-edges#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNMODELED_CONSTRUCT"
+  ]
+ },
+ "explicit/known/k01-comma-style-edges#trailing": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNMODELED_CONSTRUCT",
+   "LAYOUT_COMMA_FALLBACK"
+  ]
+ },
  "explicit/known/k01-partial-trailing-comments": {
   "op": "formatSql",
   "status": "formatted",

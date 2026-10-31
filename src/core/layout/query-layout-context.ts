@@ -227,6 +227,28 @@ export function indentBodyAfterLineComment(
     return true;
 }
 
+/**
+ * The first comment in [startLeafId, endLeafId) that is not a trailing comment of what comes
+ * before it, or endLeafId. A scope that indents the next item starts here, so a comment written
+ * on its own line above the item lines up with it.
+ */
+export function leadingCommentStart(
+    context: QueryLayoutContext,
+    startLeafId: number,
+    endLeafId: number
+): number {
+    for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
+        const kind = context.analysis.leafKind(leafId);
+        if (
+            (kind === "line-comment" || kind === "block-comment") &&
+            context.analysis.index.commentBinding(leafId)?.placement !== "trailing"
+        ) {
+            return leafId;
+        }
+    }
+    return endLeafId;
+}
+
 export function wrapLayoutRange(
     context: QueryLayoutContext,
     authorityNodeId: number,

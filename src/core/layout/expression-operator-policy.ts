@@ -3,6 +3,7 @@ import type { ExpressionNode, SyntaxNode } from "../syntax/node";
 import {
     authorityForNode,
     indentBodyAfterLineComment,
+    leadingCommentStart,
     wrapLayoutRange,
 } from "./query-layout-context";
 import type { QueryLayoutContext } from "./query-layout-context";
@@ -122,27 +123,6 @@ function afterDecision(
     }
 }
 
-/**
- * Where an AND/OR continuation indent starts: at the first comment before the operator that is
- * not a trailing comment of the left operand, so a commented-out condition lines up with AND (K4).
- */
-function continuationStart(
-    context: QueryLayoutContext,
-    startLeafId: number,
-    operatorLeafId: number
-): number {
-    for (let leafId = startLeafId; leafId < operatorLeafId; leafId++) {
-        const kind = context.analysis.leafKind(leafId);
-        if (
-            (kind === "line-comment" || kind === "block-comment") &&
-            context.analysis.index.commentBinding(leafId)?.placement !== "trailing"
-        ) {
-            return leafId;
-        }
-    }
-    return operatorLeafId;
-}
-
 export function formatExpressionOperators(
     context: QueryLayoutContext,
     node: ExpressionNode
@@ -206,7 +186,7 @@ export function formatExpressionOperators(
                 !wrapLayoutRange(
                     context,
                     authorityNodeId,
-                    continuationStart(context, previous?.end ?? leafId, leafId),
+                    leadingCommentStart(context, previous?.end ?? leafId, leafId),
                     node.leafRange.end,
                     INDENT
                 )

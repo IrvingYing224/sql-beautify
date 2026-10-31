@@ -1,6 +1,5 @@
 SELECT
-      a
-    ,
-    -- before b
+      a,
+      -- before b
       b
 FROM t

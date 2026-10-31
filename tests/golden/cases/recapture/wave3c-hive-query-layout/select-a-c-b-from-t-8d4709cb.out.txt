@@ -1,4 +1,4 @@
 SELECT
-    a --c
+      a --c
     , b
 FROM t

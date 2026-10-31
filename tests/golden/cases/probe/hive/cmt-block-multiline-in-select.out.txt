@@ -1,8 +1,7 @@
 SELECT
-      a
-    ,
-    /* multi
+      a,
+      /* multi
      line
      comment */
-    b
+      b
 FROM t

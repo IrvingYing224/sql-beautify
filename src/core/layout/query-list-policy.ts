@@ -8,6 +8,7 @@ import type {
 } from "../syntax/node";
 import {
     authorityForNode,
+    leadingCommentStart,
     wrapLayoutRange,
 } from "./query-layout-context";
 import type { QueryLayoutContext } from "./query-layout-context";
@@ -197,6 +198,8 @@ function needsLeadingContinuationAlign(member: SyntaxNode): boolean {
 interface RangeCommentFacts {
     readonly hasLineComment: boolean;
     readonly hasTrailingComment: boolean;
+    /** A comment here ends a line: a line comment, or a comment with a source line break. */
+    readonly breaksLine: boolean;
 }
 
 function rangeCommentFacts(
@@ -204,6 +207,7 @@ function rangeCommentFacts(
     startLeafId: number,
     endLeafId: number
 ): RangeCommentFacts | null {
+    let hasComment = false;
     let hasLineComment = false;
     let hasTrailingComment = false;
     for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
@@ -216,10 +220,48 @@ function rangeCommentFacts(
             if (binding === null || binding.commentLeafId !== leafId) {
                 return null;
             }
+            hasComment = true;
             hasTrailingComment ||= binding.placement === "trailing";
         }
     }
-    return Object.freeze({ hasLineComment, hasTrailingComment });
+    let breaksLine = hasLineComment;
+    if (!breaksLine && hasComment) {
+        try {
+            breaksLine = context.analysis.index.rangeContainsLineBreak({
+                start: startLeafId,
+                end: endLeafId,
+            });
+        } catch {
+            return null;
+        }
+    }
+    return Object.freeze({ hasLineComment, hasTrailingComment, breaksLine });
+}
+
+interface SeparatorComments {
+    readonly before: RangeCommentFacts;
+    readonly after: RangeCommentFacts;
+}
+
+function separatorComments(
+    context: QueryLayoutContext,
+    leftEndLeafId: number,
+    separatorLeafId: number,
+    rightStartLeafId: number
+): SeparatorComments | null {
+    const before = rangeCommentFacts(context, leftEndLeafId, separatorLeafId);
+    const after = rangeCommentFacts(context, separatorLeafId + 1, rightStartLeafId);
+    return before === null || after === null ? null : { before, after };
+}
+
+/** A comment written after the comma stays with the left member, so the comma cannot lead. */
+function separatorCanLead(comments: SeparatorComments): boolean {
+    return !comments.after.hasTrailingComment && !comments.after.breaksLine;
+}
+
+/** A comment before the comma that ends the line leaves the comma to lead the next one. */
+function separatorCanTrail(comments: SeparatorComments): boolean {
+    return !comments.before.breaksLine;
 }
 
 export function formatMultilineSequence(
@@ -235,6 +277,36 @@ export function formatMultilineSequence(
     ) {
         return false;
     }
+    const separators: SeparatorComments[] = [];
+    for (let index = 0; index < separatorLeafIds.length; index++) {
+        const comments = separatorComments(
+            context,
+            members[index]!.leafRange.end,
+            separatorLeafIds[index]!,
+            members[index + 1]!.leafRange.start
+        );
+        if (comments === null) {
+            return false;
+        }
+        separators.push(comments);
+    }
+    // The whole list takes the configured comma style when every comma allows it, else the
+    // other style when every comma allows that (K1, K2); only when neither fits does each comma
+    // choose on its own. Members line up on the content column whenever any comma leads.
+    const preferred = context.plan.options.commaStyle;
+    const allLead = separators.every(separatorCanLead);
+    const allTrail = separators.every(separatorCanTrail);
+    const listStyle = preferred === "leading"
+        ? (allLead ? "leading" : allTrail ? "trailing" : null)
+        : (allTrail ? "trailing" : allLead ? "leading" : null);
+    const leads = separators.map((comments) =>
+        listStyle !== null
+            ? listStyle === "leading"
+            : preferred === "leading"
+              ? separatorCanLead(comments)
+              : !separatorCanTrail(comments)
+    );
+    const contentAligned = preferred === "leading" || leads.includes(true);
     const first = members[0]!;
     const singleSpaceLeading =
         members.length === 1 &&
@@ -259,7 +331,7 @@ export function formatMultilineSequence(
         return false;
     }
     if (
-        context.plan.options.commaStyle === "leading" &&
+        contentAligned &&
         !singleSpaceLeading &&
         !wrapLayoutRange(
             context,
@@ -275,30 +347,9 @@ export function formatMultilineSequence(
         const separatorLeafId = separatorLeafIds[index]!;
         const left = members[index]!;
         const right = members[index + 1]!;
-        const commentsBeforeSeparator = rangeCommentFacts(
-            context,
-            left.leafRange.end,
-            separatorLeafId
-        );
-        const commentsAfterSeparator = rangeCommentFacts(
-            context,
-            separatorLeafId + 1,
-            right.leafRange.start
-        );
-        if (
-            commentsBeforeSeparator === null ||
-            commentsAfterSeparator === null
-        ) {
-            return false;
-        }
-        const useLeadingSeparator =
-            context.plan.options.commaStyle === "leading"
-                ? !commentsAfterSeparator.hasTrailingComment
-                : commentsBeforeSeparator.hasLineComment;
-        if (
-            useLeadingSeparator &&
-            context.plan.options.commaStyle === "trailing"
-        ) {
+        const comments = separators[index]!;
+        const useLeadingSeparator = leads[index]!;
+        if (useLeadingSeparator && preferred === "trailing") {
             context.state.commaFallback = true;
         }
         const beforeSeparator = useLeadingSeparator
@@ -322,15 +373,14 @@ export function formatMultilineSequence(
                 right.leafRange.start,
                 afterSeparator
             ) ||
-            ((context.plan.options.commaStyle === "leading" &&
-                !useLeadingSeparator) ||
+            ((contentAligned && !useLeadingSeparator) ||
                 (useLeadingSeparator &&
                     (needsLeadingContinuationAlign(right) ||
-                        commentsAfterSeparator.hasLineComment))) &&
+                        comments.after.hasLineComment))) &&
                 !wrapLayoutRange(
                     context,
                     authorityNodeId,
-                    right.leafRange.start,
+                    leadingCommentStart(context, separatorLeafId + 1, right.leafRange.start),
                     right.leafRange.end,
                     CONTENT_ALIGN
                 )
@@ -413,7 +463,22 @@ export function formatMixedRelationSequence(
             separatorLeafId >= left.leafRange.end &&
             separatorLeafId < right.leafRange.start
         ) {
-            const leading = context.plan.options.commaStyle === "leading";
+            const comments = separatorComments(
+                context,
+                left.leafRange.end,
+                separatorLeafId,
+                right.leafRange.start
+            );
+            if (comments === null) {
+                return false;
+            }
+            const preferred = context.plan.options.commaStyle;
+            const leading = preferred === "leading"
+                ? separatorCanLead(comments)
+                : !separatorCanTrail(comments);
+            if (leading && preferred === "trailing") {
+                context.state.commaFallback = true;
+            }
             const scopeStart = leading
                 ? left.leafRange.end
                 : separatorLeafId + 1;
@@ -439,11 +504,13 @@ export function formatMixedRelationSequence(
                     right.leafRange.end,
                     INDENT
                 ) ||
-                (leading &&
+                ((leading || preferred === "leading") &&
                     !wrapLayoutRange(
                         context,
                         authorityNodeId,
-                        right.leafRange.start,
+                        leading
+                            ? right.leafRange.start
+                            : leadingCommentStart(context, separatorLeafId + 1, right.leafRange.start),
                         right.leafRange.end,
                         CONTENT_ALIGN
                     ))
