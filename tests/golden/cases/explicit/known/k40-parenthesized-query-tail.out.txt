@@ -1,0 +1,51 @@
+(
+    SELECT
+          a
+    FROM s
+)
+ORDER BY
+      a;
+(
+    SELECT
+          a
+    FROM s
+)
+LIMIT 3;
+INSERT INTO t
+(
+    SELECT 1
+)
+ORDER BY
+      a
+LIMIT 5;
+CREATE TABLE t AS
+(
+    SELECT
+          a
+    FROM s
+)
+ORDER BY
+      a;
+SELECT
+      *
+FROM (
+    (
+        SELECT
+              a
+        FROM s
+    )
+    ORDER BY
+          a
+    LIMIT 1
+) x;
+WITH
+      c AS (
+          SELECT 1 AS a
+      )
+(
+    SELECT
+          a
+    FROM c
+)
+ORDER BY
+      a

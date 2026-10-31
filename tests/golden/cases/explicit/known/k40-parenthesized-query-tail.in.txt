@@ -1,0 +1,6 @@
+(select a from s) order by a;
+(select a from s) limit 3;
+insert into t (select 1) order by a limit 5;
+create table t as (select a from s) order by a;
+select * from ((select a from s) order by a limit 1) x;
+with c as (select 1 as a) (select a from c) order by a

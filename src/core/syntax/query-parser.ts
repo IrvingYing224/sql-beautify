@@ -1692,10 +1692,21 @@ export function parseQueryRange(
     }
     const topLevelIndexes = topLevelSyntaxIndexes(context, range);
     const markers = findSetMarkers(context, range, topLevelIndexes);
-    if (markers.length > 0) {
+    // `(select …) order by a`: Hive lets ORDER BY and LIMIT follow a single parenthesized query
+    // as they follow the last operand of a set query, so it takes the same path with no operator.
+    if (markers.length > 0 || hasTailAfterParenthesizedQuery(context, range)) {
         return parseSetQuery(context, range, markers, nestingDepth);
     }
     return parseQueryAtom(context, range, nestingDepth, topLevelIndexes);
+}
+
+function hasTailAfterParenthesizedQuery(context: ParserContext, range: LeafRange): boolean {
+    const first = context.leaves[range.start]!;
+    if (first.channel !== "code" || first.raw !== "(") {
+        return false;
+    }
+    const close = context.table.matchingDelimiterIndex(range.start);
+    return close !== null && close < range.end - 1;
 }
 
 /** Whether a parsed query is an INSERT, possibly after a WITH clause. */
