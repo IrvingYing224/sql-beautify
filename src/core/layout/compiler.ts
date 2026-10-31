@@ -96,7 +96,9 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
                           action.decision.maxFlatWidth,
                           content
                       )
-                    : factory.group(action.decision.mode, content);
+                    : action.decision.kind === "hang"
+                      ? factory.hang(content)
+                      : factory.group(action.decision.mode, content);
             if (wrapped === null) {
                 return failure(
                     "LAYOUT_COMPILE_DOC",

@@ -2,6 +2,6 @@ SELECT
       a
 FROM t
 WHERE CASE
-    WHEN a > 1 THEN b
-    ELSE c
-END = 1;
+          WHEN a > 1 THEN b
+          ELSE c
+      END = 1;

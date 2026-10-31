@@ -20,16 +20,16 @@ FROM t;
 SELECT
       a
     , sum(CASE
-          WHEN /* c */ x = 1 THEN 1
-          ELSE 0
-      END) AS k
+              WHEN /* c */ x = 1 THEN 1
+              ELSE 0
+          END) AS k
 FROM t;
 SELECT
       a
     , sum(CASE
-          WHEN x = 1 THEN /* c */ 1
-          ELSE 0
-      END) AS k
+              WHEN x = 1 THEN /* c */ 1
+              ELSE 0
+          END) AS k
 FROM t;
 SELECT
       a

@@ -19,10 +19,10 @@ WITH
                 user_id
               , count(1) AS cnt
               , sum(CASE
-                    WHEN event_type = 'buy' THEN
-                        1
-                    ELSE 0
-                END) AS buy_cnt
+                        WHEN event_type = 'buy' THEN
+                            1
+                        ELSE 0
+                    END) AS buy_cnt
           FROM base
           GROUP BY
                 user_id

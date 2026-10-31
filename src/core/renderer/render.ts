@@ -471,6 +471,23 @@ function renderCanonical(
                         alignColumns: frame.alignColumns + doc.columns,
                     });
                     break;
+                case "hang": {
+                    // Pending comments are written before the hanging content, so the column is
+                    // read after them; at a line start it is where the line prefix will end.
+                    beforeSource("");
+                    const levelWidth =
+                        artifact.options.indentStyle === "tab" ? environment.tabSize : 4;
+                    const column = needsLinePrefix
+                        ? frame.indentLevels * levelWidth + frame.alignColumns
+                        : displayColumn;
+                    stack.push({
+                        doc: doc.content,
+                        mode: frame.mode,
+                        indentLevels: frame.indentLevels,
+                        alignColumns: Math.max(0, column - frame.indentLevels * levelWidth),
+                    });
+                    break;
+                }
                 case "pad-to-column":
                     emitPad(doc.targetColumn, frame);
                     break;

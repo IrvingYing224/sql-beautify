@@ -19,9 +19,9 @@ with
 			user_id,
 			count(1) as cnt,
 			sum(case
-				when event_type = 'buy' then 1
-				else 0
-			end) as buy_cnt
+				    when event_type = 'buy' then 1
+				    else 0
+			    end) as buy_cnt
 		from base
 		group by
 			user_id

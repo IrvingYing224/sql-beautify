@@ -2556,6 +2556,21 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/constructs/case-keyword-anchor#compact": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/case-keyword-anchor#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/case-keyword-anchor#tab": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/constructs/comment-after-keyword": {
   "op": "formatSql",
   "status": "formatted",

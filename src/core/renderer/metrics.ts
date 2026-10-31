@@ -142,6 +142,7 @@ function combineConcat(
 function childOf(doc: LayoutDoc): LayoutDoc | null {
     return doc.kind === "indent" ||
         doc.kind === "align" ||
+        doc.kind === "hang" ||
         doc.kind === "group"
         ? doc.content
         : null;
@@ -218,7 +219,8 @@ export function measureLayoutArtifact(artifact: LayoutArtifact): LayoutMetricsRe
                 case "concat":
                     summary = combineConcat(doc.parts, summaries);
                     break;
-                case "indent": {
+                case "indent":
+                case "hang": {
                     const child = summaries.get(doc.content);
                     summary = child ?? null;
                     break;

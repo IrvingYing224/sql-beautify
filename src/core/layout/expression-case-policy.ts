@@ -204,7 +204,15 @@ export function formatCaseExpression(
         context.plan.options.caseLayout === "compactShort" &&
         !hasComment &&
         !hasClaim;
+    // Branches indent from the CASE keyword's own column and END lines up with it, wherever the
+    // CASE starts (a function argument, after an operator).
     return wrapLayoutRange(
+        context,
+        authorityNodeId,
+        node.leafRange.start,
+        node.leafRange.end,
+        { kind: "hang" }
+    ) && wrapLayoutRange(
         context,
         authorityNodeId,
         node.leafRange.start,

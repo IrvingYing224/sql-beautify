@@ -54,6 +54,10 @@ export type LayoutScopeDecision =
     | {
           readonly kind: "auto-group";
           readonly maxFlatWidth: number;
+      }
+    | {
+          /** Lines inside start from the column where the scope's first leaf is written. */
+          readonly kind: "hang";
       };
 
 export interface LayoutScopeAction {
@@ -174,6 +178,8 @@ function validScopeDecision(value: LayoutScopeDecision): boolean {
             return isColumnCount(value.columns);
         case "auto-group":
             return isColumnCount(value.maxFlatWidth);
+        case "hang":
+            return true;
     }
 }
 
@@ -196,15 +202,19 @@ function scopeDecisionsEqual(
                 right.kind === "auto-group" &&
                 left.maxFlatWidth === right.maxFlatWidth
             );
+        case "hang":
+            return right.kind === "hang";
     }
 }
 
 function scopeDecisionOrder(value: LayoutScopeDecision): number {
     return value.kind === "group" || value.kind === "auto-group"
         ? 0
-        : value.kind === "indent"
+        : value.kind === "hang"
           ? 1
-          : 2;
+          : value.kind === "indent"
+            ? 2
+            : 3;
 }
 
 function scopeDecisionFamily(value: LayoutScopeDecision): string {
@@ -631,7 +641,8 @@ export function createLayoutPlanBuilder(
                 for (const scope of sortedScopes) {
                     if (
                         scope.decision.kind !== "indent" &&
-                        scope.decision.kind !== "align"
+                        scope.decision.kind !== "align" &&
+                        scope.decision.kind !== "hang"
                     ) {
                         continue;
                     }

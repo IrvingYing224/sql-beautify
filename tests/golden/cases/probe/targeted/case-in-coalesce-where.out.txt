@@ -2,5 +2,5 @@ SELECT
       a
 FROM t
 WHERE coalesce(CASE
-    WHEN x = 1 THEN 'a'
-END, 'b') = 'a'
+                   WHEN x = 1 THEN 'a'
+               END, 'b') = 'a'

@@ -2,6 +2,7 @@ import type { AnalyzedArtifact, CommentBinding } from "../analysis/types";
 import { isKeywordCaseRole } from "../syntax/contextual-fact-contract";
 import type {
     AlignDoc,
+    HangDoc,
     AutoGroupDoc,
     ConcatDoc,
     ForcedGroupDoc,
@@ -52,6 +53,7 @@ export interface LayoutDocFactory {
     concat(parts: readonly LayoutDoc[]): LayoutDoc | null;
     indent(levels: number, content: LayoutDoc): LayoutDoc | null;
     align(columns: number, content: LayoutDoc): LayoutDoc | null;
+    hang(content: LayoutDoc): LayoutDoc;
     padToColumn(targetColumn: number): LayoutDoc | null;
     autoGroup(maxFlatWidth: number, content: LayoutDoc): AutoGroupDoc | null;
     group(
@@ -235,6 +237,10 @@ export function createLayoutDocFactory(
                         content,
                     } as AlignDoc)
             );
+        },
+
+        hang(content): LayoutDoc {
+            return Object.freeze({ kind: "hang", content } as HangDoc);
         },
 
         padToColumn(targetColumn): LayoutDoc | null {

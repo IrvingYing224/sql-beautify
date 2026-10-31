@@ -86,6 +86,11 @@ export interface AlignDoc {
     readonly content: LayoutDoc;
 }
 
+export interface HangDoc {
+    readonly kind: "hang";
+    readonly content: LayoutDoc;
+}
+
 export interface PadToColumnDoc {
     readonly kind: "pad-to-column";
     readonly targetColumn: PositiveColumns;
@@ -119,6 +124,7 @@ export type LayoutDoc =
     | ConcatDoc
     | IndentDoc
     | AlignDoc
+    | HangDoc
     | PadToColumnDoc
     | AutoGroupDoc
     | ForcedGroupDoc

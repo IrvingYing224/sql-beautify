@@ -3,6 +3,6 @@ SELECT
 FROM t
 WHERE a = 1
     AND CASE
-        WHEN b > 0 THEN 1
-        ELSE 0
-    END = 1
+            WHEN b > 0 THEN 1
+            ELSE 0
+        END = 1

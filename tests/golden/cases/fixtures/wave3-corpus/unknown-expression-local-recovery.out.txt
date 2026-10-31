@@ -1,4 +1,4 @@
 SELECT CASE
-    WHEN a = 1 THEN f(a => b)
-    ELSE 'y'
-END
+           WHEN a = 1 THEN f(a => b)
+           ELSE 'y'
+       END

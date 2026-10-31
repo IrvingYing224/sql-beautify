@@ -1,0 +1,25 @@
+SELECT
+      sum(CASE
+              WHEN status = 1 THEN amount_a
+              WHEN status = 2 THEN amount_b
+              ELSE 0
+          END) AS s
+    , sum(CASE
+              WHEN status = 1 THEN amount_b
+              WHEN status = 2 THEN amount_a
+              ELSE 0
+          END) AS t
+    , CAST(CASE
+               WHEN flag = 1 THEN price_with_tax_and_fee
+               ELSE price_without_tax_and_fee
+           END AS DECIMAL(18, 2)) AS p
+    , CASE
+          WHEN a = 1 THEN
+              CASE
+                  WHEN b = 1 THEN 'both_conditions_hold'
+                  ELSE 'only_the_first_one'
+              END
+          ELSE 'neither_condition'
+      END AS n
+FROM x
+WHERE coalesce(CASE WHEN a = 1 THEN 1 END, 0) + CASE WHEN b = 2 THEN 2 END = 1

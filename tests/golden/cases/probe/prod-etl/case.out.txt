@@ -47,9 +47,9 @@ WITH
               , count(DISTINCT order_id) AS order_cnt
               , sum(amount)              AS total_amount
               , sum(CASE
-                    WHEN status = 1 THEN amount
-                    ELSE 0
-                END) AS paid_amount
+                        WHEN status = 1 THEN amount
+                        ELSE 0
+                    END) AS paid_amount
               , max(create_time)                                                   AS last_order_time
               , row_number() OVER (PARTITION BY user_id ORDER BY sum(amount) DESC) AS rn
           FROM orders

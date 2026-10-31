@@ -1,0 +1,7 @@
+-- golden: {"variants":{"default":{},"tab":{"options":{"indentStyle":"tab"}},"compact":{"options":{"caseLayout":"compactShort"}}}}
+select sum(case when status = 1 then amount_a when status = 2 then amount_b else 0 end) as s,
+  sum(case when status = 1 then amount_b when status = 2 then amount_a else 0 end) as t,
+  cast(case when flag = 1 then price_with_tax_and_fee else price_without_tax_and_fee end as decimal(18, 2)) as p,
+  case when a = 1 then case when b = 1 then 'both_conditions_hold' else 'only_the_first_one' end else 'neither_condition' end as n
+from x
+where coalesce(case when a = 1 then 1 end, 0) + case when b = 2 then 2 end = 1
