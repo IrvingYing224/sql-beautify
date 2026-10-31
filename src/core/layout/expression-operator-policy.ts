@@ -2,6 +2,7 @@ import type { OperatorOccurrence } from "../syntax/node";
 import type { ExpressionNode, SyntaxNode } from "../syntax/node";
 import {
     authorityForNode,
+    indentBodyAfterLineComment,
     wrapLayoutRange,
 } from "./query-layout-context";
 import type { QueryLayoutContext } from "./query-layout-context";
@@ -195,7 +196,8 @@ export function formatExpressionOperators(
                         leafId + 1,
                         next.start,
                         afterDecision(context, occurrence, next)
-                    ))
+                    ) ||
+                    !indentBodyAfterLineComment(context, authorityNodeId, leafId + 1, next))
             ) {
                 return false;
             }

@@ -9,6 +9,7 @@ import type {
 } from "../syntax/node";
 import {
     authorityForNode,
+    indentBodyAfterLineComment,
     wrapLayoutRange,
 } from "./query-layout-context";
 import type { QueryLayoutContext } from "./query-layout-context";
@@ -59,7 +60,8 @@ function formatSetStatement(
             head.leafId + 1,
             payload.leafRange.start,
             SPACE
-        )
+        ) &&
+        indentBodyAfterLineComment(context, authorityNodeId, head.leafId + 1, payload.leafRange)
     );
 }
 
@@ -217,13 +219,19 @@ function formatClause(
         case "join-on":
         case "lateral-view":
             return first === undefined ||
-                replaceStructuralGap(
+                (replaceStructuralGap(
                     context,
                     authorityNodeId,
                     clause.headLeafRange.end,
                     first.leafRange.start,
                     SPACE
-                );
+                ) &&
+                    indentBodyAfterLineComment(
+                        context,
+                        authorityNodeId,
+                        clause.headLeafRange.end,
+                        first.leafRange
+                    ));
     }
 }
 

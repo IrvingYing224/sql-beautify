@@ -1,7 +1,6 @@
 SELECT
       *
 FROM t
-WHERE
--- filter
-a = 1
-    AND c = 3
+WHERE -- filter
+    a = 1
+        AND c = 3

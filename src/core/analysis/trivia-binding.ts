@@ -269,6 +269,16 @@ export function bindCommentTriviaFromFacts(
                     bindings.push(createBinding(commentLeaf.id, owner.id, "trailing"));
                     continue;
                 }
+                // A comment on the line of a keyword or operator that ends no node
+                // (`SELECT /*+ hint */`, `DATE /* c */ '…'`, `SET /* c */ k=v`, `WHERE -- note`,
+                // `a = -- note`) stays on that line (K14, K36, K38).
+                if (
+                    previousLeaf.channel === "code" &&
+                    (previousLeaf.kind === "keyword" || previousLeaf.kind === "operator")
+                ) {
+                    bindings.push(createBinding(commentLeaf.id, container.id, "trailing"));
+                    continue;
+                }
             }
         }
 

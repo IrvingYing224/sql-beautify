@@ -1,0 +1,5 @@
+SELECT
+      DATE /* c */ '2020-01-01'               AS d
+    , INTERVAL /* c */ '1' DAY                AS i
+    , TIMESTAMP /* c */ '2020-01-01 00:00:00' AS ts
+FROM t

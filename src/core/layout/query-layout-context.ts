@@ -4,6 +4,8 @@ import type { ProgramNode, SyntaxNode } from "../syntax/node";
 import type { LayoutPlanBuilder, LayoutScopeDecision } from "./plan";
 import type { DominatingVerbatimClaims } from "./verbatim-claims";
 
+const BODY_INDENT = Object.freeze({ kind: "indent" as const, levels: 1 });
+
 /** Facts the policies record while registering actions. */
 export interface QueryPolicyState {
     /** Whether an indent or align scope was registered; trivia layout needs one. */
@@ -205,6 +207,24 @@ export function authorityForNode(
 ): number | null {
     const encoded = context.authorityByNodeId[nodeId];
     return encoded === undefined || encoded < 0 ? null : encoded;
+}
+
+/**
+ * A line comment after a keyword or operator (`WHERE -- note`) ends that line; the body on the next
+ * line is indented one level instead of falling back to the clause's column.
+ */
+export function indentBodyAfterLineComment(
+    context: QueryLayoutContext,
+    authorityNodeId: number,
+    gapStartLeafId: number,
+    body: { readonly start: number; readonly end: number }
+): boolean {
+    for (let leafId = gapStartLeafId; leafId < body.start; leafId++) {
+        if (context.analysis.leafKind(leafId) === "line-comment") {
+            return wrapLayoutRange(context, authorityNodeId, body.start, body.end, BODY_INDENT);
+        }
+    }
+    return true;
 }
 
 export function wrapLayoutRange(

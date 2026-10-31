@@ -1,5 +1,4 @@
 SELECT
       a
-FROM
-    -- relation
+FROM -- relation
     t

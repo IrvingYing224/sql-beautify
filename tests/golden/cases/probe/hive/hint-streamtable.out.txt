@@ -1,5 +1,4 @@
-SELECT
-      /*+ STREAMTABLE(a) */
+SELECT /*+ STREAMTABLE(a) */
       a.x
     , b.y
 FROM a

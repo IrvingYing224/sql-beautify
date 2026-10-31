@@ -261,11 +261,13 @@ export function measureLayoutArtifact(artifact: LayoutArtifact): LayoutMetricsRe
                         leaf.raw,
                         leaf.kind === "line-comment"
                     );
+                    // The renderer writes a deferred block comment before the next space or leaf,
+                    // so it stays on the line and only its width counts; a line comment ends the line.
                     summary = source === null
                         ? null
                         : frozenSummary({
                               ...source,
-                              flatWidth: null,
+                              flatWidth: leaf.kind === "block-comment" ? source.flatWidth : null,
                               containsContextualWidth: true,
                               containsLineSuffix: true,
                           });

@@ -2556,6 +2556,11 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/constructs/comment-after-keyword": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/constructs/comments": {
   "op": "formatSql",
   "status": "formatted",
@@ -3207,6 +3212,16 @@
    "SYN_UNEXPECTED_TOKEN",
    "LAYOUT_ALIGNMENT_FACTS"
   ]
+ },
+ "explicit/known/k36-typed-literal-comment": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k38-set-comment": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
  },
  "explicit/literal/alias-l": {
   "op": "formatSql",

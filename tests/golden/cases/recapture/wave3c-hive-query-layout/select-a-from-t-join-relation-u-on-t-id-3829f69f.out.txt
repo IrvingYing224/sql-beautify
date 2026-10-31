@@ -1,7 +1,6 @@
 SELECT
       a
 FROM t
-JOIN
-    -- relation
+JOIN -- relation
     u
     ON t.id = u.id

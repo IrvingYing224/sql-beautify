@@ -1,4 +1,3 @@
-SELECT
-      /*lead*/
+SELECT /*lead*/
       a
 FROM t

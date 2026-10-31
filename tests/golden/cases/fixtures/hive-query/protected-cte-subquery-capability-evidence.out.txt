@@ -5,6 +5,4 @@ WITH
       )
 SELECT
       c
-FROM
-    /*e:from2*/
-    a
+FROM /*e:from2*/ a

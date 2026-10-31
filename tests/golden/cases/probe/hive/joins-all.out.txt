@@ -1,5 +1,4 @@
-SELECT
-      /*+ MAPJOIN(b) */
+SELECT /*+ MAPJOIN(b) */
       a.id
     , b.name
     , c.v

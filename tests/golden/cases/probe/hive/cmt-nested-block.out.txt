@@ -1,4 +1,3 @@
-SELECT
-      /* outer /* inner */
+SELECT /* outer /* inner */
       a
 FROM t;

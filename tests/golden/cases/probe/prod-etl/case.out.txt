@@ -34,8 +34,7 @@ WITH
           -- and o.is_test = 0
       )
     , users AS (
-          SELECT
-                /*+ MAPJOIN(c) */
+          SELECT /*+ MAPJOIN(c) */
                 u.user_id
               , u.city
               , c.city_level

@@ -1,25 +1,18 @@
 SELECT
       'x' AS s
-FROM
-    /*e:from*/
-    t
+FROM /*e:from*/ t
 WHERE /*e:where*/ a = 1
-GROUP BY
-      /*e:group*/
+GROUP BY /*e:group*/
       a
 HAVING /*e:having*/ count(*) > 0
 WINDOW
       w AS (PARTITION /*e:window*/ BY a)
-ORDER BY
-      /*e:order*/
+ORDER BY /*e:order*/
       a
-CLUSTER BY
-      /*e:cluster*/
+CLUSTER BY /*e:cluster*/
       a
-DISTRIBUTE BY
-      /*e:distribute*/
+DISTRIBUTE BY /*e:distribute*/
       a
-SORT BY
-      /*e:sort*/
+SORT BY /*e:sort*/
       a
 LIMIT /*e:limit*/ 1

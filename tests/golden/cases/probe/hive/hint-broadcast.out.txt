@@ -1,5 +1,4 @@
-SELECT
-      /*+ BROADCAST(b), MAPJOIN(c) */
+SELECT /*+ BROADCAST(b), MAPJOIN(c) */
       *
 FROM a
 JOIN b

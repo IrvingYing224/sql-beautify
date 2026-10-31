@@ -1,0 +1,3 @@
+set /*c*/  hive.x=1;
+set -- c
+hive.y=2;

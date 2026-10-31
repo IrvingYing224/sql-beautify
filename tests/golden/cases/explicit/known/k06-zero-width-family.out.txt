@@ -17,8 +17,7 @@ SELECT
       END AS x
 FROM t;
 SELECT
-      CASE
-      /* c */
+      CASE /* c */
           WHEN a = 1 THEN 1
       END AS x
 FROM t;

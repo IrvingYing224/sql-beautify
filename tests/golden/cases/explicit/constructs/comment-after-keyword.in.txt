@@ -1,0 +1,9 @@
+select a from t where -- only active
+ status = 1 and b = 2;
+select a, count(*) from t join u -- right
+ on -- cond
+ t.id = u.id group by a having -- h
+ count(*) > 1;
+select a from t where a = 1 and -- why
+ b = 2 and c = -- c
+ 3;
