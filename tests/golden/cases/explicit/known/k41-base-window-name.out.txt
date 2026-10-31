@@ -1,5 +1,11 @@
 SELECT
-      row_number() over (w order by b) AS rn
+      row_number() OVER (w ORDER BY b) AS rn
+FROM t
+WINDOW
+      w AS (PARTITION BY a);
+SELECT
+      sum(x) OVER (w ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
 FROM t
 WINDOW
       w AS (PARTITION BY a)
+    , w2 AS (w ORDER BY c)

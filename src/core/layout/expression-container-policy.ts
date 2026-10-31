@@ -593,6 +593,7 @@ export function formatWindowSpec(
         authorityNodeId,
         node,
         openLeafId,
-        closeLeafId
+        closeLeafId,
+        node.baseNameLeafRange === null ? [] : [node.baseNameLeafRange]
     );
 }

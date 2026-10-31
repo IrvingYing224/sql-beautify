@@ -133,6 +133,7 @@ export interface NodeFactory {
     createWindowSpec(
         range: LeafRange,
         nameLeafRange: LeafRange | null,
+        baseNameLeafRange: LeafRange | null,
         partition: ListNode | OpaqueNode | null,
         order: ListNode | OpaqueNode | null,
         frame: ExpressionNode | ListNode | OpaqueNode | null,
@@ -713,6 +714,7 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
         createWindowSpec(
             range,
             nameLeafRange,
+            baseNameLeafRange,
             partition,
             order,
             frame,
@@ -741,6 +743,10 @@ export function createNodeFactory(table: StructuralTokenTable): NodeFactory {
                     nameLeafRange === null
                         ? null
                         : freezeRange(nameLeafRange, leafCount, false),
+                baseNameLeafRange:
+                    baseNameLeafRange === null
+                        ? null
+                        : freezeRange(baseNameLeafRange, leafCount, false),
                 partitionChildId: partition === null ? null : partition.id,
                 orderChildId: order === null ? null : order.id,
                 frameChildId: frame === null ? null : frame.id,

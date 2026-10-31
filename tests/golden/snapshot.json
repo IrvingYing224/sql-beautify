@@ -3417,9 +3417,7 @@
  "explicit/known/k41-base-window-name": {
   "op": "formatSql",
   "status": "formatted",
-  "codes": [
-   "SYN_UNEXPECTED_TOKEN"
-  ]
+  "codes": []
  },
  "explicit/literal/alias-l": {
   "op": "formatSql",

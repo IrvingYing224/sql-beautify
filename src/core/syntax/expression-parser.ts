@@ -1264,6 +1264,7 @@ class PrattParser {
                 nameRange,
                 null,
                 null,
+                null,
                 null
             );
             this.position = specStart + 1;

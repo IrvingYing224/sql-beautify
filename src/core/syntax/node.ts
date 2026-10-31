@@ -351,6 +351,8 @@ export interface CaseBranchNode extends SyntaxNodeBase<"case-branch"> {
 export interface WindowSpecNode extends SyntaxNodeBase<"window-spec"> {
     /** Named WINDOW reference/declaration name, or null for an inline spec. */
     readonly nameLeafRange: LeafRange | null;
+    /** The window an inline spec builds on: `w` in `over (w order by b)`. */
+    readonly baseNameLeafRange: LeafRange | null;
     readonly partitionChildId: number | null;
     readonly orderChildId: number | null;
     readonly frameChildId: number | null;

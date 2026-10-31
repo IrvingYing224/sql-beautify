@@ -397,8 +397,12 @@ export function buildStructuralIndex(artifact: ParseArtifact): StructuralIndex {
                 invariantFailure(`non-table relation ${node.id} must not own a name range`);
             }
             registerNameRange(node.nameLeafRange, node.id, "relation-name");
-        } else if (node.kind === "window-spec" && node.nameLeafRange !== null) {
-            registerNameRange(node.nameLeafRange, node.id, "identifier-name");
+        } else if (node.kind === "window-spec") {
+            for (const range of [node.nameLeafRange, node.baseNameLeafRange]) {
+                if (range !== null) {
+                    registerNameRange(range, node.id, "identifier-name");
+                }
+            }
         } else if (node.kind === "type-expression") {
             validateRange(node.typeNameLeafRange, leafCount, node.id);
             for (

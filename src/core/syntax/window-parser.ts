@@ -177,6 +177,7 @@ class WindowParser {
                 null,
                 null,
                 null,
+                null,
                 nodeFacts(null, "intrinsic-container", baseMarkers)
             );
         }
@@ -221,10 +222,8 @@ class WindowParser {
             ) {
                 return this.context.factory.createWindowSpec(
                     outputRange,
-                    declarationName ?? {
-                        start: bodyIndexes[0]!,
-                        end: bodyIndexes[0]! + 1,
-                    },
+                    declarationName,
+                    { start: bodyIndexes[0]!, end: bodyIndexes[0]! + 1 },
                     null,
                     null,
                     null,
@@ -238,12 +237,18 @@ class WindowParser {
             );
         }
 
-        // Words before the first clause (a misspelt `partition byx a`, or a base window name,
-        // K41) are not modelled; the recovery keeps the item as written (K31).
+        // One name before the first clause is the base window (`over (w order by b)`). Other
+        // words there (a misspelt `partition byx a`) are not modelled; the recovery keeps the item
+        // as written (K31).
         const firstClause = Math.min(
             ...[partitionPosition, orderPosition, framePosition].filter((position) => position >= 0)
         );
-        if (firstClause !== bodyStart) {
+        const baseIndex = this.indexes[bodyStart]!;
+        const baseName =
+            firstClause === bodyStart + 1 && isAliasNameLeaf(this.context.leaves[baseIndex]!)
+                ? { start: baseIndex, end: baseIndex + 1 }
+                : null;
+        if (firstClause !== bodyStart && baseName === null) {
             throw new ParserSyntaxError(
                 "SYN_UNEXPECTED_TOKEN",
                 rangeFromIndexes(this.indexes, bodyStart, firstClause),
@@ -310,6 +315,7 @@ class WindowParser {
         return this.context.factory.createWindowSpec(
             outputRange,
             declarationName,
+            baseName,
             partition,
             order,
             frame,
