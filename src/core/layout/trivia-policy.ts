@@ -76,7 +76,28 @@ function decisionBetweenGapAnchors(
             return null;
         }
     }
+    // The space written after a block comment stays where none is requested (`f(/* arg */ x)`, K15).
+    if (
+        requested.kind === "empty" &&
+        left?.kind === "block-comment" &&
+        rangeHasWhitespace(context, startLeafId, endLeafId)
+    ) {
+        return SPACE;
+    }
     return requested;
+}
+
+function rangeHasWhitespace(
+    context: QueryLayoutContext,
+    startLeafId: number,
+    endLeafId: number
+): boolean {
+    for (let leafId = startLeafId; leafId < endLeafId; leafId++) {
+        if (context.analysis.leafKind(leafId) === "whitespace") {
+            return true;
+        }
+    }
+    return false;
 }
 
 function registerTriviaGap(
