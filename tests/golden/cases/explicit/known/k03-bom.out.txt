@@ -1,0 +1,9 @@
+﻿  SELECT
+        a
+      , b
+  FROM t;
+  -- c
+  SELECT
+        c
+      , d
+  FROM u;

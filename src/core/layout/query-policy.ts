@@ -237,7 +237,8 @@ function formatClause(
 
 /**
  * Children and body keywords from `fromLeafId` on (`, n`, `OFFSET m`, `WITH ROLLUP`) are one
- * space apart; a separator comma takes no space before it.
+ * space apart; a separator comma takes no space before it. After a line comment the rest of the
+ * body is indented one level (`LIMIT -- note`).
  */
 function formatClauseBody(
     context: QueryLayoutContext,
@@ -258,10 +259,17 @@ function formatClauseBody(
     ]
         .filter((anchor) => anchor.start >= fromLeafId)
         .sort((left, right) => left.start - right.start);
+    const bodyEnd = anchors[anchors.length - 1]?.end ?? fromLeafId;
     let leftEnd = fromLeafId;
     for (const anchor of anchors) {
         const decision = clause.separatorLeafIds.includes(anchor.start) ? EMPTY : SPACE;
-        if (!replaceStructuralGap(context, authorityNodeId, leftEnd, anchor.start, decision)) {
+        if (
+            !replaceStructuralGap(context, authorityNodeId, leftEnd, anchor.start, decision) ||
+            !indentBodyAfterLineComment(context, authorityNodeId, leftEnd, {
+                start: anchor.start,
+                end: bodyEnd,
+            })
+        ) {
             return false;
         }
         leftEnd = anchor.end;
@@ -513,6 +521,9 @@ function baseIndentLeaf(context: QueryLayoutContext): number | null {
     let lineStart = first;
     while (lineStart > 0 && analysis.leafKind(lineStart - 1) !== "newline") {
         lineStart -= 1;
+    }
+    if (lineStart === 0 && analysis.leafKind(0) === "byte-order-mark") {
+        lineStart = 1;
     }
     return analysis.leafKind(lineStart) === "whitespace" ? lineStart : null;
 }

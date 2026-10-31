@@ -11,14 +11,14 @@ SELECT
       a
 FROM t
 LIMIT 10 -- c
-OFFSET 5;
+    OFFSET 5;
 SELECT
       a
     , count(1)
 FROM t
 GROUP BY
       a -- c
-WITH ROLLUP;
+    WITH ROLLUP;
 SELECT
       a + INTERVAL /* c */ 1 DAY
 FROM t;

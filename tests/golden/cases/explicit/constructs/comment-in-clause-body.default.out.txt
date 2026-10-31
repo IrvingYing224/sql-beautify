@@ -1,0 +1,28 @@
+SELECT
+      a
+FROM t
+LIMIT -- c
+    1;
+SELECT
+      a
+FROM t
+LIMIT 10 OFFSET -- c
+    5;
+SELECT
+      a
+FROM t
+LIMIT -- a
+    10 OFFSET -- b
+        5;
+SELECT
+      a
+FROM t
+LIMIT 1, -- c
+    2;
+SELECT
+      a
+    , count(1)
+FROM t
+GROUP BY
+      a WITH -- c
+    ROLLUP;

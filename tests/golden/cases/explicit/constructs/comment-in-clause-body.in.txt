@@ -1,0 +1,12 @@
+-- golden: {"variants":{"default":{},"tab":{"options":{"indentStyle":"tab"}}}}
+select a from t limit -- c
+1;
+select a from t limit 10 offset -- c
+5;
+select a from t limit -- a
+10 offset -- b
+5;
+select a from t limit 1, -- c
+2;
+select a, count(1) from t group by a with -- c
+rollup;

@@ -2586,6 +2586,16 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/constructs/comment-in-clause-body#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/constructs/comment-in-clause-body#tab": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/constructs/comments": {
   "op": "formatSql",
   "status": "formatted",
@@ -3059,6 +3069,16 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k03-bom": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k03-bom-crlf": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k03-case-and-comments#default": {
   "op": "formatSql",
   "status": "formatted",
@@ -3100,6 +3120,26 @@
   "codes": []
  },
  "explicit/known/k04-commented-condition": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k05-bare-case-member#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k05-bare-case-member#expanded": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k05-bare-case-member#tab": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k05-bare-case-member#trailing": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []

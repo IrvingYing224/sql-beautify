@@ -212,12 +212,14 @@ function scopeDecisionsEqual(
     }
 }
 
+// On the same range an align wraps the rest: a group then measures only its own content, and a
+// hang reads a column that already includes the alignment.
 function scopeDecisionOrder(value: LayoutScopeDecision): number {
-    return value.kind === "group" || value.kind === "auto-group"
+    return value.kind === "align"
         ? 0
-        : value.kind === "hang"
+        : value.kind === "group" || value.kind === "auto-group"
           ? 1
-          : value.kind === "indent"
+          : value.kind === "hang"
             ? 2
             : 3;
 }

@@ -1,0 +1,28 @@
+SELECT
+      a
+    , CASE
+          WHEN x THEN 1
+          ELSE 0
+      END
+FROM t;
+SELECT
+      a
+    , count(1)
+FROM t
+GROUP BY
+      a
+    , CASE
+          WHEN x THEN 1
+          ELSE 0
+      END;
+SELECT
+      a
+    , CASE
+          WHEN x THEN
+              CASE
+                  WHEN y THEN 1
+                  ELSE 2
+              END
+          ELSE 0
+      END
+FROM t;
