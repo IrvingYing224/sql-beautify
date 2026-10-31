@@ -1,156 +1,109 @@
-# SQL Formatter Architecture
+# SQL Beautify 架构（3.0）
 
-> 3.0 重构期间以 [`3.0-refactor-plan.md`](3.0-refactor-plan.md) 为准。本文描述 2.x 架构；与该方案冲突时，以该方案为准。
+本文说明 3.0 的代码结构和格式化流程，供改代码和复核时查阅。用户可见的行为见 `README.md`，工作规则见 `AGENTS.md`，3.0 重构的决定见 [ADR 0006](adr/0006-3.0-refactor.md)。
 
-This document defines the maintained SQL Beautify 2.x architecture. User-facing behavior belongs in `README.md`; upgrade steps belong in `docs/migration-to-2.2.md`.
+## 目录与依赖方向
 
-## Source and dependency boundaries
-
-- `src/core/lexer/` is the lossless lexer. It owns UTF-16 source spans, maximal-munch dialect lexemes, and exact comment/string/identifier bytes.
-- `src/core/syntax/` builds the formatter-oriented lossless CST, applies bounded recovery, recognizes unsupported constructs, and grants private construction/root-coverage provenance. Its full hostile-object invariant facade is an explicit debug/test boundary, not a per-parse pass.
-- `src/core/analysis/` performs the single production CST traversal while building immutable structural indexes and trivia ownership once per request.
-- `src/core/layout/` is the only formatting-policy layer. It emits bounded Layout IR and explicit verbatim claims; it does not edit final strings.
-- `src/core/renderer/` is the only formatted-whitespace authority. It renders Layout IR, applies approved keyword case, and produces source-map facts.
-- `src/core/api/` and `src/core/config/` own the public result and canonical options contracts.
-- `src/adapters/transaction/` owns document/range/multi-selection atomicity. `src/adapters/executor/` owns direct/worker routing, cancellation, timeout, stale-response, and lifecycle boundaries.
-- `src/adapters/vscode/` maps canonical settings, providers, commands, diagnostics, selections, and extension lifecycle without owning SQL layout.
-- `src/experimental/ddl/` contains the explicitly separate Hive DDL formatter and Extract DDL implementation.
-
-`src/core/**` must not import adapters, VS Code, or experimental DDL. Adapter and DDL code may consume public or explicitly internal core contracts, never the reverse. TypeScript `strict` mode and immutable result objects make these boundaries executable.
-
-## Formatting pipeline
-
-```mermaid
-flowchart LR
-    A["source + canonical options"] --> B["lossless lexer"]
-    B --> C["formatter-oriented CST"]
-    C --> D["dialect validation + bounded recovery"]
-    D --> E["structural indexes + trivia binding"]
-    E --> F["layout policy"]
-    F --> G["Layout IR + verbatim claims"]
-    G --> H["single renderer"]
-    H --> I["token equivalence + source-map checks"]
-    I --> J["structured FormatResult"]
+```
+src/
+  extension.ts   组装：注册 provider、命令和诊断
+  vscode/        宿主：配置读取、provider、命令、选区、诊断与提示文案
+  edits/         computeEdits（查询、DDL、Extract 共用）、范围校验、offset 换算、执行器与 worker
+  core/          lexer → syntax → analysis → layout → renderer → api
+  ddl/           Experimental Hive DDL 格式化与 Extract DDL
 ```
 
-Leaves partition the original JavaScript string by end-exclusive UTF-16 code-unit offsets. Comments, strings, quoted identifiers, parameters, dialect literals, and opaque/verbatim structures retain their exact source slices. Offset-zero BOM is an immutable trivia leaf. One request-level render environment owns generated LF, CRLF, or lone-CR line breaks; verbatim slices retain their original line endings. No global whitespace or SQL regular-expression pass is allowed after rendering.
+依赖只能从上往下：`vscode` 用 `edits`，`edits` 用 `core` 与 `ddl`，`ddl` 用 `core`。`core` 不引用其余目录，也不引用 VS Code。
 
-Parser recovery is deliberately bounded. Unsupported-clause trials use a request-local typed cache and charge range work against a linear budget derived from syntax-leaf count. When the formatter can prove a construct boundary, it may preserve that range verbatim; when it can only prove a statement or target boundary, it preserves the broader unit. Proof-budget exhaustion retains capability identity and never guesses through an unbounded malformed structure.
+`core/` 内部：
 
-Analysis constructs parent/ancestor, statement/clause, list/separator, trivia, offset, and dialect capability indexes once. Layout and renderer code query those indexes instead of repeatedly rescanning all leaves or nodes. Typed layout resource exhaustion is a warning plus exact-target preservation; provenance, illegal source gaps, token-equivalence, and other artifact failures remain hard failures. Resource-budget and performance tests guard against accidental superlinear work.
+| 目录 | 职责 |
+| --- | --- |
+| `lexer/` | 无损 lexer：leaf 按 UTF-16 offset 切分原文，拼接后等于原文；BOM 是 offset 0 的 trivia leaf；`${…}` 模板片段合成一个 leaf |
+| `dialects/` | Hive 的 capability 表、运算符优先级、子句与 JOIN 语法表 |
+| `syntax/` | 面向格式化的 CST：语句、查询、表达式、类型、窗口的 parser，语句头表（`statement-head.ts`），局部恢复与未建模结构识别，嵌套深度上限 256 |
+| `analysis/` | 一次遍历建立结构索引（父子、语句、子句、列表、分隔符），并把每个注释绑定到 leading、trailing 或 dangling 位置 |
+| `layout/` | 排版策略：产出 layout plan（gap 决定与 scope），再编译成 Layout IR |
+| `renderer/` | 唯一写空白和改关键字大小写的地方：执行 Layout IR，计算显示宽度与平铺宽度，生成 source map |
+| `api/` | `formatSql` 的流程、结果类型、输入与输出上限、底线 2 的检查（`floor.ts`） |
+| `config/` | 选项定义（默认值、枚举、整数范围）与解析 |
+| `diagnostics/`、`source/` | 诊断与 debug event、source span 与 source map |
 
-## Public result contract
+## formatSql 的流程
 
-`formatSql(source, options)` is document-only and returns one of:
+```
+lex → parse（CST）→ analyze（索引 + 注释绑定）→ plan → compile（Layout IR）→ render
+    → 有对齐目标时：把 plan 中对应的 gap 改成 pad-to-column → compile → render
+    → 底线 2 检查（token 等价与粘连保持）→ FormatResult
+```
 
-- `formatted`: safe changed text, diagnostics, and a validated source map;
-- `unchanged`: safe identical text, diagnostics, and a validated source map;
-- `preserved`: exact original text and diagnostics, without a source map;
-- `failed`: exact original text and diagnostics, without a source map.
+- **plan**：policy 按 CST 给每个 leaf 之间的 gap 登记决定（空格、无空白、换行、保留原文），并给 leaf 区间登记 scope：`indent`（缩进几层）、`align`（加几列）、`group` 与 `auto-group`（平铺或拆行；`auto-group` 在平铺宽度不超过上限时平铺）、`hang`（内部的行对齐到 scope 开始时的输出列，用于 CASE）。scope 必须嵌套，同一范围上的顺序固定为 align、group、hang、indent，由外到内。gap 或 scope 冲突时 plan 失败，target 返回原文。
+- **Layout IR**：`text`、`space`、`line`（hard 或可平铺）、`concat`、`indent`、`align`、`hang`、`group`、`pad-to-column`、`line-suffix`（推迟到行尾写出的注释）、`verbatim`。
+- **render**：栈式执行 Layout IR，行前缀在写出第一个非空白内容时才生成。第一条语句所在行有缩进时，这段缩进作为基准缩进加在之后每一行的前面（空行和原样片段内部除外）。metrics 计算各节点的平铺宽度，供 `auto-group` 判断。
+- **对齐第二遍**：第一遍渲染后测量 `AS` 和行尾注释所在的列，把 plan 里相应的 gap 改写成 `pad-to-column` 再编译、渲染一次，不重跑 policy（ADR 0003）。
+- **底线 2 检查**：逐 leaf 比较输入输出，token 序列必须相同（只对计划改大小写的 leaf 忽略大小写），相邻单词类 leaf 之间有没有空白必须与原文相同，模板片段内部不出现空白、外侧原有空白不删。不成立时返回原文，诊断为 `FMT_TOKEN_EQUIVALENCE` 或 `FMT_GLUE_PRESERVED`。
 
-Canonical options are `dialect`, `keywordCase`, `commaStyle`, `indentStyle`, `maxAlignWidth`, `caseWhenThenWrapLength`, `caseLayout`, and `unsupportedSyntaxPolicy`. The default dialect is `hive`; the default unsupported policy is `warn`. Proxies, accessors, exotic option objects, unknown keys, and invalid values fail closed. `tabSize` belongs to the internal render environment rather than the public formatter options; VS Code supplies it from formatting/editor state and the value API defaults it to four.
+结果有四种 status：`formatted`、`unchanged`（带 source map），`preserved`、`failed`（原文加诊断，没有 source map）。内部错误一律 throw，由 `formatSql` 顶层 catch 转为返回原文加 `FMT_INTERNAL`。
 
-One complete formatting document or target may contain at most 524,288 JavaScript UTF-16 code units. The public formatter returns `preserved` with exact input and `FMT_INPUT_LIMIT` above that boundary; adapters reject the complete transaction with `ADAPTER_INPUT_LIMIT`. This is not a UTF-8 byte limit. Verbatim ranges are atomic source emissions and never participate in keyword-case rewriting.
+上限：单个文档或 target 最多 524,288 个 UTF-16 code units，超过时返回原文（`FMT_INPUT_LIMIT`）；输出超过 4 × 输入 + 65,536 时 renderer 立即停止并返回原文（`RENDER_OUTPUT_LIMIT`）；parser 嵌套超过 256 层时按语法错误处理（`SYN_MAX_DEPTH_EXCEEDED`）。
 
-The public package exports are intentionally narrow:
+## 三层排版与原样保留
 
-- `vscode-sql-beautify/formatter`: `formatSql`, `lexSql`;
-- `vscode-sql-beautify/experimental/ddl`: `formatHiveDdl`, `extractDdl`;
-- `vscode-sql-beautify/package.json`.
+| 层 | 范围 | 行为 |
+| --- | --- | --- |
+| 已建模 | 查询（SELECT、WITH、集合运算）、INSERT、CTAS 的查询部分 | 完整排版 |
+| 通用层 | 语句头表命中的脚本语句（`USE`、`SHOW`、`DESCRIBE`、`MSCK`、`ANALYZE`、`LOAD DATA`、`DROP`、`ALTER TABLE` 等）与 CTAS 的外壳 | 只改空白的量：行内连续空白压成一个空格，删除行尾空白；换行、续行缩进和零宽间隙不变；只有语句开头那段关键字按 `keywordCase` 改大小写 |
+| 命令载荷 | `ADD JAR`、`DFS`、`!`、`SOURCE`、`RESET`、`COMPILE` 等命令头之后到 `;` 之前的文本，以及 SET 的载荷 | 命令头改大小写，载荷逐字节保留 |
+| 原样保留 | 未建模语法（列定义形式的 `CREATE TABLE`、`CREATE VIEW`、`EXPLAIN`、`GROUPING SETS`、`TRANSFORM`、`UPDATE`、`DELETE`、`MERGE`、FROM 开头的 multi-insert）、语法错误、超出上限 | 取能证明边界的最小范围保留原文，并给出诊断 |
 
-The package root and internal runtime paths are not public exports.
+通用层不改空白的有无，所以不会往 `0L`、`/tmp/my-udf.jar` 这类零宽间隙里插入空格。原样保留的范围由 `layout/verbatim-claims.ts` 登记为 verbatim claim，renderer 直接写出原文，不改大小写。
 
-`src/core/config/definitions.ts` owns formatter defaults, enum choices, and integer bounds;
-the manifest contract test checks its language-overridable schema against this authority.
-DDL snapshots its narrower option subset before reusing the same resolver. Explicit nullish
-properties fail validation. `bail_out` inspects analysis opaque nodes rather than diagnostic
-capability IDs, so unregistered recovery is covered as well.
+`unsupportedSyntaxPolicy` 决定原样保留的片段怎么报：`warn` 报 warning，`preserve` 不报（宿主隐藏带 capability 的 warning），`bail_out` 只要还有原样保留的片段，就让整个 target 保持原文。通用层、命令载荷和 CTAS 外壳处理过的范围不算原样保留。
 
-The production formatter is a Node.js runtime contract, including when reached
-through the public formatter facade. Defensive object boundaries use
-`node:util/types.isProxy` to reject even transparent Proxy objects; ECMAScript
-has no equivalent Proxy-detection primitive, so replacing this check with
-property inspection would weaken the fail-closed contract. This dependency does
-not add a public export or a second runtime path. Release gates must load the
-public facades on every supported Node runtime before release.
+## 编辑与执行器（`src/edits/`）
 
-## Adapter and transaction contract
+`computeEdits({ op, source, targets, options, newline, tabSize })` 是纯函数，`op` 为 `format`、`hive-ddl` 或 `extract`：
 
-Document, range, and multi-selection formatting share one transaction sequence:
+1. 规范化 target：排序，有重叠时整批拒绝；
+2. 逐个校验范围：两端不能落在字符串、注释等受保护 leaf 内部；查询的选区要覆盖整行，并且正好是一条语句、一个子句或一个列表，或者若干条连续的完整语句（整个文档总是可以）；DDL 与 Extract 的选区同样要覆盖整行，由各自的 parser 判断能否完整消费；
+3. 逐个 target 计算，DDL 的结果同样经过底线 2 的检查；
+4. 返回 `{ status, edits, diagnostics }`，任一 target 被拒时整批不给 edit。
 
-1. snapshot document identity, version, source, targets, options, and cancellation state;
-2. validate target ownership, balance, protected boundaries, non-overlap, and configuration;
-3. compute every target before constructing edits;
-4. recheck document identity, version, and source immediately before one host commit;
-5. commit all edits once, or no edits at all.
+执行器：输入不小于 32 Ki code units 时在 worker 中计算，否则直接计算。worker 懒创建；出错或退出时拒绝所有挂起的请求，下次请求重建。取消唯一挂起的请求时直接 terminate worker；还有其他请求时只结束被取消的那个，忽略它的回复。
 
-Range formatting only accepts complete, structurally safe fragments. Any cancellation, stale state, preservation, failure, malformed executor response, or host rejection returns no partial edits. Selection direction is preserved through the validated source map.
+## VS Code 宿主（`src/vscode/`）
 
-The stable multi-range provider submits every range in one transaction. Range evidence retains
-next/previous syntax-leaf tables and uses indexed offsets; sorted opaque starts with prefix maximum
-ends support logarithmic overlap queries even for nested spans. Deterministic read-count tests and
-an independent scan oracle guard complexity and boundary equivalence.
+- 对 `sql` 与 `hive-sql` 两个 language id 注册 Format Document、Format Selection 和多选区格式化，另有 `SQL Beautify: Format SQL` 与两个 Experimental DDL 命令。
+- 提交：记下文档版本 → 计算全部 target → 复查版本与文本 → 一次 `editor.edit` 或 provider 返回，检查结果；任一失败、取消或过期都不提交（底线 3）。光标与选区有 source map 时按 source map 恢复，否则按 offset 偏移量恢复。
+- 诊断：一个 `DiagnosticCollection`，提交成功且文档文本等于预测输出时才发布；文档有无关编辑或关闭时清除；配置变化时刷新 `CFG_*` 诊断。编辑器诊断直接显示格式化器的消息，截断到 200 字符；内部异常和每次格式化的 status 摘要写入 "SQL Beautify" 输出通道。
 
-`src/adapters/vscode/diagnostics.ts` owns request generations and coordinate publication. Provider
-results remain pending until the same document identity applies exactly the predicted output at a
-newer version. Commands additionally require successful commit confirmation. Empty change events
-retain diagnostics, while unrelated text changes and close invalidate them. Late events and old
-request completions cannot replace a newer request. Completed provider cancellation tokens do not
-own publication after edits have been handed to the host.
+## Experimental DDL（`src/ddl/`）
 
-Requests with fewer than 8,192 source code units and fewer than 2,000 leaves may use the direct executor. Other supported requests use one persistent worker. Range validation and target formatting share the same routed executor; a worker validates the complete document before formatting any fragments. Both paths load `dist/runtime.cjs`; requests bind identity, generation, version, target, source digest, and runtime digest. The worker uses an enqueue-based 60-second deadline and a size-aware active-cancellation drain grace of `min(2,000 ms, 200 ms + ceil(sourceCodeUnits / 1,024) × 3 ms)`. Runtime skew and identifiable protocol errors settle immediately; timeout, crash, malformed or stale responses, backpressure, cancellation, and disposal fail closed.
+- `formatHiveDdl`：只接受完整消费的 Hive `CREATE TABLE` 子集（列定义与列 `COMMENT`，可选 `PARTITIONED BY` 与 `STORED AS` 六种格式），列名、类型、注释按列对齐；其余输入保留原文。
+- `extractDdl`：从完整的 SELECT 字段列表生成 DDL 草稿，类型写占位符，不推断类型；UNION 各分支字段形状一致时才生成。
 
-The VS Code adapter only handles the explicit `sql` and `hive-sql` language IDs. It reads `sqlBeautify.*` at the document/language scope, publishes safe diagnostics, and registers only the four `sqlBeautify.*` commands declared in `package.json`. With `unsupportedSyntaxPolicy=preserve`, capability diagnostics remain absent from the editor; only the explicit Format SQL command may show one aggregate information message when no safe edit is available. Providers and format-on-save never show that message.
+## 测试
 
-`debugDiagnostics` is an opt-in internal execution channel. Bounded debug events may contain exception messages, stack frames, SQL fragments embedded by an exception, and local file paths; they are written only to the local extension-host console. They never extend public `FormatResult`, editor diagnostics, or the safe clipboard report.
+- `tests/golden/`：排版规格。用例在 `cases/<分组>/<名字>.in.txt`，首行可写 `-- golden: {...}` 指定 op、选项、模式、换行、tabSize、起始列与变体；输出存为 `.out.txt`（输出等于输入时不存），status 与诊断 code 记在 `snapshot.json`。runner 对每个用例检查逐字节输出、幂等（第二遍 status 必须为 `unchanged`）、token 等价与粘连保持。`--fuzz N` 用确定性随机变异检查幂等与底线；`--private <目录>` 对仓库外的真实 SQL 只检查底线和 failed。`known-issues.json` 登记暂时豁免的检查，3.0 时为空。
+- `tests/unit/`：lexer、core、DDL、edits、执行器与宿主的行为测试，覆盖编辑原子性、范围校验、source map 与光标恢复、worker 重建与取消、上限边界和配置校验。
+- `tests/vscode/smoke.js`：在真实 VS Code（1.90.0 与 stable）中运行的冒烟测试，手动执行 `npm run test:vscode`。
 
-## Main Hive capability boundary
+## 构建与发布
 
-The main formatter has dedicated layout capability for bounded `INSERT INTO [TABLE] ... [PARTITION (...)] SELECT/WITH ...` and `SET` statements. A SET assignment payload is one bounded verbatim claim and is not interpreted as an SQL expression.
+- `scripts/build.js` 用 esbuild 从 TS 打出 `dist/extension.cjs` 与 `dist/worker.cjs`，core 打进两个 bundle；`npm run typecheck` 只做类型检查。
+- `npm run package` 用 `vsce package --no-dependencies` 打包，`scripts/check-vsix.js` 核对 VSIX 的文件清单。
+- CI（`.github/workflows/build-vsix.yml`）在 push 与 PR 时运行 typecheck、`npm test` 和 package。从 `main` 手动触发时，`release` job 检查 CHANGELOG 有当前版本的条目、tag 尚不存在，然后创建 GitHub Release 并上传 VSIX。
+- `scripts/generate-v2-unicode-width-data.js` 只在升级 Unicode 版本时手动运行。
 
-Hive `EXPLAIN`, `GROUPING SETS`, `TRANSFORM`, DDL, `UPDATE`, and `DELETE` are recognized as whole-statement or proven-construct verbatim capabilities. They retain exact text and do not receive keyword-case rewriting. The generated support matrix is the capability authority; recognition must not be described as formatting support.
+## 3.0 之后的已知缺陷
 
-## Experimental Hive DDL
+| 编号 | 问题 | 类别 |
+| --- | --- | --- |
+| K16 | 超长行从不换行，例如长 IN 列表、多参数 `concat_ws` | 功能缺失 |
+| K19 | Experimental DDL 不接受带表 `COMMENT`、`ROW FORMAT`、`LOCATION`、`TBLPROPERTIES` 的 DDL，生产 DDL 大多不在支持范围内 | 功能缺失 |
+| K39 | 逗号前置时，逗号后紧跟的行尾注释无法留在左项那一行：`select a, b, -- c` 换行接 `c` 时整张列表改用后置逗号。保持前置逗号要把注释移到逗号前，需要放宽 source map 的双单调、选区映射与底线 2 的顺序比较（ADR 0002） | Minor |
+| K40 | 括号查询后接 ORDER BY 时整句原样保留：`(select a from s) order by a`、`insert into t (select 1) order by a`、`create table t as (select …) order by a` | 功能缺失 |
+| K41 | 窗口定义引用基窗口名时，该项原样保留并报 warning：`over (w order by b)` | 功能缺失 |
+| K42 | 源码中注释本来就单独成行时，比较运算的右操作数落在第 0 列：`where a =`、`/* x */`、`1` 各占一行 | Minor |
 
-The DDL formatter accepts only a fully consumed Hive `CREATE TABLE` subset. After the column list it accepts optional `PARTITIONED BY (...)` and `STORED AS <format>` in that order; storage is limited to AVRO, ORC, PARQUET, RCFILE, SEQUENCEFILE, and TEXTFILE. Its optional plain-data options are `keywordCase`, `commaStyle`, `indentStyle`, and `maxAlignWidth`. DDL and Extract alignment reuse the pinned Unicode display-width authority, the validated internal render tab size, and a linear generated-padding/output budget; over-wide groups degrade to one separator space. VS Code supplies the active editor tab size to both commands, while both public value facades default to four without adding a public option. Extract options have an independent plain-data snapshot and a bounded `defaultType`. The formatter preserves complete input for comments, constraints, defaults, unknown or out-of-order suffixes, malformed delimiters, and multiple statements.
-
-Extract DDL consumes query CST ownership and requires one complete, unambiguous projection schema. Wildcards, unresolved expressions without aliases, duplicate Hive output names, malformed aliases, and set-branch schema mismatches reject the entire operation. The only wildcard scalar accepted by projection safety is exact `count(*)`. No type inference is claimed; the default output type is `__TYPE_REQUIRED__`.
-
-DDL command batches use their own all-or-nothing transaction. Before any target-boundary lexer work, the transaction enforces the core 524,288 UTF-16 code-unit limit on the complete document; both public DDL entry points independently enforce the same limit before parser/analysis. Exact-limit input proceeds and over-limit input returns or rejects with the exact source and a static resource diagnostic. Range replacements inherit the first-line base indentation, apply the document LF/CRLF environment only to lexer-proven generated whitespace, and consume bounded trailing horizontal whitespace/EOL without leaving partial edits. The transaction derives an immutable render context for each target: active tab size plus the display column after external/internal base indentation. DDL and Extract alignment consume that target-specific start column before normalized edits inject the same indentation, so tabs inside protected identifiers remain aligned in indented selections. Protected leaf raw slices, including internal EOL and trailing spaces, are copied code-unit-exactly and never trigger continuation indentation. Only diagnostic-free, non-empty `formatted`/`unchanged` or `extracted` results within the resource budget reach the host commit. DDL has no semantic source map: selection recovery uses an explicit offset/delta/clamp mapping and must not be described as equivalent to query source-map recovery.
-
-## Production artifacts and packaging
-
-`npm run build:v2-runtime` creates five ignored executable artifacts and two public declarations:
-
-- `dist/runtime.cjs`: the single production core plus internal adapter runtime;
-- `dist/sql-formatter.cjs`: public formatter facade loading the shared runtime;
-- `dist/hive-ddl.cjs`: public experimental DDL facade loading the shared runtime;
-- `dist/formatter-worker.cjs`: persistent worker entry;
-- `dist/extension.cjs`: VS Code host wiring.
-- `dist/sql-formatter.d.cts` and `dist/hive-ddl.d.cts`: curated public type contracts, copied from `src/runtime/`.
-
-Declarations expose only public data types and the four existing value functions. Type contracts
-compare facade function parameters/results with source implementations; clean-package tests compile
-CommonJS and ESM consumers from the packed tarball and reject internal paths and invalid options.
-
-Core and runtime builds use project-local ownership locks, content/toolchain hash stamps, complete output SHA-256 manifests, unique staging directories, and recoverable directory swaps. Runtime rebuild ownership is limited to allowlisted regular files; a directory, symlink, special entry, or unknown basename is rejected without deletion. A cache hit skips compilation; a failed build retains the last complete artifact set. Release comparison recomputes the same runtime source fingerprint used by the builder before matching both dist and VSIX to the stamped output manifest. The verifier also compares the packed package manifest and repository-owned static bytes with the current checkout, then validates generated VSIX identity and dependency metadata; an exact entry allowlist alone is not artifact provenance. `SQL_BEAUTIFY_DEBUG_SOURCEMAP=1` emits external maps for local debugging, while normal builds and the package allowlist exclude them.
-
-`scripts/package-manifest.js` is the shared npm/VSIX/cutover allowlist authority. `package.json.files` allows only the five runtime artifacts, two public declarations, extension icon, package metadata, README, CHANGELOG, and license. Source, tests, scripts, technical docs, agent files, dependencies, historical plans, source maps, and temporary output must not enter the VSIX. `prepack` builds runtime artifacts so a clean checkout cannot produce a package with dangling `main` or `exports`.
-
-PR/push CI runs with `contents: read`. Only the manual `main` release job receives `contents: write`. Release gates require package, lockfile, VSIX manifest, VSIX filename, tag, workflow SHA, `origin/main`, and GitHub Release target to identify the same version and commit.
-
-`scripts/v2-suite-manifest.js` is the declarative test-plan authority and `scripts/run-v2-suite.js` executes its deduplicated steps serially, so canonical typecheck/core/runtime prerequisites run once per aggregate. `tests/v2/perf-baseline.json` is the single strict relative-performance baseline contract; hosted pull requests use deterministic operation/disaster gates, while `main` and manual workflows also run wall-clock relative checks. Node 20 and Node 24 both load the core, public facades, and extension activation bundle before release.
-
-## Maintained verification gates
-
-- `npm run typecheck:v2`: strict TypeScript contracts;
-- `npm run test:v2:wave1` through `npm run test:v2:wave5`: lexer, CST, analysis, layout, renderer, adapter, DDL, cutover, packaging, property, and performance gates;
-- `npm run test:verify`: the complete maintained regression aggregate;
-- `npm run test:v2:performance-relative`: strict release-relative wall-clock and RSS gates;
-- `npm run verify:clean-package`: isolated clean-source npm package lifecycle and public facade smoke;
-- `npm run test:vscode-smoke`: real VS Code host commands, editing, diagnostics and worker cancellation; CI requires both minimum 1.90.0 and stable;
-- `npm run package:vsix`: build, package, and inspect the versioned VSIX;
-- `npm exec -- vsce ls --tree --no-dependencies`: human-readable package inventory;
-- `git diff --check`: patch hygiene.
-
-The generated `docs/technical/sql-support-matrix.md` is the single capability authority and must byte-match `scripts/generate-v2-support-matrix.js --check` after the core registry is built.
+修这些问题时，先加 golden 用例，再改 layout policy 或 parser。
