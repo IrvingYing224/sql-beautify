@@ -4,6 +4,19 @@
 >
 > Versions 0.3.23 and later are maintained by [IrvingYing224](https://github.com/IrvingYing224).
 
+### 3.1.0
+
+**新增**
+
+* 新增 `sqlBeautify.maxLineWidth`（默认 120）：括号里的逗号列表（`IN` 列表、函数参数等）超过这个宽度时换行，左括号后换行，各项缩进一层，一行放满再换下一行，右括号单独一行。默认开启，想保持 3.0 的排法，把它设为 `0`。这类列表里不独占一行的块注释跟着各项重排，行注释和独占一行的注释保留原来的换行
+* Experimental DDL：支持表 `COMMENT`、`CLUSTERED BY … INTO n BUCKETS`、`ROW FORMAT DELIMITED`、`ROW FORMAT SERDE … WITH SERDEPROPERTIES`、`STORED AS JSONFILE`、`STORED AS INPUTFORMAT … OUTPUTFORMAT …`、`STORED BY`、`LOCATION` 与 `TBLPROPERTIES`，`SHOW CREATE TABLE` 导出的语句可以直接格式化
+
+**修复**
+
+* 括号查询后接 `ORDER BY`、`LIMIT` 时（`(select a from s) order by a`，以及 INSERT、CTAS、WITH 中的同类写法）不再整句原样保留
+* 窗口定义引用基窗口名时（`over (w order by b)`、`window w2 as (w order by c)`）不再原样保留并报 warning
+* 注释本来就单独成行时，注释和后面的内容缩进一层，不再落在第 0 列（如 `where a =` 换行接 `/* x */` 再换行接 `1`）；括号列表里有独占一行的注释时，按上面长列表的方式换行
+
 ### 3.0.0 (2026/10/31)
 
 **升级须知**

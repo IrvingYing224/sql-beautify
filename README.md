@@ -71,6 +71,7 @@ GROUP BY
 - 逗号后面紧跟注释时（`a, -- 说明`），为了让注释留在原来那一行，整张列表改用后置逗号。逗号后置模式下，逗号前有行注释时（`a -- 说明` 换行接 `, b`），整张列表改用前置逗号，并给出一条信息级诊断。同一张列表里两种情况都有、哪种风格都统一不了时（如 `a -- 说明` 换行接 `, b, -- 说明`），逐个逗号决定，前置和后置会混在一起。
 - CASE：默认（`compactShort`）短的 CASE 收成一行；整个 CASE 平铺后超过 `caseWhenThenWrapLength` 列，或者内部有注释、模板、跨行内容时展开。展开时 `END` 与 `CASE` 对齐，`WHEN`、`ELSE` 多缩进一层，函数参数里的 CASE 也一样。`WHEN … THEN …` 一行超过 `caseWhenThenWrapLength` 时，THEN 的值换到下一行。
 - WHERE、ON 中的 AND、OR 换行并缩进；窗口函数 `OVER (…)` 里的内容保持在一行。
+- 括号里的逗号列表（`IN` 列表、函数参数、括号元组、方括号列表）从左括号到右括号超过 `maxLineWidth` 列时换行：左括号后换行，各项缩进一层，一行放满再换下一行，右括号单独一行。别的原因造成的长行（很长的 `+` 连接、长别名等）不拆；参数里有展开的 CASE 或子查询时，括号照旧紧贴内容。列表里的行注释和独占一行的注释保留原来的换行，其余块注释跟着各项重排。
 - 注释保持在原来的位置。关键字后面同一行的注释留在关键字那一行；如果是行注释，后面的内容换行并缩进一层。
 - 字符串、注释、反引号标识符、`${…}` 变量、Hive 数字 literal（`0L`、`1.0BD` 等）以及命令后面的路径和参数，一个字符都不改，包括大小写和内部空白。紧贴变量的写法（`ds=${hiveconf:ds}`、`tbl_${dt}`）也保持原样，因为插入空格可能改变变量展开后的 SQL。
 
@@ -97,6 +98,7 @@ GROUP BY
 | `sqlBeautify.commaStyle` | `leading` / `trailing` | `leading` | 逗号放在行首或行尾 |
 | `sqlBeautify.indentStyle` | `space` / `tab` | `space` | 缩进用 4 个空格或 tab；不受编辑器 `insertSpaces` 影响，`tabSize` 只决定 tab 的显示宽度 |
 | `sqlBeautify.maxAlignWidth` | `1..500` | `150` | `AS` 与行尾注释参与对齐的最大代码宽度 |
+| `sqlBeautify.maxLineWidth` | `0..500` | `120` | 括号里的逗号列表超过这个行宽时换行，`0` 表示不换行 |
 | `sqlBeautify.caseWhenThenWrapLength` | `1..300` | `50` | CASE 收成一行的最大宽度，以及 `WHEN … THEN …` 换行的阈值 |
 | `sqlBeautify.caseLayout` | `compactShort` / `expanded` | `compactShort` | `expanded` 时所有 CASE 都展开 |
 | `sqlBeautify.unsupportedSyntaxPolicy` | `warn` / `preserve` / `bail_out` | `warn` | 遇到不支持的语法或语法错误时怎么办，见下 |
@@ -126,14 +128,29 @@ CREATE TABLE dw.t
     ,user_name STRING COMMENT '用户名'
     ,location  STRING
 )
+COMMENT '用户表'
 PARTITIONED BY
 (
      ds STRING
 )
-STORED AS ORC;
+STORED AS ORC
+TBLPROPERTIES
+(
+     'orc.compress' = 'SNAPPY'
+);
 ```
 
-只接受 Hive `CREATE TABLE` 的一个子集：列定义与列 `COMMENT`，后面可以依次跟 `PARTITIONED BY (…)` 和 `STORED AS AVRO|ORC|PARQUET|RCFILE|SEQUENCEFILE|TEXTFILE`。带表 `COMMENT`、`ROW FORMAT`、`LOCATION`、`TBLPROPERTIES`、约束或默认值的语句，以及多条语句，都保留原文。输出使用 `keywordCase`、`commaStyle`、`indentStyle` 与 `maxAlignWidth`。CTAS 由普通的格式化命令处理，这个命令保留它的原文。
+只接受 Hive `CREATE [EXTERNAL] TABLE [IF NOT EXISTS]` 的一个子集：列定义与列 `COMMENT`，后面按 Hive 规定的顺序跟下面这些子句，每个都可以省略：
+
+- 表 `COMMENT '…'`
+- `PARTITIONED BY (…)`
+- `CLUSTERED BY (…) [SORTED BY (…)] INTO n BUCKETS`
+- `ROW FORMAT DELIMITED …`，或 `ROW FORMAT SERDE '…' [WITH SERDEPROPERTIES (…)]`
+- `STORED AS AVRO|JSONFILE|ORC|PARQUET|RCFILE|SEQUENCEFILE|TEXTFILE`、`STORED AS INPUTFORMAT '…' OUTPUTFORMAT '…'`，或 `STORED BY '…' [WITH SERDEPROPERTIES (…)]`
+- `LOCATION '…'`
+- `TBLPROPERTIES (…)`
+
+`SHOW CREATE TABLE` 导出的语句可以直接格式化。带约束、默认值、`SKEWED BY` 或顺序不对的子句的语句，以及多条语句，都保留原文。输出使用 `keywordCase`、`commaStyle`、`indentStyle` 与 `maxAlignWidth`。CTAS 由普通的格式化命令处理，这个命令保留它的原文。
 
 ### Extract Hive DDL
 

@@ -37,9 +37,10 @@ lex → parse（CST）→ analyze（索引 + 注释绑定）→ plan → compile
     → 底线 2 检查（token 等价与粘连保持）→ FormatResult
 ```
 
-- **plan**：policy 按 CST 给每个 leaf 之间的 gap 登记决定（空格、无空白、换行、保留原文），并给 leaf 区间登记 scope：`indent`（缩进几层）、`align`（加几列）、`group` 与 `auto-group`（平铺或拆行；`auto-group` 在平铺宽度不超过上限时平铺）、`hang`（内部的行对齐到 scope 开始时的输出列，用于 CASE）。scope 必须嵌套，同一范围上的顺序固定为 align、group、hang、indent，由外到内。gap 或 scope 冲突时 plan 失败，target 返回原文。
-- **Layout IR**：`text`、`space`、`line`（hard 或可平铺）、`concat`、`indent`、`align`、`hang`、`group`、`pad-to-column`、`line-suffix`（推迟到行尾写出的注释）、`verbatim`。
-- **render**：栈式执行 Layout IR，行前缀在写出第一个非空白内容时才生成。第一条语句所在行有缩进时，这段缩进作为基准缩进加在之后每一行的前面（空行和原样片段内部除外）。metrics 计算各节点的平铺宽度，供 `auto-group` 判断。
+- **plan**：policy 按 CST 给每个 leaf 之间的 gap 登记决定（空格、无空白、换行、保留原文），并给 leaf 区间登记 scope：`indent`（缩进几层）、`align`（加几列）、`group` 与 `auto-group`（平铺或拆行；`auto-group` 在平铺宽度不超过上限时平铺，`group` 的 `fit` 模式超过 `maxLineWidth` 时拆行）、`hang`（内部的行对齐到 scope 开始时的输出列，用于 CASE）、`break-indent`（外层 group 拆行时多缩进一层）、`fill`（内部的可平铺换行逐个判断，后面一段放不下才换行）。scope 必须嵌套，同一范围上的顺序固定为 align、group、hang、indent 或 break-indent、fill，由外到内。gap 或 scope 冲突时 plan 失败，target 返回原文。
+- **Layout IR**：`text`、`space`、`line`（hard 或可平铺）、`concat`、`indent`、`align`、`hang`、`group`（flat、break、auto 或 fit）、`break-indent`、`fill`、`pad-to-column`、`line-suffix`（推迟到行尾写出的注释）、`verbatim`。
+- **render**：栈式执行 Layout IR，行前缀在写出第一个非空白内容时才生成。第一条语句所在行有缩进时，这段缩进作为基准缩进加在之后每一行的前面（空行和原样片段内部除外）。metrics 计算各节点的平铺宽度，供 `auto-group` 与 `fit` 判断。
+- **括号列表换行**（`maxLineWidth`）：函数参数、`IN` 列表、括号元组和方括号列表编成 fit group 包住左右括号，break-indent 包住内容，fill 包住各项。fit group 同时满足三个条件才拆开：从当前列平铺会超过上限；左括号本身在上限内；拆开后右括号那一行剩下的内容放得下。后两条让 `+` 连接这类别处造成的长行不去拆里面的括号。不拆时只有 fit group 自身的换行平铺，内部的 group 仍各自判断。量行宽时 `pad-to-column` 按 1 列算，对齐前后两遍得出同样的换行。项之间的 gap 是带 `reflow` 标记的可平铺换行，原文在这里的换行不保留，只有行注释和独占一行的块注释旁边的换行保留；否则第一遍在块注释旁换出的行，第二遍会被当成原文换行，结果不幂等。
 - **对齐第二遍**：第一遍渲染后测量 `AS` 和行尾注释所在的列，把 plan 里相应的 gap 改写成 `pad-to-column` 再编译、渲染一次，不重跑 policy（ADR 0003）。
 - **底线 2 检查**（`api/floor.ts`）：重新 lex 输出，与原文逐 leaf 比较 token 与粘连，规则见下一节。
 
@@ -96,7 +97,7 @@ lex → parse（CST）→ analyze（索引 + 注释绑定）→ plan → compile
 
 ## Experimental DDL（`src/ddl/`）
 
-- `formatHiveDdl`：只接受完整消费的 Hive `CREATE TABLE` 子集（列定义与列 `COMMENT`，可选 `PARTITIONED BY` 与 `STORED AS` 六种格式），列名、类型、注释按列对齐；其余输入保留原文。
+- `formatHiveDdl`：只接受完整消费的 Hive `CREATE TABLE` 子集：列定义与列 `COMMENT`，之后是按 Hive 顺序排列的表子句（表 `COMMENT`、`PARTITIONED BY`、`CLUSTERED BY`、`ROW FORMAT`、`STORED AS`、`STORED BY`、`LOCATION`、`TBLPROPERTIES`）。`hive-ddl-parser.ts` 把输入解析成列清单加一串子句行，`hive-ddl.ts` 渲染：列名、类型、注释按列对齐，`TBLPROPERTIES` 与 `SERDEPROPERTIES` 的键值按 `=` 对齐，`ROW FORMAT DELIMITED` 的各项各占一行并缩进一层。没建模的子句报 `DDL_UNMODELED_SUFFIX`，整条语句保留原文。
 - `extractDdl`：从完整的 SELECT 字段列表生成 DDL 草稿，类型写占位符，不推断类型；UNION 各分支字段形状一致时才生成。
 
 ## 测试
@@ -116,11 +117,6 @@ lex → parse（CST）→ analyze（索引 + 注释绑定）→ plan → compile
 
 | 编号 | 问题 | 类别 |
 | --- | --- | --- |
-| K16 | 超长行从不换行，例如长 IN 列表、多参数 `concat_ws` | 功能缺失 |
-| K19 | Experimental DDL 不接受带表 `COMMENT`、`ROW FORMAT`、`LOCATION`、`TBLPROPERTIES` 的 DDL，生产 DDL 大多不在支持范围内 | 功能缺失 |
-| K39 | 逗号前置时，逗号后紧跟的行尾注释无法留在左项那一行：`select a, b, -- c` 换行接 `c` 时整张列表改用后置逗号。保持前置逗号要把注释移到逗号前，需要放宽 source map 的双单调、选区映射与底线 2 的顺序比较（ADR 0002） | Minor |
-| K40 | 括号查询后接 ORDER BY 时整句原样保留：`(select a from s) order by a`、`insert into t (select 1) order by a`、`create table t as (select …) order by a` | 功能缺失 |
-| K41 | 窗口定义引用基窗口名时，该项原样保留并报 warning：`over (w order by b)` | 功能缺失 |
-| K42 | 源码中注释本来就单独成行时，比较运算的右操作数落在第 0 列：`where a =`、`/* x */`、`1` 各占一行 | Minor |
+| K39 | 逗号前置时，逗号后紧跟的行尾注释无法留在左项那一行：`select a, b, -- c` 换行接 `c` 时整张列表改用后置逗号。保持前置逗号要把注释移到逗号前，需要放宽 source map 的双单调、选区映射与底线 2 的顺序比较（ADR 0002）。3.1 时所有者决定暂不做：写法少见，三处都开例外的风险大于收益 | Minor |
 
 修这些问题时，先加 golden 用例，再改 layout policy 或 parser。
