@@ -3165,10 +3165,13 @@
  },
  "explicit/known/k09-row-star": {
   "op": "formatSql",
-  "status": "failed",
-  "codes": [
-   "LAYOUT_PLAN_PROVENANCE"
-  ]
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k09-tuples": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k10-div": {
   "op": "formatSql",
@@ -3327,6 +3330,11 @@
    "SYN_UNEXPECTED_TOKEN",
    "LAYOUT_ALIGNMENT_FACTS"
   ]
+ },
+ "explicit/known/k33-bracket-lists": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
  },
  "explicit/known/k36-typed-literal-comment": {
   "op": "formatSql",

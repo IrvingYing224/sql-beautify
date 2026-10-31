@@ -231,8 +231,9 @@ function formatCallLike(
         const previous = node.children
             .filter((child) => child.leafRange.end <= openLeafId)
             .sort((left, right) => right.leafRange.end - left.leafRange.end)[0];
+        // A tuple or bracket list has no name before its delimiter (K9, K33).
         if (
-            previous === undefined ||
+            previous !== undefined &&
             !replaceStructuralGap(
                 context,
                 authorityNodeId,

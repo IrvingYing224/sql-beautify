@@ -1,0 +1,9 @@
+SELECT
+      a
+FROM t
+WHERE (a, b) IN ((1, 2), (3, 4))
+    AND (c, d) = (e, f);
+SELECT
+      (a, b)
+    , [c, d]
+FROM t

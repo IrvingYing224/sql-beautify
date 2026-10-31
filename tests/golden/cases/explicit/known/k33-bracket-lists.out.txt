@@ -1,0 +1,12 @@
+SELECT [2];
+SELECT
+      1
+    , [2];
+SELECT
+      a
+    , [1, 2] AS x
+FROM t;
+SELECT
+      (1)
+    , [2];
+SELECT 3
