@@ -1,6 +1,6 @@
 'use strict';
 
-// computeEdits for Format Hive DDL and Extract DDL (plan §5.4, §5.5): target rules, batch atomicity,
+// computeEdits for Format Hive DDL and Extract DDL: target rules, batch atomicity,
 // replacement text and limits. Expected values were measured on 2.2.1; P4b changes name their K number.
 
 var assert = require('assert');
@@ -134,7 +134,7 @@ test('X12: a target covers whole lines of code and splits no literal, comment or
     }
     assert.deepStrictEqual(edits(extract('select a from t;\nselect 1;', [target('x', 0, 17)])),
         [['x', 0, 17, '     a __TYPE_REQUIRED__\n']]);
-    // Plan §6 P4a acceptance cases; the selection maps through the edit.
+    // Acceptance cases of the adapter rewrite; the selection maps through the edit.
     var result = ddl('  create table t (a int);', [target('x', 2, 25)], { selections: [{ targetId: 'x', anchor: 2, active: 25 }] });
     assert.deepStrictEqual(edits(result), [['x', 2, 25, 'CREATE TABLE t\n  (\n       a INT\n  );']]);
     assert.deepStrictEqual(result.selections, [{ anchor: 2, active: 38 }]);

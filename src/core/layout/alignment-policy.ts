@@ -618,7 +618,7 @@ export function deriveLayoutAlignmentPlan(
 }
 
 /**
- * Second alignment pass (plan §5.2): every gap is registered through the trivia policy, which
+ * Second alignment pass (ADR 0003): every gap is registered through the trivia policy, which
  * turns a space gap ending at a target leaf into pad-to-column. Rewriting those gaps in the first
  * plan gives the plan a full re-run would build; every other field stays the same.
  */

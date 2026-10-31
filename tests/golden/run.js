@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Golden snapshot runner: the formatting spec for 3.0 (docs/technical/3.0-refactor-plan.md §6 P1).
+// Golden snapshot runner: the formatting spec.
 // Usage: node tests/golden/run.js [--update] [--filter s] [--private <dir>] [--fuzz N]
 
 var fs = require('fs');
@@ -373,7 +373,7 @@ function tokenMismatch(a, b, allowed) {
     return null;
 }
 
-// Glue rules of plan §4 floor 2, plus no case change inside a template fragment (§4 floor 5);
+// Glue rules of safety floor 2, plus no case change inside a template fragment (floor 5);
 // a and b are token-equivalent codeLeaves of input and output.
 // Each violated gap is reported once, by the first rule that catches it.
 function glueViolations(a, b) {
@@ -420,7 +420,7 @@ function glueViolations(a, b) {
     return Array.from(glue.values());
 }
 
-// Safety floor 2 (plan §4): token equivalence plus glue preservation. Returns failures by property.
+// Safety floor 2: token equivalence plus glue preservation. Returns failures by property.
 function floorFailures(source, output, spec) {
     var env = resolveEnvironment(spec, source);
     var a = codeLeaves(source);
@@ -494,7 +494,7 @@ function selfTest() {
     [
         ['select MixedCase from MyTable', 'SELECT MIXEDCASE FROM MYTABLE', {}, 'token'],
         ['add jar /tmp/current.jar;', 'ADD jar /tmp/CURRENT.jar;', {}, 'token'],
-        // Generic layer: only statement-head table words may change case (plan §5.3).
+        // Generic layer: only statement-head table words may change case.
         ['add jar /tmp/current.jar;', 'ADD JAR /tmp/current.jar;', {}, ''],
         ['use Db', 'USE Db', {}, ''],
         ['use Db', 'USE DB', {}, 'token'],

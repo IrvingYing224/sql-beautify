@@ -3,7 +3,7 @@ import { nextSyntaxIndex } from "./parser-context";
 import type { ParserContext } from "./parser-context";
 
 /**
- * Statement-head table (plan §5.3). Each pattern lists positions; a position is `a|b`
+ * Statement-head table of the generic layer. Each pattern lists positions; a position is `a|b`
  * alternatives, `[…]` marks an optional run of positions. Matching is case-insensitive over
  * complete code words at the real statement start, and the longest matching pattern wins.
  */
@@ -132,7 +132,7 @@ export function takesGenericLayer(context: ParserContext, range: LeafRange): boo
     return word !== null && word !== "from" && !COMMAND_VERBS.has(word);
 }
 
-/** CREATE TABLE heads that may end in AS SELECT (plan §6 P6 step 5). */
+/** CREATE TABLE heads that may end in AS SELECT. */
 const CREATE_TABLE_HEADS: readonly CompiledHead[] = [
     "create [temporary] [transactional] [external] table [if not exists]",
     "create managed table [if not exists]",

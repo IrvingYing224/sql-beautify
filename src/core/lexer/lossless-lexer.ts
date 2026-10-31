@@ -553,7 +553,7 @@ function fragmentAbsorbs(leaf: SourceLeaf): boolean {
 }
 
 /**
- * Safety floor 5 (plan §4): a `${…}` template together with its zero-gap neighbours, up to
+ * Safety floor 5: a `${…}` template together with its zero-gap neighbours, up to
  * whitespace, a comment or `,` `(` `)` `;`, is one template fragment, such as `${p}desc`,
  * `ds=${dt}` or `db_${env}.tbl_${dt}`. Hive substitutes the text before lexing it, so the token
  * boundaries inside a fragment are unknown: the fragment becomes one protected parameter leaf.

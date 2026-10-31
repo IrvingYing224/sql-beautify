@@ -66,7 +66,7 @@ function formatSetStatement(
 }
 
 /**
- * Generic layer (plan §5.3): only the amount of whitespace changes. A run inside a line becomes
+ * Generic layer: only the amount of whitespace changes. A run inside a line becomes
  * one space and a run before a line break goes away; line breaks, continuation indentation,
  * zero-width gaps and the command payload stay as written.
  */

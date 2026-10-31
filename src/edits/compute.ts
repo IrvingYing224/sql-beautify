@@ -294,7 +294,7 @@ function computeDdl(request: DdlRequest, debugEvents: DebugEvent[]): ComputeResu
 }
 
 /**
- * Computes every edit for one request, or none (plan §5.4). Pure; runs on the extension host or in
+ * Computes every edit for one request, or none. Pure; runs on the extension host or in
  * the worker. An internal error rejects the request with ADAPTER_EXECUTOR_FAILED.
  */
 export function computeEdits(request: ComputeRequest): ComputeResult {

@@ -1,6 +1,6 @@
 'use strict';
 
-// The executor and worker (plan §5.4, §5.5): direct and worker give the same result, the worker is
+// The executor and worker: direct and worker give the same result, the worker is
 // created lazily and rebuilt after a failure, and cancellation and dispose settle every request.
 
 var assert = require('assert');

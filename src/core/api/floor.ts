@@ -27,7 +27,7 @@ function isWhitespace(leaf: SourceLeaf): boolean {
 }
 
 /**
- * Safety floor 2 (plan §4) glue rules on token-equivalent pairs: adjacent word-like leaves keep
+ * Safety floor 2 glue rules on token-equivalent pairs: adjacent word-like leaves keep
  * whether whitespace separates them, and a template fragment loses none of the whitespace around
  * it. The lexer makes each fragment one protected leaf, so token equivalence already keeps its
  * inside free of new whitespace and case changes.
@@ -68,7 +68,7 @@ export function floorViolation(
     let outputIndex = 0;
     let glued = false;
     // Removing whitespace beside a template fragment lets the fragment absorb its neighbours when
-    // the output is lexed again: a glue violation (plan §4 floor 2), not a changed token. The check
+    // the output is lexed again: a glue violation (safety floor 2), not a changed token. The check
     // then skips the absorbed source leaves and goes on, so a later changed token is still reported.
     const absorb = (outputLeaf: SourceLeaf): boolean => {
         if (!isTemplateFragment(outputLeaf)) {

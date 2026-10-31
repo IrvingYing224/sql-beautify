@@ -234,7 +234,7 @@ export type OpaqueBoundary =
     | "other";
 
 export interface ProgramNode extends SyntaxNodeBase<"program"> {
-    /** Ordered statement children only (design §7.2). */
+    /** Ordered statement children only. */
     readonly children: readonly StatementNode[];
 }
 
@@ -265,7 +265,7 @@ export interface SetPayloadNode extends SyntaxNodeBase<"set-payload"> {
 }
 
 /**
- * Generic layer (plan §5.3): a statement whose whitespace amount is normalized while its words
+ * Generic layer: a statement whose whitespace amount is normalized while its words
  * keep their case, except head words from the statement-head table (`statement-head` markers).
  */
 export interface GenericStatementNode extends SyntaxNodeBase<"generic-statement"> {

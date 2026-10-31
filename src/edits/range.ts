@@ -4,7 +4,7 @@ import { lexSql } from "../core/lexer/lossless-lexer";
 import type { SourceLeaf } from "../core/lexer/token";
 import type { EditTarget } from "./types";
 
-// Range validation (plan §5.4): the low-level tools are shared; each operation keeps its own
+// Range validation: the low-level tools are shared; each operation keeps its own
 // acceptance rules. Offsets are UTF-16 code units; a position between CR and LF is no line boundary.
 
 export function isLineStart(source: string, offset: number): boolean {

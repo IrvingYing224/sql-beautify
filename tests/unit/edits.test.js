@@ -1,6 +1,6 @@
 'use strict';
 
-// computeEdits for queries (plan §5.4, §5.5): range classification, multi-target atomicity, newline,
+// computeEdits for queries: range classification, multi-target atomicity, newline,
 // selection and diagnostic mapping. Expected values were measured on 2.2.1 (P4a keeps them).
 
 var assert = require('assert');

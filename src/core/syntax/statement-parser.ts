@@ -218,7 +218,7 @@ function nextNonBlankIndex(context: ParserContext, leafId: number, end: number):
 }
 
 /**
- * Generic layer (plan §5.3). The node runs to the statement's `;` so the whitespace before it is
+ * Generic layer. The node runs to the statement's `;` so the whitespace before it is
  * normalized too; a command payload starts at the first non-blank leaf after the head, so a
  * leading comment and the whitespace after it stay as written.
  */
@@ -276,7 +276,7 @@ function representsWriteQuery(query: QueryNode): boolean {
 }
 
 /**
- * CREATE TABLE … AS SELECT (plan §6 P6 step 5), or null. A statement whose query does not
+ * CREATE TABLE … AS SELECT, or null. A statement whose query does not
  * parse completely stays verbatim as Hive DDL.
  */
 function parseCreateTableAsStatement(

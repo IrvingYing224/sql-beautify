@@ -632,7 +632,7 @@ function renderCanonical(
 
 /**
  * Fail-closed SQL-agnostic renderer for LayoutArtifact objects. Rendering stops with
- * RENDER_OUTPUT_LIMIT as soon as the output would exceed `maxOutputCodeUnits` (plan §4 floor 4).
+ * RENDER_OUTPUT_LIMIT as soon as the output would exceed `maxOutputCodeUnits` (safety floor 4).
  */
 export function renderLayoutArtifact(
     value: LayoutArtifact,

@@ -1730,7 +1730,7 @@ function tableNameEnd(context: ParserContext, leafId: number, end: number): numb
 }
 
 /**
- * The AS that ends a CTAS shell, or null (plan §6 P6 step 5). Right after the table name it ends
+ * The AS that ends a CTAS shell, or null. Right after the table name it ends
  * the shell at once, so STORED or DEFINED may name the table. Otherwise it is the first AS at the
  * statement's depth that does not follow STORED (`STORED AS ORC`) or DEFINED
  * (`NULL DEFINED AS '\N'`). The query must start with SELECT, WITH or `(`: VALUES, MAP and

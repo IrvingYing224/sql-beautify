@@ -3,7 +3,7 @@ import { Worker } from "node:worker_threads";
 import { computeEdits, rejectedDocument } from "./compute";
 import type { ComputeRequest, ComputeResult } from "./types";
 
-/** Requests over sources of at least this many code units run in the worker (plan §5.4, D4-A). */
+/** Requests over sources of at least this many code units run in the worker (ADR 0006, D4). */
 export const WORKER_MIN_CODE_UNITS = 32 * 1024;
 
 /** The part of a VS Code CancellationToken the executor uses. */
