@@ -1,0 +1,16 @@
+SELECT
+      a
+    , coalesce((
+          /* c */
+          SELECT
+                max(b)
+          FROM u
+          WHERE u.id = t.id
+      ), 0) AS m
+FROM t;
+SELECT
+      f(g(
+          a
+          /* d */
+      ))
+FROM t

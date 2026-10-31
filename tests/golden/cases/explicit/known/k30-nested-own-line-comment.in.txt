@@ -1,0 +1,4 @@
+select a, coalesce((/* c */select max(b) from u where u.id = t.id), 0) as m from t;
+select f(g(a
+ /* d */
+)) from t

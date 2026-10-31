@@ -104,12 +104,14 @@ function delimiterPair(
 
 /**
  * Whether a delimited interior is laid out on its own lines: it holds a line comment, or a
- * dangling block comment written on a line of its own. Line breaks the formatter adds itself
- * (AND continuations, CASE branches) must not decide this, or the second pass would split the
- * parentheses the first pass kept closed (K30).
+ * dangling block comment of its own written on a line of its own. Line breaks the formatter adds
+ * itself (AND continuations, CASE branches, a nested subquery that puts its comment on its own
+ * line) must not decide this, or the second pass would split the parentheses the first pass kept
+ * closed (K30).
  */
 function interiorKeepsLines(
     context: QueryLayoutContext,
+    ownerNodeId: number,
     startLeafId: number,
     endLeafId: number
 ): boolean {
@@ -125,9 +127,10 @@ function interiorKeepsLines(
         if (kind === "line-comment") {
             return true;
         }
+        const binding = kind === "block-comment" ? analysis.index.commentBinding(leafId) : null;
         if (
-            kind === "block-comment" &&
-            analysis.index.commentBinding(leafId)?.placement === "dangling" &&
+            binding?.placement === "dangling" &&
+            binding.ownerNodeId === ownerNodeId &&
             besideLineBreak(leafId)
         ) {
             return true;
@@ -152,7 +155,7 @@ function normalizeDelimitedInterior(
     if (hasComment === null) {
         return false;
     }
-    const multiline = hasComment && interiorKeepsLines(context, openLeafId + 1, closeLeafId);
+    const multiline = hasComment && interiorKeepsLines(context, node.id, openLeafId + 1, closeLeafId);
     const boundaryDecision = multiline ? HARD_LINE : EMPTY;
     const children = node.children.filter(
         (child) =>
