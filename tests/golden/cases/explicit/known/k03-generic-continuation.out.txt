@@ -1,0 +1,6 @@
+  ALTER TABLE t
+  add columns (a int);
+  ALTER TABLE u
+      add columns (b int);
+  -- note
+  SET hive.x = 1

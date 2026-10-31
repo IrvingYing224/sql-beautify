@@ -1,0 +1,6 @@
+  alter table t
+add columns (a int);
+  alter table u
+      add columns (b int);
+  -- note
+set hive.x = 1

@@ -1,6 +1,6 @@
     SELECT
-      a
-FROM t;
-SELECT
-      b
-FROM u;
+          a
+    FROM t;
+    SELECT
+          b
+    FROM u;

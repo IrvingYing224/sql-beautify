@@ -1,0 +1,6 @@
+-- golden: {"variants":{"default":{},"tab":{"options":{"indentStyle":"tab"}},"trailing":{"options":{"commaStyle":"trailing"}}}}
+    select case when a = 1 then 2 when a = 3 then 4 else 5 end as x, -- first
+    f(case when b then c else d end) as longer_name, -- second
+    'multi
+line' as s
+    from t where x = 1 and (y = 2 or z = 3)

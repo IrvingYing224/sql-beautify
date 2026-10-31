@@ -80,6 +80,11 @@ export interface LayoutPlan {
     readonly scopeActionCount: number;
     /** Trailing comma style fell back to a leading comma somewhere (LAYOUT_COMMA_FALLBACK). */
     readonly commaFallback: boolean;
+    /**
+     * The whitespace leaf that starts the line of the first statement, or null when that line
+     * starts with no blanks. Output lines from that line on start with it (K3).
+     */
+    readonly baseIndentLeafId: number | null;
 }
 
 export type LayoutPlanFailureCode =
@@ -120,7 +125,7 @@ export interface LayoutPlanBuilder {
         endLeafId: number,
         decision: LayoutScopeDecision
     ): boolean;
-    finish(commaFallback?: boolean): LayoutPlanResult;
+    finish(commaFallback?: boolean, baseIndentLeafId?: number | null): LayoutPlanResult;
 }
 
 function resultFailure(
@@ -584,7 +589,7 @@ export function createLayoutPlanBuilder(
             return true;
         },
 
-        finish(commaFallback = false): LayoutPlanResult {
+        finish(commaFallback = false, baseIndentLeafId: number | null = null): LayoutPlanResult {
             if (finished) {
                 return failure ?? resultFailure(
                     "LAYOUT_PLAN_CONFLICT",
@@ -745,6 +750,7 @@ export function createLayoutPlanBuilder(
                 claimStarts: Object.freeze(claimStarts.slice()),
                 scopeActionCount: scopeActions.length,
                 commaFallback,
+                baseIndentLeafId,
             });
             return Object.freeze({ ok: true, plan });
         },

@@ -461,6 +461,7 @@ function formatStatements(context: QueryLayoutContext): boolean {
     if (capability?.state !== "formatted") {
         return true;
     }
+    context.state.baseIndentLeafId = baseIndentLeaf(context);
     const statements = program.children;
     for (let index = 1; index < statements.length; index++) {
         const left = statements[index - 1]!;
@@ -497,6 +498,23 @@ function formatStatements(context: QueryLayoutContext): boolean {
         }
     }
     return formatProgramTail(context, program.id);
+}
+
+/** The whitespace leaf at the start of the line where the first code leaf is, if any (K3). */
+function baseIndentLeaf(context: QueryLayoutContext): number | null {
+    const { analysis } = context;
+    let first = 0;
+    while (first < analysis.leafCount && analysis.leafChannel(first) === "trivia") {
+        first += 1;
+    }
+    if (first === analysis.leafCount) {
+        return null;
+    }
+    let lineStart = first;
+    while (lineStart > 0 && analysis.leafKind(lineStart - 1) !== "newline") {
+        lineStart -= 1;
+    }
+    return analysis.leafKind(lineStart) === "whitespace" ? lineStart : null;
 }
 
 /**

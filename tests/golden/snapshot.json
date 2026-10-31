@@ -3044,7 +3044,42 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k03-blank-lines": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k03-case-and-comments#default": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k03-case-and-comments#tab": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k03-case-and-comments#trailing": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k03-fragment": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k03-generic-continuation": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k03-indented-statements": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
+ "explicit/known/k03-leading-comments": {
   "op": "formatSql",
   "status": "formatted",
   "codes": []

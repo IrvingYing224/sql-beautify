@@ -152,6 +152,13 @@ function renderCanonical(
     let outputCodeUnits = 0;
     let displayColumn = 0;
     let needsLinePrefix = false;
+    // The blanks that start the line of the first statement start every later output line too,
+    // once the output reaches that line (K3). Lines inside source text are left as written.
+    const baseIndentLeaf = artifact.baseIndentLeafId === null
+        ? undefined
+        : artifact.analysis.leaves[artifact.baseIndentLeafId];
+    let baseIndent = "";
+    let baseColumns = 0;
 
     // Checked before every append, and before `repeat` allocates generated whitespace.
     const assertOutputCapacity = (amount: number): void => {
@@ -247,6 +254,7 @@ function renderCanonical(
                 "Source-derived output length does not match its source span"
             );
         }
+        startBaseIndent(span);
         if (needsLinePrefix && !startsWithLineBreak(raw)) {
             emitLinePrefix(frame);
         }
@@ -280,25 +288,87 @@ function renderCanonical(
         needsLinePrefix = measured.endsWithLineBreak;
     };
 
+    const startBaseIndent = (span: SourceSpan): void => {
+        if (baseIndent !== "" || baseIndentLeaf === undefined || span.end <= baseIndentLeaf.span.start) {
+            return;
+        }
+        const measured = measureDisplayText(baseIndentLeaf.raw, 0, environment.tabSize);
+        if (measured === null) {
+            throw new RenderAbort(
+                "RENDER_INTERNAL",
+                "Base indent display width could not be represented"
+            );
+        }
+        baseIndent = baseIndentLeaf.raw;
+        baseColumns = measured.endColumn;
+    };
+
+    /** The column after `indentLevels` and `alignColumns` of indentation written from `column`. */
+    const indentEndColumn = (column: number, indentLevels: number, alignColumns: number): number => {
+        if (artifact.options.indentStyle !== "tab") {
+            return column + indentLevels * 4 + alignColumns;
+        }
+        const tabSize = environment.tabSize;
+        return (indentLevels === 0 ? column : (Math.floor(column / tabSize) + indentLevels) * tabSize) +
+            alignColumns;
+    };
+
     const emitLinePrefix = (
-        frame: Pick<DocFrame, "indentLevels" | "alignColumns">
+        frame: Pick<DocFrame, "indentLevels" | "alignColumns">,
+        base = baseIndent
     ): void => {
         if (!needsLinePrefix) {
             return;
         }
+        needsLinePrefix = false;
         const tab = artifact.options.indentStyle === "tab";
-        const totalColumns = frame.indentLevels * (tab ? environment.tabSize : 4) +
-            frame.alignColumns;
-        if (totalColumns === 0) {
-            needsLinePrefix = false;
+        const generated = tab
+            ? frame.indentLevels + frame.alignColumns
+            : frame.indentLevels * 4 + frame.alignColumns;
+        if (base.length + generated === 0) {
             return;
         }
-        assertOutputCapacity(tab ? frame.indentLevels + frame.alignColumns : totalColumns);
-        const raw = tab
+        assertOutputCapacity(base.length + generated);
+        const raw = base + (tab
             ? "\t".repeat(frame.indentLevels) + " ".repeat(frame.alignColumns)
-            : " ".repeat(totalColumns);
+            : " ".repeat(generated));
+        const start = displayColumn + (base === "" ? 0 : baseColumns);
+        appendGenerated(
+            raw,
+            indentEndColumn(start, frame.indentLevels, frame.alignColumns) - displayColumn,
+            false
+        );
+    };
+
+    /**
+     * Blanks the source writes at the start of a line once the base indent applies. A blank line
+     * gets no base indent; a line whose blanks already start with it keeps them, so a second pass
+     * writes the same text (K3).
+     */
+    const appendLineStartBlanks = (
+        leafId: number,
+        raw: string,
+        span: SourceSpan,
+        frame: DocFrame
+    ): void => {
+        const next = artifact.analysis.leaves[leafId + 1];
+        if (next === undefined || next.kind === "newline") {
+            emitLinePrefix(frame, "");
+            appendSource(raw, span, frame);
+            return;
+        }
+        if (!raw.startsWith(baseIndent)) {
+            appendSource(raw, span, frame);
+            return;
+        }
+        const split = span.start + baseIndent.length;
         needsLinePrefix = false;
-        appendGenerated(raw, totalColumns, false);
+        appendSource(baseIndent, frozenSpan(span.start, split), frame);
+        needsLinePrefix = true;
+        emitLinePrefix(frame, "");
+        if (raw.length > baseIndent.length) {
+            appendSource(raw.slice(baseIndent.length), frozenSpan(split, span.end), frame);
+        }
     };
 
     const emitSpaces = (
@@ -403,6 +473,11 @@ function renderCanonical(
             );
         }
         beforeSource(raw);
+        startBaseIndent(leaf.span);
+        if (needsLinePrefix && baseIndent !== "" && leaf.kind === "whitespace") {
+            appendLineStartBlanks(doc.leafId, raw, leaf.span, frame);
+            return;
+        }
         appendSource(raw, leaf.span, frame);
     };
 
@@ -475,16 +550,17 @@ function renderCanonical(
                     // Pending comments are written before the hanging content, so the column is
                     // read after them; at a line start it is where the line prefix will end.
                     beforeSource("");
-                    const levelWidth =
-                        artifact.options.indentStyle === "tab" ? environment.tabSize : 4;
                     const column = needsLinePrefix
-                        ? frame.indentLevels * levelWidth + frame.alignColumns
+                        ? indentEndColumn(baseColumns, frame.indentLevels, frame.alignColumns)
                         : displayColumn;
                     stack.push({
                         doc: doc.content,
                         mode: frame.mode,
                         indentLevels: frame.indentLevels,
-                        alignColumns: Math.max(0, column - frame.indentLevels * levelWidth),
+                        alignColumns: Math.max(
+                            0,
+                            column - indentEndColumn(baseColumns, frame.indentLevels, 0)
+                        ),
                     });
                     break;
                 }

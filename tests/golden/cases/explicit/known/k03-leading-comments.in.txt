@@ -1,0 +1,4 @@
+-- c1
+-- c2
+  /* c3 */ select a, b
+  from t

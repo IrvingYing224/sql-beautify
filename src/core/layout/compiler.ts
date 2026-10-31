@@ -240,7 +240,7 @@ export function compileLayoutPlan(plan: LayoutPlan): LayoutCompileResult {
         }
         return Object.freeze({
             ok: true,
-            artifact: createLayoutArtifact(plan.analysis, root, plan.options),
+            artifact: createLayoutArtifact(plan.analysis, root, plan.options, plan.baseIndentLeafId),
         });
     } catch {
         return failure(

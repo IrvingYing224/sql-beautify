@@ -9,6 +9,7 @@ import { createLayoutPlanBuilder } from "./plan";
 import { applyExpressionLayout } from "./expression-policy";
 import { applyKeywordCaseLayout } from "./keyword-policy";
 import { createQueryLayoutContext } from "./query-layout-context";
+import type { QueryPolicyState } from "./query-layout-context";
 import { applyQueryLayout } from "./query-policy";
 import { applyTriviaLayout } from "./trivia-policy";
 import { dominatingVerbatimClaims } from "./verbatim-claims";
@@ -24,14 +25,14 @@ function failure(message: string): LayoutPlanFailure {
 /**
  * Commits a complete policy result atomically. A policy that stops after
  * registering only part of its actions must never expose that partial plan;
- * `commaFallback` is null when the policy stopped.
+ * `state` is null when the policy stopped.
  */
 export function finalizeLayoutPolicyApplication(
     builder: LayoutPlanBuilder,
-    commaFallback: boolean | null
+    state: QueryPolicyState | null
 ): LayoutPlanResult {
-    if (commaFallback !== null) {
-        return builder.finish(commaFallback);
+    if (state !== null) {
+        return builder.finish(state.commaFallback, state.baseIndentLeafId);
     }
     const partial = builder.finish();
     return partial.ok
@@ -68,7 +69,7 @@ export function buildLayoutPlan(
             applyKeywordCaseLayout(context);
         return finalizeLayoutPolicyApplication(
             builder,
-            complete ? context.state.commaFallback : null
+            complete ? context.state : null
         );
     } catch {
         return failure("Layout policy inspection failed");

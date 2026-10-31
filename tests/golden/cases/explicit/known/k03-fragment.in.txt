@@ -1,0 +1,3 @@
+-- golden: {"mode":"fragment"}
+      select a, b
+      from t;

@@ -153,6 +153,16 @@ test('R1 R4 R5: clause, list and statement fragments, end to end', function() {
     }
 });
 
+test('K3: a selected indented statement keeps its indentation on every line', function() {
+    var source = 'select 1;\n    select a, b\n    from t;\nselect 2;\n';
+    var text = '    SELECT\n          a\n        , b\n    FROM t;\n';
+    var result = format(source, [fragment('x', 10, 38)], { selections: [{ targetId: 'x', anchor: 22, active: 22 }] });
+    assert.deepStrictEqual(edits(result), [['x', 10, 38, text]]);
+    assert.deepStrictEqual(result.selections, [{ anchor: 32, active: 32 }]);
+    var formatted = source.slice(0, 10) + text + source.slice(38);
+    assert.strictEqual(format(formatted, [fragment('x', 10, 10 + text.length)]).status, 'unchanged');
+});
+
 test('R2-R7: range codes', function() {
     var cases = [
         [S, 1, 18, 'ADAPTER_RANGE_LINE'],

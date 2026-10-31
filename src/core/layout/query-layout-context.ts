@@ -12,6 +12,8 @@ export interface QueryPolicyState {
     hasIndentationScope: boolean;
     /** Whether trailing comma style fell back to a leading comma (LAYOUT_COMMA_FALLBACK). */
     commaFallback: boolean;
+    /** The whitespace leaf that starts the line of the first statement (K3). */
+    baseIndentLeafId: number | null;
 }
 
 export interface LayoutAnalysisView {
@@ -162,7 +164,7 @@ export function createQueryLayoutContext(
         scopeDeltas: new Int32Array(leaves.length + 1),
         commentPrefix: prefixes.commentPrefix,
         verbatimPrefix: prefixes.verbatimPrefix,
-        state: { hasIndentationScope: false, commaFallback: false },
+        state: { hasIndentationScope: false, commaFallback: false, baseIndentLeafId: null },
     });
 }
 
