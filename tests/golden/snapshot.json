@@ -3359,6 +3359,11 @@
   "status": "formatted",
   "codes": []
  },
+ "explicit/known/k37-parenthesized-insert-query": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": []
+ },
  "explicit/known/k38-set-comment": {
   "op": "formatSql",
   "status": "formatted",

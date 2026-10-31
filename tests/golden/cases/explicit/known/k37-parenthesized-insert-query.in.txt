@@ -1,0 +1,5 @@
+insert into t (select 1);
+insert into t partition (ds=1) (select 1);
+insert overwrite table t (select a from s) union all (select b from u);
+insert into t (c1, c2) (select a, b from s);
+insert into t (c1, c2) select a, b from s

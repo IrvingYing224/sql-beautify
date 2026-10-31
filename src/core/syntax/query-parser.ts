@@ -1906,9 +1906,11 @@ export function parseInsertQueryRange(
             partitionStart = index;
             continue;
         }
+        // The query may be parenthesized, as Hive's atomSelectStatement allows (K37); a column
+        // list or PARTITION spec in parentheses does not start with SELECT or WITH.
         if (
             !isQualifiedNamePart &&
-            (isCodeWord(context, index, "select") || isCodeWord(context, index, "with"))
+            isQueryLeadingRange(context, { start: index, end: range.end })
         ) {
             selectStart = index;
             break;

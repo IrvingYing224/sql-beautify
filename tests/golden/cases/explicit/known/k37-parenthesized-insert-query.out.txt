@@ -1,0 +1,33 @@
+INSERT INTO t
+(
+    SELECT 1
+);
+INSERT INTO t
+PARTITION (ds = 1)
+(
+    SELECT 1
+);
+INSERT OVERWRITE TABLE t
+(
+    SELECT
+          a
+    FROM s
+)
+UNION ALL
+(
+    SELECT
+          b
+    FROM u
+);
+INSERT INTO t (c1, c2)
+(
+    SELECT
+          a
+        , b
+    FROM s
+);
+INSERT INTO t (c1, c2)
+SELECT
+      a
+    , b
+FROM s
