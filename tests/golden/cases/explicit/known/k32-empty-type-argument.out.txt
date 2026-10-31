@@ -1,0 +1,6 @@
+SELECT
+      CAST(x AS DECIMAL(, 2)) AS a
+    , CAST(y AS DECIMAL(1, )) AS b
+    , CAST(z AS DECIMAL(1,,2)) AS c
+    , CAST(w AS DECIMAL(10, 2)) AS d
+FROM t

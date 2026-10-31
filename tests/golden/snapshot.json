@@ -3330,6 +3330,15 @@
    "SYN_UNEXPECTED_TOKEN"
   ]
  },
+ "explicit/known/k32-empty-type-argument": {
+  "op": "formatSql",
+  "status": "formatted",
+  "codes": [
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN",
+   "SYN_UNEXPECTED_TOKEN"
+  ]
+ },
  "explicit/known/k33-bracket-lists": {
   "op": "formatSql",
   "status": "formatted",

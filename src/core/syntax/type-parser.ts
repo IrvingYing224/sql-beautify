@@ -305,6 +305,7 @@ class TypeParser {
             if (this.tokens[position]!.raw !== ",") {
                 continue;
             }
+            this.requireTypeArgument(itemStart, position);
             const itemRange = rangeFromTokens(this.tokens, itemStart, position);
             const value = createScalarArgument(this.context, itemRange);
             items.push(
@@ -319,6 +320,7 @@ class TypeParser {
             separators.push(this.tokens[position]!.leafIndex);
             itemStart = position + 1;
         }
+        this.requireTypeArgument(itemStart, closePosition);
         const lastRange = rangeFromTokens(this.tokens, itemStart, closePosition);
         const lastValue = createScalarArgument(this.context, lastRange);
         items.push(
@@ -348,6 +350,18 @@ class TypeParser {
             ),
             next: closePosition + 1,
         });
+    }
+
+    /** `DECIMAL(, 2)` and `DECIMAL(1, )` are syntax errors, not empty ranges (K32). */
+    private requireTypeArgument(start: number, end: number): void {
+        if (start === end) {
+            const leafIndex = this.tokens[end]!.leafIndex;
+            throw new ParserSyntaxError(
+                "SYN_UNEXPECTED_TOKEN",
+                { start: leafIndex, end: leafIndex + 1 },
+                "Type argument must not be empty"
+            );
+        }
     }
 
     private parseAngleArguments(
